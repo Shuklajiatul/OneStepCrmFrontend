@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Check, ChevronsUpDown, Search, AlertCircle, Info, X } from "lucide-react"
 import { fetchCountries, fetchStates, fetchCities, fetchPhoneCountries } from "@/lib/constants/location-api"
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { Database } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
@@ -1048,8 +1048,8 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
             placeholder={nestedField.placeholder}
-            minLength={validation?.minLength}
-            maxLength={validation?.maxLength}
+            minLength={nestedField.validation?.minLength}
+            maxLength={nestedField.validation?.maxLength}
             className={`pr-8 ${invalid ? "border-red-500" : ""}`}
           />
           {value && !disabled && (
@@ -1073,8 +1073,8 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
             placeholder={nestedField.placeholder}
-            min={validation?.min}
-            max={validation?.max}
+            min={nestedField.validation?.min}
+            max={nestedField.validation?.max}
             className={`pr-8 ${invalid ? "border-red-500" : ""}`}
           />
           {value && !disabled && (
@@ -1097,8 +1097,8 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
             placeholder={nestedField.placeholder}
-            minLength={validation?.minLength}
-            maxLength={validation?.maxLength}
+            minLength={nestedField.validation?.minLength}
+            maxLength={nestedField.validation?.maxLength}
             className={`pr-8 ${invalid ? "border-red-500" : ""}`}
           />
           {value && !disabled && (
@@ -1114,7 +1114,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
         </div>
       )
     case "select":
-      if (validation?.multiple) {
+      if (nestedField.validation?.multiple) {
         const selectedValues = Array.isArray(value?.value) ? value.value : []
         const currentNestedFields = value?.nestedFields || {}
 
@@ -1423,8 +1423,8 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
         }
 
         // File type validation
-        if (validation?.accept) {
-          const acceptedTypes = validation.accept.split(",").map((type) => type.trim())
+        if (nestedField.validation?.accept) {
+          const acceptedTypes = nestedField.validation.accept.split(",").map((type) => type.trim())
           const fileName = file.name || ""
           const fileType = file.type || ""
 
@@ -1440,7 +1440,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
           })
 
           if (!isAccepted) {
-            alert(`File type not allowed. Accepted types: ${validation.accept}`)
+            alert(`File type not allowed. Accepted types: ${nestedField.validation.accept}`)
             e.target.value = ''
             onChange(null)
             return
@@ -1448,10 +1448,10 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
         }
 
         // File size validation
-        if (validation?.maxSize) {
-          const maxSizeBytes = validation.maxSize * 1024 * 1024 // Convert MB to bytes
+        if (nestedField.validation?.maxSize) {
+          const maxSizeBytes = nestedField.validation.maxSize * 1024 * 1024 // Convert MB to bytes
           if (file.size > maxSizeBytes) {
-            alert(`File size must be less than ${validation.maxSize}MB.`)
+            alert(`File size must be less than ${nestedField.validation.maxSize}MB.`)
             e.target.value = ''
             onChange(null)
             return
@@ -1493,7 +1493,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
             disabled={disabled}
             className={`bg-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 ${invalid ? "border-red-500" : ""
               }`}
-            accept={validation?.accept || ".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf"}
+            accept={nestedField.validation?.accept || ".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf"}
           />
           {value && value.name && (
             <div className="p-3 border border-green-200 bg-green-50 rounded-md">

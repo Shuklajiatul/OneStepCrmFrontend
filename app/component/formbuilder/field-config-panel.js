@@ -660,9 +660,21 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                     <div key={`option-${optionIndex}`} className="space-y-2 w-full min-w-0">
                       <div className="flex items-center gap-2 min-w-0">
                         <Input
-                          value={option}
-                          onChange={(e) => updateOption(optionIndex, e.target.value)}
-                          onBlur={(e) => updateOptionOnBlur(optionIndex, e.target.value)}
+                          value={typeof option === 'string' ? option : option?.label || option?.value || ''}
+                          onChange={(e) => {
+                            const newValue = e.target.value
+                            
+                            // If option is an object, update both value and label
+                            if (typeof option === 'object' && option !== null) {
+                              updateOption(optionIndex, {
+                                value: newValue,
+                                label: newValue,
+                                nestedFields: option.nestedFields || []
+                              })
+                            } else {
+                              updateOption(optionIndex, newValue)
+                            }
+                          }}
                           placeholder={`Option ${optionIndex + 1}`}
                           className="h-7 text-xs flex-1 min-w-0"
                         />
@@ -1254,10 +1266,22 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                             {index + 1}
                           </div>
                           <Input
-                            value={option}
+                            value={typeof option === 'string' ? option : option?.label || option?.value || ''}
                             onChange={(e) => {
                               const newOptions = [...(field.options || [])]
-                              newOptions[index] = e.target.value
+                              const newValue = e.target.value
+                              
+                              // If option is an object, update both value and label
+                              if (typeof option === 'object' && option !== null) {
+                                newOptions[index] = {
+                                  value: newValue,
+                                  label: newValue,
+                                  nestedFields: option.nestedFields || []
+                                }
+                              } else {
+                                newOptions[index] = newValue
+                              }
+                              
                               onUpdateField(field.id, { options: newOptions })
                             }}
                             className="bg-input flex-1 min-w-0"
