@@ -1065,27 +1065,46 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
         </div>
       )
     case "number":
+      // Check if value is outside min/max range
+      const numValue = parseFloat(value)
+      const isOutOfRange = value && !isNaN(numValue) && (
+        (validation?.min !== undefined && numValue < validation.min) ||
+        (validation?.max !== undefined && numValue > validation.max)
+      )
+      
       return (
-        <div className="relative">
-          <Input
-            type="number"
-            value={value || ""}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={disabled}
-            placeholder={nestedField.placeholder}
-            min={nestedField.validation?.min}
-            max={nestedField.validation?.max}
-            className={`pr-8 ${invalid ? "border-red-500" : ""}`}
-          />
-          {value && !disabled && (
-            <button
-              type="button"
-              onClick={() => onChange("")}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-              aria-label="Clear input"
-            >
-              <X className="h-4 w-4" />
-            </button>
+        <div className="space-y-1">
+          <div className="relative">
+            <Input
+              type="number"
+              value={value || ""}
+              onChange={(e) => onChange(e.target.value)}
+              disabled={disabled}
+              placeholder={nestedField.placeholder}
+              min={validation?.min}
+              max={validation?.max}
+              className={`pr-8 ${invalid || isOutOfRange ? "border-red-500 text-red-500 placeholder-red-500 focus-visible:ring-red-500" : ""}`}
+            />
+            {value && !disabled && (
+              <button
+                type="button"
+                onClick={() => onChange("")}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Clear input"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          {isOutOfRange && (
+            <p className="text-xs text-red-500">
+              {validation?.min !== undefined && validation?.max !== undefined 
+                ? `Value must be between ${validation.min} and ${validation.max}`
+                : validation?.min !== undefined 
+                  ? `Value must be at least ${validation.min}`
+                  : `Value must be at most ${validation.max}`
+              }
+            </p>
           )}
         </div>
       )
@@ -1413,180 +1432,248 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
           )}
         </div>
       )
-    case "file":
-      const handleFileChange = async (e) => {
-        const file = e.target.files?.[0] || null
-
-        if (!file) {
-          onChange(null)
-          return
-        }
-
-        // File type validation
-        if (nestedField.validation?.accept) {
-          const acceptedTypes = nestedField.validation.accept.split(",").map((type) => type.trim())
-          const fileName = file.name || ""
-          const fileType = file.type || ""
-
-          const isAccepted = acceptedTypes.some((acceptType) => {
-            if (acceptType.startsWith(".")) {
-              return fileName.toLowerCase().endsWith(acceptType.toLowerCase())
-            } else if (acceptType.includes("*")) {
-              const baseType = acceptType.split("/")[0]
-              return fileType.startsWith(baseType + "/")
-            } else {
-              return fileType === acceptType
+      case "file":
+        const handleFileChange = async (e) => {
+          const file = e.target.files?.[0] || null
+      
+          if (!file) {
+            onChange(null)
+            return
+          }
+      
+          // File type validation based on field configuration - SAME LOGIC AS MAIN FIELD
+          const fileType = validation?.fileType || "both"
+          
+          let allowedTypes = []
+          let allowedExtensions = []
+          let errorMessage = ""
+          
+          if (fileType === "images") {
+            // Image-only field
+            allowedTypes = [
+              'image/jpeg',
+              'image/jpg', 
+              'image/png',
+              'image/gif',
+              'image/webp',
+              'image/svg+xml'
+            ]
+            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+            errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG)'
+          } else if (fileType === "pdf") {
+            // PDF-only field
+            allowedTypes = ['application/pdf']
+            allowedExtensions = ['.pdf']
+            errorMessage = 'Please select only PDF files'
+          } else {
+            // Default: allow both images and PDFs
+            allowedTypes = [
+              'image/jpeg',
+              'image/jpg',
+              'image/png',
+              'image/gif',
+              'image/webp',
+              'image/svg+xml',
+              'application/pdf'
+            ]
+            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+            errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files'
+          }
+      
+          // Check both MIME type and file extension
+          const isValidType = allowedTypes.includes(file.type) ||
+            allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+      
+          if (!isValidType) {
+            alert(errorMessage)
+            e.target.value = ''
+            onChange(null)
+            return
+          }
+      
+          // File size validation - SAME LOGIC AS MAIN FIELD
+          if (validation?.maxSize) {
+            const maxSizeBytes = validation.maxSize * 1024 * 1024 // Convert MB to bytes
+            if (file.size > maxSizeBytes) {
+              alert(`File size must be less than ${validation.maxSize}MB.`)
+              e.target.value = ''
+              onChange(null)
+              return
             }
+          } else {
+            // Default file size validation (5MB) - SAME AS MAIN FIELD
+            const maxSizeBytes = 5 * 1024 * 1024 // 5MB in bytes
+            if (file.size > maxSizeBytes) {
+              alert('File size must be less than 5MB.')
+              e.target.value = ''
+              onChange(null)
+              return
+            }
+          }
+      
+          try {
+            const base64 = await fileToBase64(file)
+            const fileData = {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              lastModified: file.lastModified,
+              base64: base64
+            }
+            onChange(fileData)
+          } catch (error) {
+            console.error('Error converting file to base64:', error)
+            alert('Error processing file. Please try again.')
+            e.target.value = ''
+            onChange(null)
+          }
+        }
+      
+        const fileToBase64 = (file) => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader()
+            reader.readAsDataURL(file)
+            reader.onload = () => resolve(reader.result)
+            reader.onerror = error => reject(error)
           })
-
-          if (!isAccepted) {
-            alert(`File type not allowed. Accepted types: ${nestedField.validation.accept}`)
-            e.target.value = ''
-            onChange(null)
-            return
+        }
+      
+        // Get accepted file types for input - SAME LOGIC AS MAIN FIELD
+        const getAcceptedTypes = () => {
+          const fileType = validation?.fileType || "both"
+          
+          if (fileType === "images") {
+            return ".jpg,.jpeg,.png,.gif,.webp,.svg"
+          } else if (fileType === "pdf") {
+            return ".pdf"
+          } else {
+            return ".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf"
           }
         }
-
-        // File size validation
-        if (nestedField.validation?.maxSize) {
-          const maxSizeBytes = nestedField.validation.maxSize * 1024 * 1024 // Convert MB to bytes
-          if (file.size > maxSizeBytes) {
-            alert(`File size must be less than ${nestedField.validation.maxSize}MB.`)
-            e.target.value = ''
-            onChange(null)
-            return
-          }
-        }
-
-        try {
-          const base64 = await fileToBase64(file)
-          const fileData = {
-            name: file.name,
-            type: file.type,
-            size: file.size,
-            lastModified: file.lastModified,
-            base64: base64
-          }
-          onChange(fileData)
-        } catch (error) {
-          console.error('Error converting file to base64:', error)
-          alert('Error processing file. Please try again.')
-          e.target.value = ''
-          onChange(null)
-        }
-      }
-
-      const fileToBase64 = (file) => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader()
-          reader.readAsDataURL(file)
-          reader.onload = () => resolve(reader.result)
-          reader.onerror = error => reject(error)
-        })
-      }
-
-      return (
-        <div className="space-y-2">
-          <Input
-            type="file"
-            onChange={handleFileChange}
-            disabled={disabled}
-            className={`bg-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 ${invalid ? "border-red-500" : ""
-              }`}
-            accept={nestedField.validation?.accept || ".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf"}
-          />
-          {value && value.name && (
-            <div className="p-3 border border-green-200 bg-green-50 rounded-md">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className={`w-8 h-8 flex items-center justify-center rounded ${value.type === 'application/pdf' || value.name.toLowerCase().endsWith('.pdf')
-                    ? 'bg-red-100 text-red-600'
-                    : 'bg-blue-100 text-blue-600'
-                    }`}>
-                    {value.type === 'application/pdf' || value.name.toLowerCase().endsWith('.pdf') ? (
-                      <span className="text-xs font-bold">PDF</span>
-                    ) : (
-                      <span className="text-xs">IMG</span>
+      
+        return (
+          <div className="space-y-2">
+            <Input
+              type="file"
+              onChange={handleFileChange}
+              disabled={disabled}
+              className={`bg-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 ${invalid ? "border-red-500" : ""
+                }`}
+              accept={getAcceptedTypes()} // Use the same accept logic
+            />
+            
+            {/* File info display - SAME AS MAIN FIELD */}
+            {value && value.name && (
+              <div className="p-3 border border-green-200 bg-green-50 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-8 h-8 flex items-center justify-center rounded ${value.type === 'application/pdf' || value.name.toLowerCase().endsWith('.pdf')
+                      ? 'bg-red-100 text-red-600'
+                      : 'bg-blue-100 text-blue-600'
+                      }`}>
+                      {value.type === 'application/pdf' || value.name.toLowerCase().endsWith('.pdf') ? (
+                        <span className="text-xs font-bold">PDF</span>
+                      ) : (
+                        <span className="text-xs">IMG</span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                        {value.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {formatFileSize(value.size || 0)} • {value.type || 'Unknown type'}
+                      </p>
+                      <p className="text-xs text-green-600">
+                        ✓ Ready to upload ({formatFileSize(value.base64?.length || 0)} as base64)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {/* Preview button for images and PDFs */}
+                    {(value.type?.includes('image/') || value.type === 'application/pdf') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (value.base64) {
+                            const newWindow = window.open()
+                            if (value.type.includes('image/')) {
+                              newWindow.document.write(`
+                                <html>
+                                  <head><title>${value.name}</title></head>
+                                  <body style="margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f5f5;">
+                                    <img src="${value.base64}" style="max-width: 90vw; max-height: 90vh; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" />
+                                  </body>
+                                </html>
+                              `)
+                            } else if (value.type === 'application/pdf') {
+                              newWindow.document.write(`
+                                <html>
+                                  <head><title>${value.name}</title></head>
+                                  <body style="margin: 0;">
+                                    <embed src="${value.base64}" type="application/pdf" width="100%" height="100%" style="min-height: 100vh;" />
+                                  </body>
+                                </html>
+                              `)
+                            }
+                          }
+                        }}
+                        className="px-3 py-1 text-sm text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md border border-transparent hover:border-green-200 transition-colors"
+                      >
+                        Preview
+                      </button>
                     )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                      {value.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {formatFileSize(value.size || 0)} • {value.type || 'Unknown type'}
-                    </p>
-                    <p className="text-xs text-green-600">
-                      ✓ Ready to upload ({formatFileSize(value.base64?.length || 0)} as base64)
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {/* Preview button for images and PDFs */}
-                  {(value.type?.includes('image/') || value.type === 'application/pdf') && (
                     <button
                       type="button"
                       onClick={() => {
-                        if (value.base64) {
-                          const newWindow = window.open()
-                          if (value.type.includes('image/')) {
-                            newWindow.document.write(`
-                              <html>
-                                <head><title>${value.name}</title></head>
-                                <body style="margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f5f5;">
-                                  <img src="${value.base64}" style="max-width: 90vw; max-height: 90vh; box-shadow: 0 4px 6px rgba(0,0,0,0.1);" />
-                                </body>
-                              </html>
-                            `)
-                          } else if (value.type === 'application/pdf') {
-                            newWindow.document.write(`
-                              <html>
-                                <head><title>${value.name}</title></head>
-                                <body style="margin: 0;">
-                                  <embed src="${value.base64}" type="application/pdf" width="100%" height="100%" style="min-height: 100vh;" />
-                                </body>
-                              </html>
-                            `)
-                          }
-                        }
+                        onChange(null)
+                        const fileInput = document.querySelector('input[type="file"]')
+                        if (fileInput) fileInput.value = ''
                       }}
-                      className="px-3 py-1 text-sm text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md border border-transparent hover:border-green-200 transition-colors"
+                      className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md border border-transparent hover:border-red-200 transition-colors"
                     >
-                      Preview
+                      Remove
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onChange(null)
-                      const fileInput = document.querySelector('input[type="file"]')
-                      if (fileInput) fileInput.value = ''
-                    }}
-                    className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md border border-transparent hover:border-red-200 transition-colors"
-                  >
-                    Remove
-                  </button>
+                  </div>
                 </div>
+      
+                {/* Image preview for image files */}
+                {isImageFile(value) && value.base64 && (
+                  <div className="mt-2">
+                    <img
+                      src={value.base64}
+                      alt="Preview"
+                      className="max-h-32 max-w-full rounded border"
+                      onError={(e) => {
+                        console.error('Error loading image preview')
+                        e.target.style.display = 'none'
+                      }}
+                    />
+                  </div>
+                )}
               </div>
-
-              {/* Image preview for image files */}
-              {value.type?.includes('image/') && value.base64 && (
-                <div className="mt-2">
-                  <img
-                    src={value.base64}
-                    alt="Preview"
-                    className="max-h-32 max-w-full rounded border"
-                    onError={(e) => {
-                      console.error('Error loading image preview')
-                      e.target.style.display = 'none'
-                    }}
-                  />
-                </div>
-              )}
+            )}
+            
+            {/* Help text - SAME AS MAIN FIELD */}
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>
+                {validation?.fileType === "images" 
+                  ? "Allowed formats: JPEG, PNG, GIF, WebP, SVG (Images only)"
+                  : validation?.fileType === "pdf" 
+                    ? "Allowed formats: PDF only"
+                    : "Allowed formats: JPEG, PNG, GIF, WebP, SVG, PDF"
+                }
+              </p>
+              <p>
+                {validation?.maxSize 
+                  ? `Maximum file size: ${validation.maxSize}MB`
+                  : "Maximum file size: 5MB"
+                }
+              </p>
+              <p className="text-blue-600">Files will be converted to base64 format</p>
             </div>
-          )}
-        </div>
-      )
+          </div>
+        )
     case "datetime":
       return (
         <Input
@@ -1819,6 +1906,30 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
   const [cityOpen, setCityOpen] = useState(false)
   const [phoneCountryOpen, setPhoneCountryOpen] = useState(false)
 
+  // Parse validation for main fields - handle both object and string formats
+  let fieldValidation = {}
+  if (field.validations) {
+    if (typeof field.validations === 'string') {
+      try {
+        fieldValidation = JSON.parse(field.validations)
+      } catch (e) {
+        console.warn('Failed to parse field validations as JSON:', field.validations)
+      }
+    } else if (typeof field.validations === 'object') {
+      fieldValidation = field.validations
+    }
+  } else if (field.validation) {
+    if (typeof field.validation === 'string') {
+      try {
+        fieldValidation = JSON.parse(field.validation)
+      } catch (e) {
+        console.warn('Failed to parse field validation as JSON:', field.validation)
+      }
+    } else if (typeof field.validation === 'object') {
+      fieldValidation = field.validation
+    }
+  }
+
   // Fetch countries on component mount
   useEffect(() => {
     const loadCountries = async () => {
@@ -1871,8 +1982,8 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         }
         
         // Check if this country is allowed (for location fields with restrictions)
-        if (field.type === 'location' && field.validation?.allowedCountries?.length > 0) {
-          if (!field.validation.allowedCountries.includes(selectedCountry.name)) {
+        if (field.type === 'location' && fieldValidation?.allowedCountries?.length > 0) {
+          if (!fieldValidation.allowedCountries.includes(selectedCountry.name)) {
             setStates([])
             setCities([])
             setApiError('Selected country is not allowed')
@@ -1903,7 +2014,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
       }
     }
     loadStates()
-  }, [value?.country, field.validation?.allowedCountries, countries.length])
+  }, [value?.country, fieldValidation?.allowedCountries, countries.length])
 
   // Fetch cities when state changes or when states are loaded with existing state value (edit mode)
   useEffect(() => {
@@ -1922,8 +2033,8 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         }
         
         // Check if this state is allowed (for location fields with restrictions)
-        if (field.type === 'location' && field.validation?.allowedStates && selectedCountry) {
-          if (!field.validation.allowedStates[selectedCountry.name]?.includes(selectedState.name)) {
+        if (field.type === 'location' && fieldValidation?.allowedStates && selectedCountry) {
+          if (!fieldValidation.allowedStates[selectedCountry.name]?.includes(selectedState.name)) {
             setCities([])
             setApiError('Selected state is not allowed')
             return
@@ -1952,13 +2063,13 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
       }
     }
     loadCities()
-  }, [value?.state, field.validation?.allowedStates, states.length])
+  }, [value?.state, fieldValidation?.allowedStates, states.length])
 
   // Filter functions for search and field validation
   const filteredCountries = countries.filter(country => {
     // Apply field validation restrictions if they exist
-    if (field.type === 'location' && field.validation?.allowedCountries?.length > 0) {
-      if (!field.validation.allowedCountries.includes(country.name)) {
+    if (field.type === 'location' && fieldValidation?.allowedCountries?.length > 0) {
+      if (!fieldValidation.allowedCountries.includes(country.name)) {
         return false
       }
     }
@@ -1970,10 +2081,10 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
 
   const filteredStates = states.filter(state => {
     // Apply field validation restrictions if they exist
-    if (field.type === 'location' && field.validation?.allowedStates && value?.country) {
+    if (field.type === 'location' && fieldValidation?.allowedStates && value?.country) {
       const selectedCountry = countries.find(c => c.id === parseInt(value.country))
-      if (selectedCountry && field.validation.allowedStates[selectedCountry.name]) {
-        if (!field.validation.allowedStates[selectedCountry.name].includes(state.name)) {
+      if (selectedCountry && fieldValidation.allowedStates[selectedCountry.name]) {
+        if (!fieldValidation.allowedStates[selectedCountry.name].includes(state.name)) {
           return false
         }
       }
@@ -1985,10 +2096,10 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
 
   const filteredCities = cities.filter(city => {
     // Apply field validation restrictions if they exist
-    if (field.type === 'location' && field.validation?.allowedCities && value?.state) {
+    if (field.type === 'location' && fieldValidation?.allowedCities && value?.state) {
       const selectedState = states.find(s => s.id === parseInt(value.state))
-      if (selectedState && field.validation.allowedCities[selectedState.name]) {
-        if (!field.validation.allowedCities[selectedState.name].includes(city.name)) {
+      if (selectedState && fieldValidation.allowedCities[selectedState.name]) {
+        if (!fieldValidation.allowedCities[selectedState.name].includes(city.name)) {
           return false
         }
       }
@@ -2121,27 +2232,46 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         )
 
       case "number":
+        // Check if value is outside min/max range
+        const numValue = parseFloat(value)
+        const isOutOfRange = value && !isNaN(numValue) && (
+          (fieldValidation?.min !== undefined && numValue < fieldValidation.min) ||
+          (fieldValidation?.max !== undefined && numValue > fieldValidation.max)
+        )
+        
         return (
-          <div className="relative">
-            <Input
-              type="number"
-              placeholder={placeholder}
-              value={value || ""}
-              onChange={(e) => onChange?.(e.target.value)}
-              disabled={disabled}
-              min={field.validation?.min}
-              max={field.validation?.max}
-              className={`bg-input pr-8 ${invalid ? "border-red-500 text-red-500 placeholder-red-500 focus-visible:ring-red-500" : ""}`}
-            />
-            {value && !disabled && (
-              <button
-                type="button"
-                onClick={() => onChange?.("")}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="Clear input"
-              >
-                <X className="h-4 w-4" />
-              </button>
+          <div className="space-y-1">
+            <div className="relative">
+              <Input
+                type="number"
+                placeholder={placeholder}
+                value={value || ""}
+                onChange={(e) => onChange?.(e.target.value)}
+                disabled={disabled}
+                min={fieldValidation?.min}
+                max={fieldValidation?.max}
+                className={`bg-input pr-8 ${invalid || isOutOfRange ? "border-red-500 text-red-500 placeholder-red-500 focus-visible:ring-red-500" : ""}`}
+              />
+              {value && !disabled && (
+                <button
+                  type="button"
+                  onClick={() => onChange?.("")}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="Clear input"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {isOutOfRange && (
+              <p className="text-xs text-red-500">
+                {fieldValidation?.min !== undefined && fieldValidation?.max !== undefined 
+                  ? `Value must be between ${fieldValidation.min} and ${fieldValidation.max}`
+                  : fieldValidation?.min !== undefined 
+                    ? `Value must be at least ${fieldValidation.min}`
+                    : `Value must be at most ${fieldValidation.max}`
+                }
+              </p>
             )}
           </div>
         )
@@ -2170,7 +2300,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         )
 
       case "select":
-        if (field.validation?.multiple) {
+        if (fieldValidation?.multiple) {
           const selectedValues = Array.isArray(value?.value) ? value?.value : []
 
           return (
@@ -2510,7 +2640,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
           }
 
           // File type validation based on field configuration
-          const fileType = field.validation?.fileType || "both"
+          const fileType = fieldValidation?.fileType || "both"
           
           let allowedTypes = []
           let allowedExtensions = []
@@ -2559,13 +2689,24 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
             return
           }
 
-          // Validate file size (5MB = 5 * 1024 * 1024 bytes)
-          const maxSize = 5 * 1024 * 1024 // 5MB in bytes
-          if (file.size > maxSize) {
-            toast.error('File size must be less than 5MB.')
-            e.target.value = ''
-            onChange?.(null)
-            return
+          // File size validation
+          if (fieldValidation?.maxSize) {
+            const maxSizeBytes = fieldValidation.maxSize * 1024 * 1024 // Convert MB to bytes
+            if (file.size > maxSizeBytes) {
+              toast.error(`File size must be less than ${fieldValidation.maxSize}MB.`)
+              e.target.value = ''
+              onChange?.(null)
+              return
+            }
+          } else {
+            // Default file size validation (5MB)
+            const maxSizeBytes = 5 * 1024 * 1024 // 5MB in bytes
+            if (file.size > maxSizeBytes) {
+              toast.error('File size must be less than 5MB.')
+              e.target.value = ''
+              onChange?.(null)
+              return
+            }
           }
 
           try {
@@ -2604,7 +2745,15 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
 
         // Get accepted file types for input
         const getAcceptedTypes = () => {
-          return ".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf"
+          const fileType = fieldValidation?.fileType || "both"
+          
+          if (fileType === "images") {
+            return ".jpg,.jpeg,.png,.gif,.webp,.svg"
+          } else if (fileType === "pdf") {
+            return ".pdf"
+          } else {
+            return ".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf"
+          }
         }
 
 
@@ -2787,8 +2936,20 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
 
             {/* Help text */}
             <div className="text-xs text-muted-foreground space-y-1">
-              <p>Allowed formats: JPEG, PNG, GIF, WebP, SVG, PDF</p>
-              <p>Maximum file size: 5MB</p>
+              <p>
+                {fieldValidation?.fileType === "images" 
+                  ? "Allowed formats: JPEG, PNG, GIF, WebP, SVG (Images only)"
+                  : fieldValidation?.fileType === "pdf" 
+                    ? "Allowed formats: PDF only"
+                    : "Allowed formats: JPEG, PNG, GIF, WebP, SVG, PDF"
+                }
+              </p>
+              <p>
+                {fieldValidation?.maxSize 
+                  ? `Maximum file size: ${fieldValidation.maxSize}MB`
+                  : "Maximum file size: 5MB"
+                }
+              </p>
               <p className="text-blue-600">Files will be converted to base64 format</p>
               {/* {field.validation?.multiple && (
                   <p>Multiple files allowed</p>
@@ -2813,8 +2974,8 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
             onChange={(e) => onChange?.(e.target.value)}
             disabled={disabled}
             className={`bg-input ${invalid ? "border-red-500 text-red-500 placeholder-red-500 focus-visible:ring-red-500" : ""}`}
-            min={field.validation?.min}
-            max={field.validation?.max}
+            min={fieldValidation?.min}
+            max={fieldValidation?.max}
           />
         )
 
@@ -2825,7 +2986,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         return (
           <LocationField 
             current={current}
-            validation={field.validation || {}}
+            validation={fieldValidation || {}}
             onChange={onChange}
             invalid={invalid}
             error={error}
@@ -2996,8 +3157,8 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         {field.required && <span className="text-red-500 ml-1 font-bold">*</span>}
       </Label>
       {renderField()}
-      {!invalid && field.validation?.pattern && (
-        <p className="text-xs text-muted-foreground">Pattern: {field.validation.pattern}</p>
+      {!invalid && fieldValidation?.pattern && (
+        <p className="text-xs text-muted-foreground">Pattern: {fieldValidation.pattern}</p>
       )}
     </div>
   )

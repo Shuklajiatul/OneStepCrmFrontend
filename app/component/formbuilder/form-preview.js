@@ -950,24 +950,53 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
     }
 
     // File type validation
-    if (nestedField.type === "file" && value && nestedField.validation?.accept) {
-      const acceptedTypes = nestedField.validation.accept.split(",").map((type) => type.trim())
+    if (nestedField.type === "file" && value) {
+      const fileType = nestedField.validation?.fileType || "both"
+      
+      let allowedTypes = []
+      let allowedExtensions = []
+      let errorMessage = ""
+      
+      if (fileType === "images") {
+        // Image-only field
+        allowedTypes = [
+          'image/jpeg',
+          'image/jpg', 
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'image/svg+xml'
+        ]
+        allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+        errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG)'
+      } else if (fileType === "pdf") {
+        // PDF-only field
+        allowedTypes = ['application/pdf']
+        allowedExtensions = ['.pdf']
+        errorMessage = 'Please select only PDF files'
+      } else {
+        // Default: allow both images and PDFs
+        allowedTypes = [
+          'image/jpeg',
+          'image/jpg',
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'image/svg+xml',
+          'application/pdf'
+        ]
+        allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+        errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files'
+      }
+
+      // Check both MIME type and file extension
       const fileName = value.name || ""
-      const fileType = value.type || ""
+      const fileMimeType = value.type || ""
+      const isValidType = allowedTypes.includes(fileMimeType) ||
+        allowedExtensions.some(ext => fileName.toLowerCase().endsWith(ext))
 
-      const isAccepted = acceptedTypes.some((acceptType) => {
-        if (acceptType.startsWith(".")) {
-          return fileName.toLowerCase().endsWith(acceptType.toLowerCase())
-        } else if (acceptType.includes("*")) {
-          const baseType = acceptType.split("/")[0]
-          return fileType.startsWith(baseType + "/")
-        } else {
-          return fileType === acceptType
-        }
-      })
-
-      if (!isAccepted) {
-        errors.push(`File type not allowed. Accepted types: ${nestedField.validation.accept}`)
+      if (!isValidType) {
+        errors.push(errorMessage)
       }
     }
 

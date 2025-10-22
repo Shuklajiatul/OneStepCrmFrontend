@@ -2049,7 +2049,7 @@ export default function PublicFormPage() {
               errors.push("Error processing file. Please try uploading again.")
             }
           }
-          break
+        break
       }
     }
 

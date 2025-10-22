@@ -767,6 +767,42 @@ export function FieldConfigPanel({ field, onUpdateField }) {
             </div>
           )}
 
+          {/* File Type Configuration for nested fields */}
+          {nestedField.type === "file" && (
+            <div className="space-y-3 pt-2 border-t border-border/50">
+              <Label className="text-xs font-medium text-muted-foreground">File Type</Label>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Allowed File Types</Label>
+                <Select
+                  value={nestedField.validation?.fileType || "both"}
+                  onValueChange={(value) =>
+                    handleFieldUpdate({
+                      validation: {
+                        ...nestedField.validation,
+                        fileType: value
+                      }
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="images">Images Only</SelectItem>
+                    <SelectItem value="pdf">PDF Only</SelectItem>
+                    <SelectItem value="both">Images & PDF</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {nestedField.validation?.fileType === "images" && "Accepts: JPEG, PNG, GIF, WebP, SVG"}
+                  {nestedField.validation?.fileType === "pdf" && "Accepts: PDF files only"}
+                  {nestedField.validation?.fileType === "both" && "Accepts: Images (JPEG, PNG, GIF, WebP, SVG) and PDF files"}
+                  {!nestedField.validation?.fileType && "Accepts: Images (JPEG, PNG, GIF, WebP, SVG) and PDF files"}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Location Configuration for nested fields */}
           {nestedField.type === "location" && (
             <div className="space-y-3 pt-2 border-t border-border/50">
