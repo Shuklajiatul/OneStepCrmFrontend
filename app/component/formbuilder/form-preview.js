@@ -1114,6 +1114,57 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
       }
     }
 
+    // File type validation based on field configuration (if no specific accept validation is set)
+    if (field.type === "file" && value && !field.validation?.accept) {
+      const fileType = field.validation?.fileType || "both"
+      
+      let allowedTypes = []
+      let allowedExtensions = []
+      let errorMessage = ""
+      
+      if (fileType === "images") {
+        // Image-only field
+        allowedTypes = [
+          'image/jpeg',
+          'image/jpg', 
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'image/svg+xml'
+        ]
+        allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+        errorMessage = "Please select only image files (JPEG, PNG, GIF, WebP, SVG)"
+      } else if (fileType === "pdf") {
+        // PDF-only field
+        allowedTypes = ['application/pdf']
+        allowedExtensions = ['.pdf']
+        errorMessage = "Please select only PDF files"
+      } else {
+        // Default: allow both images and PDFs
+        allowedTypes = [
+          'image/jpeg',
+          'image/jpg',
+          'image/png', 
+          'image/gif',
+          'image/webp',
+          'image/svg+xml',
+          'application/pdf'
+        ]
+        allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+        errorMessage = "Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files"
+      }
+
+      const fileName = value.name || ""
+      const fileTypeValue = value.type || ""
+      
+      const isValidType = allowedTypes.includes(fileTypeValue) ||
+        allowedExtensions.some(ext => fileName.toLowerCase().endsWith(ext))
+
+      if (!isValidType) {
+        errors.push(errorMessage)
+      }
+    }
+
     // Type-specific validation
     if (value && ((typeof value === "string" && value.trim() !== "") || field.type === "phone")) {
       switch (field.type) {

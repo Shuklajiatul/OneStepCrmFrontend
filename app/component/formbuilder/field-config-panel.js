@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, X, Copy, Trash2, Settings2, ChevronDown, ChevronRight, ChevronUp } from "lucide-react"
 import { useState, useEffect, useCallback, useRef, memo, Fragment, useMemo } from "react"
-// import { TableColumnSelector } from "./table-column-selector"
 import { TableColumnSelector } from "./table-column-selector"
 import { fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
 
@@ -34,10 +33,6 @@ const useDebouncedUpdate = (callback, delay = 3000) => {
 export function FieldConfigPanel({ field, onUpdateField }) {
   const [newOption, setNewOption] = useState("")
   const [expandedNestedFields, setExpandedNestedFields] = useState({})
-  
-  // Debug logging for nested fields
-  console.log('🔍 FieldConfigPanel received field:', field)
-  console.log('🔍 Field nestedFields:', field?.nestedFields)
   
   // Location configuration state
   const [countries, setCountries] = useState([])
@@ -359,19 +354,16 @@ export function FieldConfigPanel({ field, onUpdateField }) {
 
   // Helper function to add nested field at any depth
   const addNestedFieldAtPath = (nestedFields, path, optionIndex) => {
-    console.log('🔍 addNestedFieldAtPath called:', { nestedFields, path, optionIndex })
     const cloned = deepCloneNestedFields(nestedFields)
 
     const newField = {
       id: `nested-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: `additional_field_${Date.now()}`,
+      name: nestedFields.name,
       type: "text",
       label: "Additional Field",
       placeholder: "",
       required: false
     }
-    
-    console.log('🔍 Creating new nested field:', newField)
 
     if (path.length === 0) {
       // Adding to root level
@@ -404,9 +396,10 @@ export function FieldConfigPanel({ field, onUpdateField }) {
       }
     }
 
-    console.log('🔍 addNestedFieldAtPath result:', cloned)
     return cloned
   }
+
+  // Memoized recursive component to render nested field configurations
   const NestedFieldConfig = memo(({ nestedField, path = [], fieldId, nestedFields, onUpdateField, debouncedUpdateField, toggleNestedFields, setExpandedNestedFields, countries, statesByCountry, citiesByState, loadingStates, loadingCities, manualCityInput, setManualCityInput, showManualCityInput, setShowManualCityInput, loadStatesForCountry, loadCitiesForStateByName }) => {
     const depth = path.length / 2
     const uniqueKey = path.join('-')
@@ -1498,6 +1491,50 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                     placeholder="No limit"
                   />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* File: Type validation */}
+        {field.type === "file" && (
+          <Card className="border-0 shadow-none bg-transparent">
+            <CardHeader className="px-0 pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                File Type
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-0 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="field-file-type" className="text-sm font-medium">
+                  Allowed File Types
+                </Label>
+                <Select
+                  value={field.validation?.fileType || "both"}
+                  onValueChange={(value) =>
+                    onUpdateField(field.id, {
+                      validation: {
+                        ...field.validation,
+                        fileType: value
+                      }
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="images">Images Only</SelectItem>
+                    <SelectItem value="pdf">PDF Only</SelectItem>
+                    <SelectItem value="both">Images & PDF</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {field.validation?.fileType === "images" && "Accepts: JPEG, PNG, GIF, WebP, SVG"}
+                  {field.validation?.fileType === "pdf" && "Accepts: PDF files only"}
+                  {field.validation?.fileType === "both" && "Accepts: Images (JPEG, PNG, GIF, WebP, SVG) and PDF files"}
+                  {!field.validation?.fileType && "Accepts: Images (JPEG, PNG, GIF, WebP, SVG) and PDF files"}
+                </p>
               </div>
             </CardContent>
           </Card>

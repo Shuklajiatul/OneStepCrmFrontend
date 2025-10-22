@@ -439,28 +439,52 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
     switch (field.type) {
       case "select":
         if (field.validation?.multiple) {
-          // Multiple select
-          if (typeof fieldValue === 'object' && fieldValue !== null) {
-            if (fieldValue.value !== undefined || fieldValue.nestedFields) {
-              const fieldData = {
-                value: fieldValue.value || []
-              }
+          // Multiple select: normalize to array of { value, nestedValues? }
+          const buildItemsFromValues = (valuesArr, nested) => {
+            if (!Array.isArray(valuesArr)) return []
+            return valuesArr
+              .filter(v => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0))
+              .map((v, idx) => {
+                // Extract primitive value from possible wrappers
+                const primitiveValue = Array.isArray(v) ? (v.length === 1 ? v[0] : v) : (typeof v === 'object' && v !== null && v.value !== undefined ? v.value : v)
+                const item = { value: primitiveValue }
 
-              // Only include nested fields if they exist and are relevant to the selected options
-              if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
-                const processedNested = transformNestedValues(fieldValue.nestedFields, fieldValue.value, field)
-                if (Object.keys(processedNested).length > 0) {
-                  fieldData.nestedValues = processedNested
+                // Attach nested values per option, if present
+                if (nested && Object.keys(nested).length > 0) {
+                  const optionNested = nested[primitiveValue] ?? nested[idx]
+                  if (optionNested) {
+                    const processed = transformNestedValues(optionNested, primitiveValue, field)
+                    if (processed && Object.keys(processed).length > 0) {
+                      item.nestedValues = processed
+                    }
+                  }
                 }
-              }
-
-              transformedValues[finalFieldKey] = fieldData
-            } else {
-              transformedValues[finalFieldKey] = { value: fieldValue }
-            }
-          } else {
-            transformedValues[finalFieldKey] = { value: fieldValue || [] }
+                return item
+              })
           }
+
+          let items = []
+          // Normalize various incoming shapes
+          if (Array.isArray(fieldValue)) {
+            // Could be ["A","B"] or [{value:"A"},{value:"B"}]
+            items = buildItemsFromValues(fieldValue, undefined)
+          } else if (typeof fieldValue === 'object' && fieldValue !== null) {
+            if (Array.isArray(fieldValue.value)) {
+              items = buildItemsFromValues(fieldValue.value, fieldValue.nestedFields)
+            } else if (Array.isArray(fieldValue)) {
+              items = buildItemsFromValues(fieldValue, fieldValue.nestedFields)
+            } else if (fieldValue.value !== undefined) {
+              // Single selection provided for a multi-select
+              items = buildItemsFromValues([fieldValue.value], fieldValue.nestedFields)
+            }
+          }
+
+          // Final fallback
+          if (!Array.isArray(items) || items.length === 0) {
+            items = []
+          }
+
+          transformedValues[finalFieldKey] = items
         } else {
           // Single select
           if (typeof fieldValue === 'object' && fieldValue !== null) {
@@ -917,6 +941,33 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
         return result
       }
 
+      // Special handling for multi-select fields - check if this is an array (multi-select selections)
+      if (field.type === 'select' && field.validation?.multiple && Array.isArray(parsedValue)) {
+        console.log('🔽 Processing multi-select field array:', parsedValue)
+
+        // Extract values and nested fields from multi-select array
+        const selectValues = []
+        const selectNestedFields = {}
+
+        parsedValue.forEach((item, index) => {
+          if (typeof item === 'object' && item !== null && item.value !== undefined) {
+            selectValues.push(item.value)
+
+            // Convert nestedValues to nestedFields for this option
+            if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
+              selectNestedFields[index] = transformApiNestedValuesToNestedFields(item.nestedValues)
+            }
+          }
+        })
+
+        const result = {
+          value: selectValues,
+          nestedFields: selectNestedFields
+        }
+        console.log('🔽 Multi-select field result:', result)
+        return result
+      }
+
       // Special handling for phone fields
       if (field.type === 'phone' && parsedValue.countryCode !== undefined) {
         console.log(' Processing phone field:', parsedValue)
@@ -1150,6 +1201,8 @@ export default function PublicFormPage() {
   const [submitting, setSubmitting] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [submissionSuccess, setSubmissionSuccess] = useState(false)
+  const [updateSuccess, setUpdateSuccess] = useState(false)
+  const [editCountLeft, setEditCountLeft] = useState(null)
   const [lastSubmissionId, setLastSubmissionId] = useState(null)
   const [lastSubmissionToken, setLastSubmissionToken] = useState(null)
   const [phoneCountries, setPhoneCountries] = useState([])
@@ -1326,16 +1379,34 @@ export default function PublicFormPage() {
         })
         
         setSubmissionData(parsedSubmission)
+        
+        // Extract edit count from submission data if available
+        if (parsedSubmission.editCountLeft !== undefined) {
+          setEditCountLeft(parsedSubmission.editCountLeft)
+        }
+        
         toast.success("Submission loaded for editing")
       } else if (result.data) {
         // Handle case where submission data is in result.data
         console.log('Submission data found in result.data:', result.data)
         setSubmissionData(result.data)
+        
+        // Extract edit count from submission data if available
+        if (result.data.editCountLeft !== undefined) {
+          setEditCountLeft(result.data.editCountLeft)
+        }
+        
         toast.success("Submission loaded for editing")
       } else if (result.values) {
         // Handle case where values are directly in result
         console.log('Submission values found:', result.values)
         setSubmissionData({ values: result.values })
+        
+        // Extract edit count from result if available
+        if (result.editCountLeft !== undefined) {
+          setEditCountLeft(result.editCountLeft)
+        }
+        
         toast.success("Submission loaded for editing")
       } else {
         console.warn('Unexpected response format:', result)
@@ -1812,7 +1883,12 @@ export default function PublicFormPage() {
     // Required validation
     if (field.required || field.validation?.required) {
       if (field.type === "checkbox" || (field.type === "select" && field.validation?.multiple)) {
-        if (!Array.isArray(value) || value.length === 0) {
+        // For multi-select and checkbox, value can be an array directly or { value: [...] }
+        let arrayValue = value
+        if (typeof value === 'object' && value !== null && Array.isArray(value.value)) {
+          arrayValue = value.value
+        }
+        if (!Array.isArray(arrayValue) || arrayValue.length === 0) {
           errors.push("This field is required")
         }
       } else if (field.type === "file") {
@@ -1915,18 +1991,44 @@ export default function PublicFormPage() {
         }
 
         case "file":
-          // File validation - only allow images and PDFs up to 5MB
-          const allowedTypes = [
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'image/svg+xml',
-            'application/pdf'
-          ]
-
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+          // File validation - use selected file type from field configuration
+          const fileType = field.validation?.fileType || "both"
+          
+          let allowedTypes = []
+          let allowedExtensions = []
+          let errorMessage = ""
+          
+          if (fileType === "images") {
+            // Image-only field
+            allowedTypes = [
+              'image/jpeg',
+              'image/jpg', 
+              'image/png',
+              'image/gif',
+              'image/webp',
+              'image/svg+xml'
+            ]
+            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+            errorMessage = "Please select only image files (JPEG, PNG, GIF, WebP, SVG)"
+          } else if (fileType === "pdf") {
+            // PDF-only field
+            allowedTypes = ['application/pdf']
+            allowedExtensions = ['.pdf']
+            errorMessage = "Please select only PDF files"
+          } else {
+            // Default: allow both images and PDFs
+            allowedTypes = [
+              'image/jpeg',
+              'image/jpg',
+              'image/png', 
+              'image/gif',
+              'image/webp',
+              'image/svg+xml',
+              'application/pdf'
+            ]
+            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+            errorMessage = "Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files"
+          }
 
           if (value) {
             // Check both MIME type and file extension
@@ -1934,7 +2036,7 @@ export default function PublicFormPage() {
               allowedExtensions.some(ext => value.name.toLowerCase().endsWith(ext))
 
             if (!isValidType) {
-              errors.push("Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files")
+              errors.push(errorMessage)
             }
 
             const maxSize = 5 * 1024 * 1024 // 5MB
@@ -2013,7 +2115,13 @@ export default function PublicFormPage() {
           const result = response.data
           console.log('Update successful:', result)
           toast.success("Form updated successfully!")
-          setSubmissionSuccess(true)
+          
+          // Extract edit count from response if available
+          if (result.editCountLeft !== undefined) {
+            setEditCountLeft(result.editCountLeft)
+          }
+          
+          setUpdateSuccess(true)
         } else {
           // Create new submission
           const submissionData = {
@@ -2342,6 +2450,131 @@ export default function PublicFormPage() {
     )
   }
 
+  // Update Success View
+  if (updateSuccess && isEditMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        {/* Header */}
+        <div className="bg-white/80 backdrop-blur-sm border-b border-blue-200">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+                  <Building className="h-6 w-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-foreground">Slash CRM</h1>
+                  <p className="text-sm text-muted-foreground">Form Collection</p>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs">
+                Update Complete
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Success Content */}
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <Card className="shadow-lg border-0">
+              <CardHeader className="text-center pb-4 border-b bg-gradient-to-r from-blue-50 to-indigo-100">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+                  <CheckCircle2 className="h-8 w-8 text-blue-600" />
+                </div>
+                <CardTitle className="text-2xl font-bold text-blue-700">
+                  Update Successful!
+                </CardTitle>
+                <p className="text-muted-foreground mt-2">
+                  Your form has been updated successfully.
+                </p>
+              </CardHeader>
+
+              <CardContent className="p-6 text-center">
+                <div className="space-y-6">
+                  {/* Edit Count Display */}
+                  {editCountLeft !== null && (
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <Edit className="h-5 w-5 text-blue-600" />
+                        <h3 className="text-lg font-semibold text-blue-800">Edit Count</h3>
+                      </div>
+                      <p className="text-2xl font-bold text-blue-600 mb-1">
+                        {editCountLeft} {editCountLeft === 1 ? 'edit' : 'edits'} remaining
+                      </p>
+                      <p className="text-sm text-blue-600">
+                        {editCountLeft === 0 
+                          ? "You have reached the maximum number of edits allowed."
+                          : `You can edit your response ${editCountLeft} more ${editCountLeft === 1 ? 'time' : 'times'}.`
+                        }
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">What would you like to do next?</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {editCountLeft === 0 
+                        ? "You have reached the maximum number of edits. Your response is now final."
+                        : "You can edit your response again if needed."
+                      }
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    {editCountLeft > 0 && (
+                      <Button
+                        onClick={() => {
+                          setUpdateSuccess(false)
+                          setIsEditMode(true)
+                        }}
+                        className="gap-2"
+                        size="lg"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Edit Again
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => {
+                        setUpdateSuccess(false)
+                        setIsEditMode(true)
+                      }}
+                      variant="outline"
+                      className="gap-2"
+                      size="lg"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit Response
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Privacy Notice */}
+                <div className="mt-8 p-4 bg-muted/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">
+                    Your information is secure and will only be used for the intended purpose.
+                    We respect your privacy.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-blue-200 mt-12">
+          <div className="container mx-auto px-4 py-6">
+            <div className="text-center text-sm text-muted-foreground">
+              <p>Powered by Slash CRM • Secure Form Collection</p>
+              <p className="mt-1">© 2025 Slash CRM. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Form View
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -2373,6 +2606,17 @@ export default function PublicFormPage() {
               {isEditMode && (
                 <Badge variant="secondary" className="text-xs">
                   ID: {submissionId?.substring(0, 8)}...
+                </Badge>
+              )}
+              {isEditMode && editCountLeft !== null && (
+                <Badge 
+                  variant={editCountLeft === 0 ? "destructive" : editCountLeft <= 2 ? "secondary" : "outline"} 
+                  className="text-xs"
+                >
+                  {editCountLeft === 0 
+                    ? "No edits left" 
+                    : `${editCountLeft} edit${editCountLeft === 1 ? '' : 's'} left`
+                  }
                 </Badge>
               )}
             </div>
@@ -2465,6 +2709,20 @@ export default function PublicFormPage() {
                     {formData.fields.length} {formData.fields.length === 1 ? "field" : "fields"} •{" "}
                     {formData.fields.filter((f) => f.required).length} required
                     {isEditMode && " • Editing existing submission"}
+                    {isEditMode && editCountLeft !== null && (
+                      <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                        editCountLeft === 0 
+                          ? "bg-red-100 text-red-700" 
+                          : editCountLeft <= 2 
+                            ? "bg-yellow-100 text-yellow-700" 
+                            : "bg-green-100 text-green-700"
+                      }`}>
+                        {editCountLeft === 0 
+                          ? "⚠️ No edits remaining" 
+                          : `✏️ ${editCountLeft} edit${editCountLeft === 1 ? '' : 's'} remaining`
+                        }
+                      </span>
+                    )}
                   </div>
 
                   <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
