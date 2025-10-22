@@ -1329,29 +1329,17 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
                     const processedField = {
                       ...field,
                       options: processFieldOptions(field),
-                      // Preserve the original nestedFields structure for FieldRenderer
+                      //Preserve the original nestedFields structure for FieldRenderer
                       nestedFields: field.nestedFields || {}
                     }
 
-                    // Auto-select the first option that has nested fields for preview
+                    //Auto-select the first option that has nested field for preview
                     const currentValue = fieldApi.state.value
-                    console.log('🔍 Auto-selection check:', {
-                      fieldLabel: field.label,
-                      currentValue,
-                      optionsCount: processedField.options?.length,
-                      optionsWithNestedFields: processedField.options?.filter(opt => opt.nestedFields && opt.nestedFields.length > 0).length,
-                      fieldNestedFields: field.nestedFields,
-                      processedFieldNestedFields: processedField.nestedFields
-                    })
-
                     if (!currentValue && processedField.options && processedField.options.length > 0) {
                       const firstOptionWithNestedFields = processedField.options.find(option =>
                         option.nestedFields && option.nestedFields.length > 0
                       )
-                      console.log('🔍 First option with nested fields:', firstOptionWithNestedFields)
-
                       if (firstOptionWithNestedFields) {
-                        console.log('🔍 Auto-selecting option:', firstOptionWithNestedFields.value)
                         // Auto-select the first option with nested fields
                         setTimeout(() => {
                           fieldApi.handleChange({
@@ -1359,8 +1347,6 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
                             nestedFields: {}
                           })
                         }, 0)
-                      } else {
-                        console.log('🔍 No options with nested fields found for auto-selection')
                       }
                     }
 
@@ -1419,7 +1405,6 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
                     </form.Subscribe>
                   </div>
                 )}
-
               </div>
             </form>
 
