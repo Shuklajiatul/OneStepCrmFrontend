@@ -452,7 +452,11 @@ export default function MyFormsPage() {
                           console.log('🔍 Parsing nested field options:', nestedField.options)
                           parsedNestedField.options = nestedField.options.map(opt => {
                             if (typeof opt === 'object' && opt.value) {
-                              return opt.value || opt.label || 'Option'
+                              return {
+                                value: opt.value,
+                                label: opt.label || opt.value,
+                                nestedFields: opt.nestedFields || []
+                              }
                             }
                             return typeof opt === 'string' ? opt : (opt.value || opt.label || 'Option')
                           })
@@ -477,9 +481,14 @@ export default function MyFormsPage() {
                     
                     nestedFields[optionIndex] = parseNestedFields(option.nestedFields)
                   }
-                  return option.value || option.label || 'Option'
+                  return {
+                    value: option.value,
+                    label: option.label || option.value,
+                    nestedFields: option.nestedFields || []
+                  }
+                } else {
+                  return typeof option === 'string' ? option : (option.value || option.label || 'Option')
                 }
-                return typeof option === 'string' ? option : (option.value || option.label || 'Option')
               })
               console.log('🔍 Final options array:', options)
             } else {
@@ -514,12 +523,20 @@ export default function MyFormsPage() {
         console.log('Parsed fields for editing:', parsedFields)
         console.log('🔍 Debug - First field nestedFields:', parsedFields[0]?.nestedFields)
         console.log('🔍 Debug - First field options:', parsedFields[0]?.options)
-      
-      setEditingForm({
-        ...formDetails,
-        parsedFields
-      })
-      setEditDialogOpen(true)
+
+        //Store the form data in localstorage to pass to form builder
+        const formBuilderData = {
+          formId: formDetails.form_id,
+          formName: formDetails.form_name,
+          description: formDetails.description,
+          fields: parsedFields,
+          isEditMode: true
+        }
+
+        localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+
+        //Redirect to form builder
+        window.location.href = '/custom-form'
       
     } catch (error) {
       console.error('Error loading form for editing:', error)
