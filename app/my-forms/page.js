@@ -39,7 +39,7 @@ export default function MyFormsPage() {
   const [deletingForm, setDeletingForm] = useState(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [formToDelete, setFormToDelete] = useState(null)
-  
+
   // Search, filter, sort, and pagination states
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -58,7 +58,7 @@ export default function MyFormsPage() {
       // Case 1: Field is an object with numeric keys (character-by-character JSON)
       if (typeof field === 'object' && field !== null && !Array.isArray(field)) {
         const keys = Object.keys(field).filter(key => !isNaN(key))
-        
+
         if (keys.length > 0) {
           try {
             // Reconstruct the JSON string by sorting numeric keys and joining characters
@@ -66,7 +66,7 @@ export default function MyFormsPage() {
               .sort((a, b) => parseInt(a) - parseInt(b))
               .map(key => field[key])
               .join('')
-            
+
             if (jsonString.trim()) {
               return JSON.parse(jsonString)
             }
@@ -75,7 +75,7 @@ export default function MyFormsPage() {
           }
         }
       }
-      
+
       // Case 2: Field is a JSON string
       if (typeof field === 'string') {
         try {
@@ -84,12 +84,12 @@ export default function MyFormsPage() {
           console.warn('Failed to parse field as JSON string:', field)
         }
       }
-      
+
       // Case 3: Field is already a proper object
       if (typeof field === 'object' && field !== null) {
         // Parse options and validation if they are strings
         const parsedField = { ...field }
-        
+
         // Parse options
         if (typeof parsedField.options === 'string') {
           try {
@@ -99,7 +99,7 @@ export default function MyFormsPage() {
             parsedField.options = parsedField.options.split(',').map(opt => opt.trim()).filter(opt => opt)
           }
         }
-        
+
         // Parse validation
         if (typeof parsedField.validation === 'string') {
           try {
@@ -108,10 +108,10 @@ export default function MyFormsPage() {
             parsedField.validation = {}
           }
         }
-        
+
         return parsedField
       }
-      
+
       // Default fallback
       return {
         id: 'unknown-field',
@@ -121,7 +121,7 @@ export default function MyFormsPage() {
         options: [],
         validation: {}
       }
-      
+
     } catch (error) {
       console.error('Error parsing field data:', error)
       return {
@@ -138,14 +138,14 @@ export default function MyFormsPage() {
   // Function to count the number of fields in a form
   const countFormFields = (form) => {
     if (!form.fields || !Array.isArray(form.fields)) return 0
-    
+
     let fieldCount = 0
-    
+
     form.fields.forEach((field) => {
       // Direct field object (after update)
       if (field && typeof field === 'object' && field.name && field.type) {
         fieldCount++
-      } 
+      }
       // Character-by-character format (new forms)
       else if (field && typeof field === 'object') {
         const keys = Object.keys(field).filter(key => !isNaN(key))
@@ -154,7 +154,7 @@ export default function MyFormsPage() {
         }
       }
     })
-    
+
     return fieldCount
   }
 
@@ -171,7 +171,7 @@ export default function MyFormsPage() {
         }
       )
       const result = response.data
-      
+
       if (result.success && result.form) {
         return result.form
       } else {
@@ -194,7 +194,7 @@ export default function MyFormsPage() {
         }
       })
       const result = response.data
-      
+
       if (result.success) {
         return result
       } else {
@@ -211,7 +211,7 @@ export default function MyFormsPage() {
   const toggleArchiveForm = async (formId, currentStatus) => {
     try {
       setArchivingForm(formId)
-      
+
       const response = await axios.post(
         `${API_BASE_URL}/api/forms/archieve`,
         {
@@ -227,33 +227,33 @@ export default function MyFormsPage() {
           }
         }
       )
-      
+
       const result = response.data
       console.log('Archive API Response:', result)
-      
+
       if (result.success) {
         // Use the archieve_status from API response to update local state
         const newArchiveStatus = result.archieve_status
         console.log('New archive status:', newArchiveStatus, 'for form:', formId)
-        
+
         // Update the local state
         setForms(prevForms => {
-          const updatedForms = prevForms.map(form => 
-            form.form_id === formId 
-              ? { 
-                  ...form, 
-                  archived: newArchiveStatus,
-                  isarchieved: newArchiveStatus  // Also update the isarchieved property
-                }
+          const updatedForms = prevForms.map(form =>
+            form.form_id === formId
+              ? {
+                ...form,
+                archived: newArchiveStatus,
+                isarchieved: newArchiveStatus  // Also update the isarchieved property
+              }
               : form
           )
           console.log('Updated forms:', updatedForms.find(f => f.form_id === formId))
           return updatedForms
         })
-        
+
         const action = newArchiveStatus ? "archived" : "unarchived"
         toast.success(`Form ${action} successfully!`)
-        
+
         if (newArchiveStatus) {
           toast.info("Form is now inactive. Users cannot access it.")
         } else {
@@ -275,7 +275,7 @@ export default function MyFormsPage() {
     try {
       console.log('Starting delete for form:', formId)
       setDeletingForm(formId)
-      
+
       const response = await axios.post(
         `${API_BASE_URL}/api/forms/delete`,
         {
@@ -290,10 +290,10 @@ export default function MyFormsPage() {
           }
         }
       )
-      
+
       const result = response.data
       console.log('Delete response:', result)
-      
+
       if (result.success) {
         // Remove the form from local state
         setForms(prevForms => prevForms.filter(form => form.form_id !== formId))
@@ -322,7 +322,7 @@ export default function MyFormsPage() {
   const fetchForms = async () => {
     try {
       setLoading(true)
-      
+
       const response = await axios.get(
         `${API_BASE_URL}/api/forms/all/${ORGANIZATION_ID}/${TABLE_ID}`,
         {
@@ -334,7 +334,7 @@ export default function MyFormsPage() {
       )
       const result = response.data
       console.log('API Forms Response:', result)
-      
+
       if (result.success && Array.isArray(result.form)) {
         // Process the forms to add field counts and format dates
         const processedForms = result.form.map(form => {
@@ -348,25 +348,25 @@ export default function MyFormsPage() {
             createdDate: form.created_at ? new Date(form.created_at) : new Date(),
             form_id: form.form_id || form.id,
             // Check all possible archive status properties from API
-            archived: form.archived === true || form.archived === 'true' || 
-                     form.archieve_status === true || form.archieve_status === 'true' ||
-                     form.isarchieved === true || form.isarchieved === 'true',
+            archived: form.archived === true || form.archived === 'true' ||
+              form.archieve_status === true || form.archieve_status === 'true' ||
+              form.isarchieved === true || form.isarchieved === 'true',
             // Ensure isarchieved property is also set correctly
             isarchieved: form.isarchieved === true || form.isarchieved === 'true' ||
-                        form.archived === true || form.archived === 'true' ||
-                        form.archieve_status === true || form.archieve_status === 'true'
+              form.archived === true || form.archived === 'true' ||
+              form.archieve_status === true || form.archieve_status === 'true'
           }
         })
-        
+
         setForms(processedForms)
       } else {
         throw new Error('Invalid response format from server')
       }
-      
+
     } catch (error) {
       console.error('Error fetching forms:', error)
       toast.error(`Failed to load forms: ${error.message}`)
-      
+
       // Fallback to empty array
       setForms([])
     } finally {
@@ -379,7 +379,7 @@ export default function MyFormsPage() {
       toast.error("Cannot copy link: Form is archived")
       return
     }
-    
+
     const link = `${window.location.origin}/forms/${formId}?user_id=${USER_ID}`
     navigator.clipboard.writeText(link)
     toast.success("Form link copied to clipboard!")
@@ -390,7 +390,7 @@ export default function MyFormsPage() {
       toast.error("Cannot open form: Form is archived")
       return
     }
-    
+
     const link = `${window.location.origin}/forms/${formId}?user_id=${USER_ID}`
     window.open(link, '_blank', 'noopener,noreferrer')
     toast.info("Opening form in new tab")
@@ -400,11 +400,11 @@ export default function MyFormsPage() {
     try {
       toast.info("Loading form details...")
       const formDetails = await getFormDetails(formId)
-      
+
       // Parse the fields for editing
       const parsedFields = formDetails.fields.map(field => {
         const parsedField = parseFieldData(field)
-        
+
         // Parse validation if it's a string
         let validation = {}
         if (typeof parsedField.validation === 'string') {
@@ -416,11 +416,11 @@ export default function MyFormsPage() {
         } else if (typeof parsedField.validation === 'object') {
           validation = parsedField.validation
         }
-        
+
         // Parse options and extract nested fields
         let options = []
         let nestedFields = {}
-        
+
         if (Array.isArray(parsedField.options)) {
           options = parsedField.options
         } else if (typeof parsedField.options === 'string') {
@@ -446,18 +446,22 @@ export default function MyFormsPage() {
                           validation: nestedField.validations || {},
                           nestedFields: {}
                         }
-                        
+
                         // Parse options if they exist
                         if (nestedField.options && Array.isArray(nestedField.options)) {
                           console.log('🔍 Parsing nested field options:', nestedField.options)
                           parsedNestedField.options = nestedField.options.map(opt => {
                             if (typeof opt === 'object' && opt.value) {
-                              return opt.value || opt.label || 'Option'
+                              return {
+                                value: opt.value,
+                                label: opt.label || opt.value,
+                                nestedFields: opt.nestedFields || []
+                              }
                             }
                             return typeof opt === 'string' ? opt : (opt.value || opt.label || 'Option')
                           })
                           console.log('🔍 Parsed nested field options:', parsedNestedField.options)
-                          
+
                           // Parse sub-nested fields from options
                           const subNestedFields = {}
                           nestedField.options.forEach((subOption, subOptionIndex) => {
@@ -470,16 +474,22 @@ export default function MyFormsPage() {
                             parsedNestedField.nestedFields = subNestedFields
                           }
                         }
-                        
+
                         return parsedNestedField
                       })
                     }
-                    
+
                     nestedFields[optionIndex] = parseNestedFields(option.nestedFields)
                   }
-                  return option.value || option.label || 'Option'
+                  return {
+                    value: option.value,
+                    label: option.label || option.value,
+                    nestedFields: option.nestedFields || []
+                  }
+                } else {
+                  console.log('🔍 Option is not an object or missing value:', option)
+                  return typeof option === 'string' ? option : (option.value || option.label || 'Option')
                 }
-                return typeof option === 'string' ? option : (option.value || option.label || 'Option')
               })
               console.log('🔍 Final options array:', options)
             } else {
@@ -489,7 +499,7 @@ export default function MyFormsPage() {
             options = parsedField.options.split(',').map(opt => opt.trim()).filter(opt => opt)
           }
         }
-        
+
         return {
           id: parsedField.id || parsedField.name || `field-${Date.now()}`,
           name: parsedField.name || parsedField.id || `field-${Date.now()}`,
@@ -510,17 +520,25 @@ export default function MyFormsPage() {
           }
         }
       }).filter(field => field.id && field.type)
-      
-        console.log('Parsed fields for editing:', parsedFields)
-        console.log('🔍 Debug - First field nestedFields:', parsedFields[0]?.nestedFields)
-        console.log('🔍 Debug - First field options:', parsedFields[0]?.options)
-      
-      setEditingForm({
-        ...formDetails,
-        parsedFields
-      })
-      setEditDialogOpen(true)
-      
+
+      console.log('Parsed fields for editing:', parsedFields)
+      console.log('🔍 Debug - First field nestedFields:', parsedFields[0]?.nestedFields)
+      console.log('🔍 Debug - First field options:', parsedFields[0]?.options)
+
+      // Store the form data in localStorage to pass to form builder
+      const formBuilderData = {
+        formId: formDetails.form_id,
+        formName: formDetails.form_name,
+        description: formDetails.description,
+        fields: parsedFields,
+        isEditMode: true
+      }
+
+      localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+
+      // Redirect to form builder
+      window.location.href = '/custom-form'
+
     } catch (error) {
       console.error('Error loading form for editing:', error)
       toast.error("Failed to load form for editing")
@@ -530,7 +548,7 @@ export default function MyFormsPage() {
   const handleUpdateForm = async (updatedData) => {
     try {
       toast.info("Updating form...")
-      
+
       // Prepare the data for API - exactly matching the required format
       const apiData = {
         form_id: editingForm.form_id,
@@ -547,14 +565,14 @@ export default function MyFormsPage() {
             label: field.label || field.name || 'Field',
             placeholder: field.placeholder || ""
           }
-          
+
           // Handle options - convert array to JSON string
           if ((field.type === "select" || field.type === "checkbox" || field.type === "radio") && field.options) {
             fieldObj.options = JSON.stringify(Array.isArray(field.options) ? field.options : [])
           } else {
             fieldObj.options = "[]"
           }
-          
+
           // Handle validation - include ALL validation properties
           const validation = {
             multiple: field.validation?.multiple || false,
@@ -564,40 +582,40 @@ export default function MyFormsPage() {
             accept: field.validation?.accept,
             pattern: field.validation?.pattern
           }
-          
+
           // Remove undefined values
           Object.keys(validation).forEach(key => {
             if (validation[key] === undefined) {
               delete validation[key]
             }
           })
-          
+
           fieldObj.validation = JSON.stringify(validation)
-          
+
           console.log('Field being sent:', {
             name: fieldObj.name,
             type: fieldObj.type,
             validation: fieldObj.validation,
             multiple: validation.multiple
           })
-          
+
           return fieldObj
         })
       }
 
       console.log('Sending update data to API:', JSON.stringify(apiData, null, 2))
-      
+
       const result = await updateForm(apiData)
-      
+
       toast.success("Form updated successfully!")
       setEditDialogOpen(false)
       setEditingForm(null)
-      
+
       // Refresh the forms list
       fetchForms()
-      
+
       return result
-      
+
     } catch (error) {
       console.error('Error updating form:', error)
       toast.error(`Failed to update form: ${error.message}`)
@@ -612,13 +630,13 @@ export default function MyFormsPage() {
   // Filter and search functions
   const filteredForms = forms.filter(form => {
     const matchesSearch = form.form_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         form.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = statusFilter === "all" || 
-                         (statusFilter === "published" && form.published && !form.archived) ||
-                         (statusFilter === "draft" && !form.published && !form.archived) ||
-                         (statusFilter === "archived" && form.archived)
-    
+      form.description?.toLowerCase().includes(searchTerm.toLowerCase())
+
+    const matchesStatus = statusFilter === "all" ||
+      (statusFilter === "published" && form.published && !form.archived) ||
+      (statusFilter === "draft" && !form.published && !form.archived) ||
+      (statusFilter === "archived" && form.archived)
+
     return matchesSearch && matchesStatus
   })
 
@@ -626,19 +644,19 @@ export default function MyFormsPage() {
   const sortedForms = [...filteredForms].sort((a, b) => {
     let aValue = a[sortField]
     let bValue = b[sortField]
-    
+
     // Handle date sorting
     if (sortField === "createdDate") {
       aValue = a.createdDate
       bValue = b.createdDate
     }
-    
+
     // Handle numeric sorting for fieldCount
     if (sortField === "fieldCount") {
       aValue = a.fieldCount || 0
       bValue = b.fieldCount || 0
     }
-    
+
     if (aValue < bValue) return sortDirection === "asc" ? -1 : 1
     if (aValue > bValue) return sortDirection === "asc" ? 1 : -1
     return 0
@@ -703,7 +721,7 @@ export default function MyFormsPage() {
                 className="pl-9"
               />
             </div>
-            
+
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
@@ -752,11 +770,11 @@ export default function MyFormsPage() {
               <p className="text-muted-foreground mb-4">
                 No forms match your current search and filter criteria.
               </p>
-              <Button 
+              <Button
                 onClick={() => {
                   setSearchTerm("")
                   setStatusFilter("all")
-                }} 
+                }}
                 variant="outline"
               >
                 Clear Filters
@@ -767,7 +785,7 @@ export default function MyFormsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead 
+                    <TableHead
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => handleSort("form_name")}
                     >
@@ -777,7 +795,7 @@ export default function MyFormsPage() {
                       </div>
                     </TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead 
+                    <TableHead
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => handleSort("fieldCount")}
                     >
@@ -786,7 +804,7 @@ export default function MyFormsPage() {
                         <ArrowUpDown className="h-4 w-4" />
                       </div>
                     </TableHead>
-                    <TableHead 
+                    <TableHead
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => handleSort("createdDate")}
                     >
@@ -827,10 +845,10 @@ export default function MyFormsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
-                          <Badge 
+                          <Badge
                             variant={
-                              form.archived ? "destructive" : 
-                              form.published ? "default" : "secondary"
+                              form.archived ? "destructive" :
+                                form.published ? "default" : "secondary"
                             }
                           >
                             {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
@@ -844,41 +862,41 @@ export default function MyFormsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => handleEditForm(form.form_id)}
                             title="Edit form"
                             disabled={form.archived}
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={() => copyFormLink(form.form_id, form.archived)}
                             title={form.archived ? "Form archived - cannot copy link" : "Copy form link"}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             onClick={() => openFormInNewTab(form.form_id, form.archived)}
                             title={form.archived ? "Form archived - cannot open" : "Open form in new tab"}
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="outline"
                             title="View analytics"
                             disabled
                           >
                             <BarChart3 className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant={form.archived ? "default" : "outline"}
                             onClick={() => toggleArchiveForm(form.form_id, form.archived)}
                             title={form.archived ? "Unarchive form" : "Archive form"}
@@ -892,8 +910,8 @@ export default function MyFormsPage() {
                               <Archive className="h-4 w-4" />
                             )}
                           </Button>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             variant="destructive"
                             onClick={() => confirmDelete(form)}
                             title="Delete form"
@@ -943,24 +961,24 @@ export default function MyFormsPage() {
                   <Pagination>
                     <PaginationContent>
                       <PaginationItem>
-                        <PaginationPrevious 
+                        <PaginationPrevious
                           onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                           className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                         />
                       </PaginationItem>
-                      
+
                       {/* Show limited page numbers for better UX */}
                       {(() => {
                         const pages = [];
                         const maxVisiblePages = 5;
                         let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
                         let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-                        
+
                         // Adjust start page if we're near the end
                         if (endPage - startPage + 1 < maxVisiblePages) {
                           startPage = Math.max(1, endPage - maxVisiblePages + 1);
                         }
-                        
+
                         for (let i = startPage; i <= endPage; i++) {
                           pages.push(
                             <PaginationItem key={i}>
@@ -976,9 +994,9 @@ export default function MyFormsPage() {
                         }
                         return pages;
                       })()}
-                      
+
                       <PaginationItem>
-                        <PaginationNext 
+                        <PaginationNext
                           onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                           className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
                         />

@@ -125,7 +125,7 @@ export function FieldPalette({ onAddField, collapsed = false, onToggleCollapse }
         
         {/* Scrollable Content Area */}
         <CardContent className="p-0 flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto pr-1">
+          <div className="h-full overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-sidebar-border scrollbar-track-transparent">
             <div className={collapsed ? "space-y-1" : "space-y-2"}>
               {fieldTypes.map((field) => (
                 <DraggableFieldItem 

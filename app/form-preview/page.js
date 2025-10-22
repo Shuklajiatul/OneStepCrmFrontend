@@ -4,32 +4,229 @@ import { useEffect, useState } from "react"
 import { FormPreview } from "../component/formbuilder/form-preview"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
+import { toast } from "sonner"
+import { ArrowLeft, FileText } from "lucide-react"
 
 export default function FormPreviewPage() {
   const [fields, setFields] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editFormData, setEditFormData] = useState(null)
   const router = useRouter()
 
   useEffect(() => {
-    // Load fields from localStorage or sessionStorage
-    const savedFields = sessionStorage.getItem('form-preview-fields')
-    if (savedFields) {
+    // Load fields from localStorage (edit mode) or sessionStorage (create mode)
+    const formBuilderData = localStorage.getItem('formBuilderData')
+    
+    if (formBuilderData) {
+      // Edit mode - load from localStorage
       try {
-        const parsedFields = JSON.parse(savedFields)
-        setFields(parsedFields)
+        const data = JSON.parse(formBuilderData)
+        if (data.isEditMode && data.fields) {
+          console.log('🔍 Loading fields from localStorage for preview:', data.fields)
+          console.log('🔍 First field nestedFields from localStorage:', data.fields[0]?.nestedFields)
+          setFields(data.fields)
+          setIsEditMode(true)
+          setEditFormData(data)
+        }
       } catch (error) {
-        console.error('Error parsing saved fields:', error)
+        console.error('Error parsing formBuilderData:', error)
+      }
+    } else {
+      // Create mode - load from sessionStorage
+      const savedFields = sessionStorage.getItem('form-preview-fields')
+      if (savedFields) {
+        try {
+          const parsedFields = JSON.parse(savedFields)
+          console.log('🔍 Loading fields from sessionStorage for preview:', parsedFields)
+          setFields(parsedFields)
+        } catch (error) {
+          console.error('Error parsing saved fields:', error)
+        }
       }
     }
     setLoading(false)
   }, [])
+
+  // Listen for changes to localStorage in edit mode
+  useEffect(() => {
+    if (!isEditMode) return
+
+    const handleStorageChange = () => {
+      const formBuilderData = localStorage.getItem('formBuilderData')
+      if (formBuilderData) {
+        try {
+          const data = JSON.parse(formBuilderData)
+          if (data.isEditMode && data.fields) {
+            console.log('🔍 Storage changed - reloading fields for preview:', data.fields)
+            setFields(data.fields)
+            setEditFormData(data)
+          }
+        } catch (error) {
+          console.error('Error parsing updated formBuilderData:', error)
+        }
+      }
+    }
+
+    // Listen for storage events
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Also listen for custom events (for same-tab updates)
+    window.addEventListener('formBuilderDataUpdated', handleStorageChange)
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      window.removeEventListener('formBuilderDataUpdated', handleStorageChange)
+    }
+  }, [isEditMode])
 
   const handleBack = () => {
     // Set the intended tab to custom-form so Home component knows where to navigate
     sessionStorage.setItem('intended-tab', 'custom-form')
     // Navigate to home page
     router.push('/')
+  }
+
+  const handleSaveForm = async () => {
+    try {
+      if (isEditMode && editFormData) {
+        // Update existing form
+        console.log('🔍 Updating existing form:', editFormData.formId)
+        console.log('🔍 Fields to update:', fields)
+        
+        // Generate the same payload structure as Generate Link
+        const API_BASE_URL = 'http://10.10.15.194:3001'
+        const ORGANIZATION_ID = 'c8c72c21-7b5c-435a-912a-803105e7ecc9'
+        const TABLE_ID = '040e899d-583a-454e-92e6-d0d5a8095587'
+        const USER_ID = 'c2a985ce-d385-4349-8f0c-d46e63027ce4'
+        const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYwNTA2OTYzLCJleHAiOjE3NjA1OTMzNjN9.SEAwwoCusaotsc_lhb3nh0Fq5tIOWIHtbMYCG1vZ2jU'
+        
+        // Process fields the same way as Generate Link
+        const processFieldData = (field) => {
+          console.log('🔍 processFieldData - processing field:', { 
+            id: field.id, 
+            label: field.label, 
+            type: field.type,
+            hasNestedFields: field.nestedFields ? Object.keys(field.nestedFields).length : 0,
+            optionsCount: field.options ? field.options.length : 0
+          })
+          
+          const processedField = {
+            id: field.id,
+            name: field.name,
+            type: field.type,
+            label: field.label,
+            placeholder: field.placeholder || '',
+            required: field.required === true || field.required === 'true' || false,
+            options: [],
+            validation: field.validation || {},
+            isLeadColumn: field.source === 'table' || false,
+            tableColumnId: field.tableColumnId || null,
+            tableColumnName: field.tableColumnName || null,
+            hasNested: false
+          }
+          
+          // Process options and nested fields
+          if (field.options && Array.isArray(field.options)) {
+            processedField.options = field.options.map((option, optionIndex) => {
+              if (typeof option === 'object' && option.value) {
+                const processedOption = {
+                  value: option.value,
+                  label: option.label || option.value,
+                  nestedFields: []
+                }
+                
+                // Check for nested fields in two places:
+                // 1. In option.nestedFields (from API)
+                // 2. In field.nestedFields[optionIndex] (from form builder edit mode)
+                let nestedFieldsToProcess = []
+                
+                if (option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
+                  nestedFieldsToProcess = option.nestedFields
+                } else if (field.nestedFields && field.nestedFields[optionIndex] && Array.isArray(field.nestedFields[optionIndex])) {
+                  nestedFieldsToProcess = field.nestedFields[optionIndex]
+                }
+                
+                if (nestedFieldsToProcess.length > 0) {
+                  console.log('🔍 Found nested fields for option', optionIndex, ':', nestedFieldsToProcess.length, 'fields')
+                  processedOption.nestedFields = nestedFieldsToProcess.map(processFieldData)
+                  processedField.hasNested = true
+                  console.log('🔍 Set hasNested = true for field:', field.label)
+                }
+                
+                return processedOption
+              } else if (typeof option === 'string') {
+                // Handle string options - check if there are nested fields for this index
+                const processedOption = {
+                  value: option,
+                  label: option,
+                  nestedFields: []
+                }
+                
+                // Check for nested fields in field.nestedFields[optionIndex] (from form builder edit mode)
+                if (field.nestedFields && field.nestedFields[optionIndex] && Array.isArray(field.nestedFields[optionIndex])) {
+                  console.log('🔍 Found nested fields for string option', optionIndex, ':', field.nestedFields[optionIndex].length, 'fields')
+                  processedOption.nestedFields = field.nestedFields[optionIndex].map(processFieldData)
+                  processedField.hasNested = true
+                  console.log('🔍 Set hasNested = true for field:', field.label)
+                }
+                
+                return processedOption
+              }
+              return option
+            })
+          }
+          
+          return processedField
+        }
+        
+        // Combine all fields into a single fields array
+        console.log('🔍 Raw fields before processing:', fields)
+        const allFields = fields.map(processFieldData)
+        console.log('🔍 Processed fields:', allFields)
+        
+        // Prepare the update payload
+        const updatePayload = {
+          organization_id: ORGANIZATION_ID,
+          form_id: editFormData.formId,
+          table_id: TABLE_ID,
+          form_name: editFormData.formName,
+          description: editFormData.description,
+          created_by: USER_ID,
+          fields: allFields,
+          retry_count: editFormData.max_retry_count || 2
+        }
+        
+        console.log('🚀 Update API Payload:', JSON.stringify(updatePayload, null, 2))
+        
+        // Send update request
+        const response = await fetch(`${API_BASE_URL}/api/forms/update`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updatePayload)
+        })
+        
+        const result = await response.json()
+        console.log('✅ Update API Response:', result)
+        
+        if (result.success) {
+          toast.success(`Form "${editFormData.formName}" updated successfully!`)
+          // Clear localStorage and navigate to My Forms
+          localStorage.removeItem('formBuilderData')
+          sessionStorage.setItem('intended-tab', 'my-forms')
+          // Navigate to home page
+          router.push('/')
+        } else {
+          toast.error(`Failed to update form: ${result.message || 'Unknown error'}`)
+        }
+      }
+    } catch (error) {
+      console.error('Error updating form:', error)
+      toast.error(`Error updating form: ${error.message}`)
+    }
   }
 
   if (loading) {
@@ -48,20 +245,31 @@ export default function FormPreviewPage() {
       {/* Header with back button */}
       <div className="sticky top-0 z-10 bg-card border-b shadow-sm">
         <div className="max-w-7xl mx-auto p-4">
-          <Button
-            variant="ghost"
-            onClick={handleBack}
-            className="gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Form Builder
-          </Button>
+          <div className="flex items-center justify-between">
+            <Button
+              variant="ghost"
+              onClick={handleBack}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Form Builder
+            </Button>
+            {isEditMode && (
+              <Button onClick={handleSaveForm} className="flex items-center gap-2" size="sm">
+                <FileText className="h-4 w-4" />
+                Update Form
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Form Preview Content */}
-      <FormPreview fields={fields} />
+      <FormPreview 
+        fields={fields} 
+        isEditMode={isEditMode} 
+        formData={editFormData}
+      />
     </div>
   )
 }
-
