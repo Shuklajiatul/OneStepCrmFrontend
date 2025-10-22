@@ -408,6 +408,8 @@ export function FieldConfigPanel({ field, onUpdateField }) {
     const [localLabel, setLocalLabel] = useState(nestedField.label)
     const [localPlaceholder, setLocalPlaceholder] = useState(nestedField.placeholder || "")
     const [localOptions, setLocalOptions] = useState(nestedField.options || [])
+    const [localMinValue, setLocalMinValue] = useState(nestedField.validation?.min ?? "")
+    const [localMaxValue, setLocalMaxValue] = useState(nestedField.validation?.max ?? "")
     
     // Refs to track internal updates and maintain focus
     const isInternalUpdateRef = useRef(false)
@@ -421,9 +423,11 @@ export function FieldConfigPanel({ field, onUpdateField }) {
         setLocalLabel(nestedField.label)
         setLocalPlaceholder(nestedField.placeholder || "")
         setLocalOptions(nestedField.options || [])
+        setLocalMinValue(nestedField.validation?.min ?? "")
+        setLocalMaxValue(nestedField.validation?.max ?? "")
       }
       isInternalUpdateRef.current = false
-    }, [nestedField.label, nestedField.placeholder, nestedField.options])
+    }, [nestedField.label, nestedField.placeholder, nestedField.options, nestedField.validation?.min, nestedField.validation?.max])
 
     // Memoize the options to prevent unnecessary re-renders
     const memoizedOptions = useMemo(() => localOptions, [localOptions])
@@ -491,6 +495,47 @@ export function FieldConfigPanel({ field, onUpdateField }) {
       newOptions[optionIndex] = newValue
       handleFieldUpdate({ options: newOptions }, false)
     }, [nestedField.options, handleFieldUpdate])
+
+    // Debounced update functions for min/max values
+    const updateMinValue = useCallback((value) => {
+      setLocalMinValue(value)
+      
+      // Clear existing timeout
+      if (updateTimeouts.current.min) {
+        clearTimeout(updateTimeouts.current.min)
+      }
+      
+      // Set new timeout
+      updateTimeouts.current.min = setTimeout(() => {
+        const numValue = value === "" ? undefined : parseFloat(value)
+        handleFieldUpdate({
+          validation: {
+            ...nestedField.validation,
+            min: numValue
+          }
+        }, true) // Use debounced update
+      }, 500) // 500ms delay
+    }, [nestedField.validation, handleFieldUpdate])
+
+    const updateMaxValue = useCallback((value) => {
+      setLocalMaxValue(value)
+      
+      // Clear existing timeout
+      if (updateTimeouts.current.max) {
+        clearTimeout(updateTimeouts.current.max)
+      }
+      
+      // Set new timeout
+      updateTimeouts.current.max = setTimeout(() => {
+        const numValue = value === "" ? undefined : parseFloat(value)
+        handleFieldUpdate({
+          validation: {
+            ...nestedField.validation,
+            max: numValue
+          }
+        }, true) // Use debounced update
+      }, 500) // 500ms delay
+    }, [nestedField.validation, handleFieldUpdate])
 
     const removeOptionAtIndex = useCallback((optionIndex) => {
       const currentOptions = nestedField.options || []
@@ -1163,6 +1208,45 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                     })
                   )}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Number Field Configuration for nested fields */}
+          {nestedField.type === "number" && (
+            <div className="space-y-3 pt-2 border-t border-border/50">
+              <Label className="text-xs font-medium text-muted-foreground">Number Range</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Minimum Value</Label>
+                  <Input
+                    type="number"
+                    value={localMinValue}
+                    onChange={(e) => updateMinValue(e.target.value)}
+                    placeholder="No minimum"
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Maximum Value</Label>
+                  <Input
+                    type="number"
+                    value={localMaxValue}
+                    onChange={(e) => updateMaxValue(e.target.value)}
+                    placeholder="No maximum"
+                    className="h-7 text-xs"
+                  />
+                </div>
+              </div>
+              {(nestedField.validation?.min !== undefined || nestedField.validation?.max !== undefined) && (
+                <p className="text-xs text-muted-foreground">
+                  {nestedField.validation?.min !== undefined && nestedField.validation?.max !== undefined
+                    ? `Accepted range: ${nestedField.validation.min} to ${nestedField.validation.max}`
+                    : nestedField.validation?.min !== undefined
+                      ? `Minimum value: ${nestedField.validation.min}`
+                      : `Maximum value: ${nestedField.validation.max}`
+                  }
+                </p>
               )}
             </div>
           )}
