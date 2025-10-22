@@ -1201,6 +1201,8 @@ export default function PublicFormPage() {
   const [submitting, setSubmitting] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [submissionSuccess, setSubmissionSuccess] = useState(false)
+  const [updateSuccess, setUpdateSuccess] = useState(false)
+  const [editCountLeft, setEditCountLeft] = useState(null)
   const [lastSubmissionId, setLastSubmissionId] = useState(null)
   const [lastSubmissionToken, setLastSubmissionToken] = useState(null)
   const [phoneCountries, setPhoneCountries] = useState([])
@@ -1377,16 +1379,34 @@ export default function PublicFormPage() {
         })
         
         setSubmissionData(parsedSubmission)
+        
+        // Extract edit count from submission data if available
+        if (parsedSubmission.editCountLeft !== undefined) {
+          setEditCountLeft(parsedSubmission.editCountLeft)
+        }
+        
         toast.success("Submission loaded for editing")
       } else if (result.data) {
         // Handle case where submission data is in result.data
         console.log('Submission data found in result.data:', result.data)
         setSubmissionData(result.data)
+        
+        // Extract edit count from submission data if available
+        if (result.data.editCountLeft !== undefined) {
+          setEditCountLeft(result.data.editCountLeft)
+        }
+        
         toast.success("Submission loaded for editing")
       } else if (result.values) {
         // Handle case where values are directly in result
         console.log('Submission values found:', result.values)
         setSubmissionData({ values: result.values })
+        
+        // Extract edit count from result if available
+        if (result.editCountLeft !== undefined) {
+          setEditCountLeft(result.editCountLeft)
+        }
+        
         toast.success("Submission loaded for editing")
       } else {
         console.warn('Unexpected response format:', result)
@@ -2095,7 +2115,13 @@ export default function PublicFormPage() {
           const result = response.data
           console.log('Update successful:', result)
           toast.success("Form updated successfully!")
-          setSubmissionSuccess(true)
+          
+          // Extract edit count from response if available
+          if (result.editCountLeft !== undefined) {
+            setEditCountLeft(result.editCountLeft)
+          }
+          
+          setUpdateSuccess(true)
         } else {
           // Create new submission
           const submissionData = {
@@ -2424,6 +2450,131 @@ export default function PublicFormPage() {
     )
   }
 
+  // Update Success View
+  if (updateSuccess && isEditMode) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        {/* Header */}
+        <div className="bg-white/80 backdrop-blur-sm border-b border-blue-200">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
+                  <Building className="h-6 w-6 text-primary-foreground" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-foreground">Slash CRM</h1>
+                  <p className="text-sm text-muted-foreground">Form Collection</p>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs">
+                Update Complete
+              </Badge>
+            </div>
+          </div>
+        </div>
+
+        {/* Success Content */}
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <Card className="shadow-lg border-0">
+              <CardHeader className="text-center pb-4 border-b bg-gradient-to-r from-blue-50 to-indigo-100">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-100 flex items-center justify-center">
+                  <CheckCircle2 className="h-8 w-8 text-blue-600" />
+                </div>
+                <CardTitle className="text-2xl font-bold text-blue-700">
+                  Update Successful!
+                </CardTitle>
+                <p className="text-muted-foreground mt-2">
+                  Your form has been updated successfully.
+                </p>
+              </CardHeader>
+
+              <CardContent className="p-6 text-center">
+                <div className="space-y-6">
+                  {/* Edit Count Display */}
+                  {editCountLeft !== null && (
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <Edit className="h-5 w-5 text-blue-600" />
+                        <h3 className="text-lg font-semibold text-blue-800">Edit Count</h3>
+                      </div>
+                      <p className="text-2xl font-bold text-blue-600 mb-1">
+                        {editCountLeft} {editCountLeft === 1 ? 'edit' : 'edits'} remaining
+                      </p>
+                      <p className="text-sm text-blue-600">
+                        {editCountLeft === 0 
+                          ? "You have reached the maximum number of edits allowed."
+                          : `You can edit your response ${editCountLeft} more ${editCountLeft === 1 ? 'time' : 'times'}.`
+                        }
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold">What would you like to do next?</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {editCountLeft === 0 
+                        ? "You have reached the maximum number of edits. Your response is now final."
+                        : "You can edit your response again if needed."
+                      }
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    {editCountLeft > 0 && (
+                      <Button
+                        onClick={() => {
+                          setUpdateSuccess(false)
+                          setIsEditMode(true)
+                        }}
+                        className="gap-2"
+                        size="lg"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Edit Again
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => {
+                        setUpdateSuccess(false)
+                        setIsEditMode(true)
+                      }}
+                      variant="outline"
+                      className="gap-2"
+                      size="lg"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit Response
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Privacy Notice */}
+                <div className="mt-8 p-4 bg-muted/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">
+                    Your information is secure and will only be used for the intended purpose.
+                    We respect your privacy.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-blue-200 mt-12">
+          <div className="container mx-auto px-4 py-6">
+            <div className="text-center text-sm text-muted-foreground">
+              <p>Powered by Slash CRM • Secure Form Collection</p>
+              <p className="mt-1">© 2025 Slash CRM. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Form View
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -2455,6 +2606,17 @@ export default function PublicFormPage() {
               {isEditMode && (
                 <Badge variant="secondary" className="text-xs">
                   ID: {submissionId?.substring(0, 8)}...
+                </Badge>
+              )}
+              {isEditMode && editCountLeft !== null && (
+                <Badge 
+                  variant={editCountLeft === 0 ? "destructive" : editCountLeft <= 2 ? "secondary" : "outline"} 
+                  className="text-xs"
+                >
+                  {editCountLeft === 0 
+                    ? "No edits left" 
+                    : `${editCountLeft} edit${editCountLeft === 1 ? '' : 's'} left`
+                  }
                 </Badge>
               )}
             </div>
@@ -2547,6 +2709,20 @@ export default function PublicFormPage() {
                     {formData.fields.length} {formData.fields.length === 1 ? "field" : "fields"} •{" "}
                     {formData.fields.filter((f) => f.required).length} required
                     {isEditMode && " • Editing existing submission"}
+                    {isEditMode && editCountLeft !== null && (
+                      <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                        editCountLeft === 0 
+                          ? "bg-red-100 text-red-700" 
+                          : editCountLeft <= 2 
+                            ? "bg-yellow-100 text-yellow-700" 
+                            : "bg-green-100 text-green-700"
+                      }`}>
+                        {editCountLeft === 0 
+                          ? "⚠️ No edits remaining" 
+                          : `✏️ ${editCountLeft} edit${editCountLeft === 1 ? '' : 's'} remaining`
+                        }
+                      </span>
+                    )}
                   </div>
 
                   <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
