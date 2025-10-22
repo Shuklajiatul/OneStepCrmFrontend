@@ -665,7 +665,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
   const dotColor = depth === 0 ? 'bg-primary' : depth === 1 ? 'bg-blue-500' : 'bg-green-500'
 
   return (
-    <div className="mt-4 pl-4 border-l-2 space-y-4" style={{ borderColor: borderColor.replace('border-', '').replace('/20', '').replace('/30', '') }}>
+    <div className="mt-4 pl-4 border-l-2 space-y-4 min-w-0 w-full" style={{ borderColor: borderColor.replace('border-', '').replace('/20', '').replace('/30', '') }}>
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
         <div className={`w-2 h-2 rounded-full ${dotColor}`}></div>
         Additional Information {depth > 0 && `(Level ${depth + 1})`}
@@ -673,7 +673,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
           {nestedFieldsToShow.length} field{nestedFieldsToShow.length !== 1 ? 's' : ''}
         </Badge>
       </div>
-      <div className="space-y-4">
+      <div className="space-y-4 w-full min-w-0">
         {nestedFieldsToShow.map((nestedField) => {
           const nestedFieldId = nestedField.uniqueKey || `${fieldKey}_${nestedField.optionIndex}_${nestedField.id}`
           
@@ -805,14 +805,14 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
           }
 
           return (
-            <div key={nestedFieldId} className="p-3 bg-muted/30 rounded-lg space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">
+            <div key={nestedFieldId} className="p-3 bg-muted/30 rounded-lg space-y-2 w-full min-w-0 overflow-hidden">
+              <div className="flex items-center justify-between min-w-0">
+                <Label className="text-sm font-medium truncate">
                   {nestedField.label}
                   {nestedField.required && <span className="text-red-500 ml-1">*</span>}
                 </Label>
                 {!hideFieldTypes && (
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs flex-shrink-0 ml-2">
                     {nestedField.type}
                   </Badge>
                 )}
@@ -1276,7 +1276,10 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                 <SelectValue placeholder={nestedField.placeholder || "Select an option"} />
               </SelectTrigger>
               <SelectContent>
-                {nestedField.options?.map((option, index) => {
+                {nestedField.options?.filter(option => {
+                  const optionValue = typeof option === 'string' ? option : option.value
+                  return optionValue && optionValue.trim() !== ''
+                }).map((option, index) => {
                   const optionValue = typeof option === 'string' ? option : option.value
                   const optionLabel = typeof option === 'string' ? option : option.label
                   return (

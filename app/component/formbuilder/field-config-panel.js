@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, X, Copy, Trash2, Settings2, ChevronDown, ChevronRight, ChevronUp } from "lucide-react"
-import { useState, useEffect, useCallback, useRef, memo, Fragment } from "react"
+import { useState, useEffect, useCallback, useRef, memo, Fragment, useMemo } from "react"
 // import { TableColumnSelector } from "./table-column-selector"
 import { TableColumnSelector } from "./table-column-selector"
 import { fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
@@ -408,45 +408,35 @@ export function FieldConfigPanel({ field, onUpdateField }) {
     // Local state for immediate UI feedback
     const [localLabel, setLocalLabel] = useState(nestedField.label)
     const [localPlaceholder, setLocalPlaceholder] = useState(nestedField.placeholder || "")
+    const [localOptions, setLocalOptions] = useState(nestedField.options || [])
     
     // Refs to track internal updates and maintain focus
     const isInternalUpdateRef = useRef(false)
     const labelInputRef = useRef(null)
     const placeholderInputRef = useRef(null)
+    const updateTimeouts = useRef({}) // Store timeouts for debounced updates
 
     // Sync local state with nestedField prop changes (only from external sources)
     useEffect(() => {
       if (!isInternalUpdateRef.current) {
         setLocalLabel(nestedField.label)
         setLocalPlaceholder(nestedField.placeholder || "")
+        setLocalOptions(nestedField.options || [])
       }
       isInternalUpdateRef.current = false
-    }, [nestedField.label, nestedField.placeholder])
+    }, [nestedField.label, nestedField.placeholder, nestedField.options])
 
-    // Focus preservation effect
+    // Memoize the options to prevent unnecessary re-renders
+    const memoizedOptions = useMemo(() => localOptions, [localOptions])
+    
+    // Cleanup timeouts on unmount
     useEffect(() => {
-      // Store the currently focused element
-      const activeElement = document.activeElement
-      const wasLabelFocused = activeElement === labelInputRef.current
-      const wasPlaceholderFocused = activeElement === placeholderInputRef.current
-      
-      if (wasLabelFocused || wasPlaceholderFocused) {
-        // Use requestAnimationFrame to ensure DOM is fully updated
-        requestAnimationFrame(() => {
-          if (wasLabelFocused && labelInputRef.current) {
-            labelInputRef.current.focus()
-            // Also set cursor position to end
-            const length = labelInputRef.current.value.length
-            labelInputRef.current.setSelectionRange(length, length)
-          } else if (wasPlaceholderFocused && placeholderInputRef.current) {
-            placeholderInputRef.current.focus()
-            // Also set cursor position to end
-            const length = placeholderInputRef.current.value.length
-            placeholderInputRef.current.setSelectionRange(length, length)
-          }
+      return () => {
+        Object.values(updateTimeouts.current).forEach(timeout => {
+          if (timeout) clearTimeout(timeout)
         })
       }
-    })
+    }, [])
 
     // Simple handler for field updates
     const handleFieldUpdate = useCallback((updates, useDebounce = false) => {
@@ -487,16 +477,28 @@ export function FieldConfigPanel({ field, onUpdateField }) {
     }, [nestedFields, path, fieldId, onUpdateField, uniqueKey])
 
     const updateOption = useCallback((optionIndex, newValue) => {
+      // Update local state immediately for UI responsiveness
+      setLocalOptions(prev => {
+        const newOptions = [...prev]
+        newOptions[optionIndex] = newValue
+        return newOptions
+      })
+    }, [])
+    
+    const updateOptionOnBlur = useCallback((optionIndex, newValue) => {
+      // Update the actual field data only on blur
       const currentOptions = nestedField.options || []
       const newOptions = [...currentOptions]
       newOptions[optionIndex] = newValue
-      isInternalUpdateRef.current = true
-      handleFieldUpdate({ options: newOptions }, true)
+      handleFieldUpdate({ options: newOptions }, false)
     }, [nestedField.options, handleFieldUpdate])
 
     const removeOptionAtIndex = useCallback((optionIndex) => {
       const currentOptions = nestedField.options || []
       const currentNestedFields = nestedField.nestedFields || {}
+      
+      // Update local state immediately
+      setLocalOptions(prev => prev.filter((_, idx) => idx !== optionIndex))
       
       // Create new nested fields structure without the removed option
       const newNestedFields = {}
@@ -513,6 +515,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
       })
       
       const newOptions = currentOptions.filter((_, idx) => idx !== optionIndex)
+      isInternalUpdateRef.current = true
       handleFieldUpdate({ 
         options: newOptions,
         nestedFields: newNestedFields
@@ -521,7 +524,13 @@ export function FieldConfigPanel({ field, onUpdateField }) {
 
     const addNewOption = useCallback(() => {
       const currentOptions = nestedField.options || []
-      handleFieldUpdate({ options: [...currentOptions, `Option ${currentOptions.length + 1}`] })
+      const newOption = `Option ${currentOptions.length + 1}`
+      
+      // Update local state immediately
+      setLocalOptions(prev => [...prev, newOption])
+      
+      // Update the actual field data
+      handleFieldUpdate({ options: [...currentOptions, newOption] })
     }, [nestedField.options, handleFieldUpdate])
 
     const borderColors = ['border-primary/20', 'border-blue-300/30', 'border-green-300/30', 'border-purple-300/30', 'border-orange-300/30']
@@ -530,15 +539,15 @@ export function FieldConfigPanel({ field, onUpdateField }) {
     const bgColor = bgColors[Math.min(depth, bgColors.length - 1)]
 
     return (
-      <div className={`p-3 border rounded-lg space-y-3 ${bgColor}`}>
-        <div className="flex items-center justify-between">
-          <Badge variant="outline" className="text-xs">
+      <div className={`p-3 border rounded-lg space-y-3 w-full min-w-0 overflow-hidden ${bgColor}`}>
+        <div className="flex items-center justify-between min-w-0">
+          <Badge variant="outline" className="text-xs flex-shrink-0">
             Field {path[path.length - 1] + 1} {depth > 0 && `(Level ${depth + 1})`}
           </Badge>
           <Button
             size="sm"
             variant="ghost"
-            className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0 ml-2"
             onClick={handleFieldRemove}
           >
             <X className="h-3 w-3" />
@@ -554,13 +563,12 @@ export function FieldConfigPanel({ field, onUpdateField }) {
               onChange={(e) => {
                 const value = e.target.value
                 setLocalLabel(value)
-                isInternalUpdateRef.current = true
-                // Use a longer debounce delay to reduce re-renders
-                handleFieldUpdate({ label: value }, true)
+                // Only update local state, no field data update during typing
               }}
               onBlur={(e) => {
-                // Only update on blur to reduce re-renders during typing
+                // Update field data only on blur
                 if (e.target.value !== nestedField.label) {
+                  isInternalUpdateRef.current = true
                   handleFieldUpdate({ label: e.target.value }, false)
                 }
               }}
@@ -577,6 +585,8 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                 const updates = { type: value }
                 if (["checkbox", "radio", "select"].includes(value) && !nestedField.options) {
                   updates.options = ["Option 1", "Option 2", "Option 3"]
+                  // Set local state immediately for new options
+                  setLocalOptions(["Option 1", "Option 2", "Option 3"])
                 }
                 handleFieldUpdate(updates)
               }}
@@ -608,13 +618,12 @@ export function FieldConfigPanel({ field, onUpdateField }) {
               onChange={(e) => {
                 const value = e.target.value
                 setLocalPlaceholder(value)
-                isInternalUpdateRef.current = true
-                // Use a longer debounce delay to reduce re-renders
-                handleFieldUpdate({ placeholder: value }, true)
+                // Only update local state, no field data update during typing
               }}
               onBlur={(e) => {
-                // Only update on blur to reduce re-renders during typing
+                // Update field data only on blur
                 if (e.target.value !== (nestedField.placeholder || "")) {
+                  isInternalUpdateRef.current = true
                   handleFieldUpdate({ placeholder: e.target.value }, false)
                 }
               }}
@@ -643,23 +652,24 @@ export function FieldConfigPanel({ field, onUpdateField }) {
             <div className="space-y-3 pt-2 border-t border-border/50">
               <Label className="text-xs font-medium text-muted-foreground">Options</Label>
               <div className="space-y-2">
-                {nestedField.options?.map((option, optionIndex) => {
+                {memoizedOptions?.map((option, optionIndex) => {
                   const optionKey = `${uniqueKey}-opt-${optionIndex}`
                   const hasNestedFields = nestedField.nestedFields?.[optionIndex]?.length > 0
 
                   return (
-                    <div key={optionIndex} className="space-y-2">
-                      <div className="flex items-center gap-2">
+                    <div key={`option-${optionIndex}`} className="space-y-2 w-full min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         <Input
                           value={option}
                           onChange={(e) => updateOption(optionIndex, e.target.value)}
+                          onBlur={(e) => updateOptionOnBlur(optionIndex, e.target.value)}
                           placeholder={`Option ${optionIndex + 1}`}
-                          className="h-7 text-xs flex-1"
+                          className="h-7 text-xs flex-1 min-w-0"
                         />
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
                           onClick={() => removeOptionAtIndex(optionIndex)}
                         >
                           <X className="h-3 w-3" />
@@ -667,17 +677,17 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                       </div>
 
                       {/* Add nested fields controls */}
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 text-xs"
+                          className="h-7 text-xs min-w-0 flex-shrink-0"
                           onClick={() => toggleNestedFields(optionKey)}
                         >
                           {expandedNestedFields[optionKey] ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                           Nested Fields
                           {hasNestedFields && (
-                            <Badge variant="secondary" className="ml-1 text-xs">
+                            <Badge variant="secondary" className="ml-1 text-xs flex-shrink-0">
                               {nestedField.nestedFields[optionIndex].length}
                             </Badge>
                           )}
@@ -685,7 +695,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 text-xs"
+                          className="h-7 text-xs flex-shrink-0"
                           onClick={() => handleAddNestedField(optionIndex)}
                         >
                           <Plus className="h-3 w-3" />
@@ -695,7 +705,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
 
                       {/* Render nested fields recursively */}
                       {expandedNestedFields[optionKey] && (
-                        <div className="ml-4 space-y-3">
+                        <div className="ml-4 space-y-3 w-full min-w-0">
                           {nestedField.nestedFields?.[optionIndex]?.map((childField, childIndex) => (
                             <NestedFieldConfig
                               key={childField.id}
@@ -721,7 +731,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                             />
                           ))}
                           {!hasNestedFields && (
-                            <div className="text-center py-4 text-muted-foreground text-xs border-2 border-dashed rounded-lg bg-muted/20">
+                            <div className="text-center py-4 text-muted-foreground text-xs border-2 border-dashed rounded-lg bg-muted/20 w-full min-w-0">
                               <div className="flex flex-col items-center gap-1">
                                 <Settings2 className="h-3 w-3" />
                                 <span>No fields yet</span>
@@ -1238,8 +1248,8 @@ export function FieldConfigPanel({ field, onUpdateField }) {
 
                   return (
                     <Fragment key={index}>
-                      <div className="space-y-3 border rounded-lg p-3 bg-muted/20">
-                        <div className="flex items-center justify-between">
+                      <div className="space-y-3 border rounded-lg p-3 bg-muted/20 w-full min-w-0 overflow-hidden">
+                        <div className="flex items-center justify-between gap-2 min-w-0">
                           <div className="w-6 h-6 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground flex-shrink-0">
                             {index + 1}
                           </div>
@@ -1264,13 +1274,13 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                         </div>
 
                         {/* Nested Fields Section */}
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between gap-2">
+                        <div className="space-y-3 w-full min-w-0">
+                          <div className="flex items-center justify-between gap-2 min-w-0">
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => toggleNestedFields(rootKey)}
-                              className="text-xs gap-1 h-7 hover:bg-accent/50 flex-shrink-0"
+                              className="text-xs gap-1 h-7 hover:bg-accent/50 flex-shrink-0 min-w-0"
                             >
                               {expandedNestedFields[rootKey] ? (
                                 <ChevronDown className="h-3 w-3" />
@@ -1279,7 +1289,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                               )}
                               Additional Fields
                               {hasNestedFields && (
-                                <Badge variant="secondary" className="ml-1 text-xs">
+                                <Badge variant="secondary" className="ml-1 text-xs flex-shrink-0">
                                   {field.nestedFields[index].length}
                                 </Badge>
                               )}
@@ -1309,7 +1319,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                           </div>
 
                           {expandedNestedFields[rootKey] && (
-                            <div className="space-y-3">
+                            <div className="space-y-3 w-full min-w-0">
                               {field.nestedFields?.[index]?.map((nestedField, nestedIndex) => (
                                 <NestedFieldConfig
                                   key={nestedField.id}
@@ -1336,7 +1346,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                               ))}
 
                               {!hasNestedFields && (
-                                <div className="text-center py-6 text-muted-foreground text-sm border-2 border-dashed rounded-lg bg-muted/20">
+                                <div className="text-center py-6 text-muted-foreground text-sm border-2 border-dashed rounded-lg bg-muted/20 w-full min-w-0">
                                   <div className="flex flex-col items-center gap-2">
                                     <Settings2 className="h-4 w-4" />
                                     <span>No additional fields for this option</span>
