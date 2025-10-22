@@ -439,28 +439,52 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
     switch (field.type) {
       case "select":
         if (field.validation?.multiple) {
-          // Multiple select
-          if (typeof fieldValue === 'object' && fieldValue !== null) {
-            if (fieldValue.value !== undefined || fieldValue.nestedFields) {
-              const fieldData = {
-                value: fieldValue.value || []
-              }
+          // Multiple select: normalize to array of { value, nestedValues? }
+          const buildItemsFromValues = (valuesArr, nested) => {
+            if (!Array.isArray(valuesArr)) return []
+            return valuesArr
+              .filter(v => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0))
+              .map((v, idx) => {
+                // Extract primitive value from possible wrappers
+                const primitiveValue = Array.isArray(v) ? (v.length === 1 ? v[0] : v) : (typeof v === 'object' && v !== null && v.value !== undefined ? v.value : v)
+                const item = { value: primitiveValue }
 
-              // Only include nested fields if they exist and are relevant to the selected options
-              if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
-                const processedNested = transformNestedValues(fieldValue.nestedFields, fieldValue.value, field)
-                if (Object.keys(processedNested).length > 0) {
-                  fieldData.nestedValues = processedNested
+                // Attach nested values per option, if present
+                if (nested && Object.keys(nested).length > 0) {
+                  const optionNested = nested[primitiveValue] ?? nested[idx]
+                  if (optionNested) {
+                    const processed = transformNestedValues(optionNested, primitiveValue, field)
+                    if (processed && Object.keys(processed).length > 0) {
+                      item.nestedValues = processed
+                    }
+                  }
                 }
-              }
-
-              transformedValues[finalFieldKey] = fieldData
-            } else {
-              transformedValues[finalFieldKey] = { value: fieldValue }
-            }
-          } else {
-            transformedValues[finalFieldKey] = { value: fieldValue || [] }
+                return item
+              })
           }
+
+          let items = []
+          // Normalize various incoming shapes
+          if (Array.isArray(fieldValue)) {
+            // Could be ["A","B"] or [{value:"A"},{value:"B"}]
+            items = buildItemsFromValues(fieldValue, undefined)
+          } else if (typeof fieldValue === 'object' && fieldValue !== null) {
+            if (Array.isArray(fieldValue.value)) {
+              items = buildItemsFromValues(fieldValue.value, fieldValue.nestedFields)
+            } else if (Array.isArray(fieldValue)) {
+              items = buildItemsFromValues(fieldValue, fieldValue.nestedFields)
+            } else if (fieldValue.value !== undefined) {
+              // Single selection provided for a multi-select
+              items = buildItemsFromValues([fieldValue.value], fieldValue.nestedFields)
+            }
+          }
+
+          // Final fallback
+          if (!Array.isArray(items) || items.length === 0) {
+            items = []
+          }
+
+          transformedValues[finalFieldKey] = items
         } else {
           // Single select
           if (typeof fieldValue === 'object' && fieldValue !== null) {
@@ -914,6 +938,33 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
           nestedFields: checkboxNestedFields
         }
         console.log('☑️ Checkbox field result:', result)
+        return result
+      }
+
+      // Special handling for multi-select fields - check if this is an array (multi-select selections)
+      if (field.type === 'select' && field.validation?.multiple && Array.isArray(parsedValue)) {
+        console.log('🔽 Processing multi-select field array:', parsedValue)
+
+        // Extract values and nested fields from multi-select array
+        const selectValues = []
+        const selectNestedFields = {}
+
+        parsedValue.forEach((item, index) => {
+          if (typeof item === 'object' && item !== null && item.value !== undefined) {
+            selectValues.push(item.value)
+
+            // Convert nestedValues to nestedFields for this option
+            if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
+              selectNestedFields[index] = transformApiNestedValuesToNestedFields(item.nestedValues)
+            }
+          }
+        })
+
+        const result = {
+          value: selectValues,
+          nestedFields: selectNestedFields
+        }
+        console.log('🔽 Multi-select field result:', result)
         return result
       }
 
@@ -1812,7 +1863,12 @@ export default function PublicFormPage() {
     // Required validation
     if (field.required || field.validation?.required) {
       if (field.type === "checkbox" || (field.type === "select" && field.validation?.multiple)) {
-        if (!Array.isArray(value) || value.length === 0) {
+        // For multi-select and checkbox, value can be an array directly or { value: [...] }
+        let arrayValue = value
+        if (typeof value === 'object' && value !== null && Array.isArray(value.value)) {
+          arrayValue = value.value
+        }
+        if (!Array.isArray(arrayValue) || arrayValue.length === 0) {
           errors.push("This field is required")
         }
       } else if (field.type === "file") {
