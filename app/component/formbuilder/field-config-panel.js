@@ -1473,6 +1473,50 @@ export function FieldConfigPanel({ field, onUpdateField }) {
           </Card>
         )}
 
+        {/* File: Type validation */}
+        {field.type === "file" && (
+          <Card className="border-0 shadow-none bg-transparent">
+            <CardHeader className="px-0 pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                File Type
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-0 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="field-file-type" className="text-sm font-medium">
+                  Allowed File Types
+                </Label>
+                <Select
+                  value={field.validation?.fileType || "both"}
+                  onValueChange={(value) =>
+                    onUpdateField(field.id, {
+                      validation: {
+                        ...field.validation,
+                        fileType: value
+                      }
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="images">Images Only</SelectItem>
+                    <SelectItem value="pdf">PDF Only</SelectItem>
+                    <SelectItem value="both">Images & PDF</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {field.validation?.fileType === "images" && "Accepts: JPEG, PNG, GIF, WebP, SVG"}
+                  {field.validation?.fileType === "pdf" && "Accepts: PDF files only"}
+                  {field.validation?.fileType === "both" && "Accepts: Images (JPEG, PNG, GIF, WebP, SVG) and PDF files"}
+                  {!field.validation?.fileType && "Accepts: Images (JPEG, PNG, GIF, WebP, SVG) and PDF files"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Table Column Selector */}
         {field.type === "table_column" && (
           <Card className="border-0 shadow-none bg-transparent">

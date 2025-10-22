@@ -14,6 +14,7 @@ import { fetchCountries, fetchStates, fetchCities, fetchPhoneCountries } from "@
 import React, { useState, useEffect } from "react"
 import { Database } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 
 // Helper function to format file size
 const formatFileSize = (bytes) => {
@@ -2508,25 +2509,51 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
             return
           }
 
-          // More flexible file type validation
-          const allowedTypes = [
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'image/svg+xml',
-            'application/pdf'
-          ]
-
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+          // File type validation based on field configuration
+          const fileType = field.validation?.fileType || "both"
+          
+          let allowedTypes = []
+          let allowedExtensions = []
+          let errorMessage = ""
+          
+          if (fileType === "images") {
+            // Image-only field
+            allowedTypes = [
+              'image/jpeg',
+              'image/jpg', 
+              'image/png',
+              'image/gif',
+              'image/webp',
+              'image/svg+xml'
+            ]
+            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+            errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG)'
+          } else if (fileType === "pdf") {
+            // PDF-only field
+            allowedTypes = ['application/pdf']
+            allowedExtensions = ['.pdf']
+            errorMessage = 'Please select only PDF files'
+          } else {
+            // Default: allow both images and PDFs
+            allowedTypes = [
+              'image/jpeg',
+              'image/jpg',
+              'image/png',
+              'image/gif',
+              'image/webp',
+              'image/svg+xml',
+              'application/pdf'
+            ]
+            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+            errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files'
+          }
 
           // Check both MIME type and file extension
           const isValidType = allowedTypes.includes(file.type) ||
             allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
 
           if (!isValidType) {
-            toast.error('Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files.')
+            toast.error(errorMessage)
             e.target.value = ''
             onChange?.(null)
             return

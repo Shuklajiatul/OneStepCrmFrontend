@@ -1971,18 +1971,44 @@ export default function PublicFormPage() {
         }
 
         case "file":
-          // File validation - only allow images and PDFs up to 5MB
-          const allowedTypes = [
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'image/svg+xml',
-            'application/pdf'
-          ]
-
-          const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+          // File validation - use selected file type from field configuration
+          const fileType = field.validation?.fileType || "both"
+          
+          let allowedTypes = []
+          let allowedExtensions = []
+          let errorMessage = ""
+          
+          if (fileType === "images") {
+            // Image-only field
+            allowedTypes = [
+              'image/jpeg',
+              'image/jpg', 
+              'image/png',
+              'image/gif',
+              'image/webp',
+              'image/svg+xml'
+            ]
+            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+            errorMessage = "Please select only image files (JPEG, PNG, GIF, WebP, SVG)"
+          } else if (fileType === "pdf") {
+            // PDF-only field
+            allowedTypes = ['application/pdf']
+            allowedExtensions = ['.pdf']
+            errorMessage = "Please select only PDF files"
+          } else {
+            // Default: allow both images and PDFs
+            allowedTypes = [
+              'image/jpeg',
+              'image/jpg',
+              'image/png', 
+              'image/gif',
+              'image/webp',
+              'image/svg+xml',
+              'application/pdf'
+            ]
+            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+            errorMessage = "Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files"
+          }
 
           if (value) {
             // Check both MIME type and file extension
@@ -1990,7 +2016,7 @@ export default function PublicFormPage() {
               allowedExtensions.some(ext => value.name.toLowerCase().endsWith(ext))
 
             if (!isValidType) {
-              errors.push("Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files")
+              errors.push(errorMessage)
             }
 
             const maxSize = 5 * 1024 * 1024 // 5MB
