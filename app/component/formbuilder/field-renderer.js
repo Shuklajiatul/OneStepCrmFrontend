@@ -810,7 +810,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
               <div className="flex items-center justify-between min-w-0">
                 <Label className="text-sm font-medium truncate">
                   {nestedField.label}
-                  {nestedField.required && <span className="text-red-500 ml-1">*</span>}
+                  {/* Required asterisk removed for nested fields - only parent form validation applies */}
                 </Label>
                 {!hideFieldTypes && (
                   <Badge variant="outline" className="text-xs flex-shrink-0 ml-2">

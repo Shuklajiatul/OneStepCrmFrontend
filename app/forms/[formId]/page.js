@@ -1616,7 +1616,7 @@ export default function PublicFormPage() {
             })
 
             const parsedField = {
-              id: fieldData.name || fieldData.id || `field-${index}-${Date.now()}`,
+              id: fieldData.id || fieldData.name || `field-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               originalId: fieldData.id, // Store original ID for reference
               name: fieldData.name,
               type: fieldData.type || 'text',
@@ -2658,7 +2658,7 @@ export default function PublicFormPage() {
                 className="space-y-6"
               >
                 {formData.fields.map((field, index) => {
-                  const fieldKey = field.id || `field-${index}`
+                  const fieldKey = field.id || `field-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
                   // Process the field to ensure options and nested fields are properly structured
                   const processedField = {

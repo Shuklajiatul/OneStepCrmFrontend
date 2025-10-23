@@ -44,7 +44,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
   const [showManualCityInput, setShowManualCityInput] = useState({}) // {stateId: boolean}
 
   // Debounced update function to prevent excessive re-renders
-  const debouncedUpdateField = useDebouncedUpdate(onUpdateField, 5000)
+  const debouncedUpdateField = useDebouncedUpdate(onUpdateField, 1000)
 
   // Load countries on component mount
   useEffect(() => {
@@ -311,13 +311,21 @@ export function FieldConfigPanel({ field, onUpdateField }) {
 
   // Helper function to update nested fields at any depth
   const updateNestedFieldAtPath = (nestedFields, path, updates) => {
+    console.log('🔍 updateNestedFieldAtPath called:', {
+      nestedFields,
+      path,
+      updates
+    })
+    
     const cloned = deepCloneNestedFields(nestedFields)
+    console.log('🔍 Cloned nested fields:', cloned)
 
     // Navigate to the target field
     let current = cloned
     for (let i = 0; i < path.length - 1; i += 2) {
       const optionIndex = path[i]
       const fieldIndex = path[i + 1]
+      console.log(`🔍 Navigating to option ${optionIndex}, field ${fieldIndex}`)
 
       if (!current[optionIndex]) current[optionIndex] = []
       if (i + 2 < path.length - 1) {
@@ -331,24 +339,29 @@ export function FieldConfigPanel({ field, onUpdateField }) {
 
     const lastOptionIndex = path[path.length - 2]
     const lastFieldIndex = path[path.length - 1]
+    console.log(`🔍 Final target: option ${lastOptionIndex}, field ${lastFieldIndex}`)
 
     if (!current[lastOptionIndex]) current[lastOptionIndex] = []
 
     // Apply updates
     if (updates === null) {
       // Remove field
+      console.log('🔍 Removing field')
       current[lastOptionIndex] = current[lastOptionIndex].filter((_, idx) => idx !== lastFieldIndex)
     } else if (typeof updates === 'function') {
       // Custom update function
+      console.log('🔍 Applying function update')
       current[lastOptionIndex][lastFieldIndex] = updates(current[lastOptionIndex][lastFieldIndex])
     } else {
       // Merge updates
+      console.log('🔍 Applying merge update:', updates)
       current[lastOptionIndex][lastFieldIndex] = {
         ...current[lastOptionIndex][lastFieldIndex],
         ...updates
       }
     }
 
+    console.log('🔍 Final result:', cloned)
     return cloned
   }
 
@@ -443,14 +456,27 @@ export function FieldConfigPanel({ field, onUpdateField }) {
 
     // Simple handler for field updates
     const handleFieldUpdate = useCallback((updates, useDebounce = false) => {
+      console.log('🔍 handleFieldUpdate called:', {
+        fieldId,
+        path,
+        updates,
+        useDebounce,
+        currentNestedFields: nestedFields
+      })
+      
       const updatedNestedFields = updateNestedFieldAtPath(
         nestedFields || {},
         path,
         updates
       )
+      
+      console.log('🔍 Updated nested fields structure:', updatedNestedFields)
+      
       if (useDebounce) {
+        console.log('🔍 Using debounced update')
         debouncedUpdateField(fieldId, { nestedFields: updatedNestedFields })
       } else {
+        console.log('🔍 Using immediate update')
         onUpdateField(fieldId, { nestedFields: updatedNestedFields })
       }
     }, [nestedFields, path, fieldId, debouncedUpdateField, onUpdateField])
@@ -676,20 +702,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <Label className="text-xs font-medium text-muted-foreground">Required Field</Label>
-            <Switch
-              checked={nestedField.required || false}
-              onCheckedChange={(checked) => handleFieldUpdate({
-                required: checked,
-                validation: {
-                  ...nestedField.validation,
-                  required: checked
-                }
-              })}
-              className="h-4 w-7"
-            />
-          </div>
+          {/* Required field validation removed for nested fields - only parent form validation applies */}
 
           {/* Options for select, checkbox, radio */}
           {["select", "checkbox", "radio"].includes(nestedField.type) && (

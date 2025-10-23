@@ -441,7 +441,7 @@ export default function MyFormsPage() {
                           type: nestedField.type,
                           label: nestedField.label,
                           placeholder: nestedField.placeholder || '',
-                          required: nestedField.required === true || nestedField.required === 'true' || false,
+                          required: false, // Remove required validation from nested fields
                           options: [],
                           validation: nestedField.validations || {},
                           nestedFields: {}
