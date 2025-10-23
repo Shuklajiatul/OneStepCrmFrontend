@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -22,13 +22,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-
-// API configuration
-const API_BASE_URL = 'http://10.10.15.194:3001'
-const ORGANIZATION_ID = 'c8c72c21-7b5c-435a-912a-803105e7ecc9'
-const TABLE_ID = '040e899d-583a-454e-92e6-d0d5a8095587'
-const USER_ID = 'c2a985ce-d385-4349-8f0c-d46e63027ce4'
-const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYwNDM2MjAyLCJleHAiOjE3NjA1MjI2MDJ9.rXbGaZSpO0G6tMp-OiTTERW7D0pCXi5OutXH-8exGnw'
 
 export default function MyFormsPage() {
   const [forms, setForms] = useState([])
@@ -162,10 +155,10 @@ export default function MyFormsPage() {
   const getFormDetails = async (formId) => {
     try {
       const response = await axios.get(
-        `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/${process.env.NEXT_PUBLIC_ORGANIZATION_ID}/${process.env.NEXT_PUBLIC_TABLE_ID}/${formId}`,
         {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
             'Content-Type': 'application/json'
           }
         }
@@ -187,7 +180,7 @@ export default function MyFormsPage() {
   // Function to update form
   const updateForm = async (formData) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/forms/update`, formData, {
+      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/update`, formData, {
         headers: {
           'Authorization': `Bearer ${AUTH_TOKEN}`,
           'Content-Type': 'application/json'
@@ -213,16 +206,16 @@ export default function MyFormsPage() {
       setArchivingForm(formId)
 
       const response = await axios.post(
-        `${API_BASE_URL}/api/forms/archieve`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/archieve`,
         {
-          organization_id: ORGANIZATION_ID,
+          organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
           form_id: formId,
-          table_id: TABLE_ID,
+          table_id: process.env.NEXT_PUBLIC_TABLE_ID,
           status: !currentStatus // Toggle the status
         },
         {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
             'Content-Type': 'application/json'
           }
         }
@@ -277,15 +270,15 @@ export default function MyFormsPage() {
       setDeletingForm(formId)
 
       const response = await axios.post(
-        `${API_BASE_URL}/api/forms/delete`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/delete`,
         {
-          organization_id: ORGANIZATION_ID,
+          organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
           form_id: formId,
-          table_id: TABLE_ID
+          table_id: process.env.NEXT_PUBLIC_TABLE_ID
         },
         {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
             'Content-Type': 'application/json'
           }
         }
@@ -324,10 +317,10 @@ export default function MyFormsPage() {
       setLoading(true)
 
       const response = await axios.get(
-        `${API_BASE_URL}/api/forms/all/${ORGANIZATION_ID}/${TABLE_ID}`,
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/all/${process.env.NEXT_PUBLIC_ORGANIZATION_ID}/${process.env.NEXT_PUBLIC_TABLE_ID}`,
         {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
             'Content-Type': 'application/json'
           }
         }
@@ -549,11 +542,11 @@ export default function MyFormsPage() {
     try {
       toast.info("Updating form...")
 
-      // Prepare the data for API - exactly matching the required format
+      // Prepare the data for API
       const apiData = {
         form_id: editingForm.form_id,
-        table_id: TABLE_ID,
-        organization_id: ORGANIZATION_ID,
+        table_id: process.env.NEXT_PUBLIC_TABLE_ID,
+        organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
         form_name: updatedData.form_name,
         description: updatedData.description,
         fields: updatedData.fields.map(field => {
@@ -628,39 +621,43 @@ export default function MyFormsPage() {
   }
 
   // Filter and search functions
-  const filteredForms = forms.filter(form => {
-    const matchesSearch = form.form_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      form.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredForms = useMemo(() => {
+    return forms.filter(form => {
+      const matchesSearch = form.form_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        form.description?.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesStatus = statusFilter === "all" ||
-      (statusFilter === "published" && form.published && !form.archived) ||
-      (statusFilter === "draft" && !form.published && !form.archived) ||
-      (statusFilter === "archived" && form.archived)
+      const matchesStatus = statusFilter === "all" ||
+        (statusFilter === "published" && form.published && !form.archived) ||
+        (statusFilter === "draft" && !form.published && !form.archived) ||
+        (statusFilter === "archived" && form.archived)
 
-    return matchesSearch && matchesStatus
-  })
+      return matchesSearch && matchesStatus
+    })
+  }, [forms, searchTerm, statusFilter])
 
   // Sort functions
-  const sortedForms = [...filteredForms].sort((a, b) => {
-    let aValue = a[sortField]
-    let bValue = b[sortField]
+  const sortedForms = useMemo(() => {
+    return [...filteredForms].sort((a, b) => {
+      let aValue = a[sortField]
+      let bValue = b[sortField]
 
-    // Handle date sorting
-    if (sortField === "createdDate") {
-      aValue = a.createdDate
-      bValue = b.createdDate
-    }
+      // Handle date sorting
+      if (sortField === "createdDate") {
+        aValue = a.createdDate
+        bValue = b.createdDate
+      }
 
-    // Handle numeric sorting for fieldCount
-    if (sortField === "fieldCount") {
-      aValue = a.fieldCount || 0
-      bValue = b.fieldCount || 0
-    }
+      // Handle numeric sorting for fieldCount
+      if (sortField === "fieldCount") {
+        aValue = a.fieldCount || 0
+        bValue = b.fieldCount || 0
+      }
 
-    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1
-    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1
-    return 0
-  })
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1
+      return 0
+    })
+  }, [filteredForms, sortField, sortDirection])
 
   // Pagination functions
   const totalPages = Math.ceil(sortedForms.length / itemsPerPage)
