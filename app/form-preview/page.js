@@ -25,6 +25,12 @@ export default function FormPreviewPage() {
         if (data.isEditMode && data.fields) {
           console.log('🔍 Loading fields from localStorage for preview:', data.fields)
           console.log('🔍 First field nestedFields from localStorage:', data.fields[0]?.nestedFields)
+          
+          // Debug: Show the complete structure of the first field
+          if (data.fields[0]) {
+            console.log('🔍 Complete first field structure:', JSON.stringify(data.fields[0], null, 2))
+          }
+          
           setFields(data.fields)
           setIsEditMode(true)
           setEditFormData(data)
@@ -53,12 +59,20 @@ export default function FormPreviewPage() {
     if (!isEditMode) return
 
     const handleStorageChange = () => {
+      console.log('🔍 Storage change detected in form preview')
       const formBuilderData = localStorage.getItem('formBuilderData')
       if (formBuilderData) {
         try {
           const data = JSON.parse(formBuilderData)
           if (data.isEditMode && data.fields) {
             console.log('🔍 Storage changed - reloading fields for preview:', data.fields)
+            console.log('🔍 First field nestedFields from storage:', data.fields[0]?.nestedFields)
+            
+            // Debug: Show the complete structure of the first field
+            if (data.fields[0]) {
+              console.log('🔍 Complete first field structure from storage:', JSON.stringify(data.fields[0], null, 2))
+            }
+            
             setFields(data.fields)
             setEditFormData(data)
           }
@@ -68,7 +82,7 @@ export default function FormPreviewPage() {
       }
     }
 
-    // Listen for storage events
+    // Listen for storage events (cross-tab)
     window.addEventListener('storage', handleStorageChange)
     
     // Also listen for custom events (for same-tab updates)
