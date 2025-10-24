@@ -928,7 +928,15 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
 
             // Convert nestedValues to nestedFields for this option
             if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
-              checkboxNestedFields[index] = transformApiNestedValuesToNestedFields(item.nestedValues)
+              // Find the correct index in field options based on the option value
+              const optionIndex = field.options?.findIndex(option => {
+                const optionValue = typeof option === 'string' ? option : option.value
+                return optionValue === item.value
+              })
+              
+              if (optionIndex !== -1) {
+                checkboxNestedFields[optionIndex] = transformApiNestedValuesToNestedFields(item.nestedValues)
+              }
             }
           }
         })
@@ -955,7 +963,15 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
 
             // Convert nestedValues to nestedFields for this option
             if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
-              selectNestedFields[index] = transformApiNestedValuesToNestedFields(item.nestedValues)
+              // Find the correct index in field options based on the option value
+              const optionIndex = field.options?.findIndex(option => {
+                const optionValue = typeof option === 'string' ? option : option.value
+                return optionValue === item.value
+              })
+              
+              if (optionIndex !== -1) {
+                selectNestedFields[optionIndex] = transformApiNestedValuesToNestedFields(item.nestedValues)
+              }
             }
           }
         })

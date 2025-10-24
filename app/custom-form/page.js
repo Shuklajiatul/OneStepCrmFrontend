@@ -52,25 +52,42 @@ export default function CustomFormPage() {
     setIsClient(true)
   }, [])
 
+  // Cleanup on page unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Only clear if not in edit mode (to preserve edit data on refresh)
+      if (!isEditMode) {
+        sessionStorage.removeItem('directEditAction')
+        sessionStorage.removeItem('wasEditingForm')
+      }
+      // Don't clear localStorage in edit mode to preserve data on refresh
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isEditMode])
+
   // Check for edit mode data from localStorage first
   useEffect(() => {
+    // Check if we're coming from a direct edit action (not browser back)
+    const isDirectEdit = sessionStorage.getItem('directEditAction')
     const formBuilderData = localStorage.getItem('formBuilderData')
+    const wasEditingFlag = sessionStorage.getItem('wasEditingForm')
+
+    // Load edit data if:
+    // 1. We have formBuilderData AND it's a direct edit action, OR
+    // 2. We have formBuilderData AND wasEditingFlag exists (for refresh scenarios)
     if (formBuilderData) {
       try {
         const data = JSON.parse(formBuilderData)
-        console.log('🔍 Loading form data from localStorage:', data)
-        
-        if (data.isEditMode && data.fields) {
-          console.log('🔍 Raw loaded fields:', data.fields)
-          console.log('🔍 First field structure:', data.fields[0])
-          console.log('🔍 First field options:', data.fields[0]?.options)
-          console.log('🔍 First field nestedFields:', data.fields[0]?.nestedFields)
-          
+        if (data.isEditMode && (isDirectEdit || wasEditingFlag)) {
+          console.log('🔍 Loading form data from localStorage:', data)
+
           // Process nested fields from options to field.nestedFields structure
           const processedFields = data.fields.map(field => {
             if (['select', 'checkbox', 'radio'].includes(field.type) && field.options && Array.isArray(field.options)) {
               const nestedFields = {}
-              
+
               // Recursive function to extract nested fields from any level
               const extractNestedFieldsRecursively = (nestedFieldsArray) => {
                 return nestedFieldsArray.map(nestedField => {
@@ -85,7 +102,7 @@ export default function CustomFormPage() {
                     validation: nestedField.validations || {},
                     nestedFields: {}
                   }
-                  
+
                   // Process options if they exist
                   if (nestedField.options && Array.isArray(nestedField.options)) {
                     processedNestedField.options = nestedField.options.map(opt => {
@@ -98,7 +115,7 @@ export default function CustomFormPage() {
                       }
                       return typeof opt === 'string' ? opt : (opt.value || opt.label || 'Option')
                     })
-                    
+
                     // Process sub-nested fields from options recursively
                     const subNestedFields = {}
                     nestedField.options.forEach((subOption, subOptionIndex) => {
@@ -106,26 +123,26 @@ export default function CustomFormPage() {
                         subNestedFields[subOptionIndex] = extractNestedFieldsRecursively(subOption.nestedFields)
                       }
                     })
-                    
+
                     // Only set nestedFields if there are actual nested fields
                     if (Object.keys(subNestedFields).length > 0) {
                       processedNestedField.nestedFields = subNestedFields
                     }
                   }
-                  
+
                   return processedNestedField
                 })
               }
-              
+
               field.options.forEach((option, optionIndex) => {
                 if (typeof option === 'object' && option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
                   console.log('🔍 Processing nested fields for option', optionIndex, ':', option.nestedFields)
                   nestedFields[optionIndex] = extractNestedFieldsRecursively(option.nestedFields)
                 }
               })
-              
+
               console.log('🔍 Extracted nestedFields for field:', field.label, nestedFields)
-              
+
               return {
                 ...field,
                 nestedFields: nestedFields,
@@ -138,27 +155,47 @@ export default function CustomFormPage() {
             }
             return field
           })
-          
+
           console.log('🔍 Processed fields with nested fields:', processedFields)
-          
+
           // Ensure all field IDs are unique before setting fields
           const fieldsWithUniqueIds = ensureUniqueFieldIds(processedFields)
           console.log('🔍 Fields with unique IDs:', fieldsWithUniqueIds)
-          
+
           setFields(fieldsWithUniqueIds)
           setIsEditMode(true)
           setEditFormData(data)
-          
+
           // Don't clear localStorage - keep it for persistence across refreshes
           // localStorage.removeItem('formBuilderData')
-          
+
           console.log('🔍 Loaded fields for editing:', processedFields)
         }
       } catch (error) {
         console.error('Error parsing form builder data:', error)
         localStorage.removeItem('formBuilderData')
+        sessionStorage.removeItem('directEditAction')
+        sessionStorage.removeItem('wasEditingForm')
       }
     } else {
+      // No directEditAction flag - this means browser back or fresh page load
+      if (formBuilderData) {
+        try {
+          const data = JSON.parse(formBuilderData)
+          // If it's edit mode data but no directEditAction flag, clear it (browser back scenario)
+          if (data.isEditMode) {
+            console.log('🔍 Browser back from edit mode detected - clearing edit data')
+            localStorage.removeItem('formBuilderData')
+          } else {
+            console.log('🔍 Browser back detected - clearing non-edit data')
+            localStorage.removeItem('formBuilderData')
+          }
+        } catch (error) {
+          console.error('Error parsing formBuilderData:', error)
+          localStorage.removeItem('formBuilderData')
+        }
+      }
+
       // Only restore from sessionStorage if not in edit mode
       const savedFields = sessionStorage.getItem('form-preview-fields')
       if (savedFields) {
@@ -202,7 +239,7 @@ export default function CustomFormPage() {
       }
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
       console.log('🔍 Saved to localStorage:', formBuilderData)
-      
+
       // Dispatch custom event to notify preview page of changes
       window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
     }
@@ -219,11 +256,11 @@ export default function CustomFormPage() {
           fields: fields
         }
         localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-        
+
         // Dispatch custom event to notify preview page of changes
         window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
       }, 100)
-      
+
       return () => clearTimeout(timeoutId)
     }
   }, [fields])
@@ -383,19 +420,19 @@ export default function CustomFormPage() {
   const updateField = (fieldId, updates) => {
     console.log('🔍 updateField called:', { fieldId, updates })
     console.log('🔍 Current fields before update:', fields)
-    
+
     const updatedFields = fields.map(field =>
       field.id === fieldId ? { ...field, ...updates } : field
     )
-    
+
     console.log('🔍 Updated fields after update:', updatedFields)
-    
+
     // Force a deep update by creating a new array reference
     setFields([...updatedFields])
     if (selectedField && selectedField.id === fieldId) {
       setSelectedField({ ...selectedField, ...updates })
     }
-    
+
     // Immediately save to localStorage if in edit mode
     if (isEditMode && editFormData) {
       const formBuilderData = {
@@ -405,7 +442,7 @@ export default function CustomFormPage() {
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
       console.log('🔍 Immediately saved to localStorage after update:', formBuilderData)
       console.log('🔍 First field nestedFields structure:', formBuilderData.fields[0]?.nestedFields)
-      
+
       // Dispatch custom event to notify preview page of changes
       window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
       console.log('🔍 Dispatched formBuilderDataUpdated event after field update')
@@ -421,12 +458,12 @@ export default function CustomFormPage() {
     if (isSelectedField) {
       // If the deleted field was selected, find another field to select
       const remainingFields = fields.filter(field => field.id !== fieldId)
-      
+
       if (remainingFields.length > 0) {
         // Select the next field, or the previous one if we deleted the last field
         const nextFieldIndex = currentFieldIndex < remainingFields.length ? currentFieldIndex : currentFieldIndex - 1
         const nextField = remainingFields[nextFieldIndex] || remainingFields[remainingFields.length - 1]
-        
+
         // Add a small delay for smooth transition
         setTimeout(() => {
           setSelectedField(nextField)
@@ -482,13 +519,13 @@ export default function CustomFormPage() {
         // Update existing form
         console.log('🔍 Updating existing form:', editFormData.formId)
         console.log('🔍 Fields to update:', fields)
-        
+
         // TODO: Implement actual update API call
         alert(`Update functionality will be implemented for form: ${editFormData.formName}`)
       } else {
         // Create new form
         console.log('🔍 Creating new form with fields:', fields)
-        
+
         // TODO: Implement actual create API call
         alert('Create functionality will be implemented')
       }
@@ -500,20 +537,11 @@ export default function CustomFormPage() {
   const handleBackToForms = () => {
     // Clear localStorage when leaving edit mode
     localStorage.removeItem('formBuilderData')
+    sessionStorage.removeItem('directEditAction')
+    sessionStorage.removeItem('wasEditingForm')
     sessionStorage.setItem('intended-tab', 'my-forms')
     router.push('/')
   }
-
-  // const handleTabChange = (value) => {
-  //   if (value === "preview") {
-  //     // Navigate to preview page (fields are already saved via useEffect)
-  //     // Set intended tab so we know to return to custom-form
-  //     sessionStorage.setItem('intended-tab', 'custom-form')
-  //     router.push('/form-preview')
-  //   } else {
-  //     setActiveTab(value)
-  //   }
-  // }
 
   const handleTabChange = (value) => {
     if (value === "preview") {
@@ -525,14 +553,14 @@ export default function CustomFormPage() {
         isEditMode: isEditMode,
         formId: isEditMode ? editFormData?.formId : null
       }
-      
+
       // Use localStorage for better persistence
       localStorage.setItem('form-preview-data', JSON.stringify(previewData))
-      
+
       // Also save to sessionStorage as backup
       sessionStorage.setItem('form-preview-fields', JSON.stringify(fields))
       sessionStorage.setItem('intended-tab', 'custom-form')
-      
+
       console.log('🔍 Preview data saved:', previewData)
       router.push('/form-preview')
     } else {
