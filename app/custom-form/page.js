@@ -367,6 +367,7 @@ export default function CustomFormPage() {
       
       // Dispatch custom event to notify preview page of changes
       window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+      console.log('🔍 Dispatched formBuilderDataUpdated event after field update')
     }
   }
 

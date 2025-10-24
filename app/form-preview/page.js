@@ -116,18 +116,27 @@ export default function FormPreviewPage() {
         const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYwNTA2OTYzLCJleHAiOjE3NjA1OTMzNjN9.SEAwwoCusaotsc_lhb3nh0Fq5tIOWIHtbMYCG1vZ2jU'
         
         // Process fields the same way as Generate Link
-        const processFieldData = (field) => {
+        const processFieldData = (field, isNested = false) => {
           console.log('🔍 processFieldData - processing field:', { 
             id: field.id, 
             label: field.label, 
             type: field.type,
+            isNested,
             hasNestedFields: field.nestedFields ? Object.keys(field.nestedFields).length : 0,
             optionsCount: field.options ? field.options.length : 0
           })
           
+          // Debug: Show the raw nested fields structure
+          if (field.nestedFields) {
+            console.log('🔍 Raw nestedFields structure in processFieldData:', field.nestedFields)
+            Object.keys(field.nestedFields).forEach(key => {
+              console.log(`🔍 NestedFields[${key}]:`, field.nestedFields[key])
+            })
+          }
+          
           const processedField = {
             id: field.id,
-            name: field.name,
+            name: field.name || field.label?.toLowerCase().replace(/\s+/g, '_'),
             type: field.type,
             label: field.label,
             placeholder: field.placeholder || '',
@@ -143,6 +152,11 @@ export default function FormPreviewPage() {
           // Process options and nested fields
           if (field.options && Array.isArray(field.options)) {
             processedField.options = field.options.map((option, optionIndex) => {
+              console.log(`🔍 Processing option ${optionIndex}:`, {
+                option: option,
+                hasNestedFields: field.nestedFields && field.nestedFields[optionIndex] ? field.nestedFields[optionIndex].length : 0
+              })
+              
               if (typeof option === 'object' && option.value) {
                 const processedOption = {
                   value: option.value,
@@ -150,20 +164,16 @@ export default function FormPreviewPage() {
                   nestedFields: []
                 }
                 
-                // Check for nested fields in two places:
-                // 1. In option.nestedFields (from API)
-                // 2. In field.nestedFields[optionIndex] (from form builder edit mode)
-                let nestedFieldsToProcess = []
-                
-                if (option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
-                  nestedFieldsToProcess = option.nestedFields
-                } else if (field.nestedFields && field.nestedFields[optionIndex] && Array.isArray(field.nestedFields[optionIndex])) {
-                  nestedFieldsToProcess = field.nestedFields[optionIndex]
-                }
-                
-                if (nestedFieldsToProcess.length > 0) {
-                  console.log('🔍 Found nested fields for option', optionIndex, ':', nestedFieldsToProcess.length, 'fields')
-                  processedOption.nestedFields = nestedFieldsToProcess.map(processFieldData)
+                // Always prioritize field.nestedFields over option.nestedFields
+                // because the form builder stores nested fields in field.nestedFields[index]
+                if (field.nestedFields && field.nestedFields[optionIndex]) {
+                  console.log(`🔍 Converting nestedFields for object option ${optionIndex}:`, field.nestedFields[optionIndex])
+                  processedOption.nestedFields = field.nestedFields[optionIndex].map(nestedField => processFieldData(nestedField, true))
+                  processedField.hasNested = true
+                  console.log('🔍 Set hasNested = true for field:', field.label)
+                } else if (option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
+                  console.log(`🔍 Using option.nestedFields for option ${optionIndex}:`, option.nestedFields.length, 'fields')
+                  processedOption.nestedFields = option.nestedFields.map(nestedField => processFieldData(nestedField, true))
                   processedField.hasNested = true
                   console.log('🔍 Set hasNested = true for field:', field.label)
                 }
@@ -178,9 +188,9 @@ export default function FormPreviewPage() {
                 }
                 
                 // Check for nested fields in field.nestedFields[optionIndex] (from form builder edit mode)
-                if (field.nestedFields && field.nestedFields[optionIndex] && Array.isArray(field.nestedFields[optionIndex])) {
-                  console.log('🔍 Found nested fields for string option', optionIndex, ':', field.nestedFields[optionIndex].length, 'fields')
-                  processedOption.nestedFields = field.nestedFields[optionIndex].map(processFieldData)
+                if (field.nestedFields && field.nestedFields[optionIndex]) {
+                  console.log(`🔍 Converting nestedFields for string option ${optionIndex}:`, field.nestedFields[optionIndex])
+                  processedOption.nestedFields = field.nestedFields[optionIndex].map(nestedField => processFieldData(nestedField, true))
                   processedField.hasNested = true
                   console.log('🔍 Set hasNested = true for field:', field.label)
                 }
@@ -190,6 +200,14 @@ export default function FormPreviewPage() {
               return option
             })
           }
+          
+          console.log('🔍 Final processed field:', {
+            id: processedField.id,
+            label: processedField.label,
+            hasNested: processedField.hasNested,
+            optionsCount: processedField.options.length,
+            nestedFieldsCount: processedField.options.reduce((sum, opt) => sum + (opt.nestedFields?.length || 0), 0)
+          })
           
           return processedField
         }
@@ -212,6 +230,27 @@ export default function FormPreviewPage() {
         }
         
         console.log('🚀 Update API Payload:', JSON.stringify(updatePayload, null, 2))
+        
+        // Debug: Show detailed nested fields analysis for the API payload
+        console.log('🔍 Detailed nested fields analysis for API payload:')
+        updatePayload.fields.forEach((field, fieldIndex) => {
+          console.log(`Field ${fieldIndex + 1}: ${field.label} (${field.type}) - hasNested: ${field.hasNested}`)
+          field.options.forEach((option, optIndex) => {
+            if (option.nestedFields && option.nestedFields.length > 0) {
+              console.log(`  Option ${optIndex}: "${option.value}" has ${option.nestedFields.length} nested fields`)
+              option.nestedFields.forEach((nestedField, nestedIndex) => {
+                console.log(`    Nested Field ${nestedIndex}: ${nestedField.label} (${nestedField.type})`)
+                if (nestedField.options && nestedField.options.length > 0) {
+                  nestedField.options.forEach((nestedOption, nestedOptIndex) => {
+                    if (nestedOption.nestedFields && nestedOption.nestedFields.length > 0) {
+                      console.log(`      Nested Option ${nestedOptIndex}: "${nestedOption.value}" has ${nestedOption.nestedFields.length} deep nested fields`)
+                    }
+                  })
+                }
+              })
+            }
+          })
+        })
         
         // Send update request
         const response = await fetch(`${API_BASE_URL}/api/forms/update`, {

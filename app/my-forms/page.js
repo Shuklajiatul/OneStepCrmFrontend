@@ -338,7 +338,7 @@ export default function MyFormsPage() {
       if (result.success && Array.isArray(result.form)) {
         // Process the forms to add field counts and format dates
         const processedForms = result.form.map(form => {
-          console.log('Processing form:', form.form_id, 'archived status:', form.archived, 'archieve_status:', form.archieve_status)
+
           return {
             ...form,
             // Count the number of valid fields
@@ -441,7 +441,7 @@ export default function MyFormsPage() {
                           type: nestedField.type,
                           label: nestedField.label,
                           placeholder: nestedField.placeholder || '',
-                          required: false, // Remove required validation from nested fields
+                          required: false,
                           options: [],
                           validation: nestedField.validations || {},
                           nestedFields: {}
@@ -525,6 +525,9 @@ export default function MyFormsPage() {
       console.log('🔍 Debug - First field nestedFields:', parsedFields[0]?.nestedFields)
       console.log('🔍 Debug - First field options:', parsedFields[0]?.options)
 
+      // Clear any existing localStorage data first to ensure fresh start
+      localStorage.removeItem('formBuilderData')
+      
       // Store the form data in localStorage to pass to form builder
       const formBuilderData = {
         formId: formDetails.form_id,
@@ -535,6 +538,7 @@ export default function MyFormsPage() {
       }
 
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+      console.log('🔍 Saved fresh form data to localStorage for editing:', formBuilderData)
 
       // Redirect to form builder
       window.location.href = '/custom-form'
@@ -557,7 +561,6 @@ export default function MyFormsPage() {
         form_name: updatedData.form_name,
         description: updatedData.description,
         fields: updatedData.fields.map(field => {
-          // Create field object matching the exact API format
           const fieldObj = {
             name: field.name || field.id,
             type: field.type,

@@ -75,7 +75,7 @@ const processFieldOptions = (field) => {
           return {
             value: option.value,
             label: option.label,
-            nestedFields: processNestedFieldsRecursively(field.nestedFields[index])
+            nestedFields: processNestedFieldsRecursively(field.nestedFields[index], 0)
           }
         }
         
@@ -101,7 +101,7 @@ const processFieldOptions = (field) => {
           return {
             value: option,
             label: option,
-            nestedFields: processNestedFieldsRecursively(field.nestedFields[index])
+            nestedFields: processNestedFieldsRecursively(field.nestedFields[index], 0)
           }
         }
         return option
@@ -113,13 +113,19 @@ const processFieldOptions = (field) => {
 }
 
 // Helper function to recursively process nested fields structure
-const processNestedFieldsRecursively = (nestedFields) => {
+const processNestedFieldsRecursively = (nestedFields, depth = 0, maxDepth = 10) => {
   if (!Array.isArray(nestedFields)) {
     console.log('🔍 processNestedFieldsRecursively - Not an array:', nestedFields)
     return []
   }
 
-  console.log('🔍 processNestedFieldsRecursively - Processing:', nestedFields.length, 'fields')
+  // Prevent infinite recursion by limiting depth
+  if (depth >= maxDepth) {
+    console.log('🔍 processNestedFieldsRecursively - Max depth reached, stopping recursion')
+    return []
+  }
+
+  console.log('🔍 processNestedFieldsRecursively - Processing:', nestedFields.length, 'fields at depth', depth)
 
   return nestedFields.map((nestedField, index) => {
     console.log(`🔍 Processing nested field ${index}:`, {
@@ -161,7 +167,27 @@ const processNestedFieldsRecursively = (nestedFields) => {
       placeholder: nestedField.placeholder || '',
       required: false, // Remove required validation from nested fields
       validation: validation,
-      options: processFieldOptions(nestedField) // Process options recursively
+      options: [] // Don't process options recursively to prevent infinite loops
+    }
+    
+    // Process options without recursive calls to prevent infinite loops
+    if (nestedField.options && Array.isArray(nestedField.options)) {
+      processedField.options = nestedField.options.map((option, optionIndex) => {
+        if (typeof option === 'object' && option.value) {
+          return {
+            value: option.value,
+            label: option.label || option.value,
+            nestedFields: [] // Don't process nested fields recursively
+          }
+        } else if (typeof option === 'string') {
+          return {
+            value: option,
+            label: option,
+            nestedFields: [] // Don't process nested fields recursively
+          }
+        }
+        return option
+      })
     }
 
     // Recursively process nested fields within this field
@@ -169,12 +195,12 @@ const processNestedFieldsRecursively = (nestedFields) => {
     if (nestedField.nestedFields) {
       if (Array.isArray(nestedField.nestedFields)) {
         console.log(`🔍 Processing nested field ${index} with array nestedFields:`, nestedField.nestedFields.length)
-        processedField.nestedFields = processNestedFieldsRecursively(nestedField.nestedFields)
+        processedField.nestedFields = processNestedFieldsRecursively(nestedField.nestedFields, depth + 1)
       } else if (typeof nestedField.nestedFields === 'object') {
         // Handle the case where nested fields are stored as an object with indices
         console.log(`🔍 Processing nested field ${index} with object nestedFields:`, Object.keys(nestedField.nestedFields))
         const nestedFieldsArray = Object.values(nestedField.nestedFields).flat()
-        processedField.nestedFields = processNestedFieldsRecursively(nestedFieldsArray)
+        processedField.nestedFields = processNestedFieldsRecursively(nestedFieldsArray, depth + 1)
       } else {
         processedField.nestedFields = []
       }
