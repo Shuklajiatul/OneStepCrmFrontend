@@ -23,6 +23,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
+const USER_ID = process.env.USER_ID;
+
 export default function MyFormsPage() {
   const [forms, setForms] = useState([])
   const [loading, setLoading] = useState(true)
@@ -528,6 +530,9 @@ export default function MyFormsPage() {
       }
 
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+      
+      // Set flag to indicate this is a direct edit action
+      sessionStorage.setItem('directEditAction', 'true')
 
       // Redirect to form builder
       window.location.href = '/custom-form'

@@ -52,104 +52,154 @@ export default function CustomFormPage() {
     setIsClient(true)
   }, [])
 
+  // Cleanup on page unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Only clear if not in edit mode (to preserve edit data on refresh)
+      if (!isEditMode) {
+        sessionStorage.removeItem('directEditAction')
+        sessionStorage.removeItem('wasEditingForm')
+      }
+      // Don't clear localStorage in edit mode to preserve data on refresh
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isEditMode])
+
   // Check for edit mode data from localStorage first
   useEffect(() => {
+    // Check if we're coming from a direct edit action (not browser back)
+    const isDirectEdit = sessionStorage.getItem('directEditAction')
     const formBuilderData = localStorage.getItem('formBuilderData')
+    const wasEditingFlag = sessionStorage.getItem('wasEditingForm')
+    
+    // Load edit data if:
+    // 1. We have formBuilderData AND it's a direct edit action, OR
+    // 2. We have formBuilderData AND wasEditingFlag exists (for refresh scenarios)
     if (formBuilderData) {
       try {
         const data = JSON.parse(formBuilderData)
-        console.log('🔍 Loading form data from localStorage:', data)
-        
-        if (data.isEditMode && data.fields) {
-          console.log('🔍 Raw loaded fields:', data.fields)
-          console.log('🔍 First field structure:', data.fields[0])
-          console.log('🔍 First field options:', data.fields[0]?.options)
-          console.log('🔍 First field nestedFields:', data.fields[0]?.nestedFields)
+        if (data.isEditMode && (isDirectEdit || wasEditingFlag)) {
+          console.log('🔍 Loading form data from localStorage:', data)
           
-          // Process nested fields from options to field.nestedFields structure
-          const processedFields = data.fields.map(field => {
-            if (field.type === 'select' && field.options && Array.isArray(field.options)) {
-              const nestedFields = {}
-              
-              // Recursive function to extract nested fields from any level
-              const extractNestedFieldsRecursively = (nestedFieldsArray) => {
-                return nestedFieldsArray.map(nestedField => {
-                  const processedNestedField = {
-                    id: nestedField.id,
-                    name: nestedField.name,
-                    type: nestedField.type,
-                    label: nestedField.label,
-                    placeholder: nestedField.placeholder || '',
-                    required: nestedField.required === true || nestedField.required === 'true' || false,
-                    options: [],
-                    validation: nestedField.validations || {},
-                    nestedFields: {}
-                  }
-                  
-                  // Process options if they exist
-                  if (nestedField.options && Array.isArray(nestedField.options)) {
-                    processedNestedField.options = nestedField.options.map(opt => {
-                      if (typeof opt === 'object' && opt.value) {
-                        return {
-                          value: opt.value,
-                          label: opt.label || opt.value,
-                          nestedFields: opt.nestedFields || []
-                        }
-                      }
-                      return typeof opt === 'string' ? opt : (opt.value || opt.label || 'Option')
-                    })
-                    
-                    // Process sub-nested fields from options recursively
-                    const subNestedFields = {}
-                    nestedField.options.forEach((subOption, subOptionIndex) => {
-                      if (typeof subOption === 'object' && subOption.nestedFields && Array.isArray(subOption.nestedFields) && subOption.nestedFields.length > 0) {
-                        subNestedFields[subOptionIndex] = extractNestedFieldsRecursively(subOption.nestedFields)
-                      }
-                    })
-                    
-                    // Only set nestedFields if there are actual nested fields
-                    if (Object.keys(subNestedFields).length > 0) {
-                      processedNestedField.nestedFields = subNestedFields
+          if (data.fields) {
+            console.log('🔍 Raw loaded fields:', data.fields)
+            console.log('🔍 First field structure:', data.fields[0])
+            console.log('🔍 First field options:', data.fields[0]?.options)
+            console.log('🔍 First field nestedFields:', data.fields[0]?.nestedFields)
+            
+            // Process nested fields from options to field.nestedFields structure
+            const processedFields = data.fields.map(field => {
+              if (field.type === 'select' && field.options && Array.isArray(field.options)) {
+                const nestedFields = {}
+                
+                // Recursive function to extract nested fields from any level
+                const extractNestedFieldsRecursively = (nestedFieldsArray) => {
+                  return nestedFieldsArray.map(nestedField => {
+                    const processedNestedField = {
+                      id: nestedField.id,
+                      name: nestedField.name,
+                      type: nestedField.type,
+                      label: nestedField.label,
+                      placeholder: nestedField.placeholder || '',
+                      required: nestedField.required === true || nestedField.required === 'true' || false,
+                      options: [],
+                      validation: nestedField.validations || {},
+                      nestedFields: {}
                     }
-                  }
-                  
-                  return processedNestedField
-                })
-              }
-              
-              field.options.forEach((option, optionIndex) => {
-                if (typeof option === 'object' && option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
-                  console.log('🔍 Processing nested fields for option', optionIndex, ':', option.nestedFields)
-                  nestedFields[optionIndex] = extractNestedFieldsRecursively(option.nestedFields)
+                    
+                    // Process options if they exist
+                    if (nestedField.options && Array.isArray(nestedField.options)) {
+                      processedNestedField.options = nestedField.options.map(opt => {
+                        if (typeof opt === 'object' && opt.value) {
+                          return {
+                            value: opt.value,
+                            label: opt.label || opt.value,
+                            nestedFields: opt.nestedFields || []
+                          }
+                        }
+                        return typeof opt === 'string' ? opt : (opt.value || opt.label || 'Option')
+                      })
+                      
+                      // Process sub-nested fields from options recursively
+                      const subNestedFields = {}
+                      nestedField.options.forEach((subOption, subOptionIndex) => {
+                        if (typeof subOption === 'object' && subOption.nestedFields && Array.isArray(subOption.nestedFields) && subOption.nestedFields.length > 0) {
+                          subNestedFields[subOptionIndex] = extractNestedFieldsRecursively(subOption.nestedFields)
+                        }
+                      })
+                      
+                      // Only set nestedFields if there are actual nested fields
+                      if (Object.keys(subNestedFields).length > 0) {
+                        processedNestedField.nestedFields = subNestedFields
+                      }
+                    }
+                    
+                    return processedNestedField
+                  })
                 }
-              })
-              
-              console.log('🔍 Extracted nestedFields for field:', field.label, nestedFields)
-              
-              return {
-                ...field,
-                nestedFields: nestedFields
+                
+                field.options.forEach((option, optionIndex) => {
+                  if (typeof option === 'object' && option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
+                    console.log('🔍 Processing nested fields for option', optionIndex, ':', option.nestedFields)
+                    nestedFields[optionIndex] = extractNestedFieldsRecursively(option.nestedFields)
+                  }
+                })
+                
+                console.log('🔍 Extracted nestedFields for field:', field.label, nestedFields)
+                
+                return {
+                  ...field,
+                  nestedFields: nestedFields
+                }
               }
-            }
-            return field
-          })
-          
-          console.log('🔍 Processed fields with nested fields:', processedFields)
-          
-          setFields(processedFields)
-          setIsEditMode(true)
-          setEditFormData(data)
-          
-          // Don't clear localStorage - keep it for persistence across refreshes
-          // localStorage.removeItem('formBuilderData')
-          
-          console.log('🔍 Loaded fields for editing:', processedFields)
+              return field
+            })
+            
+            console.log('🔍 Processed fields with nested fields:', processedFields)
+            
+            setFields(processedFields)
+            setIsEditMode(true)
+            setEditFormData(data)
+            
+            // Don't clear localStorage - keep it for persistence across refreshes
+            // localStorage.removeItem('formBuilderData')
+            
+            // Set flag to indicate we're in edit mode (for refresh detection)
+            sessionStorage.setItem('wasEditingForm', 'true')
+            
+            console.log('🔍 Loaded fields for editing:', processedFields)
+            
+            // Clear the direct edit action flag
+            sessionStorage.removeItem('directEditAction')
+          }
         }
       } catch (error) {
         console.error('Error parsing form builder data:', error)
         localStorage.removeItem('formBuilderData')
+        sessionStorage.removeItem('directEditAction')
+        sessionStorage.removeItem('wasEditingForm')
       }
     } else {
+      // No directEditAction flag - this means browser back or fresh page load
+      if (formBuilderData) {
+        try {
+          const data = JSON.parse(formBuilderData)
+          // If it's edit mode data but no directEditAction flag, clear it (browser back scenario)
+          if (data.isEditMode) {
+            console.log('🔍 Browser back from edit mode detected - clearing edit data')
+            localStorage.removeItem('formBuilderData')
+          } else {
+            console.log('🔍 Browser back detected - clearing non-edit data')
+            localStorage.removeItem('formBuilderData')
+          }
+        } catch (error) {
+          console.error('Error parsing formBuilderData:', error)
+          localStorage.removeItem('formBuilderData')
+        }
+      }
+      
       // Only restore from sessionStorage if not in edit mode
       const savedFields = sessionStorage.getItem('form-preview-fields')
       if (savedFields) {
@@ -458,6 +508,8 @@ export default function CustomFormPage() {
   const handleBackToForms = () => {
     // Clear localStorage when leaving edit mode
     localStorage.removeItem('formBuilderData')
+    sessionStorage.removeItem('directEditAction')
+    sessionStorage.removeItem('wasEditingForm')
     sessionStorage.setItem('intended-tab', 'my-forms')
     router.push('/')
   }

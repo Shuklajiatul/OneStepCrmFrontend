@@ -81,10 +81,15 @@ export default function FormPreviewPage() {
   }, [isEditMode])
 
   const handleBack = () => {
-    // Set the intended tab to custom-form so Home component knows where to navigate
-    sessionStorage.setItem('intended-tab', 'custom-form')
-    // Navigate to home page
-    router.push('/')
+    if (isEditMode) {
+      // In edit mode, go directly to custom-form with edit data
+      sessionStorage.setItem('directEditAction', 'true')
+      router.push('/custom-form')
+    } else {
+      // In create mode, go back to custom-form normally
+      sessionStorage.setItem('intended-tab', 'custom-form')
+      router.push('/')
+    }
   }
 
   const handleSaveForm = async () => {
