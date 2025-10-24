@@ -732,6 +732,18 @@ export function FieldConfigPanel({ field, onUpdateField }) {
                               updateOption(optionIndex, newValue)
                             }
                           }}
+                          onBlur={(e) => {
+                            const newValue = e.target.value
+                            if (typeof option === 'object' && option !== null) {
+                              updateOptionOnBlur(optionIndex, {
+                                value: newValue,
+                                label: newValue,
+                                nestedFields: option.nestedFields || []
+                              })
+                            } else {
+                              updateOptionOnBlur(optionIndex, newValue)
+                            }
+                          }}
                           placeholder={`Option ${optionIndex + 1}`}
                           className="h-7 text-xs flex-1 min-w-0"
                         />
