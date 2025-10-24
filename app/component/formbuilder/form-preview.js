@@ -68,24 +68,24 @@ const processFieldOptions = (field) => {
       })
 
       if (typeof option === 'object' && option !== null) {
-        // Always prioritize field.nestedFields over option.nestedFields
-        // because the form builder stores nested fields in field.nestedFields[index]
+        // Prioritize option.nestedFields over field.nestedFields[index]
+        // because the current structure stores nested fields in option.nestedFields
+        if (option.nestedFields && option.nestedFields.length > 0) {
+          console.log(`🔍 Option ${index} has nestedFields:`, option.nestedFields.length)
+          return {
+            value: option.value,
+            label: option.label,
+            nestedFields: option.nestedFields || []
+          }
+        }
+        
+        // Fallback to field.nestedFields[index] for backward compatibility
         if (field.nestedFields && field.nestedFields[index]) {
           console.log(`🔍 Converting nestedFields for object option ${index}:`, field.nestedFields[index])
           return {
             value: option.value,
             label: option.label,
             nestedFields: processNestedFieldsRecursively(field.nestedFields[index], 0)
-          }
-        }
-        
-        // Fallback to option.nestedFields if field.nestedFields doesn't exist
-        if (option.nestedFields) {
-          console.log(`🔍 Option ${index} already has nestedFields:`, option.nestedFields.length)
-          return {
-            value: option.value,
-            label: option.label,
-            nestedFields: option.nestedFields || []
           }
         }
 
@@ -170,20 +170,20 @@ const processNestedFieldsRecursively = (nestedFields, depth = 0, maxDepth = 10) 
       options: [] // Don't process options recursively to prevent infinite loops
     }
     
-    // Process options without recursive calls to prevent infinite loops
+    // Process options and preserve nested fields structure
     if (nestedField.options && Array.isArray(nestedField.options)) {
       processedField.options = nestedField.options.map((option, optionIndex) => {
         if (typeof option === 'object' && option.value) {
           return {
             value: option.value,
             label: option.label || option.value,
-            nestedFields: [] // Don't process nested fields recursively
+            nestedFields: option.nestedFields || [] // Preserve nested fields structure
           }
         } else if (typeof option === 'string') {
           return {
             value: option,
             label: option,
-            nestedFields: [] // Don't process nested fields recursively
+            nestedFields: [] // String options don't have nested fields
           }
         }
         return option

@@ -52,6 +52,19 @@ export default function MyFormsPage() {
     fetchForms()
   }, [])
 
+  // Helper function to generate unique field IDs
+  const generateUniqueFieldId = (prefix = 'field') => {
+    // Use crypto.randomUUID() if available, otherwise fallback to timestamp + random
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `${prefix}-${crypto.randomUUID()}`
+    }
+    // Fallback: timestamp + high-precision random + counter
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substr(2, 9)
+    const counter = Math.floor(Math.random() * 10000)
+    return `${prefix}-${timestamp}-${random}-${counter}`
+  }
+
   // Function to parse the character-by-character field data
   const parseFieldData = (field) => {
     try {
@@ -501,8 +514,8 @@ export default function MyFormsPage() {
         }
 
         return {
-          id: parsedField.id || parsedField.name || `field-${Date.now()}`,
-          name: parsedField.name || parsedField.id || `field-${Date.now()}`,
+          id: parsedField.id || parsedField.name || generateUniqueFieldId(),
+          name: parsedField.name || parsedField.id || generateUniqueFieldId('name'),
           type: parsedField.type || 'text',
           label: parsedField.label || parsedField.name || 'Field',
           placeholder: parsedField.placeholder || '',

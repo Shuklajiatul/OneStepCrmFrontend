@@ -130,8 +130,20 @@ export function TableColumnSelector({ field, onUpdateField }) {
           required: column.required
         })
 
+        // Generate unique field ID using crypto.randomUUID() if available
+        const generateUniqueFieldId = (prefix = 'field') => {
+          if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return `${prefix}-${crypto.randomUUID()}`
+          }
+          // Fallback: timestamp + high-precision random + counter
+          const timestamp = Date.now()
+          const random = Math.random().toString(36).substr(2, 9)
+          const counter = Math.floor(Math.random() * 10000)
+          return `${prefix}-${timestamp}-${random}-${counter}`
+        }
+
         const fieldData = {
-          id: `field-${Date.now()}-${column.column_id}-${Math.random().toString(36).substr(2, 4)}`,
+          id: generateUniqueFieldId(),
           type: fieldType,
           label: formattedLabel,
           placeholder: `Enter ${columnName.replace(/_/g, ' ').toLowerCase()}`,

@@ -12,6 +12,19 @@ import { Switch } from "@/components/ui/switch"
 import { Loader2, Save, X, Edit, Download, Eye, File, Image, Upload } from "lucide-react"
 import { TableColumnSelector } from "../formbuilder/table-column-selector"
 
+// Helper function to generate unique field IDs
+const generateUniqueFieldId = (prefix = 'field') => {
+  // Use crypto.randomUUID() if available, otherwise fallback to timestamp + random
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `${prefix}-${crypto.randomUUID()}`
+  }
+  // Fallback: timestamp + high-precision random + counter
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substr(2, 9)
+  const counter = Math.floor(Math.random() * 10000)
+  return `${prefix}-${timestamp}-${random}-${counter}`
+}
+
 // Enhanced helper functions
 const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 Bytes'
@@ -661,7 +674,7 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
   }
 
   const addField = () => {
-    const newFieldId = `field-${Date.now()}`
+    const newFieldId = generateUniqueFieldId()
     setFormData(prev => ({
       ...prev,
       fields: [

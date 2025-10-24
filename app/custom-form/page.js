@@ -68,7 +68,7 @@ export default function CustomFormPage() {
           
           // Process nested fields from options to field.nestedFields structure
           const processedFields = data.fields.map(field => {
-            if (field.type === 'select' && field.options && Array.isArray(field.options)) {
+            if (['select', 'checkbox', 'radio'].includes(field.type) && field.options && Array.isArray(field.options)) {
               const nestedFields = {}
               
               // Recursive function to extract nested fields from any level
@@ -128,7 +128,12 @@ export default function CustomFormPage() {
               
               return {
                 ...field,
-                nestedFields: nestedFields
+                nestedFields: nestedFields,
+                // Also preserve the original options structure for the field renderer
+                options: field.options.map(option => ({
+                  ...option,
+                  nestedFields: option.nestedFields || []
+                }))
               }
             }
             return field
@@ -136,7 +141,11 @@ export default function CustomFormPage() {
           
           console.log('🔍 Processed fields with nested fields:', processedFields)
           
-          setFields(processedFields)
+          // Ensure all field IDs are unique before setting fields
+          const fieldsWithUniqueIds = ensureUniqueFieldIds(processedFields)
+          console.log('🔍 Fields with unique IDs:', fieldsWithUniqueIds)
+          
+          setFields(fieldsWithUniqueIds)
           setIsEditMode(true)
           setEditFormData(data)
           
@@ -156,7 +165,9 @@ export default function CustomFormPage() {
         try {
           const parsedFields = JSON.parse(savedFields)
           if (parsedFields.length > 0) {
-            setFields(parsedFields)
+            // Ensure all field IDs are unique before setting fields
+            const fieldsWithUniqueIds = ensureUniqueFieldIds(parsedFields)
+            setFields(fieldsWithUniqueIds)
           }
         } catch (error) {
           console.error('Error restoring fields:', error)
@@ -264,36 +275,65 @@ export default function CustomFormPage() {
     return typeMap[dataType?.toLowerCase()] || 'text'
   }
 
+  // Helper function to generate unique field IDs
+  const generateUniqueFieldId = (prefix = 'field') => {
+    // Use crypto.randomUUID() if available, otherwise fallback to timestamp + random
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `${prefix}-${crypto.randomUUID()}`
+    }
+    // Fallback: timestamp + high-precision random + counter
+    const timestamp = Date.now()
+    const random = Math.random().toString(36).substr(2, 9)
+    const counter = Math.floor(Math.random() * 10000)
+    return `${prefix}-${timestamp}-${random}-${counter}`
+  }
+
+  // Helper function to ensure field IDs are unique
+  const ensureUniqueFieldIds = (fields) => {
+    const existingIds = new Set(fields.map(f => f.id))
+    return fields.map(field => {
+      if (existingIds.has(field.id)) {
+        const newId = generateUniqueFieldId()
+        existingIds.add(newId)
+        return { ...field, id: newId }
+      }
+      existingIds.add(field.id)
+      return field
+    })
+  }
+
   const addField = (type, predefinedFields = null) => {
     console.log('🎯 addField called with:', { type, predefinedFields })
 
     if (predefinedFields) {
       // Handle predefined fields (like from table columns)
       if (Array.isArray(predefinedFields)) {
-        // Multiple fields
+        // Multiple fields - ensure all IDs are unique
         console.log('📦 Adding multiple fields:', predefinedFields)
+        const fieldsWithUniqueIds = ensureUniqueFieldIds(predefinedFields)
         setFields(prev => {
-          const newFields = [...prev, ...predefinedFields]
+          const newFields = [...prev, ...fieldsWithUniqueIds]
           console.log('✅ Fields after addition:', newFields)
           return newFields
         })
-        if (predefinedFields.length > 0) {
-          setSelectedField(predefinedFields[0])
+        if (fieldsWithUniqueIds.length > 0) {
+          setSelectedField(fieldsWithUniqueIds[0])
         }
       } else {
-        // Single field
+        // Single field - ensure ID is unique
         console.log('📦 Adding single field:', predefinedFields)
+        const fieldWithUniqueId = ensureUniqueFieldIds([predefinedFields])[0]
         setFields(prev => {
-          const newFields = [...prev, predefinedFields]
+          const newFields = [...prev, fieldWithUniqueId]
           console.log('✅ Fields after addition:', newFields)
           return newFields
         })
-        setSelectedField(predefinedFields)
+        setSelectedField(fieldWithUniqueId)
       }
     } else if (type === "table_column") {
       // Add table column selector field
       const newField = {
-        id: `table-column-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: generateUniqueFieldId('table-column'),
         type: "table_column",
         label: "Table Columns",
         description: "Select columns from your table to use as form fields",
@@ -305,13 +345,14 @@ export default function CustomFormPage() {
 
           if (Array.isArray(newFields) && newFields.length > 0) {
             console.log('📦 Adding table column fields:', newFields)
-            // Add all the new fields at once
+            // Ensure all field IDs are unique before adding
+            const fieldsWithUniqueIds = ensureUniqueFieldIds(newFields)
             setFields(prev => {
-              const updatedFields = [...prev, ...newFields]
+              const updatedFields = [...prev, ...fieldsWithUniqueIds]
               console.log('✅ All fields after table column addition:', updatedFields)
               return updatedFields
             })
-            setSelectedField(newFields[0])
+            setSelectedField(fieldsWithUniqueIds[0])
             console.log('✅ Successfully added fields to form')
           } else {
             console.error('❌ No fields to add or invalid format')
@@ -324,7 +365,7 @@ export default function CustomFormPage() {
     } else {
       // Regular field creation
       const newField = {
-        id: `field-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: generateUniqueFieldId(),
         type,
         label: type.charAt(0).toUpperCase() + type.slice(1) + " Field",
         placeholder: "",

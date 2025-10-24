@@ -16,6 +16,19 @@ import { Database } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 
+// Helper function to generate unique field IDs
+const generateUniqueFieldId = (prefix = 'field') => {
+  // Use crypto.randomUUID() if available, otherwise fallback to timestamp + random
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return `${prefix}-${crypto.randomUUID()}`
+  }
+  // Fallback: timestamp + high-precision random + counter
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substr(2, 9)
+  const counter = Math.floor(Math.random() * 10000)
+  return `${prefix}-${timestamp}-${random}-${counter}`
+}
+
 // Helper function to format file size
 const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 Bytes'
@@ -520,7 +533,7 @@ const isImageFile = (file) => {
 const renderNestedFields = (field, selectedOptions, onChange, parentValue, disabled, invalid, error, locationData, depth = 0, processedIds = new Set(), hideFieldTypes = false) => {
   
   // Generate a unique key for this field if id is undefined
-  const fieldKey = field.id || `field-${field.label}-${depth}-${Date.now()}`
+  const fieldKey = field.id || generateUniqueFieldId(`nested-${field.label}-${depth}`)
   
   // Prevent infinite recursion by tracking processed field IDs
   if (processedIds.has(fieldKey)) {
@@ -543,10 +556,13 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
 
   // For multiple select/checkbox, show nested fields for all selected options
   if (Array.isArray(selectedOptions)) {
+    console.log('🔍 renderNestedFields - Processing selectedOptions:', selectedOptions)
     selectedOptions.forEach(selectedValue => {
       const option = findOptionByValue(selectedValue)
+      console.log('🔍 renderNestedFields - Found option for value:', selectedValue, option)
       
       if (option && typeof option === 'object' && option.nestedFields && option.nestedFields.length > 0) {
+        console.log('🔍 renderNestedFields - Processing nested fields for option:', option.nestedFields)
         const optionIndex = field.options?.findIndex(opt => {
           const optValue = typeof opt === 'string' ? opt : opt.value
           return optValue === selectedValue
@@ -2526,8 +2542,9 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                   </Label>
                 </div>
 
-                {Array.isArray(value?.value) && value.value?.includes(optionValue) && field.nestedFields && field.nestedFields[index] && (
+                {Array.isArray(value?.value) && value.value?.includes(optionValue) && option.nestedFields && option.nestedFields.length > 0 && (
                   <div className="ml-6 space-y-3">
+                    {console.log('🔍 Rendering nested fields for checkbox option:', optionValue, 'nestedFields:', option.nestedFields)}
                     {renderNestedFields(field, [optionValue], onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
                   </div>
                 )}
@@ -2582,11 +2599,11 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                         </Label>
                       </div>
 
-                      {value?.value === optionValue && field.nestedFields && field.nestedFields[index] && (
+                      {value?.value === optionValue && option.nestedFields && option.nestedFields.length > 0 && (
                         <div className="ml-6 space-y-3">
                           {renderNestedFields(field, optionValue, onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
-                      </div>
-                    )}
+                        </div>
+                      )}
                   </div>
                   )
                 })}
