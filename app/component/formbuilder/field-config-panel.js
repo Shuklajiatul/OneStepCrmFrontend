@@ -371,7 +371,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
 
     const newField = {
       id: `nested-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: nestedFields.name,
+      name: `nested_field_${Date.now()}`,
       type: "text",
       label: "Additional Field",
       placeholder: "",
@@ -379,7 +379,7 @@ export function FieldConfigPanel({ field, onUpdateField }) {
     }
 
     if (path.length === 0) {
-      // Adding to root level
+      // Adding to root level - ensure we create proper arrays
       if (!cloned[optionIndex]) cloned[optionIndex] = []
       cloned[optionIndex].push(newField)
       return cloned

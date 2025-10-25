@@ -578,10 +578,11 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
             nestedFieldsToShow.push({
               ...nestedField,
               id: nestedFieldId,
-              name: nestedField.name,
+              name: nestedField.name || nestedField.label,
               optionIndex,
               optionValue: selectedValue,
-              uniqueKey: nestedFieldKey
+              uniqueKey: nestedFieldKey,
+              options: nestedField.options || [] // Ensure options are preserved
             })
             currentProcessedIds.add(nestedFieldKey)
           }
@@ -604,10 +605,11 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
               nestedFieldsToShow.push({
                 ...nestedField,
                 id: nestedFieldId,
-                name: nestedField.name,
+                name: nestedField.name || nestedField.label,
                 optionIndex,
                 optionValue: selectedValue,
-                uniqueKey: nestedFieldKey
+              uniqueKey: nestedFieldKey,
+              options: nestedField.options || [] // Ensure options are preserved
               })
               currentProcessedIds.add(nestedFieldKey)
             }
@@ -636,7 +638,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
           nestedFieldsToShow.push({
             ...nestedField,
             id: nestedFieldId,
-            name: nestedField.name,
+            name: nestedField.name || nestedField.label,
             optionIndex,
             optionValue: selectedOptions,
             uniqueKey: nestedFieldKey
@@ -662,7 +664,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
             nestedFieldsToShow.push({
               ...nestedField,
               id: nestedFieldId,
-              name: nestedField.name,
+              name: nestedField.name || nestedField.label,
               optionIndex,
               optionValue: selectedOptions,
               uniqueKey: nestedFieldKey
@@ -674,10 +676,15 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
     }
   }
   
+  console.log('🔍 nestedFieldsToShow collected:', nestedFieldsToShow.length, 'fields')
+  
   if (nestedFieldsToShow.length === 0) {
+    console.log('❌ No nested fields to show, returning null')
     return null
   }
 
+  console.log('✅ Rendering', nestedFieldsToShow.length, 'nested fields')
+  
   const borderColor = depth === 0 ? 'border-primary/20' : depth === 1 ? 'border-blue-300/30' : 'border-green-300/30'
   const dotColor = depth === 0 ? 'bg-primary' : depth === 1 ? 'bg-blue-500' : 'bg-green-500'
 
@@ -692,6 +699,12 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
       </div>
       <div className="space-y-4 w-full min-w-0">
         {nestedFieldsToShow.map((nestedField) => {
+          console.log('🔍 Rendering nested field:', {
+            id: nestedField.id,
+            label: nestedField.label,
+            type: nestedField.type,
+            uniqueKey: nestedField.uniqueKey
+          })
           const nestedFieldId = nestedField.uniqueKey || `${fieldKey}_${nestedField.optionIndex}_${nestedField.id}`
           
           // Get the nested value from parentValue - handle both old and new structures
@@ -1286,6 +1299,14 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
       } else {
         const selectedValue = value?.value || ""
         const currentNestedFields = value?.nestedFields || {}
+        
+        console.log('🔍 Rendering single select nested field:', {
+          id: nestedField.id,
+          label: nestedField.label,
+          selectedValue,
+          options: nestedField.options,
+          optionsLength: nestedField.options?.length || 0
+        })
 
         return (
           <div className="space-y-3">
@@ -2542,9 +2563,11 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                   </Label>
                 </div>
 
-                {Array.isArray(value?.value) && value.value?.includes(optionValue) && option.nestedFields && option.nestedFields.length > 0 && (
+        {(() => {
+          const shouldRender = Array.isArray(value?.value) && value.value?.includes(optionValue) && option.nestedFields && option.nestedFields.length > 0
+          return shouldRender
+        })() && (
                   <div className="ml-6 space-y-3">
-                    {console.log('🔍 Rendering nested fields for checkbox option:', optionValue, 'nestedFields:', option.nestedFields)}
                     {renderNestedFields(field, [optionValue], onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
                   </div>
                 )}

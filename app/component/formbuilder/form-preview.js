@@ -62,16 +62,11 @@ const processFieldOptions = (field) => {
   // If options is an array, process each option
   if (Array.isArray(options)) {
     return options.map((option, index) => {
-      console.log(`🔍 Processing option ${index}:`, {
-        option: option,
-        hasNestedFields: field.nestedFields && field.nestedFields[index] ? field.nestedFields[index].length : 0
-      })
 
       if (typeof option === 'object' && option !== null) {
         // Prioritize option.nestedFields over field.nestedFields[index]
         // because the current structure stores nested fields in option.nestedFields
         if (option.nestedFields && option.nestedFields.length > 0) {
-          console.log(`🔍 Option ${index} has nestedFields:`, option.nestedFields.length)
           return {
             value: option.value,
             label: option.label,
@@ -97,7 +92,6 @@ const processFieldOptions = (field) => {
       } else {
         // Handle string options - check if there are nested fields for this index
         if (field.nestedFields && field.nestedFields[index]) {
-          console.log(`🔍 Converting nestedFields for string option ${index}:`, field.nestedFields[index])
           return {
             value: option,
             label: option,
@@ -114,6 +108,8 @@ const processFieldOptions = (field) => {
 
 // Helper function to recursively process nested fields structure
 const processNestedFieldsRecursively = (nestedFields, depth = 0, maxDepth = 10) => {
+  console.log('🔍 processNestedFieldsRecursively - Processing:', nestedFields.length, 'fields at depth', depth)
+  
   if (!Array.isArray(nestedFields)) {
     console.log('🔍 processNestedFieldsRecursively - Not an array:', nestedFields)
     return []
@@ -121,19 +117,11 @@ const processNestedFieldsRecursively = (nestedFields, depth = 0, maxDepth = 10) 
 
   // Prevent infinite recursion by limiting depth
   if (depth >= maxDepth) {
-    console.log('🔍 processNestedFieldsRecursively - Max depth reached, stopping recursion')
     return []
   }
 
-  console.log('🔍 processNestedFieldsRecursively - Processing:', nestedFields.length, 'fields at depth', depth)
 
   return nestedFields.map((nestedField, index) => {
-    console.log(`🔍 Processing nested field ${index}:`, {
-      id: nestedField.id,
-      label: nestedField.label,
-      type: nestedField.type,
-      hasNestedFields: nestedField.nestedFields ? Object.keys(nestedField.nestedFields).length : 0
-    })
 
     // Process validation object properly for nested fields
     let validation = {}
@@ -161,29 +149,45 @@ const processNestedFieldsRecursively = (nestedFields, depth = 0, maxDepth = 10) 
 
     const processedField = {
       id: nestedField.id,
-      name: nestedField.name,
+      name: nestedField.name || nestedField.label,
       type: nestedField.type,
       label: nestedField.label,
       placeholder: nestedField.placeholder || '',
       required: false, // Remove required validation from nested fields
       validation: validation,
-      options: [] // Don't process options recursively to prevent infinite loops
+      options: [], // Will be populated below
+      nestedFields: [] // Initialize nestedFields
     }
     
     // Process options and preserve nested fields structure
     if (nestedField.options && Array.isArray(nestedField.options)) {
       processedField.options = nestedField.options.map((option, optionIndex) => {
         if (typeof option === 'object' && option.value) {
+          // Check if this option has nested fields
+          let optionNestedFields = []
+          if (option.nestedFields && Array.isArray(option.nestedFields)) {
+            optionNestedFields = processNestedFieldsRecursively(option.nestedFields, depth + 1)
+          } else if (nestedField.nestedFields && nestedField.nestedFields[optionIndex]) {
+            // Fallback: check field.nestedFields[optionIndex] for backward compatibility
+            optionNestedFields = processNestedFieldsRecursively(nestedField.nestedFields[optionIndex], depth + 1)
+          }
+          
           return {
             value: option.value,
             label: option.label || option.value,
-            nestedFields: option.nestedFields || [] // Preserve nested fields structure
+            nestedFields: optionNestedFields
           }
         } else if (typeof option === 'string') {
+          // Check if there are nested fields for this string option
+          let optionNestedFields = []
+          if (nestedField.nestedFields && nestedField.nestedFields[optionIndex]) {
+            optionNestedFields = processNestedFieldsRecursively(nestedField.nestedFields[optionIndex], depth + 1)
+          }
+          
           return {
             value: option,
             label: option,
-            nestedFields: [] // String options don't have nested fields
+            nestedFields: optionNestedFields
           }
         }
         return option
@@ -199,7 +203,19 @@ const processNestedFieldsRecursively = (nestedFields, depth = 0, maxDepth = 10) 
       } else if (typeof nestedField.nestedFields === 'object') {
         // Handle the case where nested fields are stored as an object with indices
         console.log(`🔍 Processing nested field ${index} with object nestedFields:`, Object.keys(nestedField.nestedFields))
-        const nestedFieldsArray = Object.values(nestedField.nestedFields).flat()
+        
+        // Convert object structure to array structure properly
+        const nestedFieldsArray = []
+        Object.keys(nestedField.nestedFields).forEach(key => {
+          const fieldsAtKey = nestedField.nestedFields[key]
+          if (Array.isArray(fieldsAtKey)) {
+            nestedFieldsArray.push(...fieldsAtKey)
+          } else if (fieldsAtKey && typeof fieldsAtKey === 'object') {
+            // Handle case where nested fields are stored as objects with string keys
+            nestedFieldsArray.push(fieldsAtKey)
+          }
+        })
+        
         processedField.nestedFields = processNestedFieldsRecursively(nestedFieldsArray, depth + 1)
       } else {
         processedField.nestedFields = []
@@ -813,7 +829,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
 
         const processedField = {
           id: field.id,
-          name: field.name,
+          name: field.name || field.label,
           label: field.label,
           type: field.type,
           required: field.required ? "true" : "false",
@@ -866,7 +882,10 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
       console.log(`📊 Regular Fields (${formData.fields.length}):`)
       formData.fields.forEach((field, fieldIndex) => {
         console.log(`Field ${fieldIndex + 1}: ${field.name} (${field.type}) - isLeadColumn: ${field.isLeadColumn}`)
-        field.options.forEach((option, optIndex) => {
+        
+        // Only process options for field types that have options (select, checkbox, radio)
+        if (field.options && Array.isArray(field.options)) {
+          field.options.forEach((option, optIndex) => {
           if (option.nestedFields.length > 0) {
             console.log(`  Option ${optIndex}: "${option.value}"`)
             option.nestedFields.forEach((nestedField, nestedIndex) => {
@@ -884,12 +903,16 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
             })
           }
         })
+        }
       })
 
       console.log(`📊 Lead Database Fields (${formData.extraFields.length}):`)
       formData.extraFields.forEach((field, fieldIndex) => {
         console.log(`Extra Field ${fieldIndex + 1}: ${field.name} (${field.type}) - isLeadColumn: ${field.isLeadColumn}`)
-        field.options.forEach((option, optIndex) => {
+        
+        // Only process options for field types that have options (select, checkbox, radio)
+        if (field.options && Array.isArray(field.options)) {
+          field.options.forEach((option, optIndex) => {
           if (option.nestedFields.length > 0) {
             console.log(`  Option ${optIndex}: "${option.value}"`)
             option.nestedFields.forEach((nestedField, nestedIndex) => {
@@ -907,6 +930,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
             })
           }
         })
+        }
       })
 
       // Use only the correct endpoint
@@ -1472,6 +1496,13 @@ export function FormPreview({ fields, isEditMode = false, formData = null }) {
                       //Preserve the original nestedFields structure for FieldRenderer
                       nestedFields: field.nestedFields || {}
                     }
+                    
+                    console.log('🔍 Processed field for FieldRenderer:', {
+                      id: processedField.id,
+                      label: processedField.label,
+                      optionsCount: processedField.options.length,
+                      firstOptionNestedFields: processedField.options[0]?.nestedFields?.length || 0
+                    })
 
                     //Auto-select the first option that has nested field for preview
                     const currentValue = fieldApi.state.value

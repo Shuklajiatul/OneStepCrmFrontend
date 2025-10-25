@@ -134,12 +134,15 @@ export default function CustomFormPage() {
                 })
               }
 
-              field.options.forEach((option, optionIndex) => {
+              // Only process options for field types that have options (select, checkbox, radio)
+              if (field.options && Array.isArray(field.options)) {
+                field.options.forEach((option, optionIndex) => {
                 if (typeof option === 'object' && option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
                   console.log('🔍 Processing nested fields for option', optionIndex, ':', option.nestedFields)
                   nestedFields[optionIndex] = extractNestedFieldsRecursively(option.nestedFields)
                 }
-              })
+                })
+              }
 
               console.log('🔍 Extracted nestedFields for field:', field.label, nestedFields)
 
