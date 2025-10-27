@@ -354,6 +354,18 @@ export default function CustomFormPage() {
         setFields(prev => {
           const newFields = [...prev, ...fieldsWithUniqueIds]
           console.log('✅ Fields after addition:', newFields)
+          
+          // Immediately save to localStorage if in edit mode
+          if (isEditMode && editFormData) {
+            const formBuilderData = {
+              ...editFormData,
+              fields: newFields
+            }
+            localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+            console.log('🔍 Saved new fields to localStorage:', newFields)
+            window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+          }
+          
           return newFields
         })
         if (fieldsWithUniqueIds.length > 0) {
@@ -366,6 +378,18 @@ export default function CustomFormPage() {
         setFields(prev => {
           const newFields = [...prev, fieldWithUniqueId]
           console.log('✅ Fields after addition:', newFields)
+          
+          // Immediately save to localStorage if in edit mode
+          if (isEditMode && editFormData) {
+            const formBuilderData = {
+              ...editFormData,
+              fields: newFields
+            }
+            localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+            console.log('🔍 Saved new field to localStorage:', newFields)
+            window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+          }
+          
           return newFields
         })
         setSelectedField(fieldWithUniqueId)
@@ -390,6 +414,18 @@ export default function CustomFormPage() {
             setFields(prev => {
               const updatedFields = [...prev, ...fieldsWithUniqueIds]
               console.log('✅ All fields after table column addition:', updatedFields)
+              
+              // Immediately save to localStorage if in edit mode
+              if (isEditMode && editFormData) {
+                const formBuilderData = {
+                  ...editFormData,
+                  fields: updatedFields
+                }
+                localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+                console.log('🔍 Saved table column fields to localStorage:', updatedFields)
+                window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+              }
+              
               return updatedFields
             })
             setSelectedField(fieldsWithUniqueIds[0])
@@ -415,7 +451,22 @@ export default function CustomFormPage() {
         nestedFields: {},
       }
       console.log('📦 Adding regular field:', newField)
-      setFields(prev => [...prev, newField])
+      setFields(prev => {
+        const newFields = [...prev, newField]
+        
+        // Immediately save to localStorage if in edit mode
+        if (isEditMode && editFormData) {
+          const formBuilderData = {
+            ...editFormData,
+            fields: newFields
+          }
+          localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+          console.log('🔍 Saved regular field to localStorage:', newFields)
+          window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+        }
+        
+        return newFields
+      })
       setSelectedField(newField)
     }
   }

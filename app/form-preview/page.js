@@ -12,6 +12,7 @@ export default function FormPreviewPage() {
   const [loading, setLoading] = useState(true)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editFormData, setEditFormData] = useState(null)
+  const [currentRetryCount, setCurrentRetryCount] = useState("2")
   const router = useRouter()
 
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function FormPreviewPage() {
           setFields(data.fields)
           setIsEditMode(true)
           setEditFormData(data)
+          setCurrentRetryCount(data.max_retry_count?.toString() || "2")
         }
       } catch (error) {
         console.error('Error parsing formBuilderData:', error)
@@ -111,7 +113,30 @@ export default function FormPreviewPage() {
       if (isEditMode && editFormData) {
         // Update existing form
         console.log('🔍 Updating existing form:', editFormData.formId)
-        console.log('🔍 Fields to update:', fields)
+        
+        // FIX: Read the most up-to-date fields from localStorage to avoid stale state
+        // Add a small delay to ensure any pending localStorage writes are complete
+        await new Promise(resolve => setTimeout(resolve, 50))
+        
+        const formBuilderData = localStorage.getItem('formBuilderData')
+        let latestFields = fields // Fallback to state
+        let latestRetryCount = currentRetryCount
+        
+        if (formBuilderData) {
+          try {
+            const data = JSON.parse(formBuilderData)
+            if (data.isEditMode && data.fields) {
+              console.log('🔍 Using latest fields from localStorage:', data.fields)
+              console.log('🔍 Field count difference:', data.fields.length, 'vs state:', fields.length)
+              latestFields = data.fields
+              latestRetryCount = data.max_retry_count?.toString() || currentRetryCount
+            }
+          } catch (error) {
+            console.error('Error parsing formBuilderData in handleSaveForm:', error)
+          }
+        }
+        
+        console.log('🔍 Fields to update:', latestFields)
         
         // Generate the same payload structure as Generate Link
         const API_BASE_URL = 'http://10.10.15.194:3001'
@@ -120,14 +145,97 @@ export default function FormPreviewPage() {
         const USER_ID = 'c2a985ce-d385-4349-8f0c-d46e63027ce4'
         const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYwNTA2OTYzLCJleHAiOjE3NjA1OTMzNjN9.SEAwwoCusaotsc_lhb3nh0Fq5tIOWIHtbMYCG1vZ2jU'
         
-        // Let FormPreview component handle the processing
-        const processFieldData = (field) => {
-          return field
+        // Recursive function to process nested fields (same as in form-preview.js)
+        const processNestedFields = (nestedFields, parentIndex = null) => {
+          if (!nestedFields || !Array.isArray(nestedFields)) return []
+
+          return nestedFields.map((nestedField, nestedIndex) => {
+            // Process options for this nested field if it has them
+            let nestedOptions = []
+            if (nestedField.options && Array.isArray(nestedField.options)) {
+              nestedOptions = nestedField.options.map((nestedOption, nestedOptionIndex) => {
+                const nestedOptionObj = {
+                  value: typeof nestedOption === 'string' ? nestedOption : nestedOption.value,
+                  label: typeof nestedOption === 'string' ? nestedOption : nestedOption.label,
+                  nestedFields: []
+                }
+
+                // Recursively process nested fields within nested options
+                if (nestedField.nestedFields && nestedField.nestedFields[nestedOptionIndex]) {
+                  nestedOptionObj.nestedFields = processNestedFields(
+                    nestedField.nestedFields[nestedOptionIndex],
+                    nestedOptionIndex
+                  )
+                }
+
+                return nestedOptionObj
+              })
+            }
+
+            const processedNestedField = {
+              id: nestedField.id,
+              name: nestedField.label?.toLowerCase().replace(/\s+/g, '_') || `nested_${nestedIndex}`,
+              label: nestedField.label,
+              type: nestedField.type,
+              required: nestedField.required || false,
+              validations: nestedField.validation || nestedField.validations || {},
+              hasNested: false,
+              options: nestedOptions,
+              isLeadColumn: nestedField.isLeadColumn || false
+            }
+
+            // Check if this nested field has nested fields
+            processedNestedField.hasNested = processedNestedField.options.some(
+              option => option.nestedFields && option.nestedFields.length > 0
+            )
+
+            return processedNestedField
+          })
+        }
+
+        // Process fields the same way as generate link does
+        const processFieldForAPI = (field) => {
+          let optionsArray = []
+
+          if (field.options && Array.isArray(field.options)) {
+            optionsArray = field.options.map((option, index) => {
+              const optionObj = {
+                value: typeof option === 'string' ? option : option.value,
+                label: typeof option === 'string' ? option : option.label,
+                nestedFields: []
+              }
+
+              // Process nested fields for this option
+              if (field.nestedFields && field.nestedFields[index]) {
+                optionObj.nestedFields = processNestedFields(field.nestedFields[index], index)
+              }
+
+              return optionObj
+            })
+          }
+
+          const hasNestedFields = optionsArray.some(option =>
+            option.nestedFields && option.nestedFields.length > 0
+          )
+
+          const fieldObj = {
+            id: field.id,
+            name: field.name || field.label?.toLowerCase().replace(/\s+/g, '_') || 'field',
+            label: field.label,
+            type: field.type,
+            required: field.required || false,
+            validations: field.validation || field.validations || {},
+            hasNested: hasNestedFields,
+            options: optionsArray,
+            isLeadColumn: field.isLeadColumn || false
+          }
+
+          return fieldObj
         }
         
         // Combine all fields into a single fields array
-        console.log('🔍 Raw fields before processing:', fields)
-        const allFields = fields.map(processFieldData)
+        console.log('🔍 Raw fields before processing:', latestFields)
+        const allFields = latestFields.map(processFieldForAPI)
         console.log('🔍 Processed fields:', allFields)
         
         // Prepare the update payload
@@ -139,7 +247,7 @@ export default function FormPreviewPage() {
           description: editFormData.description,
           created_by: USER_ID,
           fields: allFields,
-          retry_count: editFormData.max_retry_count || 2
+          retry_count: latestRetryCount
         }
         
         console.log('🚀 Update API Payload:', JSON.stringify(updatePayload, null, 2))
@@ -152,20 +260,20 @@ export default function FormPreviewPage() {
           // Only process options for field types that have options (select, checkbox, radio)
           if (field.options && Array.isArray(field.options)) {
             field.options.forEach((option, optIndex) => {
-            if (option.nestedFields && option.nestedFields.length > 0) {
-              console.log(`  Option ${optIndex}: "${option.value}" has ${option.nestedFields.length} nested fields`)
-              option.nestedFields.forEach((nestedField, nestedIndex) => {
-                console.log(`    Nested Field ${nestedIndex}: ${nestedField.label} (${nestedField.type})`)
-                if (nestedField.options && nestedField.options.length > 0) {
-                  nestedField.options.forEach((nestedOption, nestedOptIndex) => {
-                    if (nestedOption.nestedFields && nestedOption.nestedFields.length > 0) {
-                      console.log(`      Nested Option ${nestedOptIndex}: "${nestedOption.value}" has ${nestedOption.nestedFields.length} deep nested fields`)
-                    }
-                  })
-                }
-              })
-            }
-          })
+              if (option.nestedFields && option.nestedFields.length > 0) {
+                console.log(`  Option ${optIndex}: "${option.value}" has ${option.nestedFields.length} nested fields`)
+                option.nestedFields.forEach((nestedField, nestedIndex) => {
+                  console.log(`    Nested Field ${nestedIndex}: ${nestedField.label} (${nestedField.type})`)
+                  if (nestedField.options && nestedField.options.length > 0) {
+                    nestedField.options.forEach((nestedOption, nestedOptIndex) => {
+                      if (nestedOption.nestedFields && nestedOption.nestedFields.length > 0) {
+                        console.log(`      Nested Option ${nestedOptIndex}: "${nestedOption.value}" has ${nestedOption.nestedFields.length} deep nested fields`)
+                      }
+                    })
+                  }
+                })
+              }
+            })
           }
         })
         
@@ -239,6 +347,7 @@ export default function FormPreviewPage() {
         fields={fields} 
         isEditMode={isEditMode} 
         formData={editFormData}
+        onRetryCountChange={setCurrentRetryCount}
       />
     </div>
   )

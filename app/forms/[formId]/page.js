@@ -1209,7 +1209,10 @@ export default function PublicFormPage() {
   // Log user ID extraction for debugging
   console.log('🔍 User ID from URL:', userIdFromUrl)
   console.log('🔍 Fallback USER_ID constant:', USER_ID)
-  console.log('🔍 Final reference_id will be:', userIdFromUrl || USER_ID)
+  
+  // Properly handle null, undefined, or "undefined" string values
+  const finalUserId = (userIdFromUrl && userIdFromUrl !== 'undefined' && userIdFromUrl !== 'null') ? userIdFromUrl : USER_ID
+  console.log('🔍 Final reference_id will be:', finalUserId)
 
   const [formData, setFormData] = useState(null)
   const [submissionData, setSubmissionData] = useState(null)
@@ -1344,7 +1347,7 @@ export default function PublicFormPage() {
         {
           organization_id: ORGANIZATION_ID,
           form_id: formId,
-          reference_id: userIdFromUrl || USER_ID, // Use user ID from URL, fallback to hardcoded
+          reference_id: finalUserId, // Use user ID from URL, fallback to hardcoded
           submission_id: submissionId
         },
         {
@@ -2126,7 +2129,7 @@ export default function PublicFormPage() {
           const updateData = {
             organization_id: ORGANIZATION_ID,
             form_id: formId,
-            reference_id: userIdFromUrl || USER_ID, // Use user ID from URL, fallback to hardcoded
+            reference_id: finalUserId, // Use user ID from URL, fallback to hardcoded
             submission_id: submissionId,
             values: transformedValues
           }
@@ -2155,7 +2158,7 @@ export default function PublicFormPage() {
           // Create new submission
           const submissionData = {
             organization_id: ORGANIZATION_ID,
-            reference_id: userIdFromUrl || USER_ID, // Use user ID from URL, fallback to hardcoded
+            reference_id: finalUserId, // Use user ID from URL, fallback to hardcoded
             form_id: formId,
             values: transformedValues
           }

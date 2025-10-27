@@ -408,6 +408,15 @@ export default function MyFormsPage() {
     try {
       toast.info("Loading form details...")
       const formDetails = await getFormDetails(formId)
+      
+      // Debug: Log the form details to see what fields are available
+      console.log('🔍 Form details from API:', formDetails)
+      console.log('🔍 Available retry count fields:', {
+        max_retry_count: formDetails.max_retry_count,
+        retry_count: formDetails.retry_count,
+        maxRetryCount: formDetails.maxRetryCount,
+        retryCount: formDetails.retryCount
+      })
 
       // Parse the fields for editing
       const parsedFields = formDetails.fields.map(field => {
@@ -425,9 +434,70 @@ export default function MyFormsPage() {
           validation = parsedField.validation
         }
 
+        // Recursive function to parse nested fields structure
+        const parseNestedFieldsRecursively = (nestedFieldsArray) => {
+          if (!Array.isArray(nestedFieldsArray)) return []
+          
+          return nestedFieldsArray.map(nestedField => {
+            const parsedNestedField = {
+              id: nestedField.id,
+              name: nestedField.name,
+              type: nestedField.type,
+              label: nestedField.label,
+              placeholder: nestedField.placeholder || '',
+              required: false,
+              options: [],
+              validation: nestedField.validations || nestedField.validation || {},
+              nestedFields: {}
+            }
+
+            // Parse options if they exist
+            if (nestedField.options && Array.isArray(nestedField.options)) {
+              console.log('🔍 Parsing nested field options:', nestedField.options)
+              parsedNestedField.options = nestedField.options.map(opt => {
+                if (typeof opt === 'object' && opt.value) {
+                  return {
+                    value: opt.value,
+                    label: opt.label || opt.value,
+                    nestedFields: opt.nestedFields || []
+                  }
+                }
+                return typeof opt === 'string' ? opt : (opt.value || opt.label || 'Option')
+              })
+              console.log('🔍 Parsed nested field options:', parsedNestedField.options)
+
+              // Parse sub-nested fields from options recursively
+              const subNestedFields = {}
+              nestedField.options.forEach((subOption, subOptionIndex) => {
+                if (typeof subOption === 'object' && subOption.nestedFields && Array.isArray(subOption.nestedFields) && subOption.nestedFields.length > 0) {
+                  subNestedFields[subOptionIndex] = parseNestedFieldsRecursively(subOption.nestedFields)
+                }
+              })
+              // Only set nestedFields if there are actual nested fields
+              if (Object.keys(subNestedFields).length > 0) {
+                parsedNestedField.nestedFields = subNestedFields
+              }
+            }
+
+            return parsedNestedField
+          })
+        }
+
         // Parse options and extract nested fields
         let options = []
         let nestedFields = {}
+
+        // Check if field has nestedFields at field level (for fields added during edit)
+        if (parsedField.nestedFields && typeof parsedField.nestedFields === 'object') {
+          // Convert object with numeric keys to the expected structure
+          Object.keys(parsedField.nestedFields).forEach(key => {
+            const nestedArray = parsedField.nestedFields[key]
+            if (Array.isArray(nestedArray)) {
+              nestedFields[key] = parseNestedFieldsRecursively(nestedArray)
+            }
+          })
+          console.log('🔍 Found field-level nestedFields:', nestedFields)
+        }
 
         if (Array.isArray(parsedField.options)) {
           options = parsedField.options
@@ -441,53 +511,7 @@ export default function MyFormsPage() {
                 if (typeof option === 'object' && option.value) {
                   // If this option has nested fields, extract them recursively
                   if (option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
-                    const parseNestedFields = (nestedFieldsArray) => {
-                      return nestedFieldsArray.map(nestedField => {
-                        const parsedNestedField = {
-                          id: nestedField.id,
-                          name: nestedField.name,
-                          type: nestedField.type,
-                          label: nestedField.label,
-                          placeholder: nestedField.placeholder || '',
-                          required: false,
-                          options: [],
-                          validation: nestedField.validations || {},
-                          nestedFields: {}
-                        }
-
-                        // Parse options if they exist
-                        if (nestedField.options && Array.isArray(nestedField.options)) {
-                          console.log('🔍 Parsing nested field options:', nestedField.options)
-                          parsedNestedField.options = nestedField.options.map(opt => {
-                            if (typeof opt === 'object' && opt.value) {
-                              return {
-                                value: opt.value,
-                                label: opt.label || opt.value,
-                                nestedFields: opt.nestedFields || []
-                              }
-                            }
-                            return typeof opt === 'string' ? opt : (opt.value || opt.label || 'Option')
-                          })
-                          console.log('🔍 Parsed nested field options:', parsedNestedField.options)
-
-                          // Parse sub-nested fields from options
-                          const subNestedFields = {}
-                          nestedField.options.forEach((subOption, subOptionIndex) => {
-                            if (typeof subOption === 'object' && subOption.nestedFields && Array.isArray(subOption.nestedFields) && subOption.nestedFields.length > 0) {
-                              subNestedFields[subOptionIndex] = parseNestedFields(subOption.nestedFields)
-                            }
-                          })
-                          // Only set nestedFields if there are actual nested fields
-                          if (Object.keys(subNestedFields).length > 0) {
-                            parsedNestedField.nestedFields = subNestedFields
-                          }
-                        }
-
-                        return parsedNestedField
-                      })
-                    }
-
-                    nestedFields[optionIndex] = parseNestedFields(option.nestedFields)
+                    nestedFields[optionIndex] = parseNestedFieldsRecursively(option.nestedFields)
                   }
                   return {
                     value: option.value,
@@ -542,7 +566,8 @@ export default function MyFormsPage() {
         formName: formDetails.form_name,
         description: formDetails.description,
         fields: parsedFields,
-        isEditMode: true
+        isEditMode: true,
+        max_retry_count: formDetails.max_retry_count || formDetails.retry_count || 2
       }
 
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
