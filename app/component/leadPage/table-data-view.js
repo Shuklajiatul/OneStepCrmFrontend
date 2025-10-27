@@ -20,13 +20,14 @@ import {
   Search
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import axios from "axios"
 
 // API Configuration
 const API_BASE_URL = 'http://10.10.15.194:3001'
-const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYwMzI4OTY4LCJleHAiOjE3NjA0MTUzNjh9.Vcw2oXyTme3VSXjaLojFRCDWOICxhIFO2GNkADJaUps'
+const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYxNTQ1NTU4LCJleHAiOjE3NjE2MzE5NTh9.KG9CGv2EvC-DmEiGnS9ob6Ab1hQSStI6tT6dklvbhvM'
 
 export default function TableDataView({ table, onBack }) {
   const [columns, setColumns] = useState([])
@@ -38,6 +39,12 @@ export default function TableDataView({ table, onBack }) {
   const [searchTerm, setSearchTerm] = useState("")
   const [isNestedModalOpen, setIsNestedModalOpen] = useState(false)
   const [nestedData, setNestedData] = useState(null)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editableFormData, setEditableFormData] = useState({})
+  const [editablePrimaryValue, setEditablePrimaryValue] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [currentRecordId, setCurrentRecordId] = useState(null)
+  const [currentColumnId, setCurrentColumnId] = useState(null)
 
   // Fetch columns and records on component mount
   useEffect(() => {
@@ -148,7 +155,7 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  // Helper function to parse nested field values
+  // Helper function to parse nested field values and structure
   const parseNestedData = (fieldValue, column) => {
     try {
       const parsed = JSON.parse(fieldValue)
@@ -156,23 +163,74 @@ export default function TableDataView({ table, onBack }) {
       
       const result = {
         columnName: column.column_name,
-        selectedValues: parsed.value,
-        nestedValues: {}
+        selectedValue: parsed.value,
+        options: options, // Store all options for form building
+        formData: {} // Store the filled form data
       }
 
-      // Parse nested values
-      if (parsed.nestedValues) {
-        Object.entries(parsed.nestedValues).forEach(([optionIndex, nestedData]) => {
-          const option = options[parseInt(optionIndex)]
-          if (option && option.nestedFields) {
-            result.nestedValues[option.label] = {}
-            option.nestedFields.forEach(nestedField => {
-              if (nestedData[nestedField.id]) {
-                result.nestedValues[option.label][nestedField.label] = nestedData[nestedField.id]
+      // Recursively extract form data from nested values
+      const extractFormData = (nestedValues, parentFields) => {
+        const formData = {}
+        
+        if (!nestedValues || typeof nestedValues !== 'object') return formData
+
+        Object.entries(nestedValues).forEach(([fieldId, fieldData]) => {
+          // Find the field definition
+          const fieldDef = parentFields?.find(f => f.id === fieldId)
+          
+          if (!fieldDef) return
+          
+          // Handle object with value and nestedValues
+          if (typeof fieldData === 'object' && fieldData.value !== undefined) {
+            // Find the nested fields for the selected option
+            let nestedFields = []
+            if (fieldDef.options) {
+              const selectedOption = fieldDef.options.find(
+                opt => opt.value === fieldData.value || opt.label === fieldData.value
+              )
+              nestedFields = selectedOption?.nestedFields || []
+            }
+            
+            formData[fieldId] = {
+              fieldDef: fieldDef,
+              value: fieldData.value,
+              nestedData: fieldData.nestedValues 
+                ? extractFormData(fieldData.nestedValues, nestedFields) 
+                : {}
+            }
+          } 
+          // Handle direct value (like {value: "door"} without nestedValues)
+          else if (typeof fieldData === 'object') {
+            // Check if it's a simple object with just a value
+            const keys = Object.keys(fieldData)
+            if (keys.length === 1 && keys[0] === 'value') {
+              formData[fieldId] = {
+                fieldDef: fieldDef,
+                value: fieldData.value,
+                nestedData: {}
               }
-            })
+            }
+          }
+          // Handle plain string/number values
+          else {
+            formData[fieldId] = {
+              fieldDef: fieldDef,
+              value: fieldData,
+              nestedData: {}
+            }
           }
         })
+        
+        return formData
+      }
+
+      // Start extracting from the root level
+      if (parsed.nestedValues) {
+        // Find the selected option
+        const selectedOption = options.find(opt => opt.value === parsed.value || opt.label === parsed.value)
+        if (selectedOption && selectedOption.nestedFields) {
+          result.formData = extractFormData(parsed.nestedValues, selectedOption.nestedFields)
+        }
       }
 
       return result
@@ -183,16 +241,21 @@ export default function TableDataView({ table, onBack }) {
   }
 
   // Function to open nested data modal
-  const openNestedModal = (fieldValue, column) => {
+  const openNestedModal = (fieldValue, column, recordId) => {
     const nestedData = parseNestedData(fieldValue, column)
     if (nestedData) {
       setNestedData(nestedData)
+      setEditableFormData(JSON.parse(JSON.stringify(nestedData.formData))) // Deep clone
+      setEditablePrimaryValue(nestedData.selectedValue)
+      setCurrentRecordId(recordId)
+      setCurrentColumnId(column.column_id)
+      setIsEditMode(false)
       setIsNestedModalOpen(true)
     }
   }
 
   // Helper function to format field value based on data type
-  const formatFieldValue = (value, dataType, column = null) => {
+  const formatFieldValue = (value, dataType, column = null, record = null) => {
 
     console.log('formatFieldValue ::', value, column)
     if (value === null || value === undefined || value === "") {
@@ -212,26 +275,12 @@ export default function TableDataView({ table, onBack }) {
             console.log(`Showing modal for ${column.column_name}`)
             return (
               <button
-                onClick={() => {
-                  console.log('Button clicked for', column.column_name)
-                  console.log('Opening modal with value:', value)
-                  console.log('Opening modal with column:', column)
-                  const nestedData = parseNestedData(value, column)
-                  console.log('Parsed nested data:', nestedData)
-                  if (nestedData) {
-                    console.log('Setting nested data and opening modal')
-                    setNestedData(nestedData)
-                    setIsNestedModalOpen(true)
-                    console.log('Modal should be open now')
-                  } else {
-                    console.log('Failed to parse nested data')
-                  }
-                }}
+                onClick={() => openNestedModal(value, column, record?.record_id)}
                 className="bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer px-2 py-1 rounded border border-blue-300 text-sm font-medium"
-                title="Click to view nested data"
+                title="Click to view/edit nested data"
               >
                 {Array.isArray(parsed.value) ? parsed.value.join(' → ') : parsed.value}
-                <span className="ml-1 text-xs"></span>
+                <span className="ml-1 text-xs">📋</span>
               </button>
             )
           } else {
@@ -319,6 +368,292 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
+  // Function to convert editableFormData back to API format
+  const convertFormDataToAPIFormat = (formData) => {
+    const result = {
+      nestedValues: {}
+    }
+    
+    const processLevel = (data) => {
+      const levelData = {}
+      
+      Object.entries(data).forEach(([fieldId, fieldInfo]) => {
+        if (fieldInfo.value) {
+          levelData[fieldId] = {
+            value: fieldInfo.value
+          }
+          
+          if (fieldInfo.nestedData && Object.keys(fieldInfo.nestedData).length > 0) {
+            levelData[fieldId].nestedValues = processLevel(fieldInfo.nestedData)
+          } else {
+            levelData[fieldId].nestedValues = {}
+          }
+        }
+      })
+      
+      return levelData
+    }
+    
+    result.nestedValues = processLevel(formData)
+    result.value = editablePrimaryValue // Use editable primary value instead
+    
+    return result
+  }
+
+  // Function to save nested data
+  const handleSaveNestedData = async () => {
+    try {
+      setIsSaving(true)
+      
+      // Convert form data to API format
+      const apiData = convertFormDataToAPIFormat(editableFormData)
+      const fieldValueString = JSON.stringify(apiData)
+      
+      // Prepare the update payload
+      const payload = {
+        field_values: {
+          [currentColumnId]: fieldValueString
+        }
+      }
+      
+      console.log('Saving nested data:', payload)
+      console.log('API URL:', `${API_BASE_URL}/api/records/${table.table_id}/${currentRecordId}/nested`)
+      
+      // Call the API with /nested endpoint
+      const response = await axios.put(
+        `${API_BASE_URL}/api/records/${table.table_id}/${currentRecordId}/nested`,
+        payload,
+        {
+          headers: {
+            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+      
+      if (response.data) {
+        toast.success('Record updated successfully!')
+        setIsEditMode(false)
+        setIsNestedModalOpen(false)
+        // Refresh the table data
+        await fetchTableData()
+      }
+    } catch (error) {
+      console.log('Error saving nested data:', error)
+      toast.error(error.response?.data?.message || 'Failed to update record')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Function to handle primary value change
+  const handlePrimaryValueChange = (newValue) => {
+    setEditablePrimaryValue(newValue)
+    // Clear all nested data when primary selection changes
+    setEditableFormData({})
+    
+    // If there's a new value, initialize nested fields for it
+    if (newValue && nestedData.options) {
+      const selectedOption = nestedData.options.find(opt => opt.value === newValue || opt.label === newValue)
+      if (selectedOption && selectedOption.nestedFields) {
+        const newFormData = {}
+        selectedOption.nestedFields.forEach(field => {
+          newFormData[field.id] = {
+            fieldDef: field,
+            value: '',
+            nestedData: {}
+          }
+        })
+        setEditableFormData(newFormData)
+      }
+    }
+  }
+
+  // Function to handle field value change
+  const handleFieldChange = (fieldId, newValue, path = []) => {
+    setEditableFormData(prevData => {
+      const newData = JSON.parse(JSON.stringify(prevData)) // Deep clone
+      
+      // Navigate to the correct nested level
+      let current = newData
+      for (const pathItem of path) {
+        if (current[pathItem]) {
+          current = current[pathItem].nestedData
+        }
+      }
+      
+      if (current[fieldId]) {
+        current[fieldId].value = newValue
+        
+        // Clear nested data if value changes (user selected different option)
+        if (current[fieldId].fieldDef.hasNested) {
+          current[fieldId].nestedData = {}
+        }
+      }
+      
+      return newData
+    })
+  }
+
+  // Recursive component to render nested form fields
+  const renderNestedFormFields = (formData, level = 0, path = []) => {
+    if (!formData || Object.keys(formData).length === 0) return null
+
+    return (
+      <div className={`space-y-4 ${level > 0 ? 'ml-6 pl-4 border-l-2 border-primary/20' : ''}`}>
+        {Object.entries(formData).map(([fieldId, fieldInfo]) => {
+          const { fieldDef, value, nestedData } = fieldInfo
+          const currentPath = [...path, fieldId]
+          
+          return (
+            <div key={fieldId} className="space-y-2">
+              {/* Field Label */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-foreground">
+                  {fieldDef.label}
+                  {fieldDef.required && <span className="text-destructive ml-1">*</span>}
+                </label>
+                <Badge variant="outline" className="text-xs">
+                  {fieldDef.type}
+                </Badge>
+              </div>
+
+              {/* Field Value Based on Type */}
+              {fieldDef.type === 'select' && (
+                <select
+                  value={value || ''}
+                  onChange={(e) => handleFieldChange(fieldId, e.target.value, path)}
+                  disabled={!isEditMode}
+                  className={`w-full px-3 py-2 border rounded-md text-sm ${
+                    isEditMode 
+                      ? 'bg-background border-input hover:border-primary focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer' 
+                      : 'bg-muted/50 cursor-not-allowed'
+                  }`}
+                >
+                  <option value="">Select {fieldDef.label}</option>
+                  {fieldDef.options?.map((option, idx) => (
+                    <option key={idx} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {fieldDef.type === 'text' && (
+                <Input
+                  value={value || ''}
+                  onChange={(e) => handleFieldChange(fieldId, e.target.value, path)}
+                  readOnly={!isEditMode}
+                  className={isEditMode ? 'bg-background' : 'bg-muted/50 cursor-not-allowed'}
+                  placeholder={`Enter ${fieldDef.label}`}
+                />
+              )}
+
+              {fieldDef.type === 'radio' && (
+                <div className="space-y-2">
+                  {fieldDef.options?.map((option, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => isEditMode && handleFieldChange(fieldId, option.value, path)}
+                      className={`flex items-center gap-2 p-3 rounded-md border ${
+                        isEditMode ? 'cursor-pointer hover:bg-muted/50' : 'cursor-not-allowed bg-muted/30'
+                      }`}
+                    >
+                      <div className="h-4 w-4 rounded-full border-2 border-primary flex items-center justify-center">
+                        {value === option.value && <div className="h-2 w-2 rounded-full bg-primary" />}
+                      </div>
+                      <span className="text-sm font-medium">{option.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {fieldDef.type === 'checkbox' && (
+                <div className="space-y-2">
+                  {fieldDef.options?.map((option, idx) => {
+                    const isChecked = Array.isArray(value) ? value.includes(option.value) : value === option.value
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          if (isEditMode) {
+                            let newValue
+                            if (Array.isArray(value)) {
+                              newValue = isChecked
+                                ? value.filter(v => v !== option.value)
+                                : [...value, option.value]
+                            } else {
+                              newValue = [option.value]
+                            }
+                            handleFieldChange(fieldId, newValue, path)
+                          }
+                        }}
+                        className={`flex items-center gap-2 p-3 rounded-md border ${
+                          isEditMode ? 'cursor-pointer hover:bg-muted/50' : 'cursor-not-allowed bg-muted/30'
+                        }`}
+                      >
+                        <div className={`h-4 w-4 rounded border-2 flex items-center justify-center ${
+                          isChecked ? 'bg-primary border-primary' : 'border-muted-foreground'
+                        }`}>
+                          {isChecked && (
+                            <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <span className="text-sm font-medium">{option.label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Render nested fields recursively if value is selected and has nested fields */}
+              {value && fieldDef.hasNested && fieldDef.options && (
+                (() => {
+                  const selectedOption = fieldDef.options.find(opt => opt.value === value || opt.label === value)
+                  if (selectedOption && selectedOption.nestedFields && selectedOption.nestedFields.length > 0) {
+                    // Show nested fields from the selected option
+                    const nestedFieldsToShow = {}
+                    selectedOption.nestedFields.forEach(nestedField => {
+                      if (nestedData && nestedData[nestedField.id]) {
+                        nestedFieldsToShow[nestedField.id] = nestedData[nestedField.id]
+                      } else if (isEditMode) {
+                        // Create empty field structure for edit mode
+                        nestedFieldsToShow[nestedField.id] = {
+                          fieldDef: nestedField,
+                          value: '',
+                          nestedData: {}
+                        }
+                      }
+                    })
+                    
+                    if (Object.keys(nestedFieldsToShow).length > 0) {
+                      return (
+                        <Card className="mt-3 bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+                          <CardHeader className="pb-3 px-4 pt-3">
+                            <CardTitle className="text-sm font-semibold text-primary flex items-center gap-2">
+                              <span className="h-1 w-1 rounded-full bg-primary"></span>
+                              Nested Fields for: {value}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="px-4 pb-4">
+                            {renderNestedFormFields(nestedFieldsToShow, level + 1, currentPath)}
+                          </CardContent>
+                        </Card>
+                      )
+                    }
+                  }
+                  return null
+                })()
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   // Filter records based on search term
   const filteredRecords = records.filter(record => {
     if (!searchTerm) return true
@@ -356,7 +691,7 @@ export default function TableDataView({ table, onBack }) {
         const fieldValue = getFieldValue(record, column.column_id)
         
         // Format field value using helper function
-        return formatFieldValue(fieldValue, column.data_type, column)
+        return formatFieldValue(fieldValue, column.data_type, column, record)
       },
     }))
 
@@ -678,73 +1013,137 @@ export default function TableDataView({ table, onBack }) {
 
       {/* Nested Data Modal */}
       <Dialog open={isNestedModalOpen} onOpenChange={setIsNestedModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0 flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>Nested Data - {nestedData?.columnName}</DialogTitle>
             <DialogDescription>
               Detailed view of nested field values for this column
             </DialogDescription>
           </DialogHeader>
           
-          {nestedData && (
-            <div className="space-y-6">
-              {/* Selected Values */}
-              <div>
-                <h4 className="font-semibold text-sm text-muted-foreground mb-2">Selected Values</h4>
-                <div className="flex flex-wrap gap-2">
-                  {Array.isArray(nestedData.selectedValues) ? (
-                    nestedData.selectedValues.map((value, index) => (
-                      <Badge key={index} variant="default" className="text-sm">
-                        {value}
+          <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+            {nestedData && (
+              <div className="space-y-6">
+                {/* Root Selected Value */}
+                <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-4 rounded-lg border-l-4 border-primary">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-sm text-muted-foreground">Primary Selection</h4>
+                      <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+                    
+                    {!isEditMode ? (
+                      <Badge variant="default" className="text-base px-4 py-1">
+                        {editablePrimaryValue}
                       </Badge>
-                    ))
-                  ) : (
-                    <Badge variant="default" className="text-sm">
-                      {nestedData.selectedValues}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {/* Nested Values */}
-              {Object.keys(nestedData.nestedValues).length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-sm text-muted-foreground mb-3">Nested Field Values</h4>
-                  <div className="space-y-4">
-                    {Object.entries(nestedData.nestedValues).map(([optionLabel, fields]) => (
-                      <Card key={optionLabel} className="p-4">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base font-medium text-primary">
-                            {optionLabel}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-0">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {Object.entries(fields).map(([fieldLabel, fieldValue]) => (
-                              <div key={fieldLabel} className="space-y-1">
-                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                                  {fieldLabel}
-                                </div>
-                                <div className="text-sm font-medium">
-                                  {fieldValue || <span className="text-muted-foreground italic">No value</span>}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                    ) : (
+                      <select
+                        value={editablePrimaryValue || ''}
+                        onChange={(e) => handlePrimaryValueChange(e.target.value)}
+                        className="w-full px-4 py-2 border rounded-md text-sm bg-background border-input hover:border-primary focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer font-medium"
+                      >
+                        <option value="">Select primary value</option>
+                        {nestedData.options?.map((option, idx) => (
+                          <option key={idx} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
+
+                {/* Nested Form Fields */}
+                {Object.keys(editableFormData).length > 0 && editablePrimaryValue && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-4">
+                      <h4 className="font-semibold text-base text-foreground">Nested Form Fields</h4>
+                      <Badge variant="secondary" className="text-xs">
+                        {Object.keys(editableFormData).length} fields
+                      </Badge>
+                    </div>
+                    <div className="space-y-4 pb-4">
+                      {renderNestedFormFields(editableFormData)}
+                    </div>
+                  </div>
+                )}
+
+                {/* No nested data message */}
+                {(!editablePrimaryValue || Object.keys(editableFormData).length === 0) && editablePrimaryValue && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">No nested fields available for this selection</p>
+                  </div>
+                )}
+                
+                {/* Prompt to select primary value in edit mode */}
+                {!editablePrimaryValue && isEditMode && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">Please select a primary value above to see nested fields</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          
+          <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex flex-row items-center justify-between gap-4">
+            <div className="flex-1">
+              {isEditMode && (
+                <Badge variant="secondary" className="text-xs">
+                  <span className="inline-block w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></span>
+                  Edit Mode
+                </Badge>
               )}
             </div>
-          )}
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNestedModalOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
+            <div className="flex gap-2">
+              {!isEditMode ? (
+                <>
+                  <Button variant="outline" onClick={() => setIsNestedModalOpen(false)}>
+                    Close
+                  </Button>
+                  <Button onClick={() => setIsEditMode(true)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsEditMode(false)
+                      setEditableFormData(JSON.parse(JSON.stringify(nestedData.formData)))
+                      setEditablePrimaryValue(nestedData.selectedValue)
+                    }}
+                    disabled={isSaving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSaveNestedData}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
