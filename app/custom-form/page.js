@@ -1,17 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { FieldPalette } from "../component/formbuilder/field-palette"
 import { FormCanvas } from "../component/formbuilder/form-canvas"
 import { FieldConfigPanel } from "../component/formbuilder/field-config-panel"
 import { FormPreview } from "../component/formbuilder/form-preview"
+import { ResizableDivider } from "../component/formbuilder/resizable-divider"
 import MyFormsPage from "../my-forms/page"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
-import { Eye, Code, Settings, FileText, Download, Plus, GripVertical, Trash2, AlertTriangle, ArrowLeft } from "lucide-react"
+import { Eye, Code, Settings, FileText, Download, Plus, GripVertical, Trash2, AlertTriangle, ArrowLeft, X, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import {
   AlertDialog,
@@ -46,11 +48,48 @@ export default function CustomFormPage() {
   const [editFormData, setEditFormData] = useState(null)
   const [showMyForms, setShowMyForms] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  
+  // Resizable panel widths
+  const [paletteWidth, setPaletteWidth] = useState(256) // 256px = w-64
+  const [configPanelWidth, setConfigPanelWidth] = useState(400) // ~33% of typical screen
+
+  // Memoized resize handlers
+  const handlePaletteResize = useCallback((width) => {
+    setPaletteWidth(width)
+  }, [])
+
+  const handleConfigPanelResize = useCallback((width) => {
+    setConfigPanelWidth(width)
+  }, [])
 
   // Ensure client-side rendering to avoid hydration mismatch
   useEffect(() => {
     setIsClient(true)
+    
+    // Load saved panel widths from localStorage
+    const savedPaletteWidth = localStorage.getItem('formbuilder-palette-width')
+    const savedConfigWidth = localStorage.getItem('formbuilder-config-width')
+    
+    if (savedPaletteWidth) {
+      setPaletteWidth(parseInt(savedPaletteWidth, 10))
+    }
+    if (savedConfigWidth) {
+      setConfigPanelWidth(parseInt(savedConfigWidth, 10))
+    }
   }, [])
+
+  // Save panel widths to localStorage when they change
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem('formbuilder-palette-width', paletteWidth.toString())
+    }
+  }, [paletteWidth, isClient])
+
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem('formbuilder-config-width', configPanelWidth.toString())
+    }
+  }, [configPanelWidth, isClient])
 
   // Cleanup on page unload
   useEffect(() => {
@@ -342,7 +381,7 @@ export default function CustomFormPage() {
     })
   }
 
-  const addField = (type, predefinedFields = null) => {
+  const addField = useCallback((type, predefinedFields = null) => {
     console.log('🎯 addField called with:', { type, predefinedFields })
 
     if (predefinedFields) {
@@ -418,9 +457,9 @@ export default function CustomFormPage() {
       setFields(prev => [...prev, newField])
       setSelectedField(newField)
     }
-  }
+  }, [])
 
-  const updateField = (fieldId, updates) => {
+  const updateField = useCallback((fieldId, updates) => {
     console.log('🔍 updateField called:', { fieldId, updates })
     console.log('🔍 Current fields before update:', fields)
 
@@ -450,9 +489,9 @@ export default function CustomFormPage() {
       window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
       console.log('🔍 Dispatched formBuilderDataUpdated event after field update')
     }
-  }
+  }, [fields, selectedField, isEditMode, editFormData])
 
-  const deleteField = (fieldId) => {
+  const deleteField = useCallback((fieldId) => {
     const currentFieldIndex = fields.findIndex(field => field.id === fieldId)
     const isSelectedField = selectedField && selectedField.id === fieldId
 
@@ -478,20 +517,22 @@ export default function CustomFormPage() {
         }, 150)
       }
     }
-  }
+  }, [fields, selectedField])
 
-  const moveField = (fromIndex, toIndex) => {
-    const newFields = [...fields]
-    const [movedField] = newFields.splice(fromIndex, 1)
-    newFields.splice(toIndex, 0, movedField)
-    setFields(newFields)
-  }
+  const moveField = useCallback((fromIndex, toIndex) => {
+    setFields(prev => {
+      const newFields = [...prev]
+      const [movedField] = newFields.splice(fromIndex, 1)
+      newFields.splice(toIndex, 0, movedField)
+      return newFields
+    })
+  }, [])
 
-  const handleDragStart = (event) => {
+  const handleDragStart = useCallback((event) => {
     setActiveId(event.active.id)
-  }
+  }, [])
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = useCallback((event) => {
     const { active, over } = event
     setActiveId(null)
 
@@ -510,13 +551,13 @@ export default function CustomFormPage() {
         return arrayMove(items, oldIndex, newIndex)
       })
     }
-  }
+  }, [addField])
 
-  const toggleFieldPalette = () => {
-    setFieldPaletteCollapsed(!fieldPaletteCollapsed)
-  }
+  const toggleFieldPalette = useCallback(() => {
+    setFieldPaletteCollapsed(prev => !prev)
+  }, [])
 
-  const handleSaveForm = async () => {
+  const handleSaveForm = useCallback(async () => {
     try {
       if (isEditMode && editFormData) {
         // Update existing form
@@ -535,18 +576,18 @@ export default function CustomFormPage() {
     } catch (error) {
       console.error('Error saving form:', error)
     }
-  }
+  }, [isEditMode, editFormData, fields])
 
-  const handleBackToForms = () => {
+  const handleBackToForms = useCallback(() => {
     // Clear localStorage when leaving edit mode
     localStorage.removeItem('formBuilderData')
     sessionStorage.removeItem('directEditAction')
     sessionStorage.removeItem('wasEditingForm')
     sessionStorage.setItem('intended-tab', 'my-forms')
     router.push('/')
-  }
+  }, [router])
 
-  const handleTabChange = (value) => {
+  const handleTabChange = useCallback((value) => {
     if (value === "preview") {
       // Save the current fields state to localStorage/sessionStorage
       const previewData = {
@@ -569,17 +610,24 @@ export default function CustomFormPage() {
     } else {
       setActiveTab(value)
     }
-  }
+  }, [fields, isEditMode, editFormData, router])
 
-  const handleClearForm = () => {
+  const handleClearForm = useCallback(() => {
     setFields([])
     setSelectedField(null)
     sessionStorage.removeItem('form-preview-fields')
     setShowClearDialog(false)
-  }
+  }, [])
 
-  const regularFieldsCount = fields.filter(f => f.source !== 'table').length
-  const tableFieldsCount = fields.filter(f => f.source === 'table').length
+  const regularFieldsCount = useMemo(() => 
+    fields.filter(f => f.source !== 'table').length, 
+    [fields]
+  )
+  
+  const tableFieldsCount = useMemo(() => 
+    fields.filter(f => f.source === 'table').length, 
+    [fields]
+  )
 
   // If showMyForms is true, render the MyFormsPage component
   if (showMyForms) {
@@ -726,14 +774,24 @@ export default function CustomFormPage() {
                   onAddField={addField}
                   collapsed={fieldPaletteCollapsed}
                   onToggleCollapse={toggleFieldPalette}
+                  width={paletteWidth}
                 />
 
+                {/* Resizable Divider for Palette */}
+                {!fieldPaletteCollapsed && (
+                  <ResizableDivider
+                    onResize={handlePaletteResize}
+                    minSize={200}
+                    maxSize={500}
+                  />
+                )}
+
                 {/* Main Canvas */}
-                <div className="flex-1 flex">
-                  <div className={cn(
-                    "flex-1 transition-all duration-300 ease-in-out",
-                    selectedField ? "w-2/3" : "w-full"
-                  )}>
+                <div className="flex-1 flex min-w-0">
+                  <div 
+                    className="flex-1 min-w-0 transition-all duration-150 ease-out"
+                    style={selectedField ? { width: `calc(100% - ${configPanelWidth}px)` } : {}}
+                  >
                     <FormCanvas
                       fields={fields}
                       selectedField={selectedField}
@@ -745,9 +803,43 @@ export default function CustomFormPage() {
                     />
                   </div>
 
+                  {/* Resizable Divider for Config Panel */}
+                  {selectedField && (
+                    <ResizableDivider
+                      onResize={handleConfigPanelResize}
+                      minSize={300}
+                      maxSize={700}
+                      direction="rtl"
+                    />
+                  )}
+
                   {/* Configuration Panel */}
                   {selectedField && (
-                    <div className="w-1/3 border-l bg-card transition-all duration-300 ease-in-out animate-in slide-in-from-right">
+                    <div 
+                      className="border-l bg-card flex-shrink-0 overflow-hidden animate-in slide-in-from-right relative group/config"
+                      style={{ 
+                        width: `${configPanelWidth}px`,
+                        transition: 'width 0.05s ease-out'
+                      }}
+                    >
+                      {/* Modern Close Button on Border */}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-3 -left-3 z-20 h-6 w-6 rounded-full bg-background border border-border shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200 ease-out opacity-0 group-hover/config:opacity-100 hover:!opacity-100"
+                            onClick={() => setSelectedField(null)}
+                            aria-label="Close panel"
+                          >
+                            <ChevronRight className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" sideOffset={8}>
+                          <p>Close panel</p>
+                        </TooltipContent>
+                      </Tooltip>
+
                       <FieldConfigPanel
                         field={selectedField}
                         onUpdateField={updateField}
@@ -764,14 +856,24 @@ export default function CustomFormPage() {
                 onAddField={addField}
                 collapsed={fieldPaletteCollapsed}
                 onToggleCollapse={toggleFieldPalette}
+                width={paletteWidth}
               />
 
+              {/* Resizable Divider for Palette */}
+              {!fieldPaletteCollapsed && (
+                <ResizableDivider
+                  onResize={handlePaletteResize}
+                  minSize={200}
+                  maxSize={500}
+                />
+              )}
+
               {/* Main Canvas */}
-              <div className="flex-1 flex">
-                <div className={cn(
-                  "flex-1 transition-all duration-300 ease-in-out",
-                  selectedField ? "w-2/3" : "w-full"
-                )}>
+              <div className="flex-1 flex min-w-0">
+                <div 
+                  className="flex-1 min-w-0 transition-all duration-150 ease-out"
+                  style={selectedField ? { width: `calc(100% - ${configPanelWidth}px)` } : {}}
+                >
                   <FormCanvas
                     fields={fields}
                     selectedField={selectedField}
@@ -783,9 +885,43 @@ export default function CustomFormPage() {
                   />
                 </div>
 
+                {/* Resizable Divider for Config Panel */}
+                {selectedField && (
+                  <ResizableDivider
+                    onResize={handleConfigPanelResize}
+                    minSize={300}
+                    maxSize={700}
+                    direction="rtl"
+                  />
+                )}
+
                 {/* Configuration Panel */}
                 {selectedField && (
-                  <div className="w-1/3 border-l bg-card transition-all duration-300 ease-in-out animate-in slide-in-from-right">
+                  <div 
+                    className="border-l bg-card flex-shrink-0 overflow-hidden animate-in slide-in-from-right relative group/config"
+                    style={{ 
+                      width: `${configPanelWidth}px`,
+                      transition: 'width 0.05s ease-out'
+                    }}
+                  >
+                    {/* Modern Close Button on Border */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-3 -left-3 z-20 h-6 w-6 rounded-full bg-background border border-border shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200 ease-out opacity-0 group-hover/config:opacity-100 hover:!opacity-100"
+                          onClick={() => setSelectedField(null)}
+                          aria-label="Close panel"
+                        >
+                          <ChevronRight className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" sideOffset={8}>
+                        <p>Close panel</p>
+                      </TooltipContent>
+                    </Tooltip>
+
                     <FieldConfigPanel
                       field={selectedField}
                       onUpdateField={updateField}
