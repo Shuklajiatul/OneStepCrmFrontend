@@ -1642,7 +1642,8 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
                           onUpdateField={(fieldId, updates) => {
                             // This is not used for table_column fields, but required by the component
                             console.log('onUpdateField called for table_column field:', fieldId, updates)
-                          }} 
+                          }}
+                          existingFields={formData.fields}
                         />
                       </div>
                     </div>

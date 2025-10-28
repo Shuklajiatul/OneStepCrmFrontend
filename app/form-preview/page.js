@@ -168,7 +168,7 @@ export default function FormPreviewPage() {
         const ORGANIZATION_ID = 'c8c72c21-7b5c-435a-912a-803105e7ecc9'
         const TABLE_ID = '040e899d-583a-454e-92e6-d0d5a8095587'
         const USER_ID = 'c2a985ce-d385-4349-8f0c-d46e63027ce4'
-        const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYwNTA2OTYzLCJleHAiOjE3NjA1OTMzNjN9.SEAwwoCusaotsc_lhb3nh0Fq5tIOWIHtbMYCG1vZ2jU'
+        const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYxNjA0MzMwLCJleHAiOjE3NjE2OTA3MzB9.01TIxWVFuW0WIuBeZkT397mWy9UUwa9Wku7xX561upo'
         
         // Recursive function to process nested fields (same as in form-preview.js)
         const processNestedFields = (nestedFields, parentIndex = null) => {
