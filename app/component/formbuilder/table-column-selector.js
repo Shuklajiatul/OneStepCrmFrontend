@@ -11,7 +11,7 @@ import { Database, Loader2, Search, Check, RefreshCw } from "lucide-react"
 import axios from "axios"
 import { toast } from "sonner"
 
-export function TableColumnSelector({ field, onUpdateField }) {
+export function TableColumnSelector({ field, onUpdateField, existingFields = [] }) {
   const [tableColumns, setTableColumns] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -26,10 +26,23 @@ export function TableColumnSelector({ field, onUpdateField }) {
     }
   }, [autoFetched])
 
+  // Get list of already used column IDs from existing fields
+  const getUsedColumnIds = () => {
+    return existingFields
+      .filter(field => field.source === 'table' && field.tableColumnId)
+      .map(field => field.tableColumnId)
+  }
+
+  // Filter out already used columns from available columns
+  const getAvailableColumns = () => {
+    const usedColumnIds = getUsedColumnIds()
+    return tableColumns.filter(column => !usedColumnIds.includes(column.column_id))
+  }
+
   // API configuration
   const API_BASE_URL = 'http://10.10.15.194:3001'
   const TABLE_ID = '040e899d-583a-454e-92e6-d0d5a8095587'
-  const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYwNzAwNDk1LCJleHAiOjE3NjA3ODY4OTV9.zFEf8j2bNBJQ1H50Wx7q8yc2SxjwjljkMf2ICPmCdOs'
+  const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYxNjA0MzMwLCJleHAiOjE3NjE2OTA3MzB9.01TIxWVFuW0WIuBeZkT397mWy9UUwa9Wku7xX561upo'
 
   // Fetch table columns
   const fetchTableColumns = async () => {
@@ -67,8 +80,89 @@ export function TableColumnSelector({ field, onUpdateField }) {
     }
   }
 
+  // Parse optional_values JSON string into proper field options
+  const parseOptionalValues = (optionalValues) => {
+    if (!optionalValues || !Array.isArray(optionalValues) || optionalValues.length === 0) {
+      return []
+    }
+
+    try {
+      const jsonString = optionalValues[0]
+      if (typeof jsonString !== 'string') {
+        return []
+      }
+
+      const parsed = JSON.parse(jsonString)
+      if (!Array.isArray(parsed)) {
+        return []
+      }
+
+      return parsed.map(option => {
+        const processedOption = {
+          value: option.value || '',
+          label: option.label || option.value || '',
+          nestedFields: option.nestedFields ? processNestedFields(option.nestedFields) : []
+        }
+        return processedOption
+      })
+    } catch (error) {
+      console.error('Error parsing optional_values:', error)
+      return []
+    }
+  }
+
+  // Process nested fields recursively
+  const processNestedFields = (nestedFields) => {
+    if (!Array.isArray(nestedFields)) {
+      return []
+    }
+
+    return nestedFields.map(nestedField => {
+      const processedNestedField = {
+        id: nestedField.id || `nested-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: nestedField.name || '',
+        label: nestedField.label || '',
+        type: nestedField.type || 'text',
+        required: nestedField.required || false,
+        validations: nestedField.validations || {},
+        hasNested: nestedField.hasNested || false,
+        isLeadColumn: nestedField.isLeadColumn || false,
+        options: nestedField.options ? processNestedFields(nestedField.options) : []
+      }
+
+      // If this nested field has nested fields, process them recursively
+      if (nestedField.nestedFields && Array.isArray(nestedField.nestedFields)) {
+        processedNestedField.nestedFields = processNestedFields(nestedField.nestedFields)
+      }
+
+      return processedNestedField
+    })
+  }
+
   // Map database data types to form field types
-  const mapDataTypeToFieldType = (dataType) => {
+  const mapDataTypeToFieldType = (dataType, optionalValues) => {
+    // If column has optional_values, determine field type based on the structure
+    if (optionalValues && Array.isArray(optionalValues) && optionalValues.length > 0) {
+      try {
+        const parsed = JSON.parse(optionalValues[0])
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Check if it's a select/radio/checkbox based on structure
+          const hasNestedFields = parsed.some(option => option.nestedFields && option.nestedFields.length > 0)
+          if (hasNestedFields) {
+            // Determine if it's radio or select based on the data structure
+            // For now, default to select, but this could be enhanced based on your business logic
+            return 'select'
+          } else if (parsed.length > 0) {
+            // Simple options without nested fields
+            return 'select'
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing optional_values for field type detection:', error)
+      }
+    }
+
+    // Fallback to original mapping
     const typeMap = {
       'text': 'text',
       'varchar': 'text',
@@ -120,7 +214,7 @@ export function TableColumnSelector({ field, onUpdateField }) {
         // Use the actual column data from API response
         const columnName = column.column_name || 'Unnamed Column'
         const formattedLabel = columnName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-        const fieldType = mapDataTypeToFieldType(column.data_type)
+        const fieldType = mapDataTypeToFieldType(column.data_type, column.optional_values)
         
         console.log('📝 Processing column:', {
           columnName,
@@ -142,13 +236,16 @@ export function TableColumnSelector({ field, onUpdateField }) {
           return `${prefix}-${timestamp}-${random}-${counter}`
         }
 
+        // Parse optional values to get proper options structure
+        const parsedOptions = parseOptionalValues(column.optional_values)
+        
         const fieldData = {
           id: generateUniqueFieldId(),
           type: fieldType,
           label: formattedLabel,
           placeholder: `Enter ${columnName.replace(/_/g, ' ').toLowerCase()}`,
           required: column.required || false,
-          options: column.optional_values || undefined,
+          options: parsedOptions.length > 0 ? parsedOptions : undefined,
           validation: {
             required: column.required || false,
             unique: (column.properties && column.properties.is_primary === "true") || false
@@ -172,12 +269,18 @@ export function TableColumnSelector({ field, onUpdateField }) {
     setSelectedColumns([])
   }
 
-  // Filter columns based on search
-  const filteredColumns = tableColumns.filter(column => {
+  // Filter columns based on search (only from available columns)
+  const filteredColumns = getAvailableColumns().filter(column => {
     const columnName = column.column_name || ''
     const dataType = column.data_type || ''
     return columnName.toLowerCase().includes(searchTerm.toLowerCase()) ||
            dataType.toLowerCase().includes(searchTerm.toLowerCase())
+  })
+
+  // Get used columns for display
+  const usedColumns = tableColumns.filter(column => {
+    const usedColumnIds = getUsedColumnIds()
+    return usedColumnIds.includes(column.column_id)
   })
 
   return (
@@ -324,6 +427,29 @@ export function TableColumnSelector({ field, onUpdateField }) {
            )}
         </CardContent>
       </Card>
+
+      {usedColumns.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm text-muted-foreground">
+              Already Used Columns ({usedColumns.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {usedColumns.map(column => (
+                <Badge key={column.column_id} variant="secondary" className="flex items-center gap-1">
+                  {column.column_name || 'Unnamed'}
+                  <Check className="w-3 h-3" />
+                </Badge>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              These columns are already added to your form and cannot be selected again.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {selectedColumns.length > 0 && (
         <Card>

@@ -64,28 +64,28 @@ const processFieldOptions = (field) => {
     return options.map((option, index) => {
       console.log(`🔍 Processing option ${index}:`, {
         option: option,
-        hasNestedFields: field.nestedFields && field.nestedFields[index] ? field.nestedFields[index].length : 0
+        hasNestedFields: field.nestedFields && field.nestedFields[index] ? field.nestedFields[index].length : 0,
+        optionHasNestedFields: option.nestedFields ? option.nestedFields.length : 0
       })
 
       if (typeof option === 'object' && option !== null) {
-        // Always prioritize field.nestedFields over option.nestedFields
-        // because the form builder stores nested fields in field.nestedFields[index]
+        // Prioritize option.nestedFields if they exist (for table columns and new structure)
+        if (option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
+          console.log(`🔍 Option ${index} already has nestedFields:`, option.nestedFields.length)
+          return {
+            value: option.value,
+            label: option.label,
+            nestedFields: processNestedFieldsRecursively(option.nestedFields)
+          }
+        }
+        
+        // Fallback to field.nestedFields[index] for old form builder structure
         if (field.nestedFields && field.nestedFields[index]) {
           console.log(`🔍 Converting nestedFields for object option ${index}:`, field.nestedFields[index])
           return {
             value: option.value,
             label: option.label,
             nestedFields: processNestedFieldsRecursively(field.nestedFields[index])
-          }
-        }
-        
-        // Fallback to option.nestedFields if field.nestedFields doesn't exist
-        if (option.nestedFields) {
-          console.log(`🔍 Option ${index} already has nestedFields:`, option.nestedFields.length)
-          return {
-            value: option.value,
-            label: option.label,
-            nestedFields: option.nestedFields || []
           }
         }
 
@@ -179,7 +179,24 @@ const processNestedFieldsRecursively = (nestedFields) => {
         processedField.nestedFields = []
       }
     } else {
-      processedField.nestedFields = []
+      // If no direct nestedFields, check if the options have nested fields
+      // This handles the case where nested fields are stored in options (like from table columns)
+      if (processedField.options && Array.isArray(processedField.options)) {
+        const allNestedFields = []
+        processedField.options.forEach(option => {
+          if (option.nestedFields && Array.isArray(option.nestedFields)) {
+            allNestedFields.push(...option.nestedFields)
+          }
+        })
+        if (allNestedFields.length > 0) {
+          console.log(`🔍 Processing nested field ${index} with options containing nestedFields:`, allNestedFields.length)
+          processedField.nestedFields = processNestedFieldsRecursively(allNestedFields)
+        } else {
+          processedField.nestedFields = []
+        }
+      } else {
+        processedField.nestedFields = []
+      }
     }
 
     console.log(`🔍 Processed nested field ${index}:`, {
@@ -201,10 +218,10 @@ const USER_ID = 'c2a985ce-d385-4349-8f0c-d46e63027ce4'
 
 // Generate or use a proper token
 const getAuthToken = () => {
-  return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzU5MzE0ODY2LCJleHAiOjE3NTk0MDEyNjZ9.QjKz8fTFwia76o7LkkdmlGGhEKoguy8o6iFbCojMwkE'
+  return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYxNjA0MzMwLCJleHAiOjE3NjE2OTA3MzB9.01TIxWVFuW0WIuBeZkT397mWy9UUwa9Wku7xX561upo'
 }
 
-const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYwNTA2OTYzLCJleHAiOjE3NjA1OTMzNjN9.SEAwwoCusaotsc_lhb3nh0Fq5tIOWIHtbMYCG1vZ2jU'
+const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYxNjA0MzMwLCJleHAiOjE3NjE2OTA3MzB9.01TIxWVFuW0WIuBeZkT397mWy9UUwa9Wku7xX561upo'
 
 export function FormPreview({ fields, isEditMode = false, formData = null, onRetryCountChange = null }) {
   const [generatedLink, setGeneratedLink] = useState(null)
@@ -1463,10 +1480,20 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
                       if (firstOptionWithNestedFields) {
                         // Auto-select the first option with nested fields
                         setTimeout(() => {
-                          fieldApi.handleChange({
-                            value: firstOptionWithNestedFields.value,
-                            nestedFields: {}
-                          })
+                          // Handle different field types for auto-selection
+                          if (processedField.type === 'checkbox' || (processedField.type === 'select' && processedField.validation?.multiple)) {
+                            // For checkbox and multi-select fields, use array format
+                            fieldApi.handleChange({
+                              value: [firstOptionWithNestedFields.value],
+                              nestedFields: {}
+                            })
+                          } else {
+                            // For single select, radio, and other fields, use single value
+                            fieldApi.handleChange({
+                              value: firstOptionWithNestedFields.value,
+                              nestedFields: {}
+                            })
+                          }
                         }, 0)
                       }
                     }

@@ -2511,7 +2511,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                 </SelectContent>
               </Select>
 
-              {renderNestedFields(field, value?.value, onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
+              {renderNestedFields(field, value?.value ? [value.value] : [], onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
             </div>
           )
         }
@@ -2564,7 +2564,12 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                 </div>
 
         {(() => {
-          const shouldRender = Array.isArray(value?.value) && value.value?.includes(optionValue) && option.nestedFields && option.nestedFields.length > 0
+          // Check for nested fields in both possible structures:
+          // 1. option.nestedFields (for table columns and new structure)
+          // 2. field.nestedFields[index] (for old form builder structure)
+          const hasNestedFields = (option.nestedFields && option.nestedFields.length > 0) || 
+                                 (field.nestedFields && field.nestedFields[index])
+          const shouldRender = Array.isArray(value?.value) && value.value?.includes(optionValue) && hasNestedFields
           return shouldRender
         })() && (
                   <div className="ml-6 space-y-3">
@@ -2622,9 +2627,16 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                         </Label>
                       </div>
 
-                      {value?.value === optionValue && option.nestedFields && option.nestedFields.length > 0 && (
+                      {(() => {
+                        // Check for nested fields in both possible structures:
+                        // 1. option.nestedFields (for table columns and new structure)
+                        // 2. field.nestedFields[index] (for old form builder structure)
+                        const hasNestedFields = (option.nestedFields && option.nestedFields.length > 0) || 
+                                               (field.nestedFields && field.nestedFields[index])
+                        return value?.value === optionValue && hasNestedFields
+                      })() && (
                         <div className="ml-6 space-y-3">
-                          {renderNestedFields(field, optionValue, onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
+                          {renderNestedFields(field, [optionValue], onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
                         </div>
                       )}
                   </div>
