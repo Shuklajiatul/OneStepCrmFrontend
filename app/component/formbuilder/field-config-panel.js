@@ -33,6 +33,7 @@ const useDebouncedUpdate = (callback, delay = 3000) => {
 export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
   const [newOption, setNewOption] = useState("")
   const [expandedNestedFields, setExpandedNestedFields] = useState({})
+  const [forceRenderKey, setForceRenderKey] = useState(0)
 
   // Location configuration state
   const [countries, setCountries] = useState([])
@@ -410,6 +411,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
     debouncedUpdateField,
     toggleNestedFields,
     setExpandedNestedFields,
+    setForceRenderKey,
     countries,
     statesByCountry,
     citiesByState,
@@ -500,6 +502,9 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         ...prev,
         [optionKey]: true
       }))
+      // Force a re-render to immediately show the new nested field
+      setForceRenderKey(prev => prev + 1)
+      console.log('🔍 Added nested field at path:', path, 'option:', optionIndex, 'forcing UI update')
     }, [nestedFields, path, fieldId, onUpdateField, uniqueKey])
 
     const updateOption = useCallback((optionIndex, newValue) => {
@@ -783,7 +788,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
                       {/* Render nested fields recursively */}
                       {expandedNestedFields[optionKey] && (
-                        <div className="ml-4 space-y-3 w-full min-w-0">
+                        <div className="ml-4 space-y-3 w-full min-w-0" key={`nested-recursive-${optionKey}-${forceRenderKey}`}>
                           {nestedField.nestedFields?.[optionIndex]?.map((childField, childIndex) => (
                             <NestedFieldConfig
                               key={childField.id}
@@ -795,6 +800,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               debouncedUpdateField={debouncedUpdateField}
                               toggleNestedFields={toggleNestedFields}
                               setExpandedNestedFields={setExpandedNestedFields}
+                              setForceRenderKey={setForceRenderKey}
                               countries={countries}
                               statesByCountry={statesByCountry}
                               citiesByState={citiesByState}
@@ -1475,6 +1481,9 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                   ...prev,
                                   [rootKey]: true
                                 }))
+                                // Force a re-render to immediately show the new nested field
+                                setForceRenderKey(prev => prev + 1)
+                                console.log('🔍 Added nested field to root level, forcing UI update')
                               }}
                               className="h-7 text-xs gap-1 hover:bg-accent/50 flex-shrink-0"
                             >
@@ -1484,7 +1493,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                           </div>
 
                           {expandedNestedFields[rootKey] && (
-                            <div className="space-y-3 w-full min-w-0">
+                            <div className="space-y-3 w-full min-w-0" key={`nested-container-${rootKey}-${forceRenderKey}`}>
                               {field.nestedFields?.[index]?.map((nestedField, nestedIndex) => (
                                 <NestedFieldConfig
                                   key={nestedField.id}
@@ -1496,6 +1505,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                   debouncedUpdateField={debouncedUpdateField}
                                   toggleNestedFields={toggleNestedFields}
                                   setExpandedNestedFields={setExpandedNestedFields}
+                                  setForceRenderKey={setForceRenderKey}
                                   countries={countries}
                                   statesByCountry={statesByCountry}
                                   citiesByState={citiesByState}

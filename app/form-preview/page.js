@@ -185,8 +185,15 @@ export default function FormPreviewPage() {
                   nestedFields: []
                 }
 
-                // Recursively process nested fields within nested options
-                if (nestedField.nestedFields && nestedField.nestedFields[nestedOptionIndex]) {
+                // ✅ FIX: Check for nested fields in the option itself (for deep table column nesting)
+                if (nestedOption.nestedFields && Array.isArray(nestedOption.nestedFields)) {
+                  nestedOptionObj.nestedFields = processNestedFields(
+                    nestedOption.nestedFields,
+                    nestedOptionIndex
+                  )
+                }
+                // Fallback: check nested fields in the field structure (for form builder fields)
+                else if (nestedField.nestedFields && nestedField.nestedFields[nestedOptionIndex]) {
                   nestedOptionObj.nestedFields = processNestedFields(
                     nestedField.nestedFields[nestedOptionIndex],
                     nestedOptionIndex
@@ -197,8 +204,14 @@ export default function FormPreviewPage() {
               })
             }
 
+            // Strip "field-" prefix from nested field ID before sending to backend
+            let cleanNestedFieldId = nestedField.id
+            if (typeof cleanNestedFieldId === 'string' && cleanNestedFieldId.startsWith('field-')) {
+              cleanNestedFieldId = cleanNestedFieldId.replace('field-', '')
+            }
+
             const processedNestedField = {
-              id: nestedField.id,
+              id: cleanNestedFieldId,
               name: nestedField.label?.toLowerCase().replace(/\s+/g, '_') || `nested_${nestedIndex}`,
               label: nestedField.label,
               type: nestedField.type,
@@ -230,8 +243,13 @@ export default function FormPreviewPage() {
                 nestedFields: []
               }
 
-              // Process nested fields for this option
-              if (field.nestedFields && field.nestedFields[index]) {
+              // Process nested fields for this option - check both structures
+              // First check if option already has nestedFields (for table columns)
+              if (option.nestedFields && Array.isArray(option.nestedFields)) {
+                optionObj.nestedFields = processNestedFields(option.nestedFields, index)
+              }
+              // Then check if field has nestedFields[index] (for form builder fields)
+              else if (field.nestedFields && field.nestedFields[index]) {
                 optionObj.nestedFields = processNestedFields(field.nestedFields[index], index)
               }
 
@@ -243,8 +261,14 @@ export default function FormPreviewPage() {
             option.nestedFields && option.nestedFields.length > 0
           )
 
+          // Strip "field-" prefix from main field ID before sending to backend
+          let cleanFieldId = field.id
+          if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
+            cleanFieldId = cleanFieldId.replace('field-', '')
+          }
+
           const fieldObj = {
-            id: field.id,
+            id: cleanFieldId,
             name: field.name || field.label?.toLowerCase().replace(/\s+/g, '_') || 'field',
             label: field.label,
             type: field.type,

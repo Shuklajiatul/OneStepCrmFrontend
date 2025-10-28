@@ -702,33 +702,47 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
 
           // For select/radio/checkbox fields, ensure the nested value has the correct structure
           if (["select", "radio", "checkbox"].includes(nestedField.type)) {
-            if (typeof nestedValue === 'string' && nestedValue !== "") {
-              // Convert string value to object structure for select/radio/checkbox fields
+            if (Array.isArray(nestedValue)) {
+              // Handle array values (e.g., checkbox selections) - key fix for nested checkboxes
               nestedValue = {
                 value: nestedValue,
                 nestedFields: {}
               }
+            } else if (typeof nestedValue === 'string' && nestedValue !== "") {
+              // Convert string value to object structure for select/radio/checkbox fields
+              nestedValue = {
+                value: nestedField.type === "checkbox" ? [nestedValue] : nestedValue,
+                nestedFields: {}
+              }
             } else if (typeof nestedValue === 'object' && nestedValue !== null && nestedValue.value !== undefined) {
-              // Already in correct structure, keep as is
-              nestedValue = nestedValue
+              // Already in correct structure, but ensure checkbox values are arrays
+              if (nestedField.type === "checkbox" && !Array.isArray(nestedValue.value)) {
+                nestedValue = {
+                  ...nestedValue,
+                  value: nestedValue.value ? [nestedValue.value] : []
+                }
+              } else {
+                // Keep existing structure
+                nestedValue = nestedValue
+              }
             } else if (typeof nestedValue === 'object' && nestedValue !== null && !nestedValue.value) {
               // Object without value property - might be a nested fields structure
               // Check if it has nested fields and convert to proper structure
               if (Object.keys(nestedValue).length > 0) {
                 nestedValue = {
-                  value: "",
+                  value: nestedField.type === "checkbox" ? [] : "",
                   nestedFields: nestedValue
                 }
               } else {
                 nestedValue = {
-                  value: "",
+                  value: nestedField.type === "checkbox" ? [] : "",
                   nestedFields: {}
                 }
               }
             } else {
               // Default structure for empty values
               nestedValue = {
-                value: "",
+                value: nestedField.type === "checkbox" ? [] : "",
                 nestedFields: {}
               }
             }
@@ -1273,7 +1287,18 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
         )
       }
     case "checkbox":
-      const selectedValues = Array.isArray(value?.value) ? value.value : []
+      // Handle different value structures for nested checkboxes
+      let selectedValues = []
+      if (Array.isArray(value?.value)) {
+        selectedValues = value.value
+      } else if (Array.isArray(value)) {
+        selectedValues = value
+      } else if (value?.value !== undefined) {
+        selectedValues = Array.isArray(value.value) ? value.value : [value.value]
+      } else if (value !== undefined && value !== null) {
+        selectedValues = Array.isArray(value) ? value : [value]
+      }
+      
       const currentNestedFieldsCheckbox = value?.nestedFields || {}
 
       return (
@@ -1306,10 +1331,17 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                       }
                     }
 
-                    onChange({
-                      value: newValues,
-                      nestedFields: newNestedFields
-                    })
+                    // Determine the correct structure based on the original value format
+                    if (typeof value === 'object' && value !== null && value.hasOwnProperty('value')) {
+                      // Original value was an object with .value property
+                      onChange({
+                        value: newValues,
+                        nestedFields: newNestedFields
+                      })
+                    } else {
+                      // Original value was a direct array or simple value
+                      onChange(newValues)
+                    }
                   }}
                   disabled={disabled}
                   className={invalid ? "border-red-500" : ""}

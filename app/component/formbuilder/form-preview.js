@@ -1047,6 +1047,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
                 max="10"
                 value={retryCount}
                 onChange={(e) => setRetryCount(e.target.value)}
+                onWheel={(e) => e.target.blur()}
                 placeholder="Enter number of edit attempts"
                 className="bg-input"
               />

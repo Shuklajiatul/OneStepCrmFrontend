@@ -93,8 +93,8 @@ export function SortableFieldItem({ field, selectedField, onSelectField, onDelet
                 <Badge variant="secondary" className="text-xs">
                   {field.type}
                 </Badge>
-                <span>•</span>
-                <span>ID: {field.id}</span>
+                {/* <span>•</span> */}
+                {/* <span>ID: {field.id}</span> */}
                 {field.required && (
                   <>
                     <span>•</span>
