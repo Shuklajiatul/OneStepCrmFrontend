@@ -225,8 +225,11 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
         return
       }
 
-      // Use the key as-is (field ID) - don't try to extract field names
-      const fieldId = key
+      // Use the key as-is (field ID) - but strip "field-" prefix if present
+      let fieldId = key
+      if (typeof fieldId === 'string' && fieldId.startsWith('field-')) {
+        fieldId = fieldId.replace('field-', '')
+      }
 
       // Only process if we haven't already processed this field ID from numeric keys
       if (fieldValues[fieldId]) {
@@ -417,7 +420,18 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
 
   Object.keys(formValues).forEach(fieldId => {
     const fieldValue = formValues[fieldId]
-    const field = fields.find(f => f.id === fieldId)
+    let field = fields.find(f => f.id === fieldId)
+
+    // If not found by exact match, try with "field-" prefix added
+    if (!field && !fieldId.startsWith('field-')) {
+      field = fields.find(f => f.id === `field-${fieldId}`)
+    }
+
+    // If still not found, try with "field-" prefix removed
+    if (!field && fieldId.startsWith('field-')) {
+      const cleanFieldId = fieldId.replace('field-', '')
+      field = fields.find(f => f.id === cleanFieldId)
+    }
 
     if (!field) return
 
@@ -457,7 +471,11 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
     }
 
     // Use the ORIGINAL field ID from the form data, not the parsed one
-    const finalFieldKey = field.originalId || fieldId
+    // If field ID has "field-" prefix, strip it to get just the UUID
+    let finalFieldKey = field.originalId || fieldId
+    if (typeof finalFieldKey === 'string' && finalFieldKey.startsWith('field-')) {
+      finalFieldKey = finalFieldKey.replace('field-', '')
+    }
 
     // Handle different field types
     switch (field.type) {
@@ -803,7 +821,6 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
   const transformApiNestedValuesToNestedFields = (nestedValues) => {
     if (!nestedValues || typeof nestedValues !== 'object') return {}
 
-    console.log('🔄 transformApiNestedValuesToNestedFields input:', nestedValues)
     const result = {}
 
     Object.keys(nestedValues).forEach(key => {
@@ -924,7 +941,6 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
 
   // Helper function to process the main field values
   const processFieldValue = (fieldId, fieldValue, field) => {
-    console.log(`🔄 Processing field ${fieldId}:`, { fieldValue, fieldType: field?.type })
 
     // Handle empty strings
     if (fieldValue === "" || fieldValue === null || fieldValue === undefined) {
@@ -1170,39 +1186,24 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
     const fieldId = field.id
     let fieldValue = submissionValues[fieldId]
 
-    console.log(`🔍 Looking for field ${fieldId} (${field.label}) [${field.type}]:`, {
-      fieldValue,
-      fieldValueType: typeof fieldValue,
-      isBase64: typeof fieldValue === 'string' && fieldValue?.startsWith('data:'),
-      submissionKeys: Object.keys(submissionValues),
-      originalId: field.originalId,
-      isFileField: field.type === 'file'
-    })
+    // If not found by parsed form ID, try the clean UUID (without "field-" prefix)
+    if (fieldValue === undefined && fieldId.startsWith('field-')) {
+      const cleanFieldId = fieldId.replace('field-', '')
+      fieldValue = submissionValues[cleanFieldId]
+    }
 
     // If not found by parsed form ID, try the original field ID from API
     if (fieldValue === undefined && field.originalId) {
-      console.log(`🔄 Trying original ID ${field.originalId} for field ${fieldId}`)
       fieldValue = submissionValues[field.originalId]
-      console.log(`✅ Found value with original ID:`, fieldValue)
     }
 
     // If still not found, try to find by field name
     if (fieldValue === undefined && field.name) {
-      console.log(`🔄 Trying field name ${field.name} for field ${fieldId}`)
       fieldValue = submissionValues[field.name]
-      if (fieldValue !== undefined) {
-        console.log(`✅ Found value with field name:`, fieldValue)
-      }
     }
 
     if (fieldValue !== undefined && fieldValue !== null) {
       const processedValue = processFieldValue(fieldId, fieldValue, field)
-      console.log(`✅ Processed value for field ${fieldId} (${field.type}):`, {
-        originalValue: fieldValue,
-        processedValue: processedValue,
-        processedType: typeof processedValue,
-        isFileObject: processedValue && typeof processedValue === 'object' && processedValue.name && processedValue.base64
-      })
       transformedValues[fieldId] = processedValue
     } else {
       // Set appropriate defaults
@@ -1286,10 +1287,9 @@ export default function PublicFormPage() {
       checkExistingSubmission()
       // Only fetch latest form data if NOT in edit mode
       if (!token || !submissionId) {
-        console.log('🆕 NEW SUBMISSION MODE: Fetching latest form version')
         fetchFormData()
       } else {
-        console.log('✏️ EDIT MODE DETECTED: Skipping latest form fetch, will use original form from submission data')
+        // Skip fetching latest form in edit mode - use original from submission data
       }
     }
   }, [formId, token, submissionId])
@@ -1407,7 +1407,7 @@ export default function PublicFormPage() {
         {
           organization_id: ORGANIZATION_ID,
           form_id: formId,
-          reference_id: finalUserId, // Use user ID from URL, fallback to hardcoded
+          reference_id: finalUserId,
           submission_id: submissionId
         },
         {
@@ -1470,17 +1470,12 @@ export default function PublicFormPage() {
           setEditCountLeft(parsedSubmission.editCountLeft)
         }
 
-        // ✅ NEW: Handle original form version for editing
+        // Handle original form version for editing
         if (result.form_version) {
-          console.log('🎯 Original form version found for editing:', result.form_version)
-          
           // Check if form_version is just a number (version ID) or a full form object
           if (typeof result.form_version === 'number' || typeof result.form_version === 'string') {
-            console.log('📄 Backend returned version number only, need to fetch full form data for version:', result.form_version)
-            
             // Fetch the specific form version from the backend
             try {
-              console.log('🔄 Attempting to fetch form version:', result.form_version)
               
               // Try the most common API pattern: query parameter
               const versionResponse = await axios.get(
@@ -1494,10 +1489,9 @@ export default function PublicFormPage() {
               )
               
               if (versionResponse.data.success && versionResponse.data.form) {
-                console.log('✅ Fetched original form version successfully:', versionResponse.data.form)
                 const originalFormData = parseFormData(versionResponse.data.form)
                 setFormData(originalFormData)
-                setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
+                setLoading(false)
                 toast.success(`Submission loaded - Using original form v${result.form_version}`)
               } else {
                 throw new Error('Failed to fetch form version data')
@@ -1516,7 +1510,6 @@ export default function PublicFormPage() {
               
               for (const endpoint of alternativeEndpoints) {
                 try {
-                  console.log('🔄 Trying alternative endpoint:', endpoint)
                   const altResponse = await axios.get(endpoint, {
                     headers: {
                       'Authorization': `Bearer ${getAuthToken()}`,
@@ -1525,16 +1518,14 @@ export default function PublicFormPage() {
                   })
                   
                   if (altResponse.data.success && altResponse.data.form) {
-                    console.log('✅ Alternative endpoint worked! Form version fetched:', altResponse.data.form)
                     const originalFormData = parseFormData(altResponse.data.form)
                     setFormData(originalFormData)
-                    setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
+                    setLoading(false)
                     toast.success(`Submission loaded - Using original form v${result.form_version}`)
                     alternativeSuccess = true
                     break
                   }
                 } catch (altError) {
-                  console.log('❌ Alternative endpoint failed:', endpoint, altError.message)
                   continue
                 }
               }
@@ -1552,51 +1543,35 @@ export default function PublicFormPage() {
             }
           } else {
             // form_version is a full form object
-            console.log('📊 Form version details:', {
-              version: result.form_version.version,
-              form_name: result.form_version.form_name,
-              fieldsCount: result.form_version.fields ? result.form_version.fields.length : 0,
-              hasFields: !!result.form_version.fields
-            })
             try {
               const originalFormData = parseFormData(result.form_version)
-              console.log('✅ Parsed original form data successfully:', {
-                form_name: originalFormData.form_name,
-                version: originalFormData.version,
-                fieldsCount: originalFormData.fields.length
-              })
               setFormData(originalFormData)
-              setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
-              console.log('🔄 Form data state updated with original version')
+              setLoading(false)
               toast.success(`Submission loaded - Using original form v${result.form_version.version || 'unknown'}`)
             } catch (error) {
               console.error('❌ Error parsing original form data:', error)
-              console.error('❌ Raw form_version that failed:', result.form_version)
               // Fallback to fetching latest form if original parsing fails
               try {
-                await fetchFormData() // This will set loading to false when it completes
+                await fetchFormData()
               } catch (fetchError) {
                 console.error('❌ Fallback fetchFormData failed:', fetchError)
-                setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+                setLoading(false)
               }
               toast.warning("Submission loaded - Using latest form version (original failed to load)")
             }
           }
         } else {
-          console.warn('⚠️ No form_version in response, falling back to latest form')
-          console.warn('⚠️ Available response keys:', Object.keys(result))
           // Fallback to fetching latest form
           try {
-            await fetchFormData() // This will set loading to false when it completes
+            await fetchFormData()
           } catch (fetchError) {
             console.error('❌ Fallback fetchFormData failed:', fetchError)
-            setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+            setLoading(false)
           }
           toast.warning("Submission loaded - Using latest form version (original not available)")
         }
       } else if (result.data) {
         // Handle case where submission data is in result.data
-        console.log('Submission data found in result.data:', result.data)
         setSubmissionData(result.data)
         
         // Extract edit count from submission data if available
@@ -1606,11 +1581,10 @@ export default function PublicFormPage() {
 
         // Handle original form version for editing (alternative location)
         if (result.form_version) {
-          console.log('🎯 Original form version found for editing:', result.form_version)
           try {
             const originalFormData = parseFormData(result.form_version)
             setFormData(originalFormData)
-            setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
+            setLoading(false)
             toast.success(`Submission loaded - Using original form v${result.form_version.version || 'unknown'}`)
           } catch (error) {
             console.error('❌ Error parsing original form data:', error)
@@ -1618,7 +1592,7 @@ export default function PublicFormPage() {
               await fetchFormData()
             } catch (fetchError) {
               console.error('❌ Fallback fetchFormData failed:', fetchError)
-              setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+              setLoading(false)
             }
             toast.warning("Submission loaded - Using latest form version (original failed to load)")
           }
@@ -1627,13 +1601,12 @@ export default function PublicFormPage() {
             await fetchFormData()
           } catch (fetchError) {
             console.error('❌ Fallback fetchFormData failed:', fetchError)
-            setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+            setLoading(false)
           }
           toast.warning("Submission loaded - Using latest form version (original not available)")
         }
       } else if (result.values) {
         // Handle case where values are directly in result
-        console.log('Submission values found:', result.values)
         setSubmissionData({ values: result.values })
         
         // Extract edit count from result if available
@@ -1643,11 +1616,10 @@ export default function PublicFormPage() {
 
         // Handle original form version for editing (alternative location)
         if (result.form_version) {
-          console.log('🎯 Original form version found for editing:', result.form_version)
           try {
             const originalFormData = parseFormData(result.form_version)
             setFormData(originalFormData)
-            setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
+            setLoading(false)
             toast.success(`Submission loaded - Using original form v${result.form_version.version || 'unknown'}`)
           } catch (error) {
             console.error('❌ Error parsing original form data:', error)
@@ -1655,7 +1627,7 @@ export default function PublicFormPage() {
               await fetchFormData()
             } catch (fetchError) {
               console.error('❌ Fallback fetchFormData failed:', fetchError)
-              setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+              setLoading(false)
             }
             toast.warning("Submission loaded - Using latest form version (original failed to load)")
           }
@@ -1664,7 +1636,7 @@ export default function PublicFormPage() {
             await fetchFormData()
           } catch (fetchError) {
             console.error('❌ Fallback fetchFormData failed:', fetchError)
-            setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+            setLoading(false)
           }
           toast.warning("Submission loaded - Using latest form version (original not available)")
         }
@@ -1953,8 +1925,6 @@ export default function PublicFormPage() {
 
   const fetchFormData = async () => {
     try {
-      console.log('🌟 fetchFormData called - getting LATEST form version from getFormHandler endpoint')
-
       const response = await axios.get(
         `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`,
         {
@@ -1965,7 +1935,6 @@ export default function PublicFormPage() {
         }
       )
       const result = response.data
-      console.log('📡 Response:', result)
 
       if (result.success && result.form) {
         // Check if form is archived/inactive
@@ -1983,12 +1952,6 @@ export default function PublicFormPage() {
 
         try {
           const parsedForm = parseFormData(result.form)
-          console.log('✅ Parsed LATEST form data from getFormHandler:', {
-            form_name: parsedForm.form_name,
-            version: parsedForm.version,
-            fieldsCount: parsedForm.fields.length
-          })
-          console.log('⚠️ WARNING: About to set form data to LATEST version (this might override original form in edit mode)')
           setFormData(parsedForm)
         } catch (parseError) {
           console.error('❌ Error parsing form data:', parseError)
@@ -2978,8 +2941,6 @@ export default function PublicFormPage() {
                       }}
                     >
                       {(fieldApi) => {
-                        // Debug logging for all fields to see current values
-                        console.log(`🎯 Field ${field.id} current value:`, fieldApi.state.value)
 
                         return (
                           <div className="space-y-2">

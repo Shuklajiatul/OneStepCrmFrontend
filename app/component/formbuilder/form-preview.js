@@ -299,8 +299,14 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
             })
           }
 
+          // Strip "field-" prefix from nested field ID before sending to backend
+          let cleanNestedFieldId = nestedField.id
+          if (typeof cleanNestedFieldId === 'string' && cleanNestedFieldId.startsWith('field-')) {
+            cleanNestedFieldId = cleanNestedFieldId.replace('field-', '')
+          }
+
           const processedNestedField = {
-            id: nestedField.id,
+            id: cleanNestedFieldId,
             name: nestedField.label.toLowerCase().replace(/\s+/g, '_'),
             label: nestedField.label,
             type: nestedField.type,
@@ -350,8 +356,14 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
           option.nestedFields && option.nestedFields.length > 0
         )
 
+        // Strip "field-" prefix from table field ID before sending to backend
+        let cleanFieldId = field.tableColumnId || field.id
+        if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
+          cleanFieldId = cleanFieldId.replace('field-', '')
+        }
+
         const fieldObj = {
-          id: field.tableColumnId || field.id,
+          id: cleanFieldId,
           name: field.tableColumnName || field.label.toLowerCase().replace(/\s+/g, '_'),
           label: field.label,
           type: field.type,
@@ -395,8 +407,14 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
           option.nestedFields && option.nestedFields.length > 0
         )
 
+        // Strip "field-" prefix from extra field ID before sending to backend
+        let cleanFieldId = field.id
+        if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
+          cleanFieldId = cleanFieldId.replace('field-', '')
+        }
+
         const fieldObj = {
-          id: field.id,
+          id: cleanFieldId,
           name: field.label.toLowerCase().replace(/\s+/g, '_'),
           label: field.label,
           type: field.type,
@@ -427,8 +445,14 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         if (!Array.isArray(nestedFields)) return []
 
         return nestedFields.map(nestedField => {
+          // Strip "field-" prefix from nested field ID before sending to backend
+          let cleanNestedFieldId = nestedField.id
+          if (typeof cleanNestedFieldId === 'string' && cleanNestedFieldId.startsWith('field-')) {
+            cleanNestedFieldId = cleanNestedFieldId.replace('field-', '')
+          }
+
           const processedNestedField = {
-            id: nestedField.id,
+            id: cleanNestedFieldId,
             name: nestedField.name || nestedField.label?.toLowerCase().replace(/\s+/g, '_'),
             label: nestedField.label,
             type: nestedField.type,
@@ -473,8 +497,14 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         // Ensure options is always an array
         const processedOptions = Array.isArray(field.options) ? field.options : []
 
+        // Strip "field-" prefix from field ID before sending to backend
+        let cleanFieldId = field.id
+        if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
+          cleanFieldId = cleanFieldId.replace('field-', '')
+        }
+
         const processedField = {
-          id: field.id,
+          id: cleanFieldId,
           name: field.name,
           label: field.label,
           type: field.type,
