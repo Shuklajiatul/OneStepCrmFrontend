@@ -27,9 +27,9 @@ export function TableColumnSelector({ field, onUpdateField }) {
   }, [autoFetched])
 
   // API configuration
-  const API_BASE_URL = 'http://10.10.15.194:3001'
-  const TABLE_ID = '040e899d-583a-454e-92e6-d0d5a8095587'
-  const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYwNzAwNDk1LCJleHAiOjE3NjA3ODY4OTV9.zFEf8j2bNBJQ1H50Wx7q8yc2SxjwjljkMf2ICPmCdOs'
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+  const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
+  const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN
 
   // Fetch table columns
   const fetchTableColumns = async () => {
@@ -42,7 +42,7 @@ export function TableColumnSelector({ field, onUpdateField }) {
         },
       })
       const result = response.data
-      console.log('📊 API Response:', result)
+      console.log('Table Column Selector API Response:', result)
       
       // Handle array response directly
       if (Array.isArray(result)) {
