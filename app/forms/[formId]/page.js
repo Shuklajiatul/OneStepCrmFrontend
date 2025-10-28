@@ -1284,9 +1284,15 @@ export default function PublicFormPage() {
   useEffect(() => {
     if (formId) {
       checkExistingSubmission()
-      fetchFormData()
+      // Only fetch latest form data if NOT in edit mode
+      if (!token || !submissionId) {
+        console.log('🆕 NEW SUBMISSION MODE: Fetching latest form version')
+        fetchFormData()
+      } else {
+        console.log('✏️ EDIT MODE DETECTED: Skipping latest form fetch, will use original form from submission data')
+      }
     }
-  }, [formId])
+  }, [formId, token, submissionId])
 
   // Load phone countries from API
   useEffect(() => {
@@ -1413,7 +1419,13 @@ export default function PublicFormPage() {
       )
       const result = response.data
 
-      console.log('Full API response:', result)
+      console.log('📨 Full editFormHandler API response:', result)
+      console.log('📋 Response structure:', {
+        success: result.success,
+        hasSubmission: !!result.submission,
+        hasFormVersion: !!result.form_version,
+        formVersionStructure: result.form_version ? Object.keys(result.form_version) : 'N/A'
+      })
 
       // Handle the response format where values are JSON strings
       if (result.success && result.submission) {
@@ -1457,8 +1469,131 @@ export default function PublicFormPage() {
         if (parsedSubmission.editCountLeft !== undefined) {
           setEditCountLeft(parsedSubmission.editCountLeft)
         }
-        
-        toast.success("Submission loaded for editing")
+
+        // ✅ NEW: Handle original form version for editing
+        if (result.form_version) {
+          console.log('🎯 Original form version found for editing:', result.form_version)
+          
+          // Check if form_version is just a number (version ID) or a full form object
+          if (typeof result.form_version === 'number' || typeof result.form_version === 'string') {
+            console.log('📄 Backend returned version number only, need to fetch full form data for version:', result.form_version)
+            
+            // Fetch the specific form version from the backend
+            try {
+              console.log('🔄 Attempting to fetch form version:', result.form_version)
+              
+              // Try the most common API pattern: query parameter
+              const versionResponse = await axios.get(
+                `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}?version=${result.form_version}`,
+                {
+                  headers: {
+                    'Authorization': `Bearer ${getAuthToken()}`,
+                    'Content-Type': 'application/json',
+                  }
+                }
+              )
+              
+              if (versionResponse.data.success && versionResponse.data.form) {
+                console.log('✅ Fetched original form version successfully:', versionResponse.data.form)
+                const originalFormData = parseFormData(versionResponse.data.form)
+                setFormData(originalFormData)
+                setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
+                toast.success(`Submission loaded - Using original form v${result.form_version}`)
+              } else {
+                throw new Error('Failed to fetch form version data')
+              }
+            } catch (versionError) {
+              console.warn('⚠️ First attempt failed, trying alternative endpoint patterns:', versionError.message)
+              
+              // Try alternative API patterns
+              let alternativeSuccess = false
+              const alternativeEndpoints = [
+                `${API_BASE_URL}/api/forms/version/${formId}/${result.form_version}`,
+                `${API_BASE_URL}/api/forms/${formId}/version/${result.form_version}`,
+                `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${formId}/version/${result.form_version}`,
+                `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}/version/${result.form_version}`
+              ]
+              
+              for (const endpoint of alternativeEndpoints) {
+                try {
+                  console.log('🔄 Trying alternative endpoint:', endpoint)
+                  const altResponse = await axios.get(endpoint, {
+                    headers: {
+                      'Authorization': `Bearer ${getAuthToken()}`,
+                      'Content-Type': 'application/json',
+                    }
+                  })
+                  
+                  if (altResponse.data.success && altResponse.data.form) {
+                    console.log('✅ Alternative endpoint worked! Form version fetched:', altResponse.data.form)
+                    const originalFormData = parseFormData(altResponse.data.form)
+                    setFormData(originalFormData)
+                    setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
+                    toast.success(`Submission loaded - Using original form v${result.form_version}`)
+                    alternativeSuccess = true
+                    break
+                  }
+                } catch (altError) {
+                  console.log('❌ Alternative endpoint failed:', endpoint, altError.message)
+                  continue
+                }
+              }
+              
+              if (!alternativeSuccess) {
+                console.warn('⚠️ All form version endpoints failed, falling back to latest form')
+                try {
+                  await fetchFormData() // This will set loading to false when it completes
+                } catch (fetchError) {
+                  console.error('❌ Fallback fetchFormData also failed:', fetchError)
+                  setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+                }
+                toast.warning("Submission loaded - Using latest form version (original version endpoints not available)")
+              }
+            }
+          } else {
+            // form_version is a full form object
+            console.log('📊 Form version details:', {
+              version: result.form_version.version,
+              form_name: result.form_version.form_name,
+              fieldsCount: result.form_version.fields ? result.form_version.fields.length : 0,
+              hasFields: !!result.form_version.fields
+            })
+            try {
+              const originalFormData = parseFormData(result.form_version)
+              console.log('✅ Parsed original form data successfully:', {
+                form_name: originalFormData.form_name,
+                version: originalFormData.version,
+                fieldsCount: originalFormData.fields.length
+              })
+              setFormData(originalFormData)
+              setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
+              console.log('🔄 Form data state updated with original version')
+              toast.success(`Submission loaded - Using original form v${result.form_version.version || 'unknown'}`)
+            } catch (error) {
+              console.error('❌ Error parsing original form data:', error)
+              console.error('❌ Raw form_version that failed:', result.form_version)
+              // Fallback to fetching latest form if original parsing fails
+              try {
+                await fetchFormData() // This will set loading to false when it completes
+              } catch (fetchError) {
+                console.error('❌ Fallback fetchFormData failed:', fetchError)
+                setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+              }
+              toast.warning("Submission loaded - Using latest form version (original failed to load)")
+            }
+          }
+        } else {
+          console.warn('⚠️ No form_version in response, falling back to latest form')
+          console.warn('⚠️ Available response keys:', Object.keys(result))
+          // Fallback to fetching latest form
+          try {
+            await fetchFormData() // This will set loading to false when it completes
+          } catch (fetchError) {
+            console.error('❌ Fallback fetchFormData failed:', fetchError)
+            setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+          }
+          toast.warning("Submission loaded - Using latest form version (original not available)")
+        }
       } else if (result.data) {
         // Handle case where submission data is in result.data
         console.log('Submission data found in result.data:', result.data)
@@ -1468,8 +1603,34 @@ export default function PublicFormPage() {
         if (result.data.editCountLeft !== undefined) {
           setEditCountLeft(result.data.editCountLeft)
         }
-        
-        toast.success("Submission loaded for editing")
+
+        // Handle original form version for editing (alternative location)
+        if (result.form_version) {
+          console.log('🎯 Original form version found for editing:', result.form_version)
+          try {
+            const originalFormData = parseFormData(result.form_version)
+            setFormData(originalFormData)
+            setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
+            toast.success(`Submission loaded - Using original form v${result.form_version.version || 'unknown'}`)
+          } catch (error) {
+            console.error('❌ Error parsing original form data:', error)
+            try {
+              await fetchFormData()
+            } catch (fetchError) {
+              console.error('❌ Fallback fetchFormData failed:', fetchError)
+              setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+            }
+            toast.warning("Submission loaded - Using latest form version (original failed to load)")
+          }
+        } else {
+          try {
+            await fetchFormData()
+          } catch (fetchError) {
+            console.error('❌ Fallback fetchFormData failed:', fetchError)
+            setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+          }
+          toast.warning("Submission loaded - Using latest form version (original not available)")
+        }
       } else if (result.values) {
         // Handle case where values are directly in result
         console.log('Submission values found:', result.values)
@@ -1479,15 +1640,43 @@ export default function PublicFormPage() {
         if (result.editCountLeft !== undefined) {
           setEditCountLeft(result.editCountLeft)
         }
-        
-        toast.success("Submission loaded for editing")
+
+        // Handle original form version for editing (alternative location)
+        if (result.form_version) {
+          console.log('🎯 Original form version found for editing:', result.form_version)
+          try {
+            const originalFormData = parseFormData(result.form_version)
+            setFormData(originalFormData)
+            setLoading(false) // ✅ FIX: Set loading to false when form data is loaded
+            toast.success(`Submission loaded - Using original form v${result.form_version.version || 'unknown'}`)
+          } catch (error) {
+            console.error('❌ Error parsing original form data:', error)
+            try {
+              await fetchFormData()
+            } catch (fetchError) {
+              console.error('❌ Fallback fetchFormData failed:', fetchError)
+              setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+            }
+            toast.warning("Submission loaded - Using latest form version (original failed to load)")
+          }
+        } else {
+          try {
+            await fetchFormData()
+          } catch (fetchError) {
+            console.error('❌ Fallback fetchFormData failed:', fetchError)
+            setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+          }
+          toast.warning("Submission loaded - Using latest form version (original not available)")
+        }
       } else {
         console.warn('Unexpected response format:', result)
+        setLoading(false) // ✅ FIX: Stop loading even on unexpected response format
         throw new Error('Submission data not found in response')
       }
 
     } catch (error) {
       console.error('Error fetching submission data:', error)
+      setLoading(false) // ✅ FIX: Stop loading on error
       
       // Check for specific error messages
       if (error.response?.data?.error) {
@@ -1749,6 +1938,8 @@ export default function PublicFormPage() {
         form_name: apiForm.form_name || apiForm.name || 'Untitled Form',
         description: apiForm.description || '',
         retry_count: apiForm.retry_count || '2',
+        version: apiForm.version || null,
+        archived: apiForm.archived || false,
         fields: parsedFields
       }
 
@@ -1762,6 +1953,7 @@ export default function PublicFormPage() {
 
   const fetchFormData = async () => {
     try {
+      console.log('🌟 fetchFormData called - getting LATEST form version from getFormHandler endpoint')
 
       const response = await axios.get(
         `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`,
@@ -1791,7 +1983,12 @@ export default function PublicFormPage() {
 
         try {
           const parsedForm = parseFormData(result.form)
-          console.log('✅ Parsed form data:', parsedForm)
+          console.log('✅ Parsed LATEST form data from getFormHandler:', {
+            form_name: parsedForm.form_name,
+            version: parsedForm.version,
+            fieldsCount: parsedForm.fields.length
+          })
+          console.log('⚠️ WARNING: About to set form data to LATEST version (this might override original form in edit mode)')
           setFormData(parsedForm)
         } catch (parseError) {
           console.error('❌ Error parsing form data:', parseError)
@@ -2728,8 +2925,21 @@ export default function PublicFormPage() {
                 <p className="text-muted-foreground mt-2">{formData.description}</p>
               )}
               {isEditMode && (
-                <p className="text-sm text-blue-600 mt-1">
-                  You are editing an existing submission. Make your changes and click "Update Form" to save.
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-blue-600">
+                    You are editing an existing submission. Make your changes and click "Update Form" to save.
+                  </p>
+                  {formData.version && (
+                    <p className="text-xs text-gray-500">
+                      Editing submission from Form v{formData.version} 
+                      {formData.archived && <span className="text-yellow-600 ml-1">(Original version)</span>}
+                    </p>
+                  )}
+                </div>
+              )}
+              {!isEditMode && formData.version && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Form v{formData.version} (Latest)
                 </p>
               )}
             </CardHeader>

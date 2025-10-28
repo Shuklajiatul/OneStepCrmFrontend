@@ -869,7 +869,7 @@ export default function MyFormsPage() {
                 </TableHeader>
                 <TableBody>
                   {paginatedForms.map((form) => (
-                    <TableRow key={form.form_id}>
+                    <TableRow key={form.version}>
                       <TableCell className="font-medium">
                         <div>
                           {form.form_name}
