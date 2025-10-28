@@ -197,7 +197,7 @@ export default function MyFormsPage() {
     try {
       const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/update`, formData, {
         headers: {
-          'Authorization': `Bearer ${AUTH_TOKEN}`,
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
           'Content-Type': 'application/json'
         }
       })
@@ -595,6 +595,7 @@ export default function MyFormsPage() {
         organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
         form_name: updatedData.form_name,
         description: updatedData.description,
+        retry_count: updatedData.retry_count || editingForm.retry_count || editingForm.max_retry_count || "2",
         fields: updatedData.fields.map(field => {
           const fieldObj = {
             name: field.name || field.id,
@@ -628,13 +629,20 @@ export default function MyFormsPage() {
             }
           })
 
-          fieldObj.validation = JSON.stringify(validation)
+          // Use the field's validation object if available
+          if (field.validation) {
+            fieldObj.validations = JSON.stringify(field.validation)
+          } else {
+            fieldObj.validations = JSON.stringify(validation)
+          }
 
           console.log('Field being sent:', {
+            id: fieldObj.id,
             name: fieldObj.name,
             type: fieldObj.type,
-            validation: fieldObj.validation,
-            multiple: validation.multiple
+            validations: fieldObj.validations,
+            hasNested: fieldObj.hasNested,
+            isLeadColumn: fieldObj.isLeadColumn
           })
 
           return fieldObj

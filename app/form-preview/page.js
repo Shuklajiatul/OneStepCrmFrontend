@@ -77,6 +77,8 @@ export default function FormPreviewPage() {
             
             setFields(data.fields)
             setEditFormData(data)
+            // Update retry count from storage
+            setCurrentRetryCount(data.max_retry_count?.toString() || "2")
           }
         } catch (error) {
           console.error('Error parsing updated formBuilderData:', error)
@@ -95,6 +97,29 @@ export default function FormPreviewPage() {
       window.removeEventListener('formBuilderDataUpdated', handleStorageChange)
     }
   }, [isEditMode])
+
+  // Update localStorage when retry count changes
+  useEffect(() => {
+    if (!isEditMode || !editFormData) return
+
+    const updateLocalStorageRetryCount = () => {
+      const formBuilderData = localStorage.getItem('formBuilderData')
+      if (formBuilderData) {
+        try {
+          const data = JSON.parse(formBuilderData)
+          if (data.isEditMode) {
+            data.max_retry_count = currentRetryCount
+            localStorage.setItem('formBuilderData', JSON.stringify(data))
+            console.log('🔍 Updated retry count in localStorage:', currentRetryCount)
+          }
+        } catch (error) {
+          console.error('Error updating retry count in localStorage:', error)
+        }
+      }
+    }
+
+    updateLocalStorageRetryCount()
+  }, [currentRetryCount, isEditMode, editFormData])
 
   const handleBack = () => {
     if (isEditMode) {
