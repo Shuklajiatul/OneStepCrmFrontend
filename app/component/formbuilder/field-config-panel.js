@@ -33,15 +33,15 @@ const useDebouncedUpdate = (callback, delay = 3000) => {
 export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
   const [newOption, setNewOption] = useState("")
   const [expandedNestedFields, setExpandedNestedFields] = useState({})
-  
+
   // Location configuration state
   const [countries, setCountries] = useState([])
-  const [statesByCountry, setStatesByCountry] = useState({}) // {countryId: [states]}
-  const [citiesByState, setCitiesByState] = useState({}) // {stateId: [cities]}
-  const [loadingStates, setLoadingStates] = useState({}) // {countryId: boolean}
-  const [loadingCities, setLoadingCities] = useState({}) // {stateId: boolean}
+  const [statesByCountry, setStatesByCountry] = useState({})
+  const [citiesByState, setCitiesByState] = useState({})
+  const [loadingStates, setLoadingStates] = useState({})
+  const [loadingCities, setLoadingCities] = useState({})
   const [manualCityInput, setManualCityInput] = useState("")
-  const [showManualCityInput, setShowManualCityInput] = useState({}) // {stateId: boolean}
+  const [showManualCityInput, setShowManualCityInput] = useState({})
 
   // Debounced update function to prevent excessive re-renders
   const debouncedUpdateField = useDebouncedUpdate(onUpdateField, 1000)
@@ -75,19 +75,19 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
   const removeAllowedCountry = (countryName) => {
     const currentAllowed = field.validation?.allowedCountries || []
     const newAllowed = currentAllowed.filter(c => c !== countryName)
-    
+
     // Also remove states and cities for this country
     const newAllowedStates = { ...field.validation?.allowedStates }
     const newAllowedCities = { ...field.validation?.allowedCities }
     delete newAllowedStates[countryName]
-    
+
     // Remove cities for states of this country
     Object.keys(newAllowedCities).forEach(state => {
       if (newAllowedStates[state]) {
         delete newAllowedCities[state]
       }
     })
-    
+
     onUpdateField(field.id, {
       validation: {
         ...field.validation,
@@ -101,7 +101,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
   const addAllowedState = (countryName, stateName) => {
     const currentAllowedStates = field.validation?.allowedStates || {}
     const countryStates = currentAllowedStates[countryName] || []
-    
+
     if (!countryStates.includes(stateName)) {
       onUpdateField(field.id, {
         validation: {
@@ -118,11 +118,11 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
   const removeAllowedState = (countryName, stateName) => {
     const currentAllowedStates = field.validation?.allowedStates || {}
     const countryStates = (currentAllowedStates[countryName] || []).filter(s => s !== stateName)
-    
+
     // Also remove cities for this state
     const newAllowedCities = { ...field.validation?.allowedCities }
     delete newAllowedCities[stateName]
-    
+
     onUpdateField(field.id, {
       validation: {
         ...field.validation,
@@ -138,7 +138,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
   const addAllowedCity = (stateName, cityName) => {
     const currentAllowedCities = field.validation?.allowedCities || {}
     const stateCities = currentAllowedCities[stateName] || []
-    
+
     if (!stateCities.includes(cityName)) {
       onUpdateField(field.id, {
         validation: {
@@ -155,7 +155,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
   const removeAllowedCity = (stateName, cityName) => {
     const currentAllowedCities = field.validation?.allowedCities || {}
     const stateCities = (currentAllowedCities[stateName] || []).filter(c => c !== cityName)
-    
+
     onUpdateField(field.id, {
       validation: {
         ...field.validation,
@@ -169,10 +169,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
   const addManualCity = (stateName) => {
     if (!manualCityInput.trim()) return
-    
+
     const currentAllowedCities = field.validation?.allowedCities || {}
     const stateCities = currentAllowedCities[stateName] || []
-    
+
     if (!stateCities.includes(manualCityInput.trim())) {
       onUpdateField(field.id, {
         validation: {
@@ -184,7 +184,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         }
       })
     }
-    
+
     setManualCityInput("")
     setShowManualCityInput(false)
   }
@@ -222,26 +222,26 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         alert(`Country "${countryName}" not found. Please try again.`)
         return
       }
-      
+
       console.log('Loading states for country:', countryName, 'ID:', country.id)
       const statesData = await fetchStates(country.id)
       console.log('States data received:', statesData)
-      
+
       const state = statesData.find(s => s.name === stateName)
       if (!state) {
         console.error('State not found:', stateName, 'Available states:', statesData.map(s => s.name))
         alert(`State "${stateName}" not found in ${countryName}. Available states: ${statesData.map(s => s.name).join(', ')}`)
         return
       }
-      
+
       console.log('Loading cities for state:', stateName, 'ID:', state.id)
       const citiesData = await fetchCities(state.id)
       console.log('Cities data received:', citiesData)
-      
+
       if (citiesData.length === 0) {
         alert(`No cities found for ${stateName}, ${countryName}. This might be because the API doesn't have city data for this state.`)
       }
-      
+
       setCitiesByState(prev => ({ ...prev, [state.id]: citiesData }))
     } catch (error) {
       console.error('Failed to load cities:', error)
@@ -275,7 +275,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
   const removeOption = (index) => {
     const currentOptions = field.options || []
     const currentNestedFields = field.nestedFields || {}
-    
+
     // Create new nested fields structure without the removed option
     const newNestedFields = {}
     Object.keys(currentNestedFields).forEach(key => {
@@ -289,7 +289,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
       }
       // Skip the removed option (optionIndex === index)
     })
-    
+
     onUpdateField(field.id, {
       options: currentOptions.filter((_, i) => i !== index),
       nestedFields: newNestedFields
@@ -311,21 +311,14 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
   // Helper function to update nested fields at any depth
   const updateNestedFieldAtPath = (nestedFields, path, updates) => {
-    console.log('🔍 updateNestedFieldAtPath called:', {
-      nestedFields,
-      path,
-      updates
-    })
-    
+
     const cloned = deepCloneNestedFields(nestedFields)
-    console.log('🔍 Cloned nested fields:', cloned)
 
     // Navigate to the target field
     let current = cloned
     for (let i = 0; i < path.length - 1; i += 2) {
       const optionIndex = path[i]
       const fieldIndex = path[i + 1]
-      console.log(`🔍 Navigating to option ${optionIndex}, field ${fieldIndex}`)
 
       if (!current[optionIndex]) current[optionIndex] = []
       if (i + 2 < path.length - 1) {
@@ -339,29 +332,24 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
     const lastOptionIndex = path[path.length - 2]
     const lastFieldIndex = path[path.length - 1]
-    console.log(`🔍 Final target: option ${lastOptionIndex}, field ${lastFieldIndex}`)
 
     if (!current[lastOptionIndex]) current[lastOptionIndex] = []
 
     // Apply updates
     if (updates === null) {
       // Remove field
-      console.log('🔍 Removing field')
       current[lastOptionIndex] = current[lastOptionIndex].filter((_, idx) => idx !== lastFieldIndex)
     } else if (typeof updates === 'function') {
       // Custom update function
-      console.log('🔍 Applying function update')
       current[lastOptionIndex][lastFieldIndex] = updates(current[lastOptionIndex][lastFieldIndex])
     } else {
       // Merge updates
-      console.log('🔍 Applying merge update:', updates)
       current[lastOptionIndex][lastFieldIndex] = {
         ...current[lastOptionIndex][lastFieldIndex],
         ...updates
       }
     }
 
-    console.log('🔍 Final result:', cloned)
     return cloned
   }
 
@@ -413,17 +401,37 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
   }
 
   // Memoized recursive component to render nested field configurations
-  const NestedFieldConfig = memo(({ nestedField, path = [], fieldId, nestedFields, onUpdateField, debouncedUpdateField, toggleNestedFields, setExpandedNestedFields, countries, statesByCountry, citiesByState, loadingStates, loadingCities, manualCityInput, setManualCityInput, showManualCityInput, setShowManualCityInput, loadStatesForCountry, loadCitiesForStateByName }) => {
+  const NestedFieldConfig = memo(({
+    nestedField,
+    path = [],
+    fieldId,
+    nestedFields,
+    onUpdateField,
+    debouncedUpdateField,
+    toggleNestedFields,
+    setExpandedNestedFields,
+    countries,
+    statesByCountry,
+    citiesByState,
+    loadingStates,
+    loadingCities,
+    manualCityInput,
+    setManualCityInput,
+    showManualCityInput,
+    setShowManualCityInput,
+    loadStatesForCountry,
+    loadCitiesForStateByName
+  }) => {
     const depth = path.length / 2
     const uniqueKey = path.join('-')
-    
+
     // Local state for immediate UI feedback
     const [localLabel, setLocalLabel] = useState(nestedField.label)
     const [localPlaceholder, setLocalPlaceholder] = useState(nestedField.placeholder || "")
     const [localOptions, setLocalOptions] = useState(nestedField.options || [])
     const [localMinValue, setLocalMinValue] = useState(nestedField.validation?.min ?? "")
     const [localMaxValue, setLocalMaxValue] = useState(nestedField.validation?.max ?? "")
-    
+
     // Refs to track internal updates and maintain focus
     const isInternalUpdateRef = useRef(false)
     const labelInputRef = useRef(null)
@@ -444,7 +452,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
     // Memoize the options to prevent unnecessary re-renders
     const memoizedOptions = useMemo(() => localOptions, [localOptions])
-    
+
     // Cleanup timeouts on unmount
     useEffect(() => {
       return () => {
@@ -456,27 +464,16 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
     // Simple handler for field updates
     const handleFieldUpdate = useCallback((updates, useDebounce = false) => {
-      console.log('🔍 handleFieldUpdate called:', {
-        fieldId,
-        path,
-        updates,
-        useDebounce,
-        currentNestedFields: nestedFields
-      })
-      
+
       const updatedNestedFields = updateNestedFieldAtPath(
         nestedFields || {},
         path,
         updates
       )
-      
-      console.log('🔍 Updated nested fields structure:', updatedNestedFields)
-      
+
       if (useDebounce) {
-        console.log('🔍 Using debounced update')
         debouncedUpdateField(fieldId, { nestedFields: updatedNestedFields })
       } else {
-        console.log('🔍 Using immediate update')
         onUpdateField(fieldId, { nestedFields: updatedNestedFields })
       }
     }, [nestedFields, path, fieldId, debouncedUpdateField, onUpdateField])
@@ -513,7 +510,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         return newOptions
       })
     }, [])
-    
+
     const updateOptionOnBlur = useCallback((optionIndex, newValue) => {
       // Update the actual field data only on blur
       const currentOptions = nestedField.options || []
@@ -525,12 +522,12 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
     // Debounced update functions for min/max values
     const updateMinValue = useCallback((value) => {
       setLocalMinValue(value)
-      
+
       // Clear existing timeout
       if (updateTimeouts.current.min) {
         clearTimeout(updateTimeouts.current.min)
       }
-      
+
       // Set new timeout
       updateTimeouts.current.min = setTimeout(() => {
         const numValue = value === "" ? undefined : parseFloat(value)
@@ -545,12 +542,12 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
     const updateMaxValue = useCallback((value) => {
       setLocalMaxValue(value)
-      
+
       // Clear existing timeout
       if (updateTimeouts.current.max) {
         clearTimeout(updateTimeouts.current.max)
       }
-      
+
       // Set new timeout
       updateTimeouts.current.max = setTimeout(() => {
         const numValue = value === "" ? undefined : parseFloat(value)
@@ -566,10 +563,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
     const removeOptionAtIndex = useCallback((optionIndex) => {
       const currentOptions = nestedField.options || []
       const currentNestedFields = nestedField.nestedFields || {}
-      
+
       // Update local state immediately
       setLocalOptions(prev => prev.filter((_, idx) => idx !== optionIndex))
-      
+
       // Create new nested fields structure without the removed option
       const newNestedFields = {}
       Object.keys(currentNestedFields).forEach(key => {
@@ -583,10 +580,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         }
         // Skip the removed option (optIndex === optionIndex)
       })
-      
+
       const newOptions = currentOptions.filter((_, idx) => idx !== optionIndex)
       isInternalUpdateRef.current = true
-      handleFieldUpdate({ 
+      handleFieldUpdate({
         options: newOptions,
         nestedFields: newNestedFields
       })
@@ -595,10 +592,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
     const addNewOption = useCallback(() => {
       const currentOptions = nestedField.options || []
       const newOption = `Option ${currentOptions.length + 1}`
-      
+
       // Update local state immediately
       setLocalOptions(prev => [...prev, newOption])
-      
+
       // Update the actual field data
       handleFieldUpdate({ options: [...currentOptions, newOption] })
     }, [nestedField.options, handleFieldUpdate])
@@ -720,7 +717,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                           value={typeof option === 'string' ? option : option?.label || option?.value || ''}
                           onChange={(e) => {
                             const newValue = e.target.value
-                            
+
                             // If option is an object, update both value and label
                             if (typeof option === 'object' && option !== null) {
                               updateOption(optionIndex, {
@@ -877,7 +874,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
           {nestedField.type === "location" && (
             <div className="space-y-3 pt-2 border-t border-border/50">
               <Label className="text-xs font-medium text-muted-foreground">Location Restrictions</Label>
-              
+
               {/* Allowed Countries */}
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Allowed Countries</Label>
@@ -891,19 +888,19 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                         onClick={() => {
                           const currentAllowed = nestedField.validation?.allowedCountries || []
                           const newAllowed = currentAllowed.filter(c => c !== countryName)
-                          
+
                           // Also remove states and cities for this country
                           const newAllowedStates = { ...nestedField.validation?.allowedStates }
                           const newAllowedCities = { ...nestedField.validation?.allowedCities }
                           delete newAllowedStates[countryName]
-                          
+
                           // Remove cities for states of this country
                           Object.keys(newAllowedCities).forEach(state => {
                             if (newAllowedStates[state]) {
                               delete newAllowedCities[state]
                             }
                           })
-                          
+
                           handleFieldUpdate({
                             validation: {
                               ...nestedField.validation,
@@ -919,7 +916,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                       </Button>
                     </div>
                   ))}
-                  
+
                   <Select onValueChange={(countryId) => {
                     const country = countries.find(c => c.id === parseInt(countryId))
                     if (country) {
@@ -957,7 +954,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                   {nestedField.validation.allowedCountries.map(countryName => {
                     const country = countries.find(c => c.name === countryName)
                     if (!country) return null
-                    
+
                     return (
                       <div key={countryName} className="space-y-1">
                         <div className="flex items-center justify-between">
@@ -972,7 +969,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                             {loadingStates[country.id] ? "Loading..." : "Load States"}
                           </Button>
                         </div>
-                        
+
                         <div className="space-y-1">
                           {(nestedField.validation?.allowedStates?.[countryName] || []).map((stateName, index) => (
                             <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
@@ -983,11 +980,11 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                 onClick={() => {
                                   const currentAllowedStates = nestedField.validation?.allowedStates || {}
                                   const countryStates = (currentAllowedStates[countryName] || []).filter(s => s !== stateName)
-                                  
+
                                   // Also remove cities for this state
                                   const newAllowedCities = { ...nestedField.validation?.allowedCities }
                                   delete newAllowedCities[stateName]
-                                  
+
                                   handleFieldUpdate({
                                     validation: {
                                       ...nestedField.validation,
@@ -1005,14 +1002,14 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               </Button>
                             </div>
                           ))}
-                          
+
                           {statesByCountry[country.id]?.length > 0 && (
                             <Select onValueChange={(stateId) => {
                               const state = statesByCountry[country.id].find(s => s.id === parseInt(stateId))
                               if (state) {
                                 const currentAllowedStates = nestedField.validation?.allowedStates || {}
                                 const countryStates = currentAllowedStates[countryName] || []
-                                
+
                                 if (!countryStates.includes(state.name)) {
                                   handleFieldUpdate({
                                     validation: {
@@ -1051,14 +1048,14 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
               {Object.keys(nestedField.validation?.allowedStates || {}).length > 0 && (
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Allowed Cities</Label>
-                  {Object.entries(nestedField.validation?.allowedStates || {}).map(([countryName, stateNames]) => 
+                  {Object.entries(nestedField.validation?.allowedStates || {}).map(([countryName, stateNames]) =>
                     stateNames.map(stateName => {
                       const country = countries.find(c => c.name === countryName)
                       if (!country) return null
-                      
+
                       // Find the state object from the loaded states for this country
                       const state = statesByCountry[country.id]?.find(s => s.name === stateName)
-                      
+
                       return (
                         <div key={`${countryName}-${stateName}`} className="space-y-1">
                           <div className="flex items-center justify-between">
@@ -1073,7 +1070,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               {state && loadingCities[state.id] ? "Loading..." : "Load Cities"}
                             </Button>
                           </div>
-                          
+
                           <div className="space-y-1">
                             {(nestedField.validation?.allowedCities?.[stateName] || []).map((cityName, index) => (
                               <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
@@ -1084,7 +1081,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                   onClick={() => {
                                     const currentAllowedCities = nestedField.validation?.allowedCities || {}
                                     const stateCities = (currentAllowedCities[stateName] || []).filter(c => c !== cityName)
-                                    
+
                                     handleFieldUpdate({
                                       validation: {
                                         ...nestedField.validation,
@@ -1101,14 +1098,14 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                 </Button>
                               </div>
                             ))}
-                            
+
                             {state && citiesByState[state.id]?.length > 0 && (
                               <Select onValueChange={(cityId) => {
                                 const city = citiesByState[state.id].find(c => c.id === parseInt(cityId))
                                 if (city) {
                                   const currentAllowedCities = nestedField.validation?.allowedCities || {}
                                   const stateCities = currentAllowedCities[stateName] || []
-                                  
+
                                   if (!stateCities.includes(city.name)) {
                                     handleFieldUpdate({
                                       validation: {
@@ -1136,7 +1133,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                 </SelectContent>
                               </Select>
                             )}
-                            
+
                             {/* Manual city input fallback */}
                             <div className="space-y-1">
                               {state && !showManualCityInput[state.id] ? (
@@ -1158,10 +1155,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter') {
                                         if (!manualCityInput.trim()) return
-                                        
+
                                         const currentAllowedCities = nestedField.validation?.allowedCities || {}
                                         const stateCities = currentAllowedCities[stateName] || []
-                                        
+
                                         if (!stateCities.includes(manualCityInput.trim())) {
                                           handleFieldUpdate({
                                             validation: {
@@ -1173,7 +1170,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                             }
                                           })
                                         }
-                                        
+
                                         setManualCityInput("")
                                         setShowManualCityInput(prev => ({ ...prev, [state.id]: false }))
                                       } else if (e.key === 'Escape') {
@@ -1186,10 +1183,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                     size="sm"
                                     onClick={() => {
                                       if (!manualCityInput.trim()) return
-                                      
+
                                       const currentAllowedCities = nestedField.validation?.allowedCities || {}
                                       const stateCities = currentAllowedCities[stateName] || []
-                                      
+
                                       if (!stateCities.includes(manualCityInput.trim())) {
                                         handleFieldUpdate({
                                           validation: {
@@ -1201,7 +1198,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                           }
                                         })
                                       }
-                                      
+
                                       setManualCityInput("")
                                       setShowManualCityInput(prev => ({ ...prev, [state.id]: false }))
                                     }}
@@ -1414,7 +1411,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                             onChange={(e) => {
                               const newOptions = [...(field.options || [])]
                               const newValue = e.target.value
-                              
+
                               // If option is an object, update both value and label
                               if (typeof option === 'object' && option !== null) {
                                 newOptions[index] = {
@@ -1425,7 +1422,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               } else {
                                 newOptions[index] = newValue
                               }
-                              
+
                               onUpdateField(field.id, { options: newOptions })
                             }}
                             className="bg-input flex-1 min-w-0"
@@ -1694,8 +1691,8 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-0">
-              <TableColumnSelector 
-                field={field} 
+              <TableColumnSelector
+                field={field}
                 onUpdateField={onUpdateField}
                 existingFields={allFields}
               />
@@ -1729,7 +1726,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                       </Button>
                     </div>
                   ))}
-                  
+
                   <Select onValueChange={(countryId) => {
                     const country = countries.find(c => c.id === parseInt(countryId))
                     if (country) {
@@ -1759,7 +1756,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                   {field.validation.allowedCountries.map(countryName => {
                     const country = countries.find(c => c.name === countryName)
                     if (!country) return null
-                    
+
                     return (
                       <div key={countryName} className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -1774,7 +1771,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                             {loadingStates[country.id] ? "Loading..." : "Load States"}
                           </Button>
                         </div>
-                        
+
                         <div className="space-y-1">
                           {(field.validation?.allowedStates?.[countryName] || []).map((stateName, index) => (
                             <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
@@ -1789,7 +1786,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               </Button>
                             </div>
                           ))}
-                          
+
                           {statesByCountry[country.id]?.length > 0 && (
                             <Select onValueChange={(stateId) => {
                               const state = statesByCountry[country.id].find(s => s.id === parseInt(stateId))
@@ -1822,14 +1819,14 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
               {Object.keys(field.validation?.allowedStates || {}).length > 0 && (
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Allowed Cities</Label>
-                  {Object.entries(field.validation?.allowedStates || {}).map(([countryName, stateNames]) => 
+                  {Object.entries(field.validation?.allowedStates || {}).map(([countryName, stateNames]) =>
                     stateNames.map(stateName => {
                       const country = countries.find(c => c.name === countryName)
                       if (!country) return null
-                      
+
                       // Find the state object from the loaded states for this country
                       const state = statesByCountry[country.id]?.find(s => s.name === stateName)
-                      
+
                       return (
                         <div key={`${countryName}-${stateName}`} className="space-y-2">
                           <div className="flex items-center justify-between">
@@ -1844,7 +1841,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               {state && loadingCities[state.id] ? "Loading..." : "Load Cities"}
                             </Button>
                           </div>
-                          
+
                           <div className="space-y-1">
                             {(field.validation?.allowedCities?.[stateName] || []).map((cityName, index) => (
                               <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
@@ -1859,7 +1856,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                 </Button>
                               </div>
                             ))}
-                            
+
                             {state && citiesByState[state.id]?.length > 0 && (
                               <Select onValueChange={(cityId) => {
                                 const city = citiesByState[state.id].find(c => c.id === parseInt(cityId))
@@ -1881,7 +1878,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                 </SelectContent>
                               </Select>
                             )}
-                            
+
                             {/* Manual city input fallback */}
                             <div className="space-y-2">
                               {state && !showManualCityInput[state.id] ? (

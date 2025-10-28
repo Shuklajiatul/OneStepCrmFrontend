@@ -55,7 +55,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
         },
       })
       const result = response.data
-      console.log('Table Column Selector API Response:', result)
+      console.log('Table columns:', result)
       
       // Handle array response directly
       if (Array.isArray(result)) {
@@ -124,10 +124,16 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
         label: nestedField.label || '',
         type: nestedField.type || 'text',
         required: nestedField.required || false,
-        validations: nestedField.validations || {},
+        // Use validation (singular) as expected by form components, fall back to validations (plural)
+        validation: nestedField.validation || nestedField.validations || {},
         hasNested: nestedField.hasNested || false,
         isLeadColumn: nestedField.isLeadColumn || false,
-        options: nestedField.options ? processNestedFields(nestedField.options) : []
+        // Process options correctly - options should be an array of option objects, not nested fields
+        options: nestedField.options ? nestedField.options.map(option => ({
+          value: option.value || '',
+          label: option.label || option.value || '',
+          nestedFields: option.nestedFields ? processNestedFields(option.nestedFields) : []
+        })) : []
       }
 
       // If this nested field has nested fields, process them recursively
@@ -208,21 +214,11 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
     }
 
     if (field.onAddTableColumns) {
-      console.log('🎯 Adding table columns:', selectedColumns)
-      
       const newFields = selectedColumns.map(column => {
         // Use the actual column data from API response
         const columnName = column.column_name || 'Unnamed Column'
         const formattedLabel = columnName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
         const fieldType = mapDataTypeToFieldType(column.data_type, column.optional_values)
-        
-        console.log('📝 Processing column:', {
-          columnName,
-          dataType: column.data_type,
-          fieldType,
-          options: column.optional_values,
-          required: column.required
-        })
 
         // Generate unique field ID using crypto.randomUUID() if available
         const generateUniqueFieldId = (prefix = 'field') => {
@@ -256,11 +252,9 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
           originalDataType: column.data_type // Keep original for debugging
         }
         
-        console.log('✅ Created field data:', fieldData)
         return fieldData
       })
 
-      console.log('🚀 Calling onAddTableColumns with:', newFields)
       // Call the parent function to add all fields at once
       field.onAddTableColumns(newFields)
     }

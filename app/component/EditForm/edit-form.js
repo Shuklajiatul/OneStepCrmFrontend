@@ -230,16 +230,10 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
 
   useEffect(() => {
     if (form) {
-      console.log('🔍 Form data received for editing:', form)
       
       // Parse field data
       const parsedFields = (form.parsedFields || form.fields || []).map((field, index) => {
-        console.log(`📝 Processing field ${index}:`, {
-          id: field.id,
-          type: field.type,
-          label: field.label,
-          hasValue: !!(form.values && form.values[field.id])
-        })
+
         
         // Parse options and extract nested fields
         let options = []

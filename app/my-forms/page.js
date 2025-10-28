@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-const USER_ID = process.env.USER_ID;
+const USER_ID = process.env.NEXT_PUBLIC_USER_ID;
 
 export default function MyFormsPage() {
   const [forms, setForms] = useState([])
@@ -728,7 +728,7 @@ export default function MyFormsPage() {
 
   const handleItemsPerPageChange = (value) => {
     setItemsPerPage(Number(value))
-    setCurrentPage(1) // Reset to first page when changing items per page
+    setCurrentPage(1)
   }
 
   if (loading) {

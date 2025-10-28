@@ -61,9 +61,7 @@ const useLocationData = (currentValue, validation = {}) => {
   useEffect(() => {
     const loadCountries = async () => {
       try {
-        console.log('🌍 Loading countries for location field...')
         const countriesData = await fetchCountries()
-        console.log('🌍 Countries loaded:', countriesData.length, 'countries')
         setCountries(countriesData)
         if (countriesData.length === 0) {
           setApiError('No countries data available')
@@ -95,9 +93,7 @@ const useLocationData = (currentValue, validation = {}) => {
         
         try {
           setLoadingStates(true)
-          console.log('🏛️ Loading states for country:', selectedCountry.name, 'ID:', selectedCountry.id)
           const statesData = await fetchStates(selectedCountry.id)
-          console.log('🏛️ States loaded:', statesData.length, 'states')
           setStates(statesData)
           if (statesData.length === 0) {
             setApiError(`No states available for selected country`)
@@ -236,50 +232,37 @@ const useLocationData = (currentValue, validation = {}) => {
 
 // Reusable Location Field Component
 const LocationField = ({ current, validation, onChange, invalid, error, disabled }) => {
-  console.log('🔍 LocationField Debug:', {
-    current,
-    validation,
-    allowedCountries: validation?.allowedCountries,
-    allowedCountriesLength: validation?.allowedCountries?.length,
-    allowedStates: validation?.allowedStates
-  })
   
   const locationData = useLocationData(current, validation)
 
   const handleCountry = (countryId) => {
-    console.log('🌍 Country Selected:', countryId)
     const country = locationData.countries.find(c => c.id === parseInt(countryId))
     const newValue = {
       country: country?.name, // Send only the country name, not ID
       state: undefined,
       city: undefined
     }
-    console.log('🌍 Country New Value:', newValue)
     onChange?.(newValue)
     locationData.setCountryOpen(false)
   }
 
   const handleState = (stateId) => {
-    console.log('🏛️ State Selected:', stateId)
     const state = locationData.states?.find(s => s.id === parseInt(stateId))
     const newValue = {
       ...current,
-      state: state?.name, // Send only the state name, not ID
+      state: state?.name,
       city: undefined
     }
-    console.log('🏛️ State New Value:', newValue)
     onChange?.(newValue)
     locationData.setStateOpen(false)
   }
 
   const handleCity = (cityId) => {
-    console.log('🏙️ City Selected:', cityId)
     const city = locationData.cities?.find(c => c.id === parseInt(cityId))
     const newValue = {
       ...current,
       city: city?.name // Send only the city name, not ID
     }
-    console.log('🏙️ City New Value:', newValue)
     onChange?.(newValue)
     locationData.setCityOpen(false)
   }
@@ -556,13 +539,10 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
 
   // For multiple select/checkbox, show nested fields for all selected options
   if (Array.isArray(selectedOptions)) {
-    console.log('🔍 renderNestedFields - Processing selectedOptions:', selectedOptions)
     selectedOptions.forEach(selectedValue => {
       const option = findOptionByValue(selectedValue)
-      console.log('🔍 renderNestedFields - Found option for value:', selectedValue, option)
       
       if (option && typeof option === 'object' && option.nestedFields && option.nestedFields.length > 0) {
-        console.log('🔍 renderNestedFields - Processing nested fields for option:', option.nestedFields)
         const optionIndex = field.options?.findIndex(opt => {
           const optValue = typeof opt === 'string' ? opt : opt.value
           return optValue === selectedValue
@@ -582,7 +562,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
               optionIndex,
               optionValue: selectedValue,
               uniqueKey: nestedFieldKey,
-              options: nestedField.options || [] // Ensure options are preserved
+              options: nestedField.options || []
             })
             currentProcessedIds.add(nestedFieldKey)
           }
@@ -676,14 +656,10 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
     }
   }
   
-  console.log('🔍 nestedFieldsToShow collected:', nestedFieldsToShow.length, 'fields')
   
   if (nestedFieldsToShow.length === 0) {
-    console.log('❌ No nested fields to show, returning null')
     return null
   }
-
-  console.log('✅ Rendering', nestedFieldsToShow.length, 'nested fields')
   
   const borderColor = depth === 0 ? 'border-primary/20' : depth === 1 ? 'border-blue-300/30' : 'border-green-300/30'
   const dotColor = depth === 0 ? 'bg-primary' : depth === 1 ? 'bg-blue-500' : 'bg-green-500'
@@ -699,35 +675,18 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
       </div>
       <div className="space-y-4 w-full min-w-0">
         {nestedFieldsToShow.map((nestedField) => {
-          console.log('🔍 Rendering nested field:', {
-            id: nestedField.id,
-            label: nestedField.label,
-            type: nestedField.type,
-            uniqueKey: nestedField.uniqueKey
-          })
           const nestedFieldId = nestedField.uniqueKey || `${fieldKey}_${nestedField.optionIndex}_${nestedField.id}`
           
           // Get the nested value from parentValue - handle both old and new structures
           let nestedValue = null
-          console.log('🔍 Getting nested value for:', {
-            fieldId: nestedField.id,
-            optionIndex: nestedField.optionIndex,
-            parentValue: parentValue,
-            nestedFields: parentValue?.nestedFields,
-            optionNestedFields: parentValue?.nestedFields?.[nestedField.optionIndex]
-          })
 
           if (parentValue?.nestedFields?.[nestedField.optionIndex]?.[nestedField.id] !== undefined) {
             nestedValue = parentValue.nestedFields[nestedField.optionIndex][nestedField.id]
-            console.log('✅ Found nested value in option index:', nestedValue)
           } else if (parentValue?.nestedFields?.[nestedField.id] !== undefined) {
             nestedValue = parentValue.nestedFields[nestedField.id]
-            console.log('✅ Found nested value by field ID:', nestedValue)
           } else if (parentValue?.[nestedField.id] !== undefined) {
             nestedValue = parentValue[nestedField.id]
-            console.log('✅ Found nested value in parent:', nestedValue)
           } else {
-            console.log('❌ No nested value found, using empty object')
             // For location fields, start with empty object
             if (nestedField.type === "location" || nestedField.type === "phone") {
               nestedValue = {}
@@ -740,14 +699,6 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
               nestedValue = ""
             }
           }
-
-          // Debug the final nested value
-          console.log('🔍 Final nested value for rendering:', {
-            fieldId: nestedField.id,
-            fieldType: nestedField.type,
-            nestedValue: nestedValue,
-            nestedValueType: typeof nestedValue
-          })
 
           // For select/radio/checkbox fields, ensure the nested value has the correct structure
           if (["select", "radio", "checkbox"].includes(nestedField.type)) {
@@ -807,12 +758,6 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
           }
 
           const handleNestedChange = (value) => {
-            console.log('🔄 Nested Field Change:', {
-              fieldId: nestedField.id,
-              optionIndex: nestedField.optionIndex,
-              currentParentValue: parentValue,
-              newValue: value
-            })
 
             const currentNestedFields = parentValue?.nestedFields || {}
             const optionNestedFields = currentNestedFields[nestedField.optionIndex] || {}
@@ -830,7 +775,6 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
               nestedFields: updatedNestedFields
             }
 
-            console.log('🔄 Updated Parent Value:', newParentValue)
             onChange(newParentValue)
           }
 
@@ -1005,14 +949,11 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
   // Fix: Ensure value is properly handled for location fields
   let safeValue = value
   if (nestedField.type === "location" && typeof value === 'string' && value === '[object Object]') {
-    console.warn('⚠️ Fixing stringified object value for location field:', value)
     safeValue = {}
   } else if (nestedField.type === "location" && typeof value === 'string' && value.startsWith('{')) {
     try {
       safeValue = JSON.parse(value)
-      console.log('✅ Parsed location value from JSON string:', safeValue)
     } catch (e) {
-      console.warn('❌ Failed to parse location value as JSON:', value)
       safeValue = {}
     }
   } else if (nestedField.type === "location" && (value === null || value === undefined || value === '')) {
@@ -1055,17 +996,6 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
     }
   }
 
-  console.log('🔍 Nested Field Validation Debug:', {
-    fieldId: nestedField.id,
-    fieldLabel: nestedField.label,
-    fieldType: nestedField.type,
-    rawValidations: nestedField.validations,
-    rawValidation: nestedField.validation,
-    parsedValidation: validation,
-    allowedCountries: validation.allowedCountries,
-    allowedCountriesLength: validation.allowedCountries?.length,
-    allowedStates: validation.allowedStates
-  })
   switch (nestedField.type) {
     case "text":
     case "email":
@@ -1299,14 +1229,6 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
       } else {
         const selectedValue = value?.value || ""
         const currentNestedFields = value?.nestedFields || {}
-        
-        console.log('🔍 Rendering single select nested field:', {
-          id: nestedField.id,
-          label: nestedField.label,
-          selectedValue,
-          options: nestedField.options,
-          optionsLength: nestedField.options?.length || 0
-        })
 
         return (
           <div className="space-y-3">
@@ -1871,14 +1793,6 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
     }
 
     case "location": {
-      console.log('🔍 Nested Location Field Debug:', {
-        fieldId: nestedField.id,
-        fieldLabel: nestedField.label,
-        originalValue: value,
-        safeValue: safeValue,
-        current: current,
-        validation: validation
-      })
 
       // Use the same LocationField component for nested fields
       return (
@@ -2808,23 +2722,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
           }
         }
 
-
-
         const fileValue = value || null
-
-        // Debug logging for file fields
-        console.log('🔍 FieldRenderer file field debug:', {
-          fieldId: field.id,
-          fieldLabel: field.label,
-          fieldType: field.type,
-          value: value,
-          fileValue: fileValue,
-          hasName: fileValue && fileValue.name,
-          hasBase64: fileValue && fileValue.base64,
-          isFileObject: fileValue && typeof fileValue === 'object' && fileValue.name && fileValue.base64,
-          valueStructure: value ? Object.keys(value) : 'no value',
-          fileValueStructure: fileValue ? Object.keys(fileValue) : 'no fileValue'
-        })
 
         return (
           <div className="space-y-2">
@@ -2971,7 +2869,6 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                             isFromBase64: true
                           }
                           
-                          console.log('🔄 Converting base64 to file object:', fileObject)
                           onChange?.(fileObject)
                         }
                       } catch (error) {

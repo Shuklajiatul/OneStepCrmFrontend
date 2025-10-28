@@ -138,17 +138,16 @@ const processFieldOptions = (field) => {
   if (Array.isArray(options)) {
     return options.map((option, index) => {
       if (typeof option === 'object' && option !== null) {
-        // If the option already has nestedFields, use them
-        if (option.nestedFields) {
+        // Prioritize option.nestedFields if they exist (for table columns and new structure)
+        if (option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
           return {
             value: option.value,
             label: option.label,
-            nestedFields: option.nestedFields || []
+            nestedFields: processNestedFieldsRecursively(option.nestedFields)
           }
         }
 
-        // If the option doesn't have nestedFields but the field has nestedFields for this index,
-        // convert the form builder structure to the expected structure
+        // Fallback to field.nestedFields[index] for old form builder structure
         if (field.nestedFields && field.nestedFields[index]) {
           return {
             value: option.value,
@@ -182,6 +181,14 @@ const processFieldOptions = (field) => {
 // Transform form values for API submission - FIXED VERSION
 const transformFormValues = (formValues, fields, phoneCountries = []) => {
   const transformedValues = {}
+
+  // Helper to check if a value is empty/invalid for backend submission
+  const isEmptyValue = (value) => {
+    if (value === null || value === undefined) return true
+    if (Array.isArray(value) && value.length === 0) return true
+    if (typeof value === 'string' && value.trim() === '') return true
+    return false
+  }
 
   // Helper function to recursively transform nested values using field IDs
   const transformNestedValues = (nestedFields, parentValue, fieldDefinition) => {
@@ -226,6 +233,11 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
         return
       }
 
+      // Skip processing if this field has an empty/invalid value
+      if (isEmptyValue(value)) {
+        return
+      }
+
       // Check if this is a direct base64 file string (direct file data)
       if (typeof value === 'string' && value.startsWith('data:')) {
         // This is a direct base64 file string - convert to the same format as non-nested file fields
@@ -266,7 +278,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                 if (optionNestedFields) {
                   const processedNested = transformNestedValues(optionNestedFields, optionValue, fieldDefinition)
                   if (Object.keys(processedNested).length > 0) {
-                    checkboxItem.nestedValues = processedNested
+                    // Filter out empty nested values
+                    const filteredNested = Object.fromEntries(
+                      Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
+                    )
+                    if (Object.keys(filteredNested).length > 0) {
+                      checkboxItem.nestedValues = filteredNested
+                    }
                   }
                 }
               }
@@ -291,7 +309,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
             if (value.nestedFields && Object.keys(value.nestedFields).length > 0) {
               const processedNested = transformNestedValues(value.nestedFields, processedValueValue, fieldDefinition)
               if (Object.keys(processedNested).length > 0) {
-                processedValue.nestedValues = processedNested
+                // Filter out empty nested values
+                const filteredNested = Object.fromEntries(
+                  Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
+                )
+                if (Object.keys(filteredNested).length > 0) {
+                  processedValue.nestedValues = filteredNested
+                }
               }
             }
 
@@ -455,7 +479,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                   if (optionNested) {
                     const processed = transformNestedValues(optionNested, primitiveValue, field)
                     if (processed && Object.keys(processed).length > 0) {
-                      item.nestedValues = processed
+                      // Filter out empty nested values
+                      const filteredNested = Object.fromEntries(
+                        Object.entries(processed).filter(([key, value]) => !isEmptyValue(value?.value))
+                      )
+                      if (Object.keys(filteredNested).length > 0) {
+                        item.nestedValues = filteredNested
+                      }
                     }
                   }
                 }
@@ -503,7 +533,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
               if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
                 const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field)
                 if (Object.keys(processedNested).length > 0) {
-                  fieldData.nestedValues = processedNested
+                  // Filter out empty nested values
+                  const filteredNested = Object.fromEntries(
+                    Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
+                  )
+                  if (Object.keys(filteredNested).length > 0) {
+                    fieldData.nestedValues = filteredNested
+                  }
                 }
               }
 
@@ -548,7 +584,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                   if (optionNestedFields) {
                     const processedNested = transformNestedValues(optionNestedFields, optionValue, field)
                     if (Object.keys(processedNested).length > 0) {
-                      checkboxItem.nestedValues = processedNested
+                      // Filter out empty nested values
+                      const filteredNested = Object.fromEntries(
+                        Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
+                      )
+                      if (Object.keys(filteredNested).length > 0) {
+                        checkboxItem.nestedValues = filteredNested
+                      }
                     }
                   }
                 }
@@ -565,7 +607,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
               if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
                 const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field)
                 if (Object.keys(processedNested).length > 0) {
-                  fieldData.nestedValues = processedNested
+                  // Filter out empty nested values
+                  const filteredNested = Object.fromEntries(
+                    Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
+                  )
+                  if (Object.keys(filteredNested).length > 0) {
+                    fieldData.nestedValues = filteredNested
+                  }
                 }
               }
 
@@ -607,7 +655,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
             if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
               const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field)
               if (Object.keys(processedNested).length > 0) {
-                fieldData.nestedValues = processedNested
+                // Filter out empty nested values
+                const filteredNested = Object.fromEntries(
+                  Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
+                )
+                if (Object.keys(filteredNested).length > 0) {
+                  fieldData.nestedValues = filteredNested
+                }
               }
             }
 
