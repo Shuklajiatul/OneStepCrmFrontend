@@ -161,9 +161,18 @@ export default function TableDataView({ table, onBack }) {
       const parsed = JSON.parse(fieldValue)
       const options = JSON.parse(column.optional_values[0])
       
+      // Check if parsed is an array (root array structure like uber2)
+      const isMulti = Array.isArray(parsed)
+      
+      console.log(`[parseNestedData] Column: ${column.column_name}`)
+      console.log(`[parseNestedData] isMulti: ${isMulti}`)
+      console.log(`[parseNestedData] parsed:`, parsed)
+      console.log(`[parseNestedData] options:`, options)
+      
       const result = {
         columnName: column.column_name,
-        selectedValue: parsed.value,
+        isMulti: isMulti,
+        selectedValue: isMulti ? parsed.map(item => item.value) : parsed.value,
         options: options, // Store all options for form building
         formData: {} // Store the filled form data
       }
@@ -180,8 +189,50 @@ export default function TableDataView({ table, onBack }) {
           
           if (!fieldDef) return
           
+          // Handle array (multi-checkbox case where field value is an array of objects)
+          if (Array.isArray(fieldData)) {
+            console.log(`[extractFormData] Found array field: ${fieldId}`, fieldData)
+            
+            // Store array values with nested data
+            const arrayValue = fieldData.map(item => item.value)
+            
+            // Extract nested data from each array item
+            const arrayNestedData = {}
+            fieldData.forEach((item, index) => {
+              if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
+                // Find nested fields for this option
+                let nestedFields = []
+                if (fieldDef.options) {
+                  const selectedOption = fieldDef.options.find(
+                    opt => opt.value === item.value || opt.label === item.value
+                  )
+                  nestedFields = selectedOption?.nestedFields || []
+                }
+                
+                // Extract nested data with index prefix
+                if (nestedFields.length > 0) {
+                  const itemNestedData = extractFormData(item.nestedValues, nestedFields)
+                  Object.entries(itemNestedData).forEach(([nestedFieldId, nestedFieldInfo]) => {
+                    arrayNestedData[`${index}_${nestedFieldId}`] = {
+                      ...nestedFieldInfo,
+                      _arrayIndex: index,
+                      _arrayValue: item.value,
+                      _originalFieldId: nestedFieldId
+                    }
+                  })
+                }
+              }
+            })
+            
+            formData[fieldId] = {
+              fieldDef: fieldDef,
+              value: arrayValue, // Array of selected values
+              nestedData: arrayNestedData,
+              _isArray: true // Mark this as an array field
+            }
+          }
           // Handle object with value and nestedValues
-          if (typeof fieldData === 'object' && fieldData.value !== undefined) {
+          else if (typeof fieldData === 'object' && fieldData.value !== undefined) {
             // Find the nested fields for the selected option
             let nestedFields = []
             if (fieldDef.options) {
@@ -224,12 +275,76 @@ export default function TableDataView({ table, onBack }) {
         return formData
       }
 
-      // Start extracting from the root level
-      if (parsed.nestedValues) {
-        // Find the selected option
-        const selectedOption = options.find(opt => opt.value === parsed.value || opt.label === parsed.value)
-        if (selectedOption && selectedOption.nestedFields) {
-          result.formData = extractFormData(parsed.nestedValues, selectedOption.nestedFields)
+      // Handle root array structure (multiple selections)
+      if (isMulti) {
+        console.log(`[parseNestedData] Processing multi-select with ${parsed.length} items`)
+        // For multi-select, we need to merge nested fields from all selected items
+        // Process each item in the array
+        parsed.forEach((item, index) => {
+          console.log(`[parseNestedData] Item ${index}:`, item)
+          const selectedOption = options.find(opt => opt.value === item.value || opt.label === item.value)
+          console.log(`[parseNestedData] Selected option for "${item.value}":`, selectedOption)
+          
+          if (selectedOption) {
+            // Check if there are nested fields defined for this option
+            if (selectedOption.nestedFields && selectedOption.nestedFields.length > 0) {
+              // Extract form data from nestedValues (even if empty)
+              const itemFormData = item.nestedValues && Object.keys(item.nestedValues).length > 0
+                ? extractFormData(item.nestedValues, selectedOption.nestedFields)
+                : {}
+              
+              console.log(`[parseNestedData] Item ${index} formData:`, itemFormData)
+              console.log(`[parseNestedData] Item ${index} has ${Object.keys(itemFormData).length} fields`)
+              
+              // If there's form data, add it with prefixes
+              if (Object.keys(itemFormData).length > 0) {
+                Object.entries(itemFormData).forEach(([fieldId, fieldInfo]) => {
+                  const prefixedFieldId = `${index}_${fieldId}`
+                  result.formData[prefixedFieldId] = {
+                    ...fieldInfo,
+                    _originalFieldId: fieldId,
+                    _selectionIndex: index,
+                    _selectionValue: item.value
+                  }
+                  console.log(`[parseNestedData] Added field: ${prefixedFieldId}`)
+                })
+              } else {
+                // Even if there's no data, create placeholder entries for nested fields in edit mode
+                // This ensures the fields show up when editing
+                console.log(`[parseNestedData] No form data, creating placeholders for ${selectedOption.nestedFields.length} fields`)
+                selectedOption.nestedFields.forEach(field => {
+                  const prefixedFieldId = `${index}_${field.id}`
+                  result.formData[prefixedFieldId] = {
+                    fieldDef: field,
+                    value: '',
+                    nestedData: {},
+                    _originalFieldId: field.id,
+                    _selectionIndex: index,
+                    _selectionValue: item.value
+                  }
+                  console.log(`[parseNestedData] Added placeholder field: ${prefixedFieldId}`)
+                })
+              }
+            } else {
+              // No nested fields for this option - create a marker entry
+              console.log(`[parseNestedData] No nested fields for option "${item.value}", creating empty marker`)
+              result.formData[`${index}_empty`] = {
+                _selectionIndex: index,
+                _selectionValue: item.value,
+                _isEmpty: true
+              }
+            }
+          }
+        })
+        console.log(`[parseNestedData] Final formData:`, result.formData)
+      } else {
+        // Handle single selection (original behavior)
+        if (parsed.nestedValues) {
+          // Find the selected option
+          const selectedOption = options.find(opt => opt.value === parsed.value || opt.label === parsed.value)
+          if (selectedOption && selectedOption.nestedFields) {
+            result.formData = extractFormData(parsed.nestedValues, selectedOption.nestedFields)
+          }
         }
       }
 
@@ -263,23 +378,53 @@ export default function TableDataView({ table, onBack }) {
     }
 
     // Check if this is nested data that should open a modal
-    if (dataType === 'text' && typeof value === 'string' && value.trim().startsWith('{')) {
+    // Handle both single object {value:..., nestedValues:...} and array [{value:..., nestedValues:...}, ...]
+    if (dataType === 'text' && typeof value === 'string' && (value.trim().startsWith('{') || value.trim().startsWith('['))) {
       console.log(`Processing JSON value for column ${column?.column_name}:`, value)
       try {
         const parsed = JSON.parse(value)
         console.log(`Parsed JSON:`, parsed)
+        
+        // Check if this is an array (multi-select)
+        const isMulti = Array.isArray(parsed)
+        
+        // For multi-select: check if any item has nested data
+        // For single: check if it has nested data structure
+        let hasNestedStructure = false
+        let displayValue = null
+        
+        if (isMulti) {
+          // Multi-select case
+          hasNestedStructure = parsed.some(item => item.value !== undefined && item.nestedValues !== undefined)
+          displayValue = parsed.map(item => item.value).join(' → ')
+        } else {
+          // Single select case
+          hasNestedStructure = parsed.value !== undefined && parsed.nestedValues !== undefined
+          displayValue = Array.isArray(parsed.value) ? parsed.value.join(' → ') : parsed.value
+        }
+        
         // Only show modal if this looks like nested data AND column has nested capability
-        if (parsed.value && parsed.nestedValues && column && hasNestedData(column)) {
+        if (hasNestedStructure && column && hasNestedData(column)) {
           console.log(`Column ${column.column_name} has nested data capability`)
-          if (Object.keys(parsed.nestedValues).length > 0) {
-            console.log(`Showing modal for ${column.column_name}`)
+          
+          // Check if there's any actual nested data (not all empty)
+          let hasAnyNestedData = false
+          if (isMulti) {
+            hasAnyNestedData = parsed.some(item => item.nestedValues && Object.keys(item.nestedValues).length > 0)
+          } else {
+            hasAnyNestedData = parsed.nestedValues && Object.keys(parsed.nestedValues).length > 0
+          }
+          
+          // Only show modal button if there's actual nested data
+          if (hasAnyNestedData) {
+            console.log(`Showing modal for ${column.column_name} (has nested data)`)
             return (
               <button
                 onClick={() => openNestedModal(value, column, record?.record_id)}
                 className="bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer px-2 py-1 rounded border border-blue-300 text-sm font-medium"
                 title="Click to view/edit nested data"
               >
-                {Array.isArray(parsed.value) ? parsed.value.join(' → ') : parsed.value}
+                {displayValue}
                 <span className="ml-1 text-xs">📋</span>
               </button>
             )
@@ -288,17 +433,34 @@ export default function TableDataView({ table, onBack }) {
             // If nestedValues is empty, render normally without modal
             return (
               <span className="truncate max-w-[200px]">
-                {Array.isArray(parsed.value) ? parsed.value.join(' → ') : parsed.value}
+                {displayValue}
               </span>
             )
           }
         } else {
           console.log(`Not showing modal for ${column?.column_name}:`, {
-            hasValue: !!parsed.value,
-            hasNestedValues: !!parsed.nestedValues,
+            hasNestedStructure,
             hasColumn: !!column,
             hasNestedCapability: column ? hasNestedData(column) : false
           })
+          
+          // If it's a simple JSON structure, render the value normally
+          // This includes:
+          // - {"value":"sim"} - no nestedValues property
+          // - {"value":"Option 1","nestedValues":{}} - empty nestedValues
+          if (!isMulti && parsed.value !== undefined) {
+            // Check if nestedValues is empty or doesn't exist
+            const hasEmptyOrNoNestedValues = !parsed.nestedValues || 
+              (typeof parsed.nestedValues === 'object' && Object.keys(parsed.nestedValues).length === 0)
+            
+            if (hasEmptyOrNoNestedValues) {
+              return (
+                <span className="truncate max-w-[200px]">
+                  {Array.isArray(parsed.value) ? parsed.value.join(' → ') : parsed.value}
+                </span>
+              )
+            }
+          }
         }
       } catch (error) {
         console.log(`Error parsing JSON for ${column?.column_name}:`, error)
@@ -370,34 +532,137 @@ export default function TableDataView({ table, onBack }) {
 
   // Function to convert editableFormData back to API format
   const convertFormDataToAPIFormat = (formData) => {
-    const result = {
-      nestedValues: {}
-    }
-    
-    const processLevel = (data) => {
-      const levelData = {}
+    // Check if this is multi-select data
+    if (nestedData?.isMulti) {
+      // For multi-select, return an array
+      const result = []
       
-      Object.entries(data).forEach(([fieldId, fieldInfo]) => {
-        if (fieldInfo.value) {
-          levelData[fieldId] = {
-            value: fieldInfo.value
+      // Group formData by selection index
+      const groupedBySelection = {}
+      Object.entries(formData).forEach(([fieldId, fieldInfo]) => {
+        if (fieldInfo._selectionIndex !== undefined) {
+          if (!groupedBySelection[fieldInfo._selectionIndex]) {
+            groupedBySelection[fieldInfo._selectionIndex] = {
+              value: fieldInfo._selectionValue,
+              items: {},
+              isEmpty: false
+            }
           }
-          
-          if (fieldInfo.nestedData && Object.keys(fieldInfo.nestedData).length > 0) {
-            levelData[fieldId].nestedValues = processLevel(fieldInfo.nestedData)
-          } else {
-            levelData[fieldId].nestedValues = {}
+          // Skip empty marker entries
+          if (fieldInfo._isEmpty) {
+            groupedBySelection[fieldInfo._selectionIndex].isEmpty = true
+          } else if (fieldInfo._originalFieldId) {
+            groupedBySelection[fieldInfo._selectionIndex].items[fieldInfo._originalFieldId] = fieldInfo
           }
         }
       })
       
-      return levelData
+      // Process each selection group
+      Object.keys(groupedBySelection).sort().forEach(index => {
+        const group = groupedBySelection[index]
+        const item = {
+          value: group.value,
+          nestedValues: {}
+        }
+        
+        const processLevel = (data) => {
+          const levelData = {}
+          
+          Object.entries(data).forEach(([fieldId, fieldInfo]) => {
+            if (fieldInfo.value) {
+              levelData[fieldId] = {
+                value: fieldInfo.value
+              }
+              
+              if (fieldInfo.nestedData && Object.keys(fieldInfo.nestedData).length > 0) {
+                levelData[fieldId].nestedValues = processLevel(fieldInfo.nestedData)
+              } else {
+                levelData[fieldId].nestedValues = {}
+              }
+            }
+          })
+          
+          return levelData
+        }
+        
+        item.nestedValues = processLevel(group.items)
+        result.push(item)
+      })
+      
+      return result
+    } else {
+      // For single selection, return an object
+      const result = {
+        nestedValues: {}
+      }
+      
+      const processLevel = (data) => {
+        const levelData = {}
+        
+        Object.entries(data).forEach(([fieldId, fieldInfo]) => {
+          if (fieldInfo.value) {
+            // Handle array fields (checkboxes with nested data)
+            if (fieldInfo._isArray && Array.isArray(fieldInfo.value)) {
+              const arrayResult = []
+              
+              // Group nested data by array index
+              const groupedByIndex = {}
+              if (fieldInfo.nestedData) {
+                Object.entries(fieldInfo.nestedData).forEach(([nestedFieldId, nestedFieldInfo]) => {
+                  const arrayIndex = nestedFieldInfo._arrayIndex
+                  if (arrayIndex !== undefined) {
+                    if (!groupedByIndex[arrayIndex]) {
+                      groupedByIndex[arrayIndex] = {
+                        value: nestedFieldInfo._arrayValue,
+                        items: {}
+                      }
+                    }
+                    if (nestedFieldInfo._originalFieldId) {
+                      groupedByIndex[arrayIndex].items[nestedFieldInfo._originalFieldId] = nestedFieldInfo
+                    }
+                  }
+                })
+              }
+              
+              // Convert each array item back to API format
+              fieldInfo.value.forEach((val, idx) => {
+                const item = {
+                  value: val,
+                  nestedValues: {}
+                }
+                
+                if (groupedByIndex[idx] && Object.keys(groupedByIndex[idx].items).length > 0) {
+                  item.nestedValues = processLevel(groupedByIndex[idx].items)
+                }
+                
+                arrayResult.push(item)
+              })
+              
+              levelData[fieldId] = arrayResult
+            }
+            // Handle regular fields
+            else {
+              levelData[fieldId] = {
+                value: fieldInfo.value
+              }
+              
+              if (fieldInfo.nestedData && Object.keys(fieldInfo.nestedData).length > 0) {
+                levelData[fieldId].nestedValues = processLevel(fieldInfo.nestedData)
+              } else {
+                levelData[fieldId].nestedValues = {}
+              }
+            }
+          }
+        })
+        
+        return levelData
+      }
+      
+      result.nestedValues = processLevel(formData)
+      result.value = editablePrimaryValue // Use editable primary value instead
+      
+      return result
     }
-    
-    result.nestedValues = processLevel(formData)
-    result.value = editablePrimaryValue // Use editable primary value instead
-    
-    return result
   }
 
   // Function to save nested data
@@ -611,6 +876,65 @@ export default function TableDataView({ table, onBack }) {
               {/* Render nested fields recursively if value is selected and has nested fields */}
               {value && fieldDef.hasNested && fieldDef.options && (
                 (() => {
+                  // Handle array values (checkboxes with multiple selections)
+                  if (Array.isArray(value) && fieldInfo._isArray) {
+                    console.log(`[renderNestedFormFields] Rendering array field with nested data`, {fieldId, value, nestedData})
+                    
+                    // Group nested data by array index
+                    const groupedByIndex = {}
+                    if (nestedData) {
+                      Object.entries(nestedData).forEach(([nestedFieldId, nestedFieldInfo]) => {
+                        const arrayIndex = nestedFieldInfo._arrayIndex
+                        if (arrayIndex !== undefined) {
+                          if (!groupedByIndex[arrayIndex]) {
+                            groupedByIndex[arrayIndex] = {
+                              value: nestedFieldInfo._arrayValue,
+                              fields: {}
+                            }
+                          }
+                          groupedByIndex[arrayIndex].fields[nestedFieldId] = nestedFieldInfo
+                        }
+                      })
+                    }
+                    
+                    // Render nested fields for each selected checkbox option
+                    return (
+                      <div className="mt-3 space-y-3">
+                        {value.map((selectedValue, idx) => {
+                          const selectedOption = fieldDef.options.find(opt => opt.value === selectedValue || opt.label === selectedValue)
+                          if (selectedOption && selectedOption.nestedFields && selectedOption.nestedFields.length > 0) {
+                            const arrayIndexData = groupedByIndex[idx]
+                            
+                            return (
+                              <Card key={idx} className="bg-gradient-to-br from-purple-50/50 to-transparent border-purple-200">
+                                <CardHeader className="pb-3 px-4 pt-3">
+                                  <CardTitle className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+                                    <span className="h-1 w-1 rounded-full bg-purple-500"></span>
+                                    Nested fields for: {selectedValue}
+                                    <Badge variant="secondary" className="text-xs ml-auto">
+                                      Checkbox {idx + 1}
+                                    </Badge>
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent className="px-4 pb-4">
+                                  {arrayIndexData && Object.keys(arrayIndexData.fields).length > 0 ? (
+                                    renderNestedFormFields(arrayIndexData.fields, level + 1, currentPath)
+                                  ) : (
+                                    <div className="text-sm text-muted-foreground italic py-2">
+                                      No nested data for this selection
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            )
+                          }
+                          return null
+                        })}
+                      </div>
+                    )
+                  }
+                  
+                  // Handle single value (non-array)
                   const selectedOption = fieldDef.options.find(opt => opt.value === value || opt.label === value)
                   if (selectedOption && selectedOption.nestedFields && selectedOption.nestedFields.length > 0) {
                     // Show nested fields from the selected option
@@ -1028,7 +1352,9 @@ export default function TableDataView({ table, onBack }) {
                 <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-4 rounded-lg border-l-4 border-primary">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-sm text-muted-foreground">Primary Selection</h4>
+                      <h4 className="font-semibold text-sm text-muted-foreground">
+                        Primary Selection{nestedData.isMulti ? 's' : ''}
+                      </h4>
                       <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center">
                         <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1037,22 +1363,44 @@ export default function TableDataView({ table, onBack }) {
                     </div>
                     
                     {!isEditMode ? (
-                      <Badge variant="default" className="text-base px-4 py-1">
-                        {editablePrimaryValue}
-                      </Badge>
+                      nestedData.isMulti ? (
+                        <div className="flex flex-wrap gap-2">
+                          {Array.isArray(editablePrimaryValue) ? (
+                            editablePrimaryValue.map((val, idx) => (
+                              <Badge key={idx} variant="default" className="text-base px-4 py-1">
+                                {val}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge variant="default" className="text-base px-4 py-1">
+                              {editablePrimaryValue}
+                            </Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="default" className="text-base px-4 py-1">
+                          {editablePrimaryValue}
+                        </Badge>
+                      )
                     ) : (
-                      <select
-                        value={editablePrimaryValue || ''}
-                        onChange={(e) => handlePrimaryValueChange(e.target.value)}
-                        className="w-full px-4 py-2 border rounded-md text-sm bg-background border-input hover:border-primary focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer font-medium"
-                      >
-                        <option value="">Select primary value</option>
-                        {nestedData.options?.map((option, idx) => (
-                          <option key={idx} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                      nestedData.isMulti ? (
+                        <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md border">
+                          Multi-selection editing is view-only. Current selections: {Array.isArray(editablePrimaryValue) ? editablePrimaryValue.join(' → ') : editablePrimaryValue}
+                        </div>
+                      ) : (
+                        <select
+                          value={editablePrimaryValue || ''}
+                          onChange={(e) => handlePrimaryValueChange(e.target.value)}
+                          className="w-full px-4 py-2 border rounded-md text-sm bg-background border-input hover:border-primary focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer font-medium"
+                        >
+                          <option value="">Select primary value</option>
+                          {nestedData.options?.map((option, idx) => (
+                            <option key={idx} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      )
                     )}
                   </div>
                 </div>
@@ -1067,7 +1415,55 @@ export default function TableDataView({ table, onBack }) {
                       </Badge>
                     </div>
                     <div className="space-y-4 pb-4">
-                      {renderNestedFormFields(editableFormData)}
+                      {nestedData.isMulti ? (
+                        // Group fields by selection for multi-select
+                        (() => {
+                          const groupedBySelection = {}
+                          Object.entries(editableFormData).forEach(([fieldId, fieldInfo]) => {
+                            const index = fieldInfo._selectionIndex
+                            if (index !== undefined) {
+                              if (!groupedBySelection[index]) {
+                                groupedBySelection[index] = {
+                                  value: fieldInfo._selectionValue,
+                                  fields: {},
+                                  isEmpty: false
+                                }
+                              }
+                              // Check if this is an empty marker
+                              if (fieldInfo._isEmpty) {
+                                groupedBySelection[index].isEmpty = true
+                              } else {
+                                groupedBySelection[index].fields[fieldId] = fieldInfo
+                              }
+                            }
+                          })
+                          
+                          return Object.keys(groupedBySelection).sort().map(index => (
+                            <Card key={index} className="bg-gradient-to-br from-blue-50/50 to-transparent border-blue-200">
+                              <CardHeader className="pb-3 px-4 pt-3">
+                                <CardTitle className="text-sm font-semibold text-blue-700 flex items-center gap-2">
+                                  <Badge variant="default" className="text-xs">
+                                    Selection {parseInt(index) + 1}
+                                  </Badge>
+                                  {groupedBySelection[index].value}
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent className="px-4 pb-4">
+                                {groupedBySelection[index].isEmpty || Object.keys(groupedBySelection[index].fields).length === 0 ? (
+                                  <div className="text-sm text-muted-foreground italic py-2">
+                                    No nested fields for this selection
+                                  </div>
+                                ) : (
+                                  renderNestedFormFields(groupedBySelection[index].fields)
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))
+                        })()
+                      ) : (
+                        // Single selection - render normally
+                        renderNestedFormFields(editableFormData)
+                      )}
                     </div>
                   </div>
                 )}
