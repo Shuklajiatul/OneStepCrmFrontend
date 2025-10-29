@@ -25,6 +25,14 @@ const menuItems = [
             { label: "Form Analytics", icon: BarChart3, href: "form-analytics" },
         ]
     },
+    {
+        label: "Gene Management",
+        icon: BookCopy,
+        href: "general-management",
+        submenu: [
+            { label: "Gene", icon: FormInput, href: "gene" },
+        ]
+    },
     { label: "Custom Table", icon: Table, href: "custom-table" },
     { label: "Report", icon: ClipboardMinus, href: "report" },
     { label: "Setting", icon: Settings, href: "setting" },
