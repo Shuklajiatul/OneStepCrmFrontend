@@ -14,17 +14,14 @@ import Link from "next/link"
 import Image from "next/image"
 import { useParams, useSearchParams } from "next/navigation"
 import { fetchPhoneCountries } from "@/lib/constants/location-api"
+import { v4 as uuidv4 } from 'uuid';
 
 // API configuration
-const API_BASE_URL = 'http://10.10.15.194:3001'
-const ORGANIZATION_ID = 'c8c72c21-7b5c-435a-912a-803105e7ecc9'
-const TABLE_ID = '040e899d-583a-454e-92e6-d0d5a8095587'
-const USER_ID = 'c2a985ce-d385-4349-8f0c-d46e63027ce4'
-
-// Generate or use a proper token
-const getAuthToken = () => {
-  return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzU5MzE0ODY2LCJleHAiOjE3NTk0MDEyNjZ9.QjKz8fTFwia76o7LkkdmlGGhEKoguy8o6iFbCojMwkE'
-}
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
+const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
+const USER_ID = process.env.NEXT_PUBLIC_USER_ID
+const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN
 
 // Helper functions
 const formatFileSize = (bytes) => {
@@ -178,6 +175,13 @@ const processFieldOptions = (field) => {
   return []
 }
 
+// Helper function to validate if a string is a valid UUID
+const isValidUUID = (str) => {
+  if (!str || typeof str !== 'string') return false
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
+}
+
 // Transform form values for API submission - FIXED VERSION
 const transformFormValues = (formValues, fields, phoneCountries = []) => {
   const transformedValues = {}
@@ -193,7 +197,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
   // Helper function to recursively transform nested values using field IDs
   const transformNestedValues = (nestedFields, parentValue, fieldDefinition, depth = 0) => {
     const result = {}
-    
+
     // Prevent infinite recursion
     if (depth > 10) {
       console.warn('Maximum nested field depth exceeded')
@@ -268,7 +272,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
           }
           return
         }
-        
+
         // Check if this is a phone field (has countryCode and number properties)
         if (value.countryCode !== undefined && value.number !== undefined) {
           // This is a phone field - send the phone object directly without wrapping
@@ -282,7 +286,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
           fieldValues[fieldId] = value
           return
         }
-        
+
         // Handle nested object structure
         if (value.value !== undefined) {
           // Handle checkbox fields with multiple selections
@@ -381,7 +385,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
               if (Array.isArray(val) && val.length > 0) return true
               return false
             })
-            
+
             if (hasContent) {
               fieldValues[fieldId] = processedNested
             }
@@ -402,7 +406,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                 lastModified: item.lastModified || Date.now()
               }
             }
-            
+
             // Ensure value is not wrapped in array
             let processedValue = item.value
             if (Array.isArray(processedValue) && processedValue.length === 1) {
@@ -520,11 +524,37 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
       }
     }
 
-    // Use the ORIGINAL field ID from the form data, not the parsed one
+    // Use the ORIGINAL field ID from the form data, but ensure it's a valid UUID
+    // If originalId is not a valid UUID (old format), use the parsed field.id instead
+    let finalFieldKey = fieldId
+    
+    // Priority: originalId (if valid UUID) > field.id (if valid UUID) > fieldId (if valid UUID) > generate new UUID
+    if (field.originalId && isValidUUID(field.originalId)) {
+      finalFieldKey = field.originalId
+    } else if (field.id && isValidUUID(field.id)) {
+      finalFieldKey = field.id
+    } else if (isValidUUID(fieldId)) {
+      finalFieldKey = fieldId
+    } else {
+      // If nothing is valid, generate a new UUID (shouldn't happen but safe fallback)
+      console.warn(`Invalid field ID format for field ${field.name || field.label}, generating new UUID`)
+      finalFieldKey = uuidv4()
+    }
+    
     // If field ID has "field-" prefix, strip it to get just the UUID
-    let finalFieldKey = field.originalId || fieldId
     if (typeof finalFieldKey === 'string' && finalFieldKey.startsWith('field-')) {
       finalFieldKey = finalFieldKey.replace('field-', '')
+    }
+    
+    // Final validation: ensure we have a valid UUID
+    if (!isValidUUID(finalFieldKey)) {
+      // Last resort: use field.id if it's valid, otherwise generate new UUID
+      if (field.id && isValidUUID(field.id)) {
+        finalFieldKey = field.id
+      } else {
+        console.warn(`Failed to get valid UUID for field ${field.name || field.label}, generating new UUID`)
+        finalFieldKey = uuidv4()
+      }
     }
 
     // Handle different field types
@@ -874,7 +904,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
       console.warn('Maximum nested field depth exceeded in API transformation')
       return {}
     }
-    
+
     if (!nestedValues || typeof nestedValues !== 'object') return {}
 
     const result = {}
@@ -897,9 +927,9 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
               const originalType = item.type?.value || item.type
               const originalSize = item.size?.value || item.size
               const originalLastModified = item.lastModified?.value || item.lastModified
-              
+
               const fileObject = createFileFromBase64(
-                item.value, 
+                item.value,
                 originalName,
                 originalType,
                 originalSize,
@@ -936,9 +966,9 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
             const originalType = value.type?.value || value.type
             const originalSize = value.size?.value || value.size
             const originalLastModified = value.lastModified?.value || value.lastModified
-            
+
             const fileObject = createFileFromBase64(
-              value.value, 
+              value.value,
               originalName,
               originalType,
               originalSize,
@@ -1025,7 +1055,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
         // Special handling for file fields - convert base64 strings to file objects
         if (field.type === 'file' && fieldValue.startsWith('data:')) {
           console.log('📁 Processing file field with base64 data (simple string):', fieldId)
-          
+
           // Create a file object from base64 string
           const fileObject = createFileFromBase64(fieldValue, field.label || field.name || 'uploaded_file')
           if (fileObject) {
@@ -1036,7 +1066,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
             return null
           }
         }
-        
+
         return fieldValue
       }
     }
@@ -1062,7 +1092,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
                 const optionValue = typeof option === 'string' ? option : option.value
                 return optionValue === item.value
               })
-              
+
               if (optionIndex !== -1) {
                 checkboxNestedFields[optionIndex] = transformApiNestedValuesToNestedFields(item.nestedValues, 0)
               }
@@ -1097,7 +1127,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
                 const optionValue = typeof option === 'string' ? option : option.value
                 return optionValue === item.value
               })
-              
+
               if (optionIndex !== -1) {
                 selectNestedFields[optionIndex] = transformApiNestedValuesToNestedFields(item.nestedValues, 0)
               }
@@ -1159,7 +1189,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
         // Special handling for file fields with base64 data in value property
         if (field.type === 'file' && typeof parsedValue.value === 'string' && parsedValue.value.startsWith('data:')) {
           console.log('📁 Processing file field with base64 data in value property:', fieldId)
-          
+
           // Create a file object from base64 string
           const fileObject = createFileFromBase64(parsedValue.value, field.label || field.name || 'uploaded_file')
           if (fileObject) {
@@ -1170,7 +1200,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
             return null
           }
         }
-        
+
         // For simple text fields with only a value (no nested values), return just the string
         if (!parsedValue.nestedValues || Object.keys(parsedValue.nestedValues).length === 0) {
           // Check if this is a simple field type that expects just a string value
@@ -1225,7 +1255,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
       // Special handling for file fields - convert base64 strings to file objects
       if (field.type === 'file' && typeof parsedValue === 'string' && parsedValue.startsWith('data:')) {
         console.log('📁 Processing file field with base64 data:', fieldId)
-        
+
         // Create a file object from base64 string
         const fileObject = createFileFromBase64(parsedValue, field.label || field.name || 'uploaded_file')
         if (fileObject) {
@@ -1236,7 +1266,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
           return null
         }
       }
-      
+
       return parsedValue
     }
   }
@@ -1279,7 +1309,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
   })
 
   console.log('Final transformed values for form:', transformedValues)
-  
+
   // Debug: Check for file fields specifically
   const fileFields = fields.filter(f => f.type === 'file')
   if (fileFields.length > 0) {
@@ -1294,22 +1324,8 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
       })
     })
   }
-  
-  return transformedValues
-}
 
-// Debug function to log form state
-const debugFormState = (formValues, fields) => {
-  console.log('🔍 DEBUG - Current Form State Before Submission:')
-  fields.forEach(field => {
-    const fieldValue = formValues[field.id]
-    console.log(`Field: ${field.label} (${field.id})`, {
-      value: fieldValue,
-      type: typeof fieldValue,
-      structure: fieldValue ? Object.keys(fieldValue) : 'no value',
-      actualValue: fieldValue?.value
-    })
-  })
+  return transformedValues
 }
 
 export default function PublicFormPage() {
@@ -1320,13 +1336,8 @@ export default function PublicFormPage() {
   const submissionId = searchParams.get('submission_id')
   const userIdFromUrl = searchParams.get('user_id')
 
-  // Log user ID extraction for debugging
-  console.log('🔍 User ID from URL:', userIdFromUrl)
-  console.log('🔍 Fallback USER_ID constant:', USER_ID)
-  
   // Properly handle null, undefined, or "undefined" string values
   const finalUserId = (userIdFromUrl && userIdFromUrl !== 'undefined' && userIdFromUrl !== 'null') ? userIdFromUrl : USER_ID
-  console.log('🔍 Final reference_id will be:', finalUserId)
 
   const [formData, setFormData] = useState(null)
   const [submissionData, setSubmissionData] = useState(null)
@@ -1472,7 +1483,7 @@ export default function PublicFormPage() {
         },
         {
           headers: {
-            'Authorization': `Bearer ${getAuthToken()}`,
+            'Authorization': `Bearer ${AUTH_TOKEN}`,
             'Content-Type': 'application/json'
           }
         }
@@ -1490,7 +1501,7 @@ export default function PublicFormPage() {
       // Handle the response format where values are JSON strings
       if (result.success && result.submission) {
         console.log('Submission data found:', result.submission)
-        
+
         // Capture editable flag from API response
         const editable = result.editable !== undefined ? result.editable : true
         console.log('📝 Editable flag from API:', editable)
@@ -1519,7 +1530,7 @@ export default function PublicFormPage() {
 
         console.log('📝 Setting submission data:', parsedSubmission)
         console.log('📝 Submission values:', parsedSubmission.values)
-        
+
         // Debug file fields in submission data
         Object.keys(parsedSubmission.values || {}).forEach(key => {
           const value = parsedSubmission.values[key]
@@ -1527,9 +1538,9 @@ export default function PublicFormPage() {
             console.log(`📁 Found base64 file in submission: ${key}`, value.substring(0, 100) + '...')
           }
         })
-        
+
         setSubmissionData(parsedSubmission)
-        
+
         // Extract edit count from submission data if available
         if (parsedSubmission.editCountLeft !== undefined) {
           setEditCountLeft(parsedSubmission.editCountLeft)
@@ -1541,18 +1552,18 @@ export default function PublicFormPage() {
           if (typeof result.form_version === 'number' || typeof result.form_version === 'string') {
             // Fetch the specific form version from the backend
             try {
-              
+
               // Try the most common API pattern: query parameter
               const versionResponse = await axios.get(
                 `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}?version=${result.form_version}`,
                 {
                   headers: {
-                    'Authorization': `Bearer ${getAuthToken()}`,
+                    'Authorization': `Bearer ${AUTH_TOKEN}`,
                     'Content-Type': 'application/json',
                   }
                 }
               )
-              
+
               if (versionResponse.data.success && versionResponse.data.form) {
                 const originalFormData = parseFormData(versionResponse.data.form)
                 setFormData(originalFormData)
@@ -1563,7 +1574,7 @@ export default function PublicFormPage() {
               }
             } catch (versionError) {
               console.warn('⚠️ First attempt failed, trying alternative endpoint patterns:', versionError.message)
-              
+
               // Try alternative API patterns
               let alternativeSuccess = false
               const alternativeEndpoints = [
@@ -1572,16 +1583,16 @@ export default function PublicFormPage() {
                 `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${formId}/version/${result.form_version}`,
                 `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}/version/${result.form_version}`
               ]
-              
+
               for (const endpoint of alternativeEndpoints) {
                 try {
                   const altResponse = await axios.get(endpoint, {
                     headers: {
-                      'Authorization': `Bearer ${getAuthToken()}`,
+                      'Authorization': `Bearer ${AUTH_TOKEN}`,
                       'Content-Type': 'application/json',
                     }
                   })
-                  
+
                   if (altResponse.data.success && altResponse.data.form) {
                     const originalFormData = parseFormData(altResponse.data.form)
                     setFormData(originalFormData)
@@ -1594,7 +1605,7 @@ export default function PublicFormPage() {
                   continue
                 }
               }
-              
+
               if (!alternativeSuccess) {
                 console.warn('⚠️ All form version endpoints failed, falling back to latest form')
                 try {
@@ -1638,12 +1649,12 @@ export default function PublicFormPage() {
       } else if (result.data) {
         // Handle case where submission data is in result.data
         setSubmissionData(result.data)
-        
+
         // Capture editable flag from API response
         const editable = result.editable !== undefined ? result.editable : true
         console.log('📝 Editable flag from API (data branch):', editable)
         setIsEditable(editable)
-        
+
         // Extract edit count from submission data if available
         if (result.data.editCountLeft !== undefined) {
           setEditCountLeft(result.data.editCountLeft)
@@ -1678,12 +1689,12 @@ export default function PublicFormPage() {
       } else if (result.values) {
         // Handle case where values are directly in result
         setSubmissionData({ values: result.values })
-        
+
         // Capture editable flag from API response
         const editable = result.editable !== undefined ? result.editable : true
         console.log('📝 Editable flag from API (values branch):', editable)
         setIsEditable(editable)
-        
+
         // Extract edit count from result if available
         if (result.editCountLeft !== undefined) {
           setEditCountLeft(result.editCountLeft)
@@ -1724,11 +1735,11 @@ export default function PublicFormPage() {
     } catch (error) {
       console.error('Error fetching submission data:', error)
       setLoading(false) // ✅ FIX: Stop loading on error
-      
+
       // Check for specific error messages
       if (error.response?.data?.error) {
         const errorMessage = error.response.data.error
-        
+
         // Handle edit limit reached error
         if (errorMessage.includes("Edit limit reached") || errorMessage.includes("edit this form only")) {
           toast.error(errorMessage)
@@ -1795,15 +1806,8 @@ export default function PublicFormPage() {
 
   // Helper function to generate unique field IDs
   const generateUniqueFieldId = (prefix = 'field') => {
-    // Use crypto.randomUUID() if available, otherwise fallback to timestamp + random
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return `${prefix}-${crypto.randomUUID()}`
-    }
-    // Fallback: timestamp + high-precision random + counter
-    const timestamp = Date.now()
-    const random = Math.random().toString(36).substr(2, 9)
-    const counter = Math.floor(Math.random() * 10000)
-    return `${prefix}-${timestamp}-${random}-${counter}`
+    const uniqueId = uuidv4()
+    return uniqueId
   }
 
   // Helper function to parse form data from API
@@ -1939,14 +1943,14 @@ export default function PublicFormPage() {
 
             const parsedField = {
               id: fieldData.id || fieldData.name || generateUniqueFieldId(),
-              originalId: fieldData.id, // Store original ID for reference
+              originalId: fieldData.id,
               name: fieldData.name,
               type: fieldData.type || 'text',
               label: fieldData.label || fieldData.name || 'Field',
               placeholder: fieldData.placeholder || '',
               required: isRequired,
               isLeadColumn: fieldData.isLeadColumn === true || fieldData.isLeadColumn === 'true',
-              options: processedOptions.map(opt => opt.value || opt), // For simple option values
+              options: processedOptions.map(opt => opt.value || opt),
               nestedFields: nestedFields,
               validation: {
                 required: isRequired,
@@ -2004,7 +2008,7 @@ export default function PublicFormPage() {
         `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`,
         {
           headers: {
-            'Authorization': `Bearer ${getAuthToken()}`,
+            'Authorization': `Bearer ${AUTH_TOKEN}`,
             'Content-Type': 'application/json',
           }
         }
@@ -2314,16 +2318,16 @@ export default function PublicFormPage() {
         case "file":
           // File validation - use selected file type from field configuration
           const fileType = field.validation?.fileType || "both"
-          
+
           let allowedTypes = []
           let allowedExtensions = []
           let errorMessage = ""
-          
+
           if (fileType === "images") {
             // Image-only field
             allowedTypes = [
               'image/jpeg',
-              'image/jpg', 
+              'image/jpg',
               'image/png',
               'image/gif',
               'image/webp',
@@ -2341,7 +2345,7 @@ export default function PublicFormPage() {
             allowedTypes = [
               'image/jpeg',
               'image/jpg',
-              'image/png', 
+              'image/png',
               'image/gif',
               'image/webp',
               'image/svg+xml',
@@ -2370,7 +2374,7 @@ export default function PublicFormPage() {
               errors.push("Error processing file. Please try uploading again.")
             }
           }
-        break
+          break
       }
     }
 
@@ -2380,9 +2384,6 @@ export default function PublicFormPage() {
   const form = useForm({
     defaultValues: getDefaultValues(),
     onSubmit: async ({ value }) => {
-      // Debug the current form state before submission
-      debugFormState(value, formData?.fields || [])
-
       console.log('Form values:', value)
 
       setSubmitting(true)
@@ -2436,12 +2437,12 @@ export default function PublicFormPage() {
           const result = response.data
           console.log('Update successful:', result)
           toast.success("Form updated successfully!")
-          
+
           // Extract edit count from response if available
           if (result.editCountLeft !== undefined) {
             setEditCountLeft(result.editCountLeft)
           }
-          
+
           setUpdateSuccess(true)
         } else {
           // Create new submission
@@ -2523,11 +2524,11 @@ export default function PublicFormPage() {
 
       } catch (error) {
         console.error('Error submitting form:', error)
-        
+
         // Check for specific error messages
         if (error.response?.data?.error) {
           const errorMessage = error.response.data.error
-          
+
           // Handle edit limit reached error
           if (errorMessage.includes("Edit limit reached") || errorMessage.includes("edit this form only")) {
             toast.error(errorMessage)
@@ -2824,7 +2825,7 @@ export default function PublicFormPage() {
                         {editCountLeft} {editCountLeft === 1 ? 'edit' : 'edits'} remaining
                       </p>
                       <p className="text-sm text-blue-600">
-                        {editCountLeft === 0 
+                        {editCountLeft === 0
                           ? "You have reached the maximum number of edits allowed."
                           : `You can edit your response ${editCountLeft} more ${editCountLeft === 1 ? 'time' : 'times'}.`
                         }
@@ -2835,7 +2836,7 @@ export default function PublicFormPage() {
                   <div className="space-y-2">
                     <h3 className="text-lg font-semibold">What would you like to do next?</h3>
                     <p className="text-sm text-muted-foreground">
-                      {editCountLeft === 0 
+                      {editCountLeft === 0
                         ? "You have reached the maximum number of edits. Your response is now final."
                         : "You can edit your response again if needed."
                       }
@@ -2930,12 +2931,12 @@ export default function PublicFormPage() {
                 </Badge>
               )}
               {isEditMode && editCountLeft !== null && (
-                <Badge 
-                  variant={editCountLeft === 0 ? "destructive" : editCountLeft <= 2 ? "secondary" : "outline"} 
+                <Badge
+                  variant={editCountLeft === 0 ? "destructive" : editCountLeft <= 2 ? "secondary" : "outline"}
                   className="text-xs"
                 >
-                  {editCountLeft === 0 
-                    ? "No edits left" 
+                  {editCountLeft === 0
+                    ? "No edits left"
                     : `${editCountLeft} edit${editCountLeft === 1 ? '' : 's'} left`
                   }
                 </Badge>
@@ -2975,7 +2976,7 @@ export default function PublicFormPage() {
                   )}
                   {formData.version && (
                     <p className="text-xs text-gray-500">
-                      Editing submission from Form v{formData.version} 
+                      Editing submission from Form v{formData.version}
                       {formData.archived && <span className="text-yellow-600 ml-1">(Original version)</span>}
                     </p>
                   )}
@@ -3048,15 +3049,14 @@ export default function PublicFormPage() {
                     {formData.fields.filter((f) => f.required).length} required
                     {isEditMode && " • Editing existing submission"}
                     {isEditMode && editCountLeft !== null && (
-                      <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
-                        editCountLeft === 0 
-                          ? "bg-red-100 text-red-700" 
-                          : editCountLeft <= 2 
-                            ? "bg-yellow-100 text-yellow-700" 
+                      <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${editCountLeft === 0
+                          ? "bg-red-100 text-red-700"
+                          : editCountLeft <= 2
+                            ? "bg-yellow-100 text-yellow-700"
                             : "bg-green-100 text-green-700"
-                      }`}>
-                        {editCountLeft === 0 
-                          ? "⚠️ No edits remaining" 
+                        }`}>
+                        {editCountLeft === 0
+                          ? "⚠️ No edits remaining"
                           : `✏️ ${editCountLeft} edit${editCountLeft === 1 ? '' : 's'} remaining`
                         }
                       </span>
