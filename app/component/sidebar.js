@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Settings, HelpCircle, BookCopy, ClipboardMinus, FileChartColumnIncreasing, X, ChevronLeft, ChevronRight, ChevronDown, FormInput, BarChart3, List, Table, Users } from "lucide-react"
+import { Home, Settings, HelpCircle, BookCopy, ClipboardMinus, FileChartColumnIncreasing, X, ChevronLeft, ChevronRight, ChevronDown, FormInput, BarChart3, List, Table, Users, Network, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -23,6 +23,14 @@ const menuItems = [
             { label: "Custom Form", icon: FormInput, href: "custom-form" },
             { label: "My Forms", icon: List, href: "my-forms" },
             { label: "Form Analytics", icon: BarChart3, href: "form-analytics" },
+        ]
+    },
+    {
+        label: "Gene Management",
+        icon: Network,
+        href: "general-management",
+        submenu: [
+            { label: "Gene", icon: Layers, href: "gene" },
         ]
     },
     { label: "Custom Table", icon: Table, href: "custom-table" },
