@@ -32,7 +32,6 @@ const menuItems = [
 ]
 
 export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCollapsed }) {
-    const [isHovered, setIsHovered] = useState(false)
     const [expandedMenus, setExpandedMenus] = useState(new Set())
 
     const toggleSubmenu = (menuLabel) => {
@@ -65,9 +64,35 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
 
     return (
         <aside className={cn(
-            "fixed md:sticky top-0 h-screen inset-y-0 left-0 z-50 transition-all duration-300 bg-sidebar border-r border-sidebar-border",
+            "fixed md:sticky top-0 h-screen inset-y-0 left-0 z-50 transition-all duration-300 bg-sidebar border-r border-sidebar-border relative group/sidebar",
             isCollapsed ? "-translate-x-full md:translate-x-0 md:w-16" : "translate-x-0 w-64 md:w-64"
         )}>
+            {/* Modern Toggle Button on Border - Desktop Only */}
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                            "hidden md:flex absolute top-6 -right-3 z-20 h-6 w-6 rounded-full bg-background border border-border shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200 ease-out",
+                            "opacity-0 group-hover/sidebar:opacity-100 hover:!opacity-100",
+                            isCollapsed && "opacity-100"
+                        )}
+                        onClick={() => setIsCollapsed(!isCollapsed)}
+                        aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                    >
+                        {isCollapsed ? (
+                            <ChevronRight className="h-3 w-3" />
+                        ) : (
+                            <ChevronLeft className="h-3 w-3" />
+                        )}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>
+                    <p>{isCollapsed ? "Expand sidebar" : "Collapse sidebar"}</p>
+                </TooltipContent>
+            </Tooltip>
+
             <Card className={cn(
                 "h-[calc(100vh-1.5rem)] flex flex-col bg-sidebar border-0 shadow-none",
                 isCollapsed ? "m-2 p-2" : "m-3 p-3"
@@ -96,25 +121,6 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                         )}
                     </div>
 
-                    {/* Desktop Collapse Button - Plain arrow beside Slash CRM */}
-                    {!isCollapsed && (
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setIsCollapsed(!isCollapsed)}
-                                    className="hidden md:flex h-7 w-7 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/20 flex-shrink-0"
-                                >
-                                    <ChevronLeft className="size-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right">
-                                <p>Collapse sidebar</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    )}
-
                     {/* Mobile Close Button */}
                     <Button
                         variant="ghost"
@@ -125,27 +131,6 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                         <X className="size-4" />
                     </Button>
                 </div>
-
-                {/* Collapse Button */}
-                {isCollapsed && (
-                    <div className="flex justify-center mt-2">
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setIsCollapsed(!isCollapsed)}
-                                    className="h-7 w-7 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/20"
-                                >
-                                    <ChevronRight className="size-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="right">
-                                <p>Expand sidebar</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </div>
-                )}
 
                 <nav className="flex-1 mt-4">
                     {!isCollapsed && (
@@ -170,8 +155,6 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                                                         isParentActive(item) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
                                                     )}
                                                     onClick={() => handleMenuClick(item)}
-                                                    onMouseEnter={() => setIsHovered(true)}
-                                                    onMouseLeave={() => setIsHovered(false)}
                                                 >
                                                     <item.icon className={cn(
                                                         "shrink-0",
@@ -191,8 +174,6 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                                                 isParentActive(item) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
                                             )}
                                             onClick={() => handleMenuClick(item)}
-                                            onMouseEnter={() => setIsHovered(true)}
-                                            onMouseLeave={() => setIsHovered(false)}
                                         >
                                             <item.icon className={cn(
                                                 "shrink-0 size-5"

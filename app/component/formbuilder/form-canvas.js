@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { memo, useMemo } from "react"
 import { useDroppable } from "@dnd-kit/core"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,10 +11,12 @@ import { cn } from "@/lib/utils"
 import { FieldRenderer } from "./field-renderer"
 import { SortableFieldItem } from "./sortable-field-item"
 
-export function FormCanvas({ fields, selectedField, onSelectField, onDeleteField, onMoveField, onAddField, activeId }) {
+const FormCanvasComponent = function FormCanvas({ fields, selectedField, onSelectField, onDeleteField, onMoveField, onAddField, activeId }) {
   const { setNodeRef, isOver } = useDroppable({
     id: "form-canvas",
   })
+
+  const fieldIds = useMemo(() => fields.map(field => field.id), [fields])
 
   if (fields.length === 0) {
     return (
@@ -63,7 +65,9 @@ export function FormCanvas({ fields, selectedField, onSelectField, onDeleteField
         </div>
 
         <SortableContext 
-          items={fields.map(field => field.id)} strategy={verticalListSortingStrategy}>
+          items={fieldIds}
+          strategy={verticalListSortingStrategy}
+        >
           {fields.map((field) => (
             <SortableFieldItem
               key={field.id}
@@ -89,3 +93,5 @@ export function FormCanvas({ fields, selectedField, onSelectField, onDeleteField
     </div>
   )
 }
+
+export const FormCanvas = memo(FormCanvasComponent)
