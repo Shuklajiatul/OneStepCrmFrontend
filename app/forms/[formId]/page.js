@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { CheckCircle2, Send, ArrowLeft, Building, User, Save, Edit, FileText, Trash2 } from "lucide-react"
+import { CheckCircle2, Send, ArrowLeft, Building, User, Save, Edit, FileText, Trash2, Lock } from "lucide-react"
 import { FieldRenderer } from "../../component/formbuilder/field-renderer"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
@@ -1277,6 +1277,7 @@ export default function PublicFormPage() {
   const [submissionSuccess, setSubmissionSuccess] = useState(false)
   const [updateSuccess, setUpdateSuccess] = useState(false)
   const [editCountLeft, setEditCountLeft] = useState(null)
+  const [isEditable, setIsEditable] = useState(true)
   const [lastSubmissionId, setLastSubmissionId] = useState(null)
   const [lastSubmissionToken, setLastSubmissionToken] = useState(null)
   const [phoneCountries, setPhoneCountries] = useState([])
@@ -1430,6 +1431,11 @@ export default function PublicFormPage() {
       // Handle the response format where values are JSON strings
       if (result.success && result.submission) {
         console.log('Submission data found:', result.submission)
+        
+        // Capture editable flag from API response
+        const editable = result.editable !== undefined ? result.editable : true
+        console.log('📝 Editable flag from API:', editable)
+        setIsEditable(editable)
 
         // Parse any JSON strings in the values
         const parsedSubmission = {
@@ -1574,6 +1580,11 @@ export default function PublicFormPage() {
         // Handle case where submission data is in result.data
         setSubmissionData(result.data)
         
+        // Capture editable flag from API response
+        const editable = result.editable !== undefined ? result.editable : true
+        console.log('📝 Editable flag from API (data branch):', editable)
+        setIsEditable(editable)
+        
         // Extract edit count from submission data if available
         if (result.data.editCountLeft !== undefined) {
           setEditCountLeft(result.data.editCountLeft)
@@ -1608,6 +1619,11 @@ export default function PublicFormPage() {
       } else if (result.values) {
         // Handle case where values are directly in result
         setSubmissionData({ values: result.values })
+        
+        // Capture editable flag from API response
+        const editable = result.editable !== undefined ? result.editable : true
+        console.log('📝 Editable flag from API (values branch):', editable)
+        setIsEditable(editable)
         
         // Extract edit count from result if available
         if (result.editCountLeft !== undefined) {
@@ -2879,8 +2895,8 @@ export default function PublicFormPage() {
                 <CheckCircle2 className="h-6 w-6 text-primary" />
                 {formData.form_name}
                 {isEditMode && (
-                  <Badge variant="secondary" className="ml-2">
-                    Editing
+                  <Badge variant={isEditable ? "secondary" : "destructive"} className="ml-2">
+                    {isEditable ? "Editing" : "View Only"}
                   </Badge>
                 )}
               </CardTitle>
@@ -2889,9 +2905,15 @@ export default function PublicFormPage() {
               )}
               {isEditMode && (
                 <div className="mt-2 space-y-1">
-                  <p className="text-sm text-blue-600">
-                    You are editing an existing submission. Make your changes and click "Update Form" to save.
-                  </p>
+                  {isEditable ? (
+                    <p className="text-sm text-blue-600">
+                      You are editing an existing submission. Make your changes and click "Update Form" to save.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-amber-600">
+                      This submission is no longer editable. You can view the data but cannot make changes.
+                    </p>
+                  )}
                   {formData.version && (
                     <p className="text-xs text-gray-500">
                       Editing submission from Form v{formData.version} 
@@ -2986,7 +3008,7 @@ export default function PublicFormPage() {
                     {([canSubmit, isSubmitting]) => (
                       <Button
                         type="submit"
-                        disabled={!canSubmit || submitting}
+                        disabled={!canSubmit || submitting || (isEditMode && !isEditable)}
                         className="gap-2 min-w-32"
                       >
                         {submitting || isSubmitting ? (
@@ -2996,15 +3018,20 @@ export default function PublicFormPage() {
                           </>
                         ) : (
                           <>
-                            {isEditMode ? (
+                            {isEditMode && isEditable ? (
                               <>
                                 <Save className="h-4 w-4" />
                                 Update Form
                               </>
-                            ) : (
+                            ) : !isEditMode ? (
                               <>
                                 <Send className="h-4 w-4" />
                                 Submit Form
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="h-4 w-4" />
+                                Form Not Editable
                               </>
                             )}
                           </>

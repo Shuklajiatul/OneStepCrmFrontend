@@ -220,14 +220,32 @@ export default function MyFormsPage() {
     try {
       setArchivingForm(formId)
 
+      // Find the form to get its version
+      const form = forms.find(f => f.form_id === formId)
+      if (!form) {
+        throw new Error('Form not found')
+      }
+
+      console.log('Archiving specific form version:', {
+        form_id: form.form_id,
+        form_name: form.form_name,
+        version: form.version || 1,
+        current_status: currentStatus
+      })
+
+      const archivePayload = {
+        organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
+        form_id: formId,
+        table_id: process.env.NEXT_PUBLIC_TABLE_ID,
+        status: !currentStatus, // Toggle the status
+        version: form.version || 1
+      }
+      
+      console.log('Archive payload:', archivePayload)
+
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/archieve`,
-        {
-          organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
-          form_id: formId,
-          table_id: process.env.NEXT_PUBLIC_TABLE_ID,
-          status: !currentStatus // Toggle the status
-        },
+        archivePayload,
         {
           headers: {
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
@@ -244,23 +262,23 @@ export default function MyFormsPage() {
         const newArchiveStatus = result.archieve_status
         console.log('New archive status:', newArchiveStatus, 'for form:', formId)
 
-        // Update the local state
+        // Update the local state - only update the specific version
         setForms(prevForms => {
-          const updatedForms = prevForms.map(form =>
-            form.form_id === formId
+          const updatedForms = prevForms.map(f => 
+            f.form_id === formId && f.version === form.version
               ? {
-                ...form,
+                ...f,
                 archived: newArchiveStatus,
                 isarchieved: newArchiveStatus  // Also update the isarchieved property
               }
-              : form
+              : f
           )
-          console.log('Updated forms:', updatedForms.find(f => f.form_id === formId))
+          console.log('Updated specific form version:', updatedForms.find(f => f.form_id === formId && f.version === form.version))
           return updatedForms
         })
 
         const action = newArchiveStatus ? "archived" : "unarchived"
-        toast.success(`Form ${action} successfully!`)
+        toast.success(`Form "${form.form_name}" v-${form.version || 1} ${action} successfully!`)
 
         if (newArchiveStatus) {
           toast.info("Form is now inactive. Users cannot access it.")
@@ -279,18 +297,27 @@ export default function MyFormsPage() {
   }
 
   // Function to delete form
-  const deleteForm = async (formId) => {
+  const deleteForm = async (form) => {
     try {
-      console.log('Starting delete for form:', formId)
-      setDeletingForm(formId)
+      console.log('Starting delete for form:', {
+        form_id: form.form_id,
+        form_name: form.form_name,
+        version: form.version || 1
+      })
+      setDeletingForm(form.form_id)
+
+      const deletePayload = {
+        organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
+        form_id: form.form_id,
+        table_id: process.env.NEXT_PUBLIC_TABLE_ID,
+        version: form.version || 1
+      }
+      
+      console.log('Delete payload:', deletePayload)
 
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/delete`,
-        {
-          organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
-          form_id: formId,
-          table_id: process.env.NEXT_PUBLIC_TABLE_ID
-        },
+        deletePayload,
         {
           headers: {
             'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
@@ -303,9 +330,11 @@ export default function MyFormsPage() {
       console.log('Delete response:', result)
 
       if (result.success) {
-        // Remove the form from local state
-        setForms(prevForms => prevForms.filter(form => form.form_id !== formId))
-        toast.success("Form deleted successfully!")
+        // Remove the specific form version from local state
+        setForms(prevForms => prevForms.filter(f => 
+          !(f.form_id === form.form_id && f.version === form.version)
+        ))
+        toast.success(`Form "${form.form_name}" v-${form.version || 1} deleted successfully!`)
         // Close dialog and reset state
         setDeleteDialogOpen(false)
         setFormToDelete(null)
@@ -869,12 +898,12 @@ export default function MyFormsPage() {
                 </TableHeader>
                 <TableBody>
                   {paginatedForms.map((form) => (
-                    <TableRow key={form.version}>
+                    <TableRow key={form.form_id}>
                       <TableCell className="font-medium">
                         <div>
-                          {form.form_name}
+                          {form.form_name} v-{form.version || 1}
                           <div className="text-xs text-muted-foreground mt-1">
-                            ID: {form.form_id?.substring(0, 8)}...
+                            {/* ID: {form.form_id?.substring(0, 8)}... */}
                           </div>
                         </div>
                       </TableCell>
@@ -1117,7 +1146,7 @@ export default function MyFormsPage() {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteForm(formToDelete?.form_id)}
+              onClick={() => deleteForm(formToDelete)}
               disabled={deletingForm === formToDelete?.form_id}
               className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
             >
