@@ -8,6 +8,7 @@ import MyFormsPage from "./my-forms/page"
 import FormAnalyticsPage from "./form-analytics/page"
 import CustomTableBuilder from "./custom-table-builder/page"
 import LeadsPage from "./component/leadPage/page"
+import GeneDashboard from "./gene/page"
 import { cn } from "@/lib/utils";
 
 export default function Home() {
@@ -43,7 +44,7 @@ export default function Home() {
   // UPDATE THIS renderContent FUNCTION
   const renderContent = () => {
     switch (activeTab) {
-      case "leads": // ADD THIS CASE
+      case "leads":
         return <LeadsPage />
       case "custom-form":
         return <CustomFormPage />
@@ -53,6 +54,8 @@ export default function Home() {
         return <FormAnalyticsPage />
       case "custom-table":
         return <CustomTableBuilder />
+      case "gene":
+        return <GeneDashboard />
       case "dashboard":
       default:
         return (

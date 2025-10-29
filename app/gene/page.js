@@ -1,14 +1,52 @@
 "use client"
 
-import { useState, useEffect , useCallback } from 'react';
-// import GeneModal from '@/components/models/geneModal';
-// import { API_CONSTANTS } from '@/constants/apiCollection';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-// import GeneCsvModal from '@/components/models/geneCsvModal';
-// import  UserGeneModal from  '@/components/models/userGeneMappingModal';
 import Link from 'next/link';
+import { 
+  Eye, Edit, Trash2, Plus, Search, Upload, Table2, List, LayoutGrid,
+  Loader2, AlertCircle, RefreshCw, X, CheckCircle2, Building, 
+  Layers, Users as UsersIcon, Calendar, BarChart3, Filter, Network
+} from 'lucide-react';
+
+// Shadcn UI Components
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+import UserGeneMappingModal from "./components/UserGeneMappingModal";
+import GeneModal from "./components/GeneModal";
+import GeneCsvModal from "./components/GeneCsvModal";
+
+// API Constants placeholder - Replace with actual constants if available
+const API_CONSTANTS = {
+  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
+  geneView: '/api/genes/view',
+  geneCreate: '/api/genes/create',
+  geneUpdate: '/api/genes/update',
+  geneDelete: '/api/genes/delete',
+};
 
 // Dummy data for demonstration
 const DUMMY_GENES = [
@@ -147,8 +185,8 @@ export default function GeneDashboard() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [geneToDelete, setGeneToDelete] = useState(null);
   const [showCsvModal, setShowCsvModal] = useState(false);
-  const  [showCsvGeneUserModal , setShowCsvGeneUserModal ] = useState(false);
-  const [searches , setSearhes] = useState(null);
+  const [showCsvGeneUserModal, setShowCsvGeneUserModal] = useState(false);
+  const [searches, setSearhes] = useState(null);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [useDummyData, setUseDummyData] = useState(false);
 
@@ -166,7 +204,7 @@ export default function GeneDashboard() {
     debounce((query) => {
       console.log('Debounced search query:', query);
       setDebouncedSearch(query);
-    }, 500), // 500ms delay
+    }, 500),
     []
   );
 
@@ -174,6 +212,7 @@ export default function GeneDashboard() {
   const handleSearchChange = (e) => {
     const value = e.target.value;
     setSearhes(value);
+    setSearchTerm(value);
     console.log('Search query:', value);
     debouncedSearchHandler(value);
   };
@@ -198,7 +237,6 @@ export default function GeneDashboard() {
       const token = localStorage.getItem('token');
       if (!token) {
         setError('Authentication required. Please login again.');
-        // router.push('/login');
         return;
       }
      
@@ -297,12 +335,12 @@ export default function GeneDashboard() {
     fetchGenes();
   }, [debouncedSearch, useDummyData]);
 
-  const getStatusColor = (is_active) => {
-    return is_active ? 'text-green-600 bg-green-50' : 'text-gray-600 bg-gray-50';
-  };
-
-  const getStatusText = (is_active) => {
-    return is_active ? 'Active' : 'Inactive';
+  const getStatusBadge = (is_active) => {
+    return (
+      <Badge variant={is_active ? "default" : "secondary"}>
+        {is_active ? 'Active' : 'Inactive'}
+      </Badge>
+    );
   };
 
   // Gene Data Management
@@ -365,156 +403,152 @@ export default function GeneDashboard() {
     return hierarchy_level;
   };
 
- const handleSubmit = async (modalData) => {
-  // Destructure the data from modal
-  const { geneData, selectedUsers } = modalData;
+  const handleSubmit = async (modalData) => {
+    const { geneData, selectedUsers } = modalData;
  
-  if (!geneData.name || geneData.levels.length === 0) {
-    toast.error('Please fill all required fields and add at least one level');
-    return;
-  }
-
-  const hasEmptyTitle = geneData.levels.some(level => !level.title.trim());
-  if (hasEmptyTitle) {
-    toast.error('Please fill level names for all levels');
-    return;
-  }
-
-  const loadingToast = toast.loading(editingGene ? 'Updating gene...' : 'Creating gene...');
-
-  try {
-    // Use dummy data simulation if enabled
-    if (useDummyData) {
-      setTimeout(() => {
-        if (editingGene) {
-          // Update existing gene in dummy data
-          setGenes(prev => prev.map(gene =>
-            gene.id === editingGene.id
-              ? {
-                  ...gene,
-                  g_name: geneData.name,
-                  name: geneData.name,
-                  levels: geneData.levels,
-                  hierarchy_level: convertLevelsToHierarchy(geneData.levels),
-                  level_depth: geneData.levels.length,
-                  is_active: geneData.is_active,
-                  lastUpdated: new Date().toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                  })
-                }
-              : gene
-          ));
-          toast.success(`Gene "${geneData.name}" updated successfully!`, {
-            id: loadingToast,
-          });
-        } else {
-          // Create new gene in dummy data
-          const newGene = {
-            id: Date.now(),
-            g_id: Date.now(),
-            g_name: geneData.name,
-            name: geneData.name,
-            type: 'Gene',
-            totalMembers: 0,
-            hierarchyLevels: geneData.levels.length,
-            users: 0,
-            lastUpdated: new Date().toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric'
-            }),
-            completion: 100,
-            createdBy: 'Current User',
-            levels: geneData.levels,
-            createdAt: new Date().toISOString(),
-            hierarchy_level: convertLevelsToHierarchy(geneData.levels),
-            level_depth: geneData.levels.length,
-            organizations: [],
-            is_active: geneData.is_active
-          };
-          setGenes(prev => [...prev, newGene]);
-          toast.success(`Gene "${geneData.name}" created successfully with ${geneData.levels.length} levels!`, {
-            id: loadingToast,
-          });
-        }
-        closeModal();
-      }, 1000);
+    if (!geneData.name || geneData.levels.length === 0) {
+      toast.error('Please fill all required fields and add at least one level');
       return;
     }
 
-    const token = localStorage.getItem('token');
-    const hierarchy_level = convertLevelsToHierarchy(geneData.levels);
-   
-    if (editingGene) {
-      const payload = {
-        g_id: geneData.g_id,
-        g_name: geneData.name,
-        hierarchy_level: hierarchy_level,
-        is_active: geneData.is_active,
-        users: selectedUsers.map(user => user.id)
-      };
-
-      console.log('Update Gene Payload:', payload);
-
-      const response = await axios.put(
-        `${API_CONSTANTS.BASE_URL}/${API_CONSTANTS.geneUpdate}`,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-
-      if (response.data.success) {
-        toast.success(`Gene "${geneData.name}" updated successfully!`, {
-          id: loadingToast,
-        });
-        fetchGenes();
-        closeModal();
-      } else {
-        throw new Error(response.data.message || 'Failed to update gene');
-      }
-    } else {
-      const payload = {
-        g_name: geneData.name,
-        hierarchy_level: hierarchy_level,
-        is_active: geneData.is_active
-      };
-
-      console.log('Create Gene Payload:', payload);
-
-      const response = await axios.post(
-        `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneCreate}`,
-        payload,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-
-      if (response.data.success) {
-        toast.success(`Gene "${geneData.name}" created successfully with ${geneData.levels.length} levels!`, {
-          id: loadingToast,
-        });
-        fetchGenes();
-        closeModal();
-      } else {
-        throw new Error(response.data.message || 'Failed to create gene');
-      }
+    const hasEmptyTitle = geneData.levels.some(level => !level.title.trim());
+    if (hasEmptyTitle) {
+      toast.error('Please fill level names for all levels');
+      return;
     }
-  } catch (error) {
-    console.error('Error saving gene:', error);
-    toast.error(`Failed to ${editingGene ? 'update' : 'create'} gene: ${error.response?.data?.message || error.message}`, {
-      id: loadingToast,
-    });
-  }
-};
+
+    const loadingToast = toast.loading(editingGene ? 'Updating gene...' : 'Creating gene...');
+
+    try {
+      if (useDummyData) {
+        setTimeout(() => {
+          if (editingGene) {
+            setGenes(prev => prev.map(gene =>
+              gene.id === editingGene.id
+                ? {
+                    ...gene,
+                    g_name: geneData.name,
+                    name: geneData.name,
+                    levels: geneData.levels,
+                    hierarchy_level: convertLevelsToHierarchy(geneData.levels),
+                    level_depth: geneData.levels.length,
+                    is_active: geneData.is_active,
+                    lastUpdated: new Date().toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    })
+                  }
+                : gene
+            ));
+            toast.success(`Gene "${geneData.name}" updated successfully!`, {
+              id: loadingToast,
+            });
+          } else {
+            const newGene = {
+              id: Date.now(),
+              g_id: Date.now(),
+              g_name: geneData.name,
+              name: geneData.name,
+              type: 'Gene',
+              totalMembers: 0,
+              hierarchyLevels: geneData.levels.length,
+              users: 0,
+              lastUpdated: new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              }),
+              completion: 100,
+              createdBy: 'Current User',
+              levels: geneData.levels,
+              createdAt: new Date().toISOString(),
+              hierarchy_level: convertLevelsToHierarchy(geneData.levels),
+              level_depth: geneData.levels.length,
+              organizations: [],
+              is_active: geneData.is_active
+            };
+            setGenes(prev => [...prev, newGene]);
+            toast.success(`Gene "${geneData.name}" created successfully with ${geneData.levels.length} levels!`, {
+              id: loadingToast,
+            });
+          }
+          closeModal();
+        }, 1000);
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      const hierarchy_level = convertLevelsToHierarchy(geneData.levels);
+     
+      if (editingGene) {
+        const payload = {
+          g_id: geneData.g_id,
+          g_name: geneData.name,
+          hierarchy_level: hierarchy_level,
+          is_active: geneData.is_active,
+          users: selectedUsers ? selectedUsers.map(user => user.id) : []
+        };
+
+        console.log('Update Gene Payload:', payload);
+
+        const response = await axios.put(
+          `${API_CONSTANTS.BASE_URL}/${API_CONSTANTS.geneUpdate}`,
+          payload,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+
+        if (response.data.success) {
+          toast.success(`Gene "${geneData.name}" updated successfully!`, {
+            id: loadingToast,
+          });
+          fetchGenes();
+          closeModal();
+        } else {
+          throw new Error(response.data.message || 'Failed to update gene');
+        }
+      } else {
+        const payload = {
+          g_name: geneData.name,
+          hierarchy_level: hierarchy_level,
+          is_active: geneData.is_active
+        };
+
+        console.log('Create Gene Payload:', payload);
+
+        const response = await axios.post(
+          `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneCreate}`,
+          payload,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+
+        if (response.data.success) {
+          toast.success(`Gene "${geneData.name}" created successfully with ${geneData.levels.length} levels!`, {
+            id: loadingToast,
+          });
+          fetchGenes();
+          closeModal();
+        } else {
+          throw new Error(response.data.message || 'Failed to create gene');
+        }
+      }
+    } catch (error) {
+      console.error('Error saving gene:', error);
+      toast.error(`Failed to ${editingGene ? 'update' : 'create'} gene: ${error.response?.data?.message || error.message}`, {
+        id: loadingToast,
+      });
+    }
+  };
 
   const openViewModal = (gene) => {
     setSelectedGene(gene);
@@ -535,7 +569,6 @@ export default function GeneDashboard() {
     const loadingToast = toast.loading('Deleting gene...');
    
     try {
-      // Use dummy data simulation if enabled
       if (useDummyData) {
         setTimeout(() => {
           setGenes(prev => prev.filter(gene => gene.id !== geneToDelete));
@@ -584,195 +617,169 @@ export default function GeneDashboard() {
     }
   };
 
-  const cancelDelete = () => {
-    setShowDeleteModal(false);
-    setGeneToDelete(null);
-  };
-
   const filteredGenes = genes.filter(gene => {
     const geneName = (gene.g_name || gene.name || '').toLowerCase();
     const createdBy = (gene.createdBy || '').toLowerCase();
     const search = searchTerm.toLowerCase().trim();
    
     const matchesSearch = !search || geneName.includes(search) || createdBy.includes(search);
-     return matchesSearch;
+    return matchesSearch;
   });
 
-  const getGridCols = () => {
-    if (view === 'cards') {
-      return 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
-    }
-    return 'grid-cols-1';
-  };
-
-   const handleShowCsvModal = () => {
-    setShowCsvModal(true);
-  };
-
-  const handleCloseCsvModal = () =>{
-    setShowCsvModal(false);
-  }
-
-  const handleShowUserGeneCsvModal = () => {
-    setShowCsvGeneUserModal(true);
-  };
-
-  const handleCloseUserGeneCsvModal = () =>{
-    setShowCsvGeneUserModal(false);
-  }
-
-  const handleCsvSubmit = async (formData) => {
-  try {
-    // Simulate CSV import for dummy data
-    if (useDummyData) {
-      setTimeout(() => {
-        toast.success('Genes imported successfully from CSV!');
-        setShowCsvModal(false);
-        fetchGenes();
-      }, 1500);
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    const baseUrl = API_CONSTANTS.BASE_URL;
-
-    const response = await axios.post(
-      `${baseUrl}/uploadCSV`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`
-        }
-      }
-    );
-
-    if (response.data.message) {
-      setShowCsvModal(false);
-      fetchGenes();
-    } else {
-      throw new Error(response.data.message || 'Failed to import genes');
-    }
-  } catch (err) {
-    console.error('CSV import error:', err);
-    toast.error('Failed to import genes from CSV');
-  }
-};
-
- const handleCsvUserGeneSubmit = async (formData) => {
-  try {
-    // Simulate CSV import for dummy data
-    if (useDummyData) {
-      setTimeout(() => {
-        toast.success('User mappings imported successfully from CSV!');
-        setShowCsvGeneUserModal(false);
-        fetchGenes();
-      }, 1500);
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    const baseUrl = API_CONSTANTS.BASE_URL;
-
-    const response = await axios.post(
-      `${baseUrl}/uploadCSV`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`
-        }
-      }
-    );
-
-    if (response.data.message) {
-      setShowCsvGeneUserModal(false);
-      fetchGenes();
-    } else {
-      throw new Error(response.data.message || 'Failed to import users mapping');
-    }
-  } catch (err) {
-    console.error('CSV import error:', err);
-    toast.error('Failed to import user mappings from CSV');
-   }
-};
-
-  // Toggle between dummy data and real API
   const toggleDataMode = () => {
     setUseDummyData(!useDummyData);
     toast.info(useDummyData ? 'Switching to real API data' : 'Using demo data');
   };
 
+  const handleShowCsvModal = () => {
+    setShowCsvModal(true);
+  };
+
+  const handleCloseCsvModal = () => {
+    setShowCsvModal(false);
+  };
+
+  const handleShowUserGeneCsvModal = () => {
+    setShowCsvGeneUserModal(true);
+  };
+
+  const handleCloseUserGeneCsvModal = () => {
+    setShowCsvGeneUserModal(false);
+  };
+
+  const handleCsvSubmit = async (formData) => {
+    try {
+      if (useDummyData) {
+        setTimeout(() => {
+          toast.success('Genes imported successfully from CSV!');
+          setShowCsvModal(false);
+          fetchGenes();
+        }, 1500);
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      const baseUrl = API_CONSTANTS.BASE_URL;
+
+      const response = await axios.post(
+        `${baseUrl}/uploadCSV`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.message) {
+        setShowCsvModal(false);
+        fetchGenes();
+      } else {
+        throw new Error(response.data.message || 'Failed to import genes');
+      }
+    } catch (err) {
+      console.error('CSV import error:', err);
+      toast.error('Failed to import genes from CSV');
+    }
+  };
+
+  const handleCsvUserGeneSubmit = async (formData) => {
+    try {
+      if (useDummyData) {
+        setTimeout(() => {
+          toast.success('User mappings imported successfully from CSV!');
+          setShowCsvGeneUserModal(false);
+          fetchGenes();
+        }, 1500);
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      const baseUrl = API_CONSTANTS.BASE_URL;
+
+      const response = await axios.post(
+        `${baseUrl}/uploadCSV`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.message) {
+        setShowCsvGeneUserModal(false);
+        fetchGenes();
+      } else {
+        throw new Error(response.data.message || 'Failed to import users mapping');
+      }
+    } catch (err) {
+      console.error('CSV import error:', err);
+      toast.error('Failed to import user mappings from CSV');
+    }
+  };
+
   // Render Cards View
   const renderCardsView = () => (
-    <div className={`grid ${getGridCols()} gap-4 md:gap-6`}>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
       {filteredGenes.map((gene) => {
         const geneName = gene.g_name || gene.name || 'Unnamed Gene';
         return (
-          <div key={gene.id} className="border border-gray-200 rounded-lg p-4 md:p-5 hover:shadow-lg transition-shadow bg-white">
-            <div className="flex items-center justify-between mb-3 md:mb-4">
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-gray-900 truncate">{geneName}</h4>
-                <p className="text-xs text-gray-500 truncate">{gene.type}</p>
+          <Card key={gene.id} className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-base truncate">{geneName}</CardTitle>
+                  <CardDescription className="text-xs truncate">{gene.type}</CardDescription>
+                </div>
+                {getStatusBadge(gene.is_active)}
               </div>
-              <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ml-2 ${getStatusColor(gene.is_active)}`}>
-                {getStatusText(gene.is_active)}
-              </span>
-            </div>
-           
-            <div className="space-y-2 md:space-y-3 mb-3 md:mb-4 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Organizations</span>
-                <span className="font-semibold text-gray-900">{gene.totalMembers}</span>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Organizations</span>
+                <span className="font-semibold">{gene.totalMembers}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Levels</span>
-                <span className="font-semibold text-gray-900">{gene.hierarchyLevels}</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Levels</span>
+                <span className="font-semibold">{gene.hierarchyLevels}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Users</span>
-                <span className="font-semibold text-gray-900">{gene.users}</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Users</span>
+                <span className="font-semibold">{gene.users}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Updated</span>
-                <span className="font-semibold text-gray-900 text-xs md:text-sm">{gene.lastUpdated}</span>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Updated</span>
+                <span className="font-semibold text-xs">{gene.lastUpdated}</span>
               </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-3 md:pt-4 border-t border-gray-200">
-              <button
-                onClick={() => openViewModal(gene)}
-                className="text-blue-600 text-sm font-medium hover:text-blue-700 flex items-center"
-              >
-                <span className="mr-1">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </span>
-              </button>
-              <button
-                onClick={() => openEditModal(gene)}
-                className="text-gray-600 text-sm font-medium hover:text-gray-700 flex items-center"
-              >
-                <span className="mr-1">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </span>
-              </button>
-              <button
-                onClick={() => handleDeleteGene(gene.g_id || gene.id)}
-                className="text-red-600 text-sm font-medium hover:text-red-700 flex items-center"
-              >
-                <span className="mr-1">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </span>
-              </button>
-            </div>
-          </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openViewModal(gene)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openEditModal(gene)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteGene(gene.g_id || gene.id)}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         );
       })}
     </div>
@@ -784,81 +791,73 @@ export default function GeneDashboard() {
       {filteredGenes.map((gene) => {
         const geneName = gene.g_name || gene.name || 'Unnamed Gene';
         return (
-          <div key={gene.id} className="border border-gray-200 rounded-lg p-3 md:p-4 hover:shadow-md transition-shadow bg-white">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3 md:space-x-4 flex-1 min-w-0">
-                <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <span className="text-blue-600 font-bold text-sm">G</span>
+          <Card key={gene.id} className="hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4 flex-1 min-w-0">
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <span className="text-primary font-bold text-sm">G</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base truncate">{geneName}</CardTitle>
+                    <CardDescription className="text-sm truncate">
+                      {gene.type} • {gene.hierarchyLevels} levels • Created by {gene.createdBy}
+                    </CardDescription>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-gray-900 truncate">{geneName}</h4>
-                  <p className="text-sm text-gray-500 truncate">
-                    {gene.type} • {gene.hierarchyLevels} levels • Created by {gene.createdBy}
-                  </p>
+               
+                <div className="flex items-center space-x-6 text-sm flex-1 justify-end min-w-0">
+                  <div className="text-center hidden sm:block">
+                    <div className="font-semibold">{gene.totalMembers}</div>
+                    <div className="text-muted-foreground text-xs">Organizations</div>
+                  </div>
+                  <div className="text-center hidden sm:block">
+                    <div className="font-semibold">{gene.users}</div>
+                    <div className="text-muted-foreground text-xs">Users</div>
+                  </div>
+                  <div className="hidden lg:block">
+                    {getStatusBadge(gene.is_active)}
+                  </div>
                 </div>
-              </div>
-             
-              <div className="flex items-center space-x-3 md:space-x-6 text-sm flex-1 justify-end min-w-0">
-                <div className="text-center hidden sm:block">
-                  <div className="font-semibold text-gray-900">{gene.totalMembers}</div>
-                  <div className="text-gray-500 text-xs">Organizations</div>
-                </div>
-                <div className="text-center hidden sm:block">
-                  <div className="font-semibold text-gray-900">{gene.users}</div>
-                  <div className="text-gray-500 text-xs">Users</div>
-                </div>
-             
-                <div className="hidden lg:block">
-                  <span className={`font-semibold text-gray-900 ${getStatusColor(gene.is_active)}`}>
-                    {getStatusText(gene.is_active)}
-                  </span>
-                  <div className="text-gray-500 text-xs">Status</div>
-                </div>
-              </div>
 
-              <div className="flex items-center space-x-1 md:space-x-2 ml-2 md:ml-6">
-                <button
-                  onClick={() => openViewModal(gene)}
-                  className="p-1 md:p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                  title="View"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => openEditModal(gene)}
-                  className="p-1 md:p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                  title="Edit"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => handleDeleteGene(gene.g_id || gene.id)}
-                  className="p-1 md:p-2 text-red-600 hover:bg-red-100 rounded-lg"
-                  title="Delete"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+                <div className="flex items-center space-x-2 ml-6">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openViewModal(gene)}
+                    title="View"
+                  >
+                    <Eye className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openEditModal(gene)}
+                    title="Edit"
+                  >
+                    <Edit className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteGene(gene.g_id || gene.id)}
+                    title="Delete"
+                  >
+                    <Trash2 className="h-5 w-5 text-destructive" />
+                  </Button>
+                </div>
               </div>
-            </div>
-           
-            {/* Mobile only stats */}
-            <div className="flex items-center justify-between mt-2 sm:hidden">
-              <div className="flex items-center space-x-4 text-sm">
-                <span className="text-gray-600">{gene.totalMembers} orgs</span>
-                <span className="text-gray-600">{gene.completion}% complete</span>
+             
+              {/* Mobile only stats */}
+              <div className="flex items-center justify-between mt-2 sm:hidden pt-2 border-t">
+                <div className="flex items-center space-x-4 text-sm">
+                  <span className="text-muted-foreground">{gene.totalMembers} orgs</span>
+                  <span className="text-muted-foreground">{gene.completion}% complete</span>
+                </div>
+                {getStatusBadge(gene.is_active)}
               </div>
-              <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(gene.is_active)}`}>
-                {getStatusText(gene.is_active)}
-              </span>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         );
       })}
     </div>
@@ -866,83 +865,99 @@ export default function GeneDashboard() {
 
   // Render Table View
   const renderTableView = () => (
-    <div className="overflow-x-auto">
-      <table className="w-full table-fixed border-collapse">
-        <thead>
-          <tr className="border-b border-gray-200">
-            <th className="text-left py-3 px-2 md:px-4 text-sm font-semibold text-gray-900">Gene Name</th>
-            <th className="text-left py-3 px-2 md:px-4 text-sm font-semibold text-gray-900 hidden lg:table-cell">Created By</th>
-            <th className="text-left py-3 px-2 md:px-4 text-sm font-semibold text-gray-900 hidden sm:table-cell">Status</th>
-            <th className="text-left py-3 px-2 md:px-4 text-sm font-semibold text-gray-900 hidden md:table-cell">Levels</th>
-            <th className="text-left py-3 px-2 md:px-4 text-sm font-semibold text-gray-900 hidden md:table-cell">Users</th>
-            <th className="text-left py-3 px-2 md:px-4 text-sm font-semibold text-gray-900">Organizations</th>
-            <th className="text-left py-3 px-2 md:px-4 text-sm font-semibold text-gray-900 hidden xl:table-cell whitespace-nowrap">Last Updated</th>
-            <th className="text-left py-3 px-2 md:px-4 text-sm font-semibold text-gray-900 w-[120px] whitespace-nowrap">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredGenes.map((gene) => {
-            const geneName = gene.g_name || gene.name || 'Unnamed Gene';
-            return (
-              <tr key={gene.id} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="py-3 px-2 md:px-4">
-                  <div className="flex items-center space-x-2 md:space-x-3">
-                    <div className="min-w-0 max-w-[180px] md:max-w-[240px]">
-                      <Link
+    <div className="rounded-md border overflow-hidden">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className="font-semibold text-foreground">Gene Name</TableHead>
+              <TableHead className="hidden lg:table-cell font-semibold text-foreground">Created By</TableHead>
+              <TableHead className="hidden sm:table-cell font-semibold text-foreground">Status</TableHead>
+              <TableHead className="hidden md:table-cell text-center font-semibold text-foreground">Levels</TableHead>
+              <TableHead className="hidden md:table-cell text-center font-semibold text-foreground">Users</TableHead>
+              <TableHead className="text-center font-semibold text-foreground">Organizations</TableHead>
+              <TableHead className="hidden xl:table-cell whitespace-nowrap font-semibold text-foreground">Last Updated</TableHead>
+              <TableHead className="w-[120px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredGenes.map((gene, index) => {
+              const geneName = gene.g_name || gene.name || 'Unnamed Gene';
+              return (
+                <TableRow 
+                  key={gene.id} 
+                  className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                >
+                  <TableCell className="py-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="min-w-0 max-w-[240px]">
+                        <Link
                           href={`/geneManagement/geanUser/${gene.id}`}
-                         className="font-medium text-blue-600 hover:text-blue-400 truncate text-sm md:text-base">{geneName}
-                       </Link>
-                      <div className="text-xs text-gray-500 truncate lg:hidden">By {gene.createdBy}</div>
+                          className="font-medium text-primary hover:underline truncate text-sm md:text-base transition-colors"
+                        >
+                          {geneName}
+                        </Link>
+                        <div className="text-xs text-muted-foreground truncate lg:hidden mt-0.5">
+                          By {gene.createdBy}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td className="py-3 px-2 md:px-4 text-sm text-center text-gray-900 hidden lg:table-cell max-w-[160px] truncate">{gene.createdBy}</td>
-                <td className="py-3 px-2 md:px-4 hidden sm:table-cell">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(gene.is_active)}`}>
-                    {getStatusText(gene.is_active)}
-                  </span>
-                </td>
-                <td className="py-3 px-2 md:px-4 text-sm text-gray-900 hidden md:table-cell">{gene.hierarchyLevels}</td>
-                <td className="py-3 px-2 md:px-4 text-sm text-gray-900 hidden md:table-cell">{gene.users}</td>
-                <td className="py-3 px-2 md:px-4 text-sm text-gray-900">{gene.totalMembers}</td>
-                <td className="py-3 px-2 md:px-4 text-sm text-gray-600 hidden xl:table-cell whitespace-nowrap">{gene.lastUpdated}</td>
-                <td className="py-3 px-2 md:px-4 w-[120px] whitespace-nowrap">
-                  <div className="flex items-center space-x-1 md:space-x-2">
-                    <button
-                      onClick={() => openViewModal(gene)}
-                      className="p-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                      title="View"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => openEditModal(gene)}
-                      className="p-1 text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                      title="Edit"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteGene(gene.g_id || gene.id)}
-                      className="p-1 text-red-600 hover:bg-red-100 rounded transition-colors"
-                      title="Delete"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell max-w-[160px] truncate py-4">
+                    <span className="text-sm text-foreground">{gene.createdBy}</span>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell py-4">
+                    {getStatusBadge(gene.is_active)}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-center py-4">
+                    <span className="font-medium text-foreground">{gene.hierarchyLevels}</span>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-center py-4">
+                    <span className="font-medium text-foreground">{gene.users}</span>
+                  </TableCell>
+                  <TableCell className="text-center py-4">
+                    <span className="font-medium text-foreground">{gene.totalMembers}</span>
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell whitespace-nowrap py-4">
+                    <span className="text-sm text-muted-foreground">{gene.lastUpdated}</span>
+                  </TableCell>
+                  <TableCell className="w-[120px] whitespace-nowrap text-right py-4">
+                    <div className="flex items-center justify-end space-x-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openViewModal(gene)}
+                        title="View"
+                        className="h-8 w-8"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditModal(gene)}
+                        title="Edit"
+                        className="h-8 w-8"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteGene(gene.g_id || gene.id)}
+                        title="Delete"
+                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 
@@ -950,7 +965,7 @@ export default function GeneDashboard() {
     if (loading) {
       return (
         <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
       );
     }
@@ -959,21 +974,19 @@ export default function GeneDashboard() {
       return (
         <div className="flex justify-center items-center py-12">
           <div className="text-center">
-            <div className="text-red-600 text-lg mb-2">Error Loading Genes</div>
-            <div className="text-gray-600 mb-4">{error}</div>
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error Loading Genes</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
             <div className="flex gap-2 justify-center">
-              <button
-                onClick={fetchGenes}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
+              <Button onClick={fetchGenes}>
+                <RefreshCw className="mr-2 h-4 w-4" />
                 Retry
-              </button>
-              <button
-                onClick={toggleDataMode}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-              >
+              </Button>
+              <Button variant="outline" onClick={toggleDataMode}>
                 Use Demo Data
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -984,16 +997,14 @@ export default function GeneDashboard() {
       return (
         <div className="flex justify-center items-center py-12">
           <div className="text-center">
-            <div className="text-gray-600 text-lg mb-2">No genes found</div>
-            <div className="text-gray-500 mb-4">
+            <p className="text-lg font-medium mb-2">No genes found</p>
+            <p className="text-muted-foreground mb-4">
               {searchTerm ? 'Try adjusting your search terms' : 'Create your first gene to get started'}
-            </div>
-            <button
-              onClick={openCreateModal}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
+            </p>
+            <Button onClick={openCreateModal}>
+              <Plus className="mr-2 h-4 w-4" />
               Create Gene
-            </button>
+            </Button>
           </div>
         </div>
       );
@@ -1011,60 +1022,38 @@ export default function GeneDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">      
+    <div className="min-h-screen bg-background">      
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-card border-b">
         <div className="px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center justify-between sm:justify-start">
-              <h1 className="text-xl font-bold text-gray-900">Genes Dashboard</h1>
-              <button className="sm:hidden p-2 hover:bg-gray-100 rounded-lg">
-                ☰
-              </button>
+              <div className="flex items-center gap-2">
+                <Layers className="h-5 w-5 text-primary" />
+                <h1 className="text-xl font-bold">Genes Dashboard</h1>
+              </div>
             </div>
            
-            <div className="flex items-center justify-between sm:justify-end gap-4">
-              <div className="relative flex-1 sm:flex-none">
-                <input
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1 sm:flex-none sm:w-64">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
                   type="text"
                   placeholder="Search genes..."
+                  value={searches || ''}
                   onChange={handleSearchChange}
-                  className="w-full sm:w-64 px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="pl-10"
                 />
-                <span className="absolute left-3 top-2.5 text-gray-400">🔍</span>
               </div>
-              <button
+              <Button
+                variant={useDummyData ? "secondary" : "default"}
                 onClick={toggleDataMode}
-                className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                  useDummyData
-                    ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                    : 'bg-green-500 text-white hover:bg-green-600'
-                }`}
+                size="sm"
               >
                 {useDummyData ? 'Demo Mode' : 'Live Mode'}
-              </button>
+              </Button>
             </div>
           </div>
-
-          {/* Mobile Navigation */}
-          <nav className="flex items-center gap-4 mt-4 sm:hidden overflow-x-auto pb-2">
-            <a href="#" className="flex items-center text-blue-600 font-medium whitespace-nowrap">
-              <span className="mr-2">📊</span>
-              Genes
-            </a>
-            <a href="#" className="text-gray-600 hover:text-gray-900 whitespace-nowrap">
-              <span className="mr-2">👥</span>
-              Teams
-            </a>
-            <a href="#" className="text-gray-600 hover:text-gray-900 whitespace-nowrap">
-              <span className="mr-2">📈</span>
-              Analytics
-            </a>
-            <a href="#" className="text-gray-600 hover:text-gray-900 whitespace-nowrap">
-              <span className="mr-2">⚙️</span>
-              Settings
-            </a>
-          </nav>
         </div>
       </header>
 
@@ -1072,53 +1061,43 @@ export default function GeneDashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 md:py-8">
         {/* Demo Data Notice */}
         {useDummyData && (
-          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center">
-              <span className="text-yellow-600 mr-2">⚠️</span>
-              <span className="text-yellow-800 text-sm">
-                <strong>Demo Mode:</strong> Using sample data. Switch to Live Mode for real API data.
-              </span>
-            </div>
-          </div>
+          <Alert className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Demo Mode</AlertTitle>
+            <AlertDescription>
+              Using sample data. Switch to Live Mode for real API data.
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Dashboard Header */}
         <div className="mb-6 md:mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
             <div className="flex-1 min-w-0">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Gene Management</h2>
-              <p className="text-gray-600 text-sm md:text-base">Create, manage, and organize your gene structures with precision</p>
+              <div className="flex items-center gap-3 mb-2">
+                <Network className="h-6 w-6 text-primary" />
+                <h2 className="text-2xl font-bold">Gene Management</h2>
+              </div>
+              <p className="text-muted-foreground">Create, manage, and organize your gene structures with precision</p>
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <button
-                onClick={openCreateModal}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-              >
+              <Button onClick={openCreateModal}>
+                <Plus className="mr-2 h-4 w-4" />
                 Create New Gene
-              </button>
-              <button
-                onClick={handleShowCsvModal}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center justify-center gap-1.5"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/>
-                </svg>
-                <span>Import</span>
-              </button>
-               <button
-                onClick={handleShowUserGeneCsvModal}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center justify-center gap-1.5"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/>
-                </svg>
-                <span>usersMapping</span>
-              </button>
+              </Button>
+              <Button variant="secondary" onClick={handleShowCsvModal}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import
+              </Button>
+              <Button variant="secondary" onClick={handleShowUserGeneCsvModal}>
+                <Upload className="mr-2 h-4 w-4" />
+                Users Mapping
+              </Button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center">
-              <span className="w-2 h-2 bg-blue-600 rounded-full mr-2"></span>
+              <span className="w-2 h-2 bg-primary rounded-full mr-2"></span>
               {filteredGenes.length} Active Genes
             </span>
             <span className="flex items-center">
@@ -1126,178 +1105,360 @@ export default function GeneDashboard() {
               {filteredGenes.reduce((sum, h) => sum + h.level_depth, 0)} Total Levels
             </span>
             <span className="flex items-center">
-              <span className="w-2 h-2 bg-gray-400 rounded-full mr-2"></span>
+              <span className="w-2 h-2 bg-muted-foreground rounded-full mr-2"></span>
               Last updated {genes.length > 0 ? genes[0].lastUpdated : 'Never'}
             </span>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-            <h3 className="font-semibold text-gray-900">Filter & Search</h3>
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setShowArchived(false);
-                setShowEmpty(false);
-                setMyHierarchiesOnly(false);
-              }}
-              className="text-blue-600 text-sm flex items-center self-start"
-            >
-              🔄 Reset All Filters
-            </button>
-          </div>
-         
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-4">
-            <input
-              type="text"
-              placeholder="Search genes..."
-              onChange={handleSearchChange}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-            <select className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-              <option>All Types</option>
-              <option>Gene</option>
-              <option>Department</option>
-            </select>
-            <select className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-              <option>All Status</option>
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
-         
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showArchived}
-                  onChange={(e) => setShowArchived(e.target.checked)}
-                  className="mr-2"
-                />
-                Show Archived
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showEmpty}
-                  onChange={(e) => setShowEmpty(e.target.checked)}
-                  className="mr-2"
-                />
-                Show Empty
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={myHierarchiesOnly}
-                  onChange={(e) => setMyHierarchiesOnly(e.target.checked)}
-                  className="mr-2"
-                />
-                My Genes Only
-              </label>
+        <Card className="mb-6">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <CardTitle>Filter & Search</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm('');
+                  setShowArchived(false);
+                  setShowEmpty(false);
+                  setMyHierarchiesOnly(false);
+                }}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Reset All Filters
+              </Button>
             </div>
-          </div>
-        </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-4">
+              <Input
+                type="text"
+                placeholder="Search genes..."
+                value={searches || ''}
+                onChange={handleSearchChange}
+              />
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="gene">Gene</SelectItem>
+                  <SelectItem value="department">Department</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+           
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="showArchived"
+                  checked={showArchived}
+                  onCheckedChange={(checked) => setShowArchived(checked)}
+                />
+                <Label htmlFor="showArchived" className="cursor-pointer">Show Archived</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="showEmpty"
+                  checked={showEmpty}
+                  onCheckedChange={(checked) => setShowEmpty(checked)}
+                />
+                <Label htmlFor="showEmpty" className="cursor-pointer">Show Empty</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="myHierarchiesOnly"
+                  checked={myHierarchiesOnly}
+                  onCheckedChange={(checked) => setMyHierarchiesOnly(checked)}
+                />
+                <Label htmlFor="myHierarchiesOnly" className="cursor-pointer">My Genes Only</Label>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Total Genes</span>
-              <span className="text-blue-600">📊</span>
-            </div>
-            <div className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">{genes.length}</div>
-            <div className="text-xs text-gray-600">All genes</div>
-          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Genes</CardTitle>
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{genes.length}</div>
+              <p className="text-xs text-muted-foreground">All genes</p>
+            </CardContent>
+          </Card>
          
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Total Levels</span>
-              <span className="text-green-600">🏢</span>
-            </div>
-            <div className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
-              {genes.reduce((sum, h) => sum + h.level_depth, 0)}
-            </div>
-            <div className="text-xs text-gray-600">Across all genes</div>
-          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Levels</CardTitle>
+              <Layers className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {genes.reduce((sum, h) => sum + h.level_depth, 0)}
+              </div>
+              <p className="text-xs text-muted-foreground">Across all genes</p>
+            </CardContent>
+          </Card>
          
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Avg. Depth</span>
-              <span className="text-blue-600">📏</span>
-            </div>
-            <div className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
-              {genes.length > 0 ? (genes.reduce((sum, h) => sum + h.level_depth, 0) / genes.length).toFixed(1) : 0}
-            </div>
-            <div className="text-xs text-gray-600">Average levels</div>
-          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Avg. Depth</CardTitle>
+              <Building className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {genes.length > 0 ? (genes.reduce((sum, h) => sum + h.level_depth, 0) / genes.length).toFixed(1) : 0}
+              </div>
+              <p className="text-xs text-muted-foreground">Average levels</p>
+            </CardContent>
+          </Card>
          
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Active Genes</span>
-              <span className="text-green-600">✅</span>
-            </div>
-            <div className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
-              {genes.filter(g => g.is_active).length}
-            </div>
-            <div className="text-xs text-gray-600">Currently active</div>
-          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Genes</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {genes.filter(g => g.is_active).length}
+              </div>
+              <p className="text-xs text-muted-foreground">Currently active</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Genes View */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">
-                {view === 'cards' && 'Genes Cards'}
-                {view === 'list' && 'Genes List'}
-                {view === 'table' && 'Genes Table'}
-              </h3>
-              <p className="text-sm text-gray-600">
-                {view === 'cards' && 'Visual representation of your gene structures'}
-                {view === 'list' && 'Compact list view of all genes'}
-                {view === 'table' && 'Detailed table view with all gene information'}
-              </p>
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle>
+                  {view === 'cards' && 'Genes Cards'}
+                  {view === 'list' && 'Genes List'}
+                  {view === 'table' && 'Genes Table'}
+                </CardTitle>
+                <CardDescription>
+                  {view === 'cards' && 'Visual representation of your gene structures'}
+                  {view === 'list' && 'Compact list view of all genes'}
+                  {view === 'table' && 'Detailed table view with all gene information'}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground mr-2 hidden sm:inline">View:</span>
+                <Button
+                  variant={view === 'table' ? 'default' : 'outline'}
+                  size="icon"
+                  onClick={() => setView('table')}
+                  title="Table View"
+                >
+                  <Table2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={view === 'list' ? 'default' : 'outline'}
+                  size="icon"
+                  onClick={() => setView('list')}
+                  title="List View"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={view === 'cards' ? 'default' : 'outline'}
+                  size="icon"
+                  onClick={() => setView('cards')}
+                  title="Cards View"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Select defaultValue="12">
+                  <SelectTrigger className="w-[130px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12">12 per page</SelectItem>
+                    <SelectItem value="24">24 per page</SelectItem>
+                    <SelectItem value="48">48 per page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600 mr-2 hidden sm:inline">View:</span>
-              <button
-                onClick={() => setView('table')}
-                className={`p-2 rounded ${view === 'table' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
-                title="Table View"
-              >
-                ⊞
-              </button>
-              <button
-                onClick={() => setView('list')}
-                className={`p-2 rounded ${view === 'list' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
-                title="List View"
-              >
-                ☰
-              </button>
-              <button
-                onClick={() => setView('cards')}
-                className={`p-2 rounded ${view === 'cards' ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100'}`}
-                title="Cards View"
-              >
-                ⊡
-              </button>
-            </div>
-            <select className="px-4 py-2 border border-gray-300 rounded-lg text-sm self-start sm:self-auto">
-              <option>12 per page</option>
-              <option>24 per page</option>
-              <option>48 per page</option>
-            </select>
-          </div>
-
-          {renderGeneView()}
-        </div>
+          </CardHeader>
+          <CardContent>
+            {renderGeneView()}
+          </CardContent>
+        </Card>
       </div>
 
+      {/* View Gene Modal */}
+      <Dialog open={showViewModal} onOpenChange={setShowViewModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh]">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="truncate">
+                  {selectedGene?.g_name || selectedGene?.name}
+                </DialogTitle>
+                <DialogDescription className="flex items-center space-x-2 mt-2">
+                  {getStatusBadge(selectedGene?.is_active || false)}
+                  <span>•</span>
+                  <span>{selectedGene?.hierarchyLevels} Levels</span>
+                  <span>•</span>
+                  <span>Users: {selectedGene?.users}</span>
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center space-x-2">
+                      <Layers className="h-5 w-5 text-primary" />
+                      <div>
+                        <div className="text-xs text-muted-foreground font-medium">Total Levels</div>
+                        <div className="text-lg font-bold">{selectedGene?.hierarchyLevels}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+               
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center space-x-2">
+                      <UsersIcon className="h-5 w-5 text-primary" />
+                      <div>
+                        <div className="text-xs text-muted-foreground font-medium">Users</div>
+                        <div className="text-lg font-bold">{selectedGene?.users}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle2 className={`h-5 w-5 ${selectedGene?.is_active ? 'text-green-600' : 'text-gray-400'}`} />
+                      <div>
+                        <div className="text-xs text-muted-foreground font-medium">Status</div>
+                        <div className="text-lg font-bold">
+                          {selectedGene?.is_active ? 'Active' : 'Inactive'}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Gene Structure */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Gene Structure</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {selectedGene?.levels && selectedGene.levels.length > 0 ? (
+                    <div className="space-y-4">
+                      {selectedGene.levels.map((level, index) => (
+                        <div key={level.id || index} className="relative">
+                          {index > 0 && (
+                            <div className="flex justify-center mb-3">
+                              <div className="w-0.5 h-6 bg-primary/20 rounded-full"></div>
+                            </div>
+                          )}
+                         
+                          <Card>
+                            <CardContent className="pt-4">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                                  {index + 1}
+                                </div>
+                                <div className="flex-1">
+                                  <h4 className="font-bold">{level.title}</h4>
+                                  <p className="text-xs text-muted-foreground">Level {index + 1}</p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Layers className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm font-medium">No gene structure available</p>
+                      <p className="text-xs mt-1">The gene structure hasn't been configured yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeViewModal}>
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                closeViewModal();
+                openEditModal(selectedGene);
+              }}
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Edit Gene
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+     
+      {/* Delete Confirmation Modal */}
+      <AlertDialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Gene</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the gene and remove all associated data including:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Gene structure and hierarchy</li>
+                <li>All associated levels</li>
+                <li>Organization mappings</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowDeleteModal(false);
+              setGeneToDelete(null);
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Gene
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Gene Modal */}
-      {/* <GeneModal
+      <GeneModal
         showModal={showModal}
         onClose={closeModal}
         onSubmit={handleSubmit}
@@ -1307,218 +1468,21 @@ export default function GeneDashboard() {
         addLevel={addLevel}
         removeLevel={removeLevel}
         updateLevel={updateLevel}
-      /> */}
+      />
 
-        {/* <GeneCsvModal
+      {/* Gene CSV Import Modal */}
+      <GeneCsvModal
         isOpen={showCsvModal}
         onClose={handleCloseCsvModal}
         onSubmit={handleCsvSubmit}
       />
 
-       <UserGeneModal
+      {/* User Gene Mapping Modal */}
+      <UserGeneMappingModal
         isOpen={showCsvGeneUserModal}
         onClose={handleCloseUserGeneCsvModal}
         onSubmit={handleCsvUserGeneSubmit}
-       /> */}
-      {/* View Gene Modal */}
-      {showViewModal && selectedGene && (
-        <div className="fixed inset-0 backdrop-blur-lg bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 scale-100">
-            {/* Header */}
-            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 relative overflow-hidden">
-              <div className="flex-1 min-w-0 relative z-10">
-                <h2 className="text-xl font-bold text-white truncate mb-1">{selectedGene.g_name || selectedGene.name}</h2>
-                <div className="flex items-center space-x-3 text-purple-100 text-sm flex-wrap">
-                  <span className={`px-2 py-1 rounded-full font-medium text-xs ${getStatusColor(selectedGene.is_active)} bg-white/90`}>
-                    {getStatusText(selectedGene.is_active)}
-                  </span>
-                  <span>•</span>
-                  <span>{selectedGene.hierarchyLevels} Levels</span>
-                  <span>•</span>
-                 <span>Users: {selectedGene.users}</span>
-                </div>
-              </div>
-              <button
-                onClick={closeViewModal}
-                className="text-white hover:bg-white/20 rounded-xl p-2 transition-all duration-200 text-xl leading-none flex-shrink-0 ml-3 backdrop-blur-sm hover:scale-110"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
-              {/* Stats Cards */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-lg border border-gray-200/50">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                      <span className="text-white text-sm">📊</span>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-600 font-medium">Total Levels</div>
-                      <div className="text-lg font-bold text-gray-900">{selectedGene.hierarchyLevels}</div>
-                    </div>
-                  </div>
-                </div>
-               
-                <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-lg border border-gray-200/50">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                      <span className="text-white text-sm">📏</span>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-600 font-medium">Users</div>
-                      <div className="text-lg font-bold text-gray-900">{selectedGene.users}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 shadow-lg border border-gray-200/50">
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${selectedGene.is_active ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gradient-to-br from-gray-400 to-gray-500'}`}>
-                      <span className="text-white text-sm">{selectedGene.is_active ? '✅' : '❌'}</span>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-600 font-medium">Status</div>
-                      <div className="text-lg font-bold text-gray-900">{getStatusText(selectedGene.is_active)}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Gene Structure */}
-              <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-6 border border-gray-200/60">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                  <span className="mr-3 text-xl">🧬</span>
-                  Gene Structure
-                </h3>
-
-                {selectedGene.levels && selectedGene.levels.length > 0 ? (
-                  <div className="space-y-4">
-                    {selectedGene.levels.map((level, index) => (
-                      <div key={level.id || index} className="relative">
-                        {index > 0 && (
-                          <div className="flex justify-center mb-3">
-                            <div className="w-0.5 h-6 bg-gradient-to-b from-blue-400/80 to-purple-500/80 rounded-full"></div>
-                          </div>
-                        )}
-                       
-                        <div className="flex justify-center">
-                          <div className="bg-gradient-to-br from-white to-blue-50/50 border border-blue-200/60 rounded-xl p-4 w-full shadow-sm">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-3 mb-2">
-                                  <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-md">
-                                    {index + 1}
-                                  </div>
-                                  <h4 className="text-base font-bold text-gray-900">
-                                    {level.title}
-                                  </h4>
-                                </div>
-                               
-                                <div className="flex items-center space-x-3 text-xs">
-                                  <div className="flex items-center space-x-1 bg-white/80 px-2 py-1 rounded-lg">
-                                    <span className="text-gray-600">Level:</span>
-                                    <span className="font-bold text-gray-900 bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full">
-                                      {index + 1}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500 bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-lg border-2 border-dashed border-gray-300/80">
-                    <div className="text-4xl mb-3">🧬</div>
-                    <p className="text-sm font-medium text-gray-600">No gene structure available</p>
-                    <p className="text-xs text-gray-500 mt-1">The gene structure hasn't been configured yet</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 bg-gradient-to-r from-gray-50/80 to-gray-100/80 backdrop-blur-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="text-xs text-gray-600 font-medium flex items-center space-x-1">
-                <span>📅</span>
-                <span>Last updated: {selectedGene.lastUpdated}</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={closeViewModal}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-white hover:shadow-sm transition-all duration-200 font-medium text-gray-700 text-sm"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => {
-                    closeViewModal();
-                    openEditModal(selectedGene);
-                  }}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-medium text-sm shadow-md hover:shadow-lg"
-                >
-                  Edit Gene
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-     
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100">
-            {/* Header */}
-            <div className="px-6 py-5 border-b border-gray-200">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Delete Gene</h3>
-                  <p className="text-sm text-gray-600">This action cannot be undone</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="px-6 py-5">
-              <p className="text-gray-700 mb-2">
-                Are you sure you want to delete this gene? This will permanently remove:
-              </p>
-              <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 ml-2">
-                <li>Gene structure and hierarchy</li>
-                <li>All associated levels</li>
-                <li>Organization mappings</li>
-              </ul>
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-4 bg-gray-50 rounded-b-2xl flex items-center justify-end space-x-3">
-              <button
-                onClick={cancelDelete}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-white transition-colors font-medium text-gray-700 text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm shadow-md hover:shadow-lg"
-              >
-                Delete Gene
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      />
     </div>
   );
 }
