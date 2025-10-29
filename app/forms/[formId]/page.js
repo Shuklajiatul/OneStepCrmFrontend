@@ -175,6 +175,13 @@ const processFieldOptions = (field) => {
   return []
 }
 
+// Helper function to validate if a string is a valid UUID
+const isValidUUID = (str) => {
+  if (!str || typeof str !== 'string') return false
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str)
+}
+
 // Transform form values for API submission - FIXED VERSION
 const transformFormValues = (formValues, fields, phoneCountries = []) => {
   const transformedValues = {}
@@ -517,11 +524,37 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
       }
     }
 
-    // Use the ORIGINAL field ID from the form data, not the parsed one
+    // Use the ORIGINAL field ID from the form data, but ensure it's a valid UUID
+    // If originalId is not a valid UUID (old format), use the parsed field.id instead
+    let finalFieldKey = fieldId
+    
+    // Priority: originalId (if valid UUID) > field.id (if valid UUID) > fieldId (if valid UUID) > generate new UUID
+    if (field.originalId && isValidUUID(field.originalId)) {
+      finalFieldKey = field.originalId
+    } else if (field.id && isValidUUID(field.id)) {
+      finalFieldKey = field.id
+    } else if (isValidUUID(fieldId)) {
+      finalFieldKey = fieldId
+    } else {
+      // If nothing is valid, generate a new UUID (shouldn't happen but safe fallback)
+      console.warn(`Invalid field ID format for field ${field.name || field.label}, generating new UUID`)
+      finalFieldKey = uuidv4()
+    }
+    
     // If field ID has "field-" prefix, strip it to get just the UUID
-    let finalFieldKey = field.originalId || fieldId
     if (typeof finalFieldKey === 'string' && finalFieldKey.startsWith('field-')) {
       finalFieldKey = finalFieldKey.replace('field-', '')
+    }
+    
+    // Final validation: ensure we have a valid UUID
+    if (!isValidUUID(finalFieldKey)) {
+      // Last resort: use field.id if it's valid, otherwise generate new UUID
+      if (field.id && isValidUUID(field.id)) {
+        finalFieldKey = field.id
+      } else {
+        console.warn(`Failed to get valid UUID for field ${field.name || field.label}, generating new UUID`)
+        finalFieldKey = uuidv4()
+      }
     }
 
     // Handle different field types
@@ -2351,9 +2384,6 @@ export default function PublicFormPage() {
   const form = useForm({
     defaultValues: getDefaultValues(),
     onSubmit: async ({ value }) => {
-      // Debug the current form state before submission
-      debugFormState(value, formData?.fields || [])
-
       console.log('Form values:', value)
 
       setSubmitting(true)
