@@ -191,8 +191,14 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
   }
 
   // Helper function to recursively transform nested values using field IDs
-  const transformNestedValues = (nestedFields, parentValue, fieldDefinition) => {
+  const transformNestedValues = (nestedFields, parentValue, fieldDefinition, depth = 0) => {
     const result = {}
+    
+    // Prevent infinite recursion
+    if (depth > 10) {
+      console.warn('Maximum nested field depth exceeded')
+      return result
+    }
 
     if (!nestedFields || typeof nestedFields !== 'object') return result
 
@@ -207,8 +213,8 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
       if (!isNaN(key) && key !== 'value') {
         // This is a numeric key, process its contents directly
         if (typeof value === 'object' && value !== null) {
-          // Recursively process the content of numeric keys
-          const nestedResult = transformNestedValues(value, parentValue, fieldDefinition)
+          // Recursively process the content of numeric keys with increased depth
+          const nestedResult = transformNestedValues(value, parentValue, fieldDefinition, depth + 1)
           // Merge the nested result into fieldValues
           Object.assign(fieldValues, nestedResult)
         }
@@ -263,6 +269,20 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
           return
         }
         
+        // Check if this is a phone field (has countryCode and number properties)
+        if (value.countryCode !== undefined && value.number !== undefined) {
+          // This is a phone field - send the phone object directly without wrapping
+          fieldValues[fieldId] = value
+          return
+        }
+
+        // Check if this is a location field (has country, state, city properties)
+        if (value.country !== undefined || value.state !== undefined || value.city !== undefined) {
+          // This is a location field - send the location object directly without wrapping
+          fieldValues[fieldId] = value
+          return
+        }
+        
         // Handle nested object structure
         if (value.value !== undefined) {
           // Handle checkbox fields with multiple selections
@@ -279,7 +299,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                   value.nestedFields[processedValueValue.indexOf(optionValue)]
 
                 if (optionNestedFields) {
-                  const processedNested = transformNestedValues(optionNestedFields, optionValue, fieldDefinition)
+                  const processedNested = transformNestedValues(optionNestedFields, optionValue, fieldDefinition, depth + 1)
                   if (Object.keys(processedNested).length > 0) {
                     // Filter out empty nested values
                     const filteredNested = Object.fromEntries(
@@ -310,11 +330,27 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
 
             // Add nested values if they exist
             if (value.nestedFields && Object.keys(value.nestedFields).length > 0) {
-              const processedNested = transformNestedValues(value.nestedFields, processedValueValue, fieldDefinition)
+              const processedNested = transformNestedValues(value.nestedFields, processedValueValue, fieldDefinition, depth + 1)
               if (Object.keys(processedNested).length > 0) {
                 // Filter out empty nested values
                 const filteredNested = Object.fromEntries(
-                  Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
+                  Object.entries(processedNested).filter(([key, nestedValue]) => {
+                    // Check for various types of values that should be considered non-empty
+                    if (nestedValue === null || nestedValue === undefined) return false
+                    if (typeof nestedValue === 'object') {
+                      // For phone fields
+                      if (nestedValue.countryCode && nestedValue.number) return true
+                      // For location fields
+                      if (nestedValue.country || nestedValue.state || nestedValue.city) return true
+                      // For regular fields with value property
+                      if (nestedValue.value !== undefined && nestedValue.value !== null && nestedValue.value !== '') return true
+                      // For nested object structures
+                      if (Object.keys(nestedValue).length > 0) return true
+                    }
+                    if (typeof nestedValue === 'string' && nestedValue.trim() !== '') return true
+                    if (Array.isArray(nestedValue) && nestedValue.length > 0) return true
+                    return false
+                  })
                 )
                 if (Object.keys(filteredNested).length > 0) {
                   processedValue.nestedValues = filteredNested
@@ -325,14 +361,28 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
             fieldValues[fieldId] = processedValue
           }
         } else {
-          // Check if this is a location field (has country, state, city properties)
-          if (value.country !== undefined || value.state !== undefined || value.city !== undefined) {
-            // This is a location field - send the location object directly without wrapping
-            fieldValues[fieldId] = value
-          } else {
-            // Direct nested object - process recursively
-            const processedNested = transformNestedValues(value, parentValue, fieldDefinition)
-            if (Object.keys(processedNested).length > 0) {
+          // Direct nested object - process recursively with increased depth
+          const processedNested = transformNestedValues(value, parentValue, fieldDefinition, depth + 1)
+          if (Object.keys(processedNested).length > 0) {
+            // Check if the processed nested result has meaningful content
+            const hasContent = Object.values(processedNested).some(val => {
+              if (val === null || val === undefined) return false
+              if (typeof val === 'object') {
+                // For phone fields
+                if (val.countryCode && val.number) return true
+                // For location fields
+                if (val.country || val.state || val.city) return true
+                // For regular fields with value property
+                if (val.value !== undefined && val.value !== null && val.value !== '') return true
+                // For nested structures
+                if (Object.keys(val).length > 0) return true
+              }
+              if (typeof val === 'string' && val.trim() !== '') return true
+              if (Array.isArray(val) && val.length > 0) return true
+              return false
+            })
+            
+            if (hasContent) {
               fieldValues[fieldId] = processedNested
             }
           }
@@ -362,7 +412,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
             const processedItem = {
               value: processedValue,
               ...(item.nestedFields && Object.keys(item.nestedFields).length > 0 && {
-                nestedValues: transformNestedValues(item.nestedFields, processedValue, fieldDefinition)
+                nestedValues: transformNestedValues(item.nestedFields, processedValue, fieldDefinition, depth + 1)
               })
             }
             // Remove empty nestedValues
@@ -495,7 +545,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                 if (nested && Object.keys(nested).length > 0) {
                   const optionNested = nested[primitiveValue] ?? nested[idx]
                   if (optionNested) {
-                    const processed = transformNestedValues(optionNested, primitiveValue, field)
+                    const processed = transformNestedValues(optionNested, primitiveValue, field, 0)
                     if (processed && Object.keys(processed).length > 0) {
                       // Filter out empty nested values
                       const filteredNested = Object.fromEntries(
@@ -549,7 +599,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
 
               // Only include nested fields if they exist and are relevant to the selected option
               if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
-                const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field)
+                const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field, 0)
                 if (Object.keys(processedNested).length > 0) {
                   // Filter out empty nested values
                   const filteredNested = Object.fromEntries(
@@ -600,7 +650,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                     fieldValue.nestedFields[processedValue.indexOf(optionValue)]
 
                   if (optionNestedFields) {
-                    const processedNested = transformNestedValues(optionNestedFields, optionValue, field)
+                    const processedNested = transformNestedValues(optionNestedFields, optionValue, field, 0)
                     if (Object.keys(processedNested).length > 0) {
                       // Filter out empty nested values
                       const filteredNested = Object.fromEntries(
@@ -623,7 +673,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
               const fieldData = { value: processedValue }
 
               if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
-                const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field)
+                const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field, 0)
                 if (Object.keys(processedNested).length > 0) {
                   // Filter out empty nested values
                   const filteredNested = Object.fromEntries(
@@ -818,7 +868,13 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
   }
 
   // Helper function to recursively transform API nestedValues to nestedFields structure
-  const transformApiNestedValuesToNestedFields = (nestedValues) => {
+  const transformApiNestedValuesToNestedFields = (nestedValues, depth = 0) => {
+    // Prevent infinite recursion
+    if (depth > 10) {
+      console.warn('Maximum nested field depth exceeded in API transformation')
+      return {}
+    }
+    
     if (!nestedValues || typeof nestedValues !== 'object') return {}
 
     const result = {}
@@ -860,7 +916,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
 
             // Convert nestedValues to nestedFields for this option
             if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
-              checkboxNestedFields[index] = transformApiNestedValuesToNestedFields(item.nestedValues)
+              checkboxNestedFields[index] = transformApiNestedValuesToNestedFields(item.nestedValues, depth + 1)
             }
           }
         })
@@ -902,20 +958,23 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
 
             // If there are nested values, process them recursively
             if (value.nestedValues && Object.keys(value.nestedValues).length > 0) {
-              const nestedResult = transformApiNestedValuesToNestedFields(value.nestedValues)
+              const nestedResult = transformApiNestedValuesToNestedFields(value.nestedValues, depth + 1)
               fieldValue.nestedFields = nestedResult
             }
 
             result[key] = fieldValue
           }
         } else {
-          // Check if this is a location field (has country, state, city properties)
-          if (value.country !== undefined || value.state !== undefined || value.city !== undefined) {
+          // Check if this is a phone field (has countryCode and number properties)
+          if (value.countryCode !== undefined && value.number !== undefined) {
+            // This is a phone field - store it directly without recursive processing
+            result[key] = value
+          } else if (value.country !== undefined || value.state !== undefined || value.city !== undefined) {
             // This is a location field - store it directly without recursive processing
             result[key] = value
           } else {
             // Direct nested object - process recursively
-            const nestedResult = transformApiNestedValuesToNestedFields(value)
+            const nestedResult = transformApiNestedValuesToNestedFields(value, depth + 1)
             Object.assign(result, nestedResult)
           }
         }
@@ -1005,7 +1064,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
               })
               
               if (optionIndex !== -1) {
-                checkboxNestedFields[optionIndex] = transformApiNestedValuesToNestedFields(item.nestedValues)
+                checkboxNestedFields[optionIndex] = transformApiNestedValuesToNestedFields(item.nestedValues, 0)
               }
             }
           }
@@ -1040,7 +1099,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
               })
               
               if (optionIndex !== -1) {
-                selectNestedFields[optionIndex] = transformApiNestedValuesToNestedFields(item.nestedValues)
+                selectNestedFields[optionIndex] = transformApiNestedValuesToNestedFields(item.nestedValues, 0)
               }
             }
           }
@@ -1144,11 +1203,11 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
           if (optionIndex !== -1) {
             // Create the nested fields structure organized by option index
             processedValue.nestedFields = {
-              [optionIndex]: transformApiNestedValuesToNestedFields(parsedValue.nestedValues)
+              [optionIndex]: transformApiNestedValuesToNestedFields(parsedValue.nestedValues, 0)
             }
           } else {
             // Fallback to the old structure if we can't find the option index
-            processedValue.nestedFields = transformApiNestedValuesToNestedFields(parsedValue.nestedValues)
+            processedValue.nestedFields = transformApiNestedValuesToNestedFields(parsedValue.nestedValues, 0)
           }
 
           console.log(`✅ Processed nested fields for ${field.type} field ${fieldId}:`, processedValue.nestedFields)
