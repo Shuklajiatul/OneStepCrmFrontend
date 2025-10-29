@@ -13,6 +13,7 @@ import { Plus, X, Copy, Trash2, Settings2, ChevronDown, ChevronRight, ChevronUp 
 import { useState, useEffect, useCallback, useRef, memo, Fragment, useMemo } from "react"
 import { TableColumnSelector } from "./table-column-selector"
 import { fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
+import { v4 as uuidv4 } from 'uuid'
 
 // Custom hook for debounced updates
 const useDebouncedUpdate = (callback, delay = 3000) => {
@@ -359,7 +360,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
     const cloned = deepCloneNestedFields(nestedFields)
 
     const newField = {
-      id: `nested-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: uuidv4(),
       name: `nested_field_${Date.now()}`,
       type: "text",
       label: "Additional Field",

@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Database, Loader2, Search, Check, RefreshCw } from "lucide-react"
 import axios from "axios"
 import { toast } from "sonner"
+import { v4 as uuidv4 } from 'uuid'
 
 export function TableColumnSelector({ field, onUpdateField, existingFields = [] }) {
   const [tableColumns, setTableColumns] = useState([])
@@ -119,7 +120,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
 
     return nestedFields.map(nestedField => {
       const processedNestedField = {
-        id: nestedField.id || `nested-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: nestedField.id || uuidv4(),
         name: nestedField.name || '',
         label: nestedField.label || '',
         type: nestedField.type || 'text',
@@ -220,16 +221,9 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
         const formattedLabel = columnName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
         const fieldType = mapDataTypeToFieldType(column.data_type, column.optional_values)
 
-        // Generate unique field ID using crypto.randomUUID() if available
+        // Generate unique field ID
         const generateUniqueFieldId = (prefix = 'field') => {
-          if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-            return `${prefix}-${crypto.randomUUID()}`
-          }
-          // Fallback: timestamp + high-precision random + counter
-          const timestamp = Date.now()
-          const random = Math.random().toString(36).substr(2, 9)
-          const counter = Math.floor(Math.random() * 10000)
-          return `${prefix}-${timestamp}-${random}-${counter}`
+          return uuidv4()
         }
 
         // Parse optional values to get proper options structure

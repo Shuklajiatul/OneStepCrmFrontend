@@ -16,17 +16,11 @@ import { Database } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 
+import { v4 as uuidv4 } from 'uuid'
+
 // Helper function to generate unique field IDs
-const generateUniqueFieldId = (prefix = 'field') => {
-  // Use crypto.randomUUID() if available, otherwise fallback to timestamp + random
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return `${prefix}-${crypto.randomUUID()}`
-  }
-  // Fallback: timestamp + high-precision random + counter
-  const timestamp = Date.now()
-  const random = Math.random().toString(36).substr(2, 9)
-  const counter = Math.floor(Math.random() * 10000)
-  return `${prefix}-${timestamp}-${random}-${counter}`
+const generateUniqueFieldId = () => {
+  return uuidv4()
 }
 
 // Helper function to format file size
@@ -3138,6 +3132,9 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         {field.required && <span className="text-red-500 ml-1 font-bold">*</span>}
       </Label>
       {renderField()}
+      {invalid && error && (
+        <p className="text-xs text-red-500 font-medium">{error}</p>
+      )}
       {!invalid && fieldValidation?.pattern && (
         <p className="text-xs text-muted-foreground">Pattern: {fieldValidation.pattern}</p>
       )}

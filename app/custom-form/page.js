@@ -31,6 +31,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
+import { v4 as uuidv4 } from 'uuid'
 
 // Field types are defined in the FieldPalette component
 
@@ -317,15 +318,7 @@ export default function CustomFormPage() {
 
   // Helper function to generate unique field IDs
   const generateUniqueFieldId = (prefix = 'field') => {
-    // Use crypto.randomUUID() if available, otherwise fallback to timestamp + random
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return `${prefix}-${crypto.randomUUID()}`
-    }
-    // Fallback: timestamp + high-precision random + counter
-    const timestamp = Date.now()
-    const random = Math.random().toString(36).substr(2, 9)
-    const counter = Math.floor(Math.random() * 10000)
-    return `${prefix}-${timestamp}-${random}-${counter}`
+    return uuidv4()
   }
 
   // Helper function to ensure field IDs are unique

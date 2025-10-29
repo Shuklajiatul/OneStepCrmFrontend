@@ -11,18 +11,11 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Loader2, Save, X, Edit, Download, Eye, File, Image, Upload } from "lucide-react"
 import { TableColumnSelector } from "../formbuilder/table-column-selector"
+import { v4 as uuidv4 } from 'uuid'
 
 // Helper function to generate unique field IDs
 const generateUniqueFieldId = (prefix = 'field') => {
-  // Use crypto.randomUUID() if available, otherwise fallback to timestamp + random
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return `${prefix}-${crypto.randomUUID()}`
-  }
-  // Fallback: timestamp + high-precision random + counter
-  const timestamp = Date.now()
-  const random = Math.random().toString(36).substr(2, 9)
-  const counter = Math.floor(Math.random() * 10000)
-  return `${prefix}-${timestamp}-${random}-${counter}`
+  return uuidv4()
 }
 
 // Enhanced helper functions
@@ -943,7 +936,7 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
                                 const optionNestedFields = currentNestedFields[optionIndex] || []
                                 
                                 const newNestedField = {
-                                  id: `nested-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                  id: uuidv4(),
                                   type: "text",
                                   label: "Additional Field",
                                   placeholder: "",
@@ -1175,7 +1168,7 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
                                             const subOptionNestedFields = currentSubNestedFields[subOptionIndex] || []
                                             
                                             const newSubNestedField = {
-                                              id: `sub-nested-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                              id: uuidv4(),
                                               type: "text",
                                               label: "Sub-additional Field",
                                               placeholder: "",
