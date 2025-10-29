@@ -331,9 +331,14 @@ export default function MyFormsPage() {
 
       if (result.success) {
         // Remove the specific form version from local state
-        setForms(prevForms => prevForms.filter(f => 
-          !(f.form_id === form.form_id && f.version === form.version)
-        ))
+        setForms(prevForms => {
+          const filteredForms = prevForms.filter(f => 
+            !(f.form_id === form.form_id && (f.version || 1) === (form.version || 1))
+          )
+          console.log(`Removed version ${form.version || 1} of form ${form.form_id}. Remaining forms:`, filteredForms.length)
+          return filteredForms
+        })
+        
         toast.success(`Form "${form.form_name}" v-${form.version || 1} deleted successfully!`)
         // Close dialog and reset state
         setDeleteDialogOpen(false)
@@ -898,7 +903,7 @@ export default function MyFormsPage() {
                 </TableHeader>
                 <TableBody>
                   {paginatedForms.map((form) => (
-                    <TableRow key={form.form_id}>
+                    <TableRow key={`${form.form_id}-v${form.version || 1}`}>
                       <TableCell className="font-medium">
                         <div>
                           {form.form_name} v-{form.version || 1}
