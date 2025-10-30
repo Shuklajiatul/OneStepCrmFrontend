@@ -121,8 +121,6 @@ export default function CustomFormPage() {
       try {
         const data = JSON.parse(formBuilderData)
         if (data.isEditMode && (isDirectEdit || wasEditingFlag)) {
-          console.log('🔍 Loading form data from localStorage:', data)
-
           // Process nested fields from options to field.nestedFields structure
           const processedFields = data.fields.map(field => {
             if (['select', 'checkbox', 'radio'].includes(field.type) && field.options && Array.isArray(field.options)) {
@@ -178,13 +176,10 @@ export default function CustomFormPage() {
               if (field.options && Array.isArray(field.options)) {
                 field.options.forEach((option, optionIndex) => {
                 if (typeof option === 'object' && option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
-                  console.log('🔍 Processing nested fields for option', optionIndex, ':', option.nestedFields)
                   nestedFields[optionIndex] = extractNestedFieldsRecursively(option.nestedFields)
                 }
                 })
               }
-
-              console.log('🔍 Extracted nestedFields for field:', field.label, nestedFields)
 
               return {
                 ...field,
@@ -199,11 +194,8 @@ export default function CustomFormPage() {
             return field
           })
 
-          console.log('🔍 Processed fields with nested fields:', processedFields)
-
           // Ensure all field IDs are unique before setting fields
           const fieldsWithUniqueIds = ensureUniqueFieldIds(processedFields)
-          console.log('🔍 Fields with unique IDs:', fieldsWithUniqueIds)
 
           setFields(fieldsWithUniqueIds)
           setIsEditMode(true)
@@ -211,8 +203,6 @@ export default function CustomFormPage() {
 
           // Don't clear localStorage - keep it for persistence across refreshes
           // localStorage.removeItem('formBuilderData')
-
-          console.log('🔍 Loaded fields for editing:', processedFields)
         }
       } catch (error) {
         console.error('Error parsing form builder data:', error)
@@ -227,10 +217,8 @@ export default function CustomFormPage() {
           const data = JSON.parse(formBuilderData)
           // If it's edit mode data but no directEditAction flag, clear it (browser back scenario)
           if (data.isEditMode) {
-            console.log('🔍 Browser back from edit mode detected - clearing edit data')
             localStorage.removeItem('formBuilderData')
           } else {
-            console.log('🔍 Browser back detected - clearing non-edit data')
             localStorage.removeItem('formBuilderData')
           }
         } catch (error) {
@@ -275,13 +263,11 @@ export default function CustomFormPage() {
   // Save fields to localStorage when in edit mode (for persistence across refreshes)
   useEffect(() => {
     if (isEditMode && editFormData && fields.length > 0) {
-      console.log('🔍 Saving fields to localStorage in edit mode:', fields)
       const formBuilderData = {
         ...editFormData,
         fields: fields
       }
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-      console.log('🔍 Saved to localStorage:', formBuilderData)
 
       // Dispatch custom event to notify preview page of changes
       window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
@@ -293,7 +279,6 @@ export default function CustomFormPage() {
     if (isEditMode && editFormData && fields.length > 0) {
       // Use a timeout to ensure the state has been updated
       const timeoutId = setTimeout(() => {
-        console.log('🔍 Additional save to localStorage triggered:', fields)
         const formBuilderData = {
           ...editFormData,
           fields: fields
@@ -520,14 +505,12 @@ export default function CustomFormPage() {
   }, [])
 
   const updateField = useCallback((fieldId, updates) => {
-    console.log('🔍 updateField called:', { fieldId, updates })
-    console.log('🔍 Current fields before update:', fields)
-
-    const updatedFields = fields.map(field =>
-      field.id === fieldId ? { ...field, ...updates } : field
-    )
-
-    console.log('🔍 Updated fields after update:', updatedFields)
+    const updatedFields = fields.map(field => {
+      if (field.id === fieldId) {
+        return { ...field, ...updates }
+      }
+      return field
+    })
 
     // Force a deep update by creating a new array reference
     setFields([...updatedFields])
@@ -542,12 +525,9 @@ export default function CustomFormPage() {
         fields: [...updatedFields]
       }
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-      console.log('🔍 Immediately saved to localStorage after update:', formBuilderData)
-      console.log('🔍 First field nestedFields structure:', formBuilderData.fields[0]?.nestedFields)
 
       // Dispatch custom event to notify preview page of changes
       window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
-      console.log('🔍 Dispatched formBuilderDataUpdated event after field update')
     }
   }, [fields, selectedField, isEditMode, editFormData])
 

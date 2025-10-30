@@ -355,6 +355,81 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
     return cloned
   }
 
+  // Helper function to recursively sync options.nestedFields with field.nestedFields structure
+  const syncOptionsWithNestedFields = (field, nestedFields) => {
+    if (!field.options || !Array.isArray(field.options)) {
+      return field.options
+    }
+
+    return field.options.map((option, optionIndex) => {
+      const optionObj = typeof option === 'string' ? { value: option, label: option } : { ...option }
+      
+      // Sync nestedFields from the field.nestedFields structure
+      if (nestedFields && nestedFields[optionIndex] && Array.isArray(nestedFields[optionIndex])) {
+        optionObj.nestedFields = nestedFields[optionIndex].map(nf => {
+          const processedNestedField = {
+            id: nf.id,
+            name: nf.name,
+            type: nf.type,
+            label: nf.label,
+            placeholder: nf.placeholder || '',
+            required: nf.required || false,
+            validations: nf.validations || nf.validation || {},
+            hasNested: !!(nf.nestedFields && Object.keys(nf.nestedFields).length > 0),
+            isLeadColumn: nf.isLeadColumn || false
+          }
+          
+          // Process options for this nested field
+          if (nf.options && Array.isArray(nf.options)) {
+            // If this nested field has options, recursively sync them too
+            processedNestedField.options = nf.options.map((nfOption, nfOptIndex) => {
+              const nfOptionObj = typeof nfOption === 'string' ? { value: nfOption, label: nfOption } : { ...nfOption }
+              
+              // Recursively sync nested fields for this option
+              if (nf.nestedFields && nf.nestedFields[nfOptIndex] && Array.isArray(nf.nestedFields[nfOptIndex])) {
+                nfOptionObj.nestedFields = nf.nestedFields[nfOptIndex].map(deepNf => {
+                  // Recursive call for deeply nested fields
+                  const deepNestedField = {
+                    id: deepNf.id,
+                    name: deepNf.name,
+                    type: deepNf.type,
+                    label: deepNf.label,
+                    placeholder: deepNf.placeholder || '',
+                    required: deepNf.required || false,
+                    validations: deepNf.validations || deepNf.validation || {},
+                    hasNested: !!(deepNf.nestedFields && Object.keys(deepNf.nestedFields).length > 0),
+                    isLeadColumn: deepNf.isLeadColumn || false
+                  }
+                  
+                  // Continue recursion if there are more options
+                  if (deepNf.options && Array.isArray(deepNf.options)) {
+                    deepNestedField.options = syncOptionsWithNestedFields({ options: deepNf.options }, deepNf.nestedFields)
+                  } else {
+                    deepNestedField.options = []
+                  }
+                  
+                  return deepNestedField
+                })
+              } else {
+                nfOptionObj.nestedFields = []
+              }
+              
+              return nfOptionObj
+            })
+          } else {
+            processedNestedField.options = []
+          }
+          
+          return processedNestedField
+        })
+      } else {
+        optionObj.nestedFields = []
+      }
+      
+      return optionObj
+    })
+  }
+
   // Helper function to add nested field at any depth
   const addNestedFieldAtPath = (nestedFields, path, optionIndex) => {
     const cloned = deepCloneNestedFields(nestedFields)
@@ -473,13 +548,22 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         path,
         updates
       )
+      
+      // Sync options with nested fields to ensure preview gets the updates
+      const updatedOptions = syncOptionsWithNestedFields(field, updatedNestedFields)
 
       if (useDebounce) {
-        debouncedUpdateField(fieldId, { nestedFields: updatedNestedFields })
+        debouncedUpdateField(fieldId, { 
+          nestedFields: updatedNestedFields,
+          options: updatedOptions
+        })
       } else {
-        onUpdateField(fieldId, { nestedFields: updatedNestedFields })
+        onUpdateField(fieldId, { 
+          nestedFields: updatedNestedFields,
+          options: updatedOptions
+        })
       }
-    }, [nestedFields, path, fieldId, debouncedUpdateField, onUpdateField])
+    }, [nestedFields, path, fieldId, debouncedUpdateField, onUpdateField, field])
 
     const handleFieldRemove = useCallback(() => {
       const updatedNestedFields = updateNestedFieldAtPath(
@@ -487,8 +571,15 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         path,
         null
       )
-      onUpdateField(fieldId, { nestedFields: updatedNestedFields })
-    }, [nestedFields, path, fieldId, onUpdateField])
+      
+      // Sync options with nested fields to ensure preview gets the updates
+      const updatedOptions = syncOptionsWithNestedFields(field, updatedNestedFields)
+      
+      onUpdateField(fieldId, { 
+        nestedFields: updatedNestedFields,
+        options: updatedOptions
+      })
+    }, [nestedFields, path, fieldId, onUpdateField, field])
 
     const handleAddNestedField = useCallback((optionIndex) => {
       const updatedNestedFields = addNestedFieldAtPath(
@@ -496,7 +587,14 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         path,
         optionIndex
       )
-      onUpdateField(fieldId, { nestedFields: updatedNestedFields })
+      
+      // Sync options with nested fields to ensure preview gets the updates
+      const updatedOptions = syncOptionsWithNestedFields(field, updatedNestedFields)
+      
+      onUpdateField(fieldId, { 
+        nestedFields: updatedNestedFields,
+        options: updatedOptions
+      })
       // Ensure the nested fields section is open (don't toggle)
       const optionKey = `${uniqueKey}-opt-${optionIndex}`
       setExpandedNestedFields(prev => ({
@@ -506,7 +604,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
       // Force a re-render to immediately show the new nested field
       setForceRenderKey(prev => prev + 1)
       console.log('🔍 Added nested field at path:', path, 'option:', optionIndex, 'forcing UI update')
-    }, [nestedFields, path, fieldId, onUpdateField, uniqueKey])
+    }, [nestedFields, path, fieldId, onUpdateField, uniqueKey, field])
 
     const updateOption = useCallback((optionIndex, newValue) => {
       // Update local state immediately for UI responsiveness
@@ -1476,7 +1574,14 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                   [],
                                   index
                                 )
-                                onUpdateField(field.id, { nestedFields: updatedNestedFields })
+                                
+                                // Sync options with nested fields to ensure preview gets the updates
+                                const updatedOptions = syncOptionsWithNestedFields(field, updatedNestedFields)
+                                
+                                onUpdateField(field.id, { 
+                                  nestedFields: updatedNestedFields,
+                                  options: updatedOptions
+                                })
                                 // Ensure the nested fields section is open (don't toggle)
                                 setExpandedNestedFields(prev => ({
                                   ...prev,

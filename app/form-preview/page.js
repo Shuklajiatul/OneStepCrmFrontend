@@ -24,14 +24,6 @@ export default function FormPreviewPage() {
       try {
         const data = JSON.parse(formBuilderData)
         if (data.isEditMode && data.fields) {
-          console.log('🔍 Loading fields from localStorage for preview:', data.fields)
-          console.log('🔍 First field nestedFields from localStorage:', data.fields[0]?.nestedFields)
-          
-          // Debug: Show the complete structure of the first field
-          if (data.fields[0]) {
-            console.log('🔍 Complete first field structure:', JSON.stringify(data.fields[0], null, 2))
-          }
-          
           setFields(data.fields)
           setIsEditMode(true)
           setEditFormData(data)
@@ -46,7 +38,6 @@ export default function FormPreviewPage() {
       if (savedFields) {
         try {
           const parsedFields = JSON.parse(savedFields)
-          console.log('🔍 Loading fields from sessionStorage for preview:', parsedFields)
           setFields(parsedFields)
         } catch (error) {
           console.error('Error parsing saved fields:', error)
@@ -61,20 +52,11 @@ export default function FormPreviewPage() {
     if (!isEditMode) return
 
     const handleStorageChange = () => {
-      console.log('🔍 Storage change detected in form preview')
       const formBuilderData = localStorage.getItem('formBuilderData')
       if (formBuilderData) {
         try {
           const data = JSON.parse(formBuilderData)
           if (data.isEditMode && data.fields) {
-            console.log('🔍 Storage changed - reloading fields for preview:', data.fields)
-            console.log('🔍 First field nestedFields from storage:', data.fields[0]?.nestedFields)
-            
-            // Debug: Show the complete structure of the first field
-            if (data.fields[0]) {
-              console.log('🔍 Complete first field structure from storage:', JSON.stringify(data.fields[0], null, 2))
-            }
-            
             setFields(data.fields)
             setEditFormData(data)
             // Update retry count from storage
@@ -110,7 +92,6 @@ export default function FormPreviewPage() {
           if (data.isEditMode) {
             data.max_retry_count = currentRetryCount
             localStorage.setItem('formBuilderData', JSON.stringify(data))
-            console.log('🔍 Updated retry count in localStorage:', currentRetryCount)
           }
         } catch (error) {
           console.error('Error updating retry count in localStorage:', error)
@@ -137,7 +118,6 @@ export default function FormPreviewPage() {
     try {
       if (isEditMode && editFormData) {
         // Update existing form
-        console.log('🔍 Updating existing form:', editFormData.formId)
         
         // FIX: Read the most up-to-date fields from localStorage to avoid stale state
         // Add a small delay to ensure any pending localStorage writes are complete
@@ -151,8 +131,6 @@ export default function FormPreviewPage() {
           try {
             const data = JSON.parse(formBuilderData)
             if (data.isEditMode && data.fields) {
-              console.log('🔍 Using latest fields from localStorage:', data.fields)
-              console.log('🔍 Field count difference:', data.fields.length, 'vs state:', fields.length)
               latestFields = data.fields
               latestRetryCount = data.max_retry_count?.toString() || currentRetryCount
             }
@@ -160,8 +138,6 @@ export default function FormPreviewPage() {
             console.error('Error parsing formBuilderData in handleSaveForm:', error)
           }
         }
-        
-        console.log('🔍 Fields to update:', latestFields)
         
         // Generate the same payload structure as Generate Link
         const API_BASE_URL = 'http://10.10.15.194:3001'
@@ -283,9 +259,7 @@ export default function FormPreviewPage() {
         }
         
         // Combine all fields into a single fields array
-        console.log('🔍 Raw fields before processing:', latestFields)
         const allFields = latestFields.map(processFieldForAPI)
-        console.log('🔍 Processed fields:', allFields)
         
         // Prepare the update payload
         const updatePayload = {
@@ -298,33 +272,6 @@ export default function FormPreviewPage() {
           fields: allFields,
           retry_count: latestRetryCount
         }
-        
-        console.log('🚀 Update API Payload:', JSON.stringify(updatePayload, null, 2))
-        
-        // Debug: Show detailed nested fields analysis for the API payload
-        console.log('🔍 Detailed nested fields analysis for API payload:')
-        updatePayload.fields.forEach((field, fieldIndex) => {
-          console.log(`Field ${fieldIndex + 1}: ${field.label} (${field.type}) - hasNested: ${field.hasNested}`)
-          
-          // Only process options for field types that have options (select, checkbox, radio)
-          if (field.options && Array.isArray(field.options)) {
-            field.options.forEach((option, optIndex) => {
-              if (option.nestedFields && option.nestedFields.length > 0) {
-                console.log(`  Option ${optIndex}: "${option.value}" has ${option.nestedFields.length} nested fields`)
-                option.nestedFields.forEach((nestedField, nestedIndex) => {
-                  console.log(`    Nested Field ${nestedIndex}: ${nestedField.label} (${nestedField.type})`)
-                  if (nestedField.options && nestedField.options.length > 0) {
-                    nestedField.options.forEach((nestedOption, nestedOptIndex) => {
-                      if (nestedOption.nestedFields && nestedOption.nestedFields.length > 0) {
-                        console.log(`      Nested Option ${nestedOptIndex}: "${nestedOption.value}" has ${nestedOption.nestedFields.length} deep nested fields`)
-                      }
-                    })
-                  }
-                })
-              }
-            })
-          }
-        })
         
         // Send update request
         const response = await fetch(`${API_BASE_URL}/api/forms/update`, {
