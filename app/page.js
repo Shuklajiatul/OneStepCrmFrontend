@@ -74,7 +74,7 @@ export default function Home() {
           setIsCollapsed={setIsCollapsed}
         />
         <section className={cn(
-          "flex-1 transition-all duration-300 flex flex-col min-h-screen",
+          "flex-1 transition-all duration-300 flex flex-col min-h-screen overflow-hidden",
           isCollapsed ? "md:ml-0" : "md:ml-0"
         )}>
           <div className="p-4 border-b border-border bg-card/50">
@@ -84,7 +84,7 @@ export default function Home() {
               toggleSidebar={toggleSidebar}
             />
           </div>
-          <div className="flex-1 p-4 md:p-6 bg-background">
+          <div className="flex-1 p-4 md:p-6 bg-background overflow-x-hidden">
             {renderContent()}
           </div>
         </section>
