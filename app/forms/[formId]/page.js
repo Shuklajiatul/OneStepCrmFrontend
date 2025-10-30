@@ -5,14 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { CheckCircle2, Send, ArrowLeft, Building, User, Save, Edit, FileText, Trash2, Lock } from "lucide-react"
+import { CheckCircle2, Send, ArrowLeft, Building, User, Save, Edit, FileText, Trash2, Lock, Pause } from "lucide-react"
 import { FieldRenderer } from "../../component/formbuilder/field-renderer"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import axios from "axios"
 import Link from "next/link"
 import Image from "next/image"
-import { useParams, useSearchParams } from "next/navigation"
+import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { fetchPhoneCountries } from "@/lib/constants/location-api"
 import { v4 as uuidv4 } from 'uuid';
 
@@ -1322,6 +1322,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
 export default function PublicFormPage() {
   const params = useParams()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const formId = params.formId
   const token = searchParams.get('token')
   const submissionId = searchParams.get('submission_id')
@@ -1349,12 +1350,17 @@ export default function PublicFormPage() {
 
   useEffect(() => {
     if (formId) {
-      checkExistingSubmission()
-      // Only fetch latest form data if NOT in edit mode
-      if (!token || !submissionId) {
+      // Check for existing submission first
+      const hasExistingSubmission = checkExistingSubmission()
+      
+      // Only fetch latest form data if NOT in edit mode AND no existing submission
+      if (!token && !submissionId && !hasExistingSubmission) {
         fetchFormData()
-      } else {
-        // Skip fetching latest form in edit mode - use original from submission data
+      } else if (token && submissionId) {
+        // In edit mode - fetch form data will happen via fetchSubmissionData
+      } else if (hasExistingSubmission) {
+        // User already submitted - just show success page, no need to load form
+        setLoading(false)
       }
     }
   }, [formId, token, submissionId])
@@ -1383,7 +1389,7 @@ export default function PublicFormPage() {
       console.log('Not in edit mode, checking for existing submission')
       checkExistingSubmission()
     }
-  }, [token, submissionId])
+  }, [token, submissionId, formId, userIdFromUrl])
 
   // Enforce view-only in edit mode if the submission's form version is older than latest
   useEffect(() => {
@@ -1414,37 +1420,26 @@ export default function PublicFormPage() {
   }, [formId, isEditMode, formData?.version])
 
   const checkExistingSubmission = () => {
-    // If a specific version is requested, ignore any local submission state to avoid redirecting
-    if (versionParam) {
-      return
-    }
     try {
       const savedFormId = localStorage.getItem("FORM_ID")
       const savedSubmissionId = localStorage.getItem("SUBMISSION_ID")
       const savedEditToken = localStorage.getItem("EDIT_TOKEN")
       const isSubmitted = localStorage.getItem("FORM_SUBMITTED") === 'true'
 
-      console.log('Checking existing submission from localStorage:', {
-        savedFormId,
-        savedSubmissionId: savedSubmissionId ? `${savedSubmissionId.substring(0, 8)}...` : null,
-        savedEditToken: savedEditToken ? `${savedEditToken.substring(0, 8)}...` : null,
-        isSubmitted,
-        currentFormId: formId
-      })
-
       if (savedFormId === formId && savedSubmissionId && savedEditToken && isSubmitted) {
+        // Set the submission success state to show the success page
         setLastSubmissionId(savedSubmissionId)
         setLastSubmissionToken(savedEditToken)
         setSubmissionSuccess(true)
-
-        console.log('Found existing submission for this form')
+        return true
       } else {
-        console.log('No valid existing submission found')
         setSubmissionSuccess(false)
+        return false
       }
     } catch (error) {
       console.error('Error checking localStorage:', error)
       setSubmissionSuccess(false)
+      return false
     }
   }
 
@@ -2715,69 +2710,6 @@ export default function PublicFormPage() {
     }
   }, [formData])
 
-  if (loading || (isEditMode && !formInitialized)) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Card className="w-full max-w-md mx-4">
-          <CardContent className="p-8 text-center">
-            <div className="w-12 h-12 mx-auto mb-4 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-muted-foreground">
-              {isEditMode ? "Loading your submission..." : "Loading form..."}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (!formData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Card className="w-full max-w-md mx-4">
-          <CardContent className="p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
-              <User className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h2 className="text-xl font-semibold mb-2">Form Not Found</h2>
-            <p className="text-muted-foreground mb-4">
-              The form you're looking for doesn't exist or has been removed.
-            </p>
-            <Button asChild>
-              <Link href="/">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Home
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (formData.archived) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <Card className="w-full max-w-md mx-4">
-          <CardContent className="p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-orange-100 flex items-center justify-center">
-              <Pause className="h-8 w-8 text-orange-600" />
-            </div>
-            <h2 className="text-xl font-semibold mb-2">Form Inactive</h2>
-            <p className="text-muted-foreground mb-4">
-              This form is currently inactive and cannot accept submissions. Please contact the form owner if you need to access it.
-            </p>
-            <Button asChild>
-              <Link href="/">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Home
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   // Success View
   if (submissionSuccess && !isEditMode) {
     return (
@@ -2860,6 +2792,72 @@ export default function PublicFormPage() {
             </div>
           </div>
         </div>
+      </div>
+    )
+  }
+
+  // Loading state
+  if (loading || (isEditMode && !formInitialized)) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="p-8 text-center">
+            <div className="w-12 h-12 mx-auto mb-4 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-muted-foreground">
+              {isEditMode ? "Loading your submission..." : "Loading form..."}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Form not found
+  if (!formData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+              <User className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h2 className="text-xl font-semibold mb-2">Form Not Found</h2>
+            <p className="text-muted-foreground mb-4">
+              The form you're looking for doesn't exist or has been removed.
+            </p>
+            <Button asChild>
+              <Link href="/">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Home
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Form archived
+  if (formData.archived) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-orange-100 flex items-center justify-center">
+              <Pause className="h-8 w-8 text-orange-600" />
+            </div>
+            <h2 className="text-xl font-semibold mb-2">Form Inactive</h2>
+            <p className="text-muted-foreground mb-4">
+              This form is currently inactive and cannot accept submissions. Please contact the form owner if you need to access it.
+            </p>
+            <Button asChild>
+              <Link href="/">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Home
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
