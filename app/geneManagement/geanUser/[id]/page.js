@@ -28,7 +28,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.19
 const API_CONSTANTS = {
   BASE_URL: API_BASE_URL,
   geneDetails: '/api/genes', // Will append /{g_id} in the request
-  geneMappedUser: '/api/genes/mapped-users',
+  geneMappedUser: '/api/genes/by-geneId',
 };
 
 const RolePriorityTree = () => {
@@ -111,17 +111,16 @@ const RolePriorityTree = () => {
       
       if (!token) {
         setError('Authentication required. Please login again.');
-        // router.push('/login');
+        router.push('/login');
         return;
       }
      
       const baseUrl = API_CONSTANTS.BASE_URL;
       const endPoint = API_CONSTANTS.geneMappedUser;
-      const fullUrl = baseUrl + endPoint;
+      const fullUrl = baseUrl + endPoint + '/' + gId;
      
-      const response = await axios.post(
+      const response = await axios.get(
         fullUrl,
-        { gid: gId },
         {
           headers: {
             Accept: 'application/json',

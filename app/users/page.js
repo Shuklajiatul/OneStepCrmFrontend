@@ -74,14 +74,14 @@ import {
 } from "@/components/ui/tooltip"
 
 // API Base URL
-const API_BASE_URL = "http://10.10.15.194:3001"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 export default function UsersPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all") // "all", "active", "inactive"
-  const [roleFilter, setRoleFilter] = useState("all") // "all", "User", "Admin", "Manager", etc.
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [roleFilter, setRoleFilter] = useState("all")
   const [selectedUser, setSelectedUser] = useState(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -126,12 +126,12 @@ export default function UsersPage() {
 
   const getAuthToken = () => {
     if (typeof window === "undefined") return null
-    // Try both token and accessToken
     return localStorage.getItem("token") || localStorage.getItem("accessToken")
   }
 
   const getAuthHeaders = () => {
     const token = getAuthToken()
+    console.log("Token:", token)
     return {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -181,7 +181,7 @@ export default function UsersPage() {
           email: userData.email || "",
           first_name: userData.first_name || "",
           last_name: userData.last_name || "",
-          password: "", // Don't populate password
+          password: "",
           is_active: userData.is_active !== undefined ? userData.is_active : true,
           role: userData.roles || userData.role || "User",
         })

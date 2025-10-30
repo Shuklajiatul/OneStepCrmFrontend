@@ -140,13 +140,13 @@ export default function FormPreviewPage() {
         }
         
         // Generate the same payload structure as Generate Link
-        const API_BASE_URL = 'http://10.10.15.194:3001'
-        const ORGANIZATION_ID = 'c8c72c21-7b5c-435a-912a-803105e7ecc9'
-        const TABLE_ID = '040e899d-583a-454e-92e6-d0d5a8095587'
-        const USER_ID = 'c2a985ce-d385-4349-8f0c-d46e63027ce4'
-        const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYxNjA0MzMwLCJleHAiOjE3NjE2OTA3MzB9.01TIxWVFuW0WIuBeZkT397mWy9UUwa9Wku7xX561upo'
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+        const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
+        const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
+        const USER_ID = process.env.NEXT_PUBLIC_USER_ID
+        const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN
         
-        // Recursive function to process nested fields (same as in form-preview.js)
+        // Recursive function to process nested fields
         const processNestedFields = (nestedFields, parentIndex = null) => {
           if (!nestedFields || !Array.isArray(nestedFields)) return []
 
@@ -161,7 +161,7 @@ export default function FormPreviewPage() {
                   nestedFields: []
                 }
 
-                // ✅ FIX: Check for nested fields in the option itself (for deep table column nesting)
+                // Check for nested fields in the option itself (for deep table column nesting)
                 if (nestedOption.nestedFields && Array.isArray(nestedOption.nestedFields)) {
                   nestedOptionObj.nestedFields = processNestedFields(
                     nestedOption.nestedFields,
