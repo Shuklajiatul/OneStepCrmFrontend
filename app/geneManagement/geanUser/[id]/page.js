@@ -131,11 +131,35 @@ const RolePriorityTree = () => {
         }
       );
      
-      if (response.data.status === 'success') {
-        const userData = response.data.data || [];
-        setUsers(userData);
-        extractPriorityLevels(userData);
-        buildPriorityTree(userData);
+      const resp = response.data || {};
+      const isOk = resp.status === 'success' || resp.success === true;
+      if (isOk) {
+        const rawUsers = Array.isArray(resp)
+          ? resp
+          : Array.isArray(resp.data)
+            ? resp.data
+            : Array.isArray(resp.users)
+              ? resp.users
+              : [];
+
+        // Normalize users for UI consumption
+        const normalizedUsers = rawUsers.map((u) => {
+          const id = u.id || u.user_id;
+          const name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+          const username = u.username || u.email || (name || undefined) || `User ${id || ''}`;
+          const roleName = (u.role_info && u.role_info.role_name) || u.roles || u.role || 'User';
+          const priority = (u.role_info && u.role_info.priority) || 1;
+          return {
+            ...u,
+            id,
+            username,
+            role_info: u.role_info || { role_name: roleName, priority },
+          };
+        });
+
+        setUsers(normalizedUsers);
+        extractPriorityLevels(normalizedUsers);
+        buildPriorityTree(normalizedUsers);
       } else {
         setError('Failed to fetch mapped users');
         toast.error('Failed to fetch mapped users');
