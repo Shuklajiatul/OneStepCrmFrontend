@@ -361,15 +361,31 @@ export default function CustomFormPage() {
   }
 
   // Helper function to ensure field IDs are unique
+  // const ensureUniqueFieldIds = (fields) => {
+  //   const existingIds = new Set(fields.map(f => f.id))
+  //   return fields.map(field => {
+  //     if (existingIds.has(field.id)) {
+  //       const newId = generateUniqueFieldId()
+  //       existingIds.add(newId)
+  //       return { ...field, id: newId }
+  //     }
+  //     existingIds.add(field.id)
+  //     return field
+  //   })
+  // }
+
   const ensureUniqueFieldIds = (fields) => {
-    const existingIds = new Set(fields.map(f => f.id))
+    const seenIds = new Set()
     return fields.map(field => {
-      if (existingIds.has(field.id)) {
+      // Only generate new ID if this ID has already been seen (duplicate)
+      if (seenIds.has(field.id)) {
         const newId = generateUniqueFieldId()
-        existingIds.add(newId)
+        seenIds.add(newId)
+        console.log(`⚠️ Duplicate field ID detected: ${field.id}, generating new ID: ${newId}`)
         return { ...field, id: newId }
       }
-      existingIds.add(field.id)
+      // First time seeing this ID - keep it and add to seen set
+      seenIds.add(field.id)
       return field
     })
   }

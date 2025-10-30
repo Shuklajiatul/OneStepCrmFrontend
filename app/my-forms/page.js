@@ -571,6 +571,7 @@ export default function MyFormsPage() {
           required: parsedField.required === true || parsedField.required === 'true' || false,
           options: options,
           nestedFields: nestedFields,
+          isLeadColumn: parsedField.isLeadColumn === true || parsedField.isLeadColumn === 'true' || parsedField.isleadcolumn === true || parsedField.isleadcolumn === 'true' || false,
           validation: {
             required: parsedField.required === true || parsedField.required === 'true' || false,
             multiple: validation.multiple || false,
@@ -632,7 +633,8 @@ export default function MyFormsPage() {
             type: field.type,
             required: field.required ? "true" : "false",
             label: field.label || field.name || 'Field',
-            placeholder: field.placeholder || ""
+            placeholder: field.placeholder || "",
+            isLeadColumn: field.isLeadColumn ? "true" : "false"
           }
 
           // Handle options - convert array to JSON string
