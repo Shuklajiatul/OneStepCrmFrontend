@@ -23,177 +23,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
-// API Constants placeholder
+// API Constants
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001';
 const API_CONSTANTS = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
+  BASE_URL: API_BASE_URL,
+  geneDetails: '/api/genes', // Will append /{g_id} in the request
   geneMappedUser: '/api/genes/mapped-users',
 };
-
-// Dummy data for demonstration
-const DUMMY_USERS = [
-  {
-    id: 1,
-    username: 'John Smith',
-    email: 'john.smith@company.com',
-    role_info: {
-      role_name: 'director',
-      priority: 1
-    }
-  },
-  {
-    id: 2,
-    username: 'Sarah Johnson',
-    email: 'sarah.j@company.com',
-    role_info: {
-      role_name: 'director',
-      priority: 1
-    }
-  },
-  {
-    id: 3,
-    username: 'Mike Chen',
-    email: 'mike.chen@company.com',
-    role_info: {
-      role_name: 'manager',
-      priority: 2
-    }
-  },
-  {
-    id: 4,
-    username: 'Emily Davis',
-    email: 'emily.davis@company.com',
-    role_info: {
-      role_name: 'manager',
-      priority: 2
-    }
-  },
-  {
-    id: 5,
-    username: 'Robert Wilson',
-    email: 'robert.w@company.com',
-    role_info: {
-      role_name: 'manager',
-      priority: 2
-    }
-  },
-  {
-    id: 6,
-    username: 'Lisa Brown',
-    email: 'lisa.brown@company.com',
-    role_info: {
-      role_name: 'team lead',
-      priority: 3
-    }
-  },
-  {
-    id: 7,
-    username: 'David Miller',
-    email: 'david.m@company.com',
-    role_info: {
-      role_name: 'team lead',
-      priority: 3
-    }
-  },
-  {
-    id: 8,
-    username: 'Amanda Taylor',
-    email: 'amanda.t@company.com',
-    role_info: {
-      role_name: 'team lead',
-      priority: 3
-    }
-  },
-  {
-    id: 9,
-    username: 'James Anderson',
-    email: 'james.a@company.com',
-    role_info: {
-      role_name: 'team lead',
-      priority: 3
-    }
-  },
-  {
-    id: 10,
-    username: 'Jennifer Lee',
-    email: 'jennifer.lee@company.com',
-    role_info: {
-      role_name: 'specialist',
-      priority: 4
-    }
-  },
-  {
-    id: 11,
-    username: 'Kevin Martinez',
-    email: 'kevin.m@company.com',
-    role_info: {
-      role_name: 'specialist',
-      priority: 4
-    }
-  },
-  {
-    id: 12,
-    username: 'Michelle Garcia',
-    email: 'michelle.g@company.com',
-    role_info: {
-      role_name: 'specialist',
-      priority: 4
-    }
-  },
-  {
-    id: 13,
-    username: 'Thomas Clark',
-    email: 'thomas.c@company.com',
-    role_info: {
-      role_name: 'specialist',
-      priority: 4
-    }
-  },
-  {
-    id: 14,
-    username: 'Jessica White',
-    email: 'jessica.w@company.com',
-    role_info: {
-      role_name: 'specialist',
-      priority: 4
-    }
-  },
-  {
-    id: 15,
-    username: 'Daniel Harris',
-    email: 'daniel.h@company.com',
-    role_info: {
-      role_name: 'associate',
-      priority: 5
-    }
-  },
-  {
-    id: 16,
-    username: 'Sophia Martin',
-    email: 'sophia.m@company.com',
-    role_info: {
-      role_name: 'associate',
-      priority: 5
-    }
-  },
-  {
-    id: 17,
-    username: 'Christopher Young',
-    email: 'chris.y@company.com',
-    role_info: {
-      role_name: 'associate',
-      priority: 5
-    }
-  },
-  {
-    id: 18,
-    username: 'Elizabeth King',
-    email: 'elizabeth.k@company.com',
-    role_info: {
-      role_name: 'associate',
-      priority: 5
-    }
-  }
-];
 
 const RolePriorityTree = () => {
   const params = useParams();
@@ -204,33 +40,75 @@ const RolePriorityTree = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [priorityLevels, setPriorityLevels] = useState([]);
-  const [useDummyData, setUseDummyData] = useState(false);
+  const [geneDetails, setGeneDetails] = useState(null);
+  const [loadingGene, setLoadingGene] = useState(true);
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
-    fetchGeanMappedUser();
-  }, [gId, useDummyData]);
+    if (gId) {
+      fetchGeneDetails();
+      fetchGeanMappedUser();
+    }
+  }, [gId]);
+
+  const fetchGeneDetails = async () => {
+    try {
+      setLoadingGene(true);
+      // Get token from localStorage or sessionStorage
+      const token = localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        console.warn('No token available for fetching gene details');
+        setLoadingGene(false);
+        return;
+      }
+
+      const geneDetailsUrl = `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneDetails}/${gId}`;
+      console.log('Fetching gene details from:', geneDetailsUrl);
+      
+      const response = await axios.get(
+        geneDetailsUrl,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          timeout: 30000
+        }
+      );
+
+      console.log('Gene Details Response:', response.data);
+      if (response.data.success && response.data.data) {
+        setGeneDetails(response.data.data);
+      } else if (response.data.data) {
+        // Handle case where response might not have success field
+        setGeneDetails(response.data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching gene details:', err);
+      // Don't show error - just continue without gene details
+    } finally {
+      setLoadingGene(false);
+    }
+  };
 
   const fetchGeanMappedUser = async () => {
     try {
       setLoading(true);
       setError(null);
-     
-      // Use dummy data if enabled
-      if (useDummyData) {
-        console.log('Using dummy data for user hierarchy');
-        setTimeout(() => {
-          setUsers(DUMMY_USERS);
-          extractPriorityLevels(DUMMY_USERS);
-          buildPriorityTree(DUMMY_USERS);
-          setLoading(false);
-        }, 1500);
-        return;
-      }
 
-      const token = localStorage.getItem('token');
+      // Get token from localStorage or sessionStorage
+      const token = localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
       if (!token) {
         setError('Authentication required. Please login again.');
         // router.push('/login');
@@ -261,8 +139,7 @@ const RolePriorityTree = () => {
         buildPriorityTree(userData);
       } else {
         setError('Failed to fetch mapped users');
-        console.log('Falling back to dummy data due to API error');
-        setUseDummyData(true);
+        toast.error('Failed to fetch mapped users');
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -272,8 +149,6 @@ const RolePriorityTree = () => {
       } else {
         setError(err.message || 'Failed to fetch users');
         toast.error('Failed to fetch users');
-        console.log('Falling back to dummy data due to network error');
-        setUseDummyData(true);
       }
     } finally {
       setLoading(false);
@@ -468,12 +343,6 @@ const RolePriorityTree = () => {
     custom: CustomNode,
   };
 
-  // Toggle between dummy data and real API
-  const toggleDataMode = () => {
-    setUseDummyData(!useDummyData);
-    toast.info(useDummyData ? 'Switching to real API data' : 'Using demo data');
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -483,9 +352,6 @@ const RolePriorityTree = () => {
               <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
               <CardTitle>Loading...</CardTitle>
               <CardDescription className="mt-2">Fetching user hierarchy</CardDescription>
-              {useDummyData && (
-                <Badge variant="secondary" className="mt-2">Using demo data</Badge>
-              )}
             </div>
           </CardContent>
         </Card>
@@ -493,7 +359,7 @@ const RolePriorityTree = () => {
     );
   }
 
-  if (error && !useDummyData) {
+  if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
@@ -508,9 +374,6 @@ const RolePriorityTree = () => {
                 <Button onClick={fetchGeanMappedUser}>
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Retry
-                </Button>
-                <Button variant="outline" onClick={toggleDataMode}>
-                  Use Demo Data
                 </Button>
               </div>
             </div>
@@ -531,9 +394,6 @@ const RolePriorityTree = () => {
               <CardDescription className="mt-2">
                 No users are mapped to this gene
               </CardDescription>
-              <Button onClick={toggleDataMode} variant="outline" className="mt-4">
-                Load Demo Data
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -543,25 +403,6 @@ const RolePriorityTree = () => {
 
   return (
     <div className="h-screen bg-background flex flex-col">
-      {/* Demo Data Notice */}
-      {useDummyData && (
-        <Alert className="m-0 rounded-none border-x-0 border-t-0">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Demo Mode</AlertTitle>
-          <AlertDescription className="flex items-center justify-between">
-            <span>Using sample user hierarchy data</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleDataMode}
-              className="ml-4"
-            >
-              Switch to Live Data
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Header */}
       <Card className="m-0 rounded-none border-x-0 border-t-0 border-b shadow-sm">
         <CardHeader>
@@ -569,11 +410,17 @@ const RolePriorityTree = () => {
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <Network className="h-5 w-5 text-primary" />
-                <CardTitle className="text-2xl">User Priority Hierarchy</CardTitle>
+                <CardTitle className="text-2xl">
+                  {geneDetails ? (geneDetails.g_name || geneDetails.name || 'User Priority Hierarchy') : 'User Priority Hierarchy'}
+                </CardTitle>
               </div>
               <CardDescription>
+                {geneDetails && (
+                  <>
+                    Gene: {geneDetails.g_name || geneDetails.name} • 
+                  </>
+                )}{' '}
                 Role-based tree visualization • {users.length} users across {priorityLevels.length} levels
-                {useDummyData && " • Demo Data"}
               </CardDescription>
             </div>
            
@@ -599,14 +446,6 @@ const RolePriorityTree = () => {
                   );
                 })}
               </div>
-           
-              <Button
-                variant={useDummyData ? "default" : "secondary"}
-                onClick={toggleDataMode}
-                size="sm"
-              >
-                {useDummyData ? 'Demo Mode' : 'Live Mode'}
-              </Button>
             </div>
           </div>
         </CardHeader>

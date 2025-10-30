@@ -8,6 +8,7 @@ import {
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { authUtils } from '@/lib/auth-utils';
 
 // Shadcn UI Components
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -35,9 +36,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 
-// API Constants placeholder
+// API Constants
 const API_CONSTANTS = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
+  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001',
 };
 
 export default function GeneModal({
@@ -62,12 +63,12 @@ export default function GeneModal({
   const [touchedFields, setTouchedFields] = useState({ name: false, levels: false });
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // Fetch users when modal opens in edit mode
+  // Fetch users when modal opens (both create and edit mode)
   useEffect(() => {
-    if (showModal && editingGene) {
+    if (showModal) {
       fetchUsers();
     }
-  }, [showModal, editingGene]);
+  }, [showModal]);
 
   // Initialize selected users when geneData changes
   useEffect(() => {
@@ -134,16 +135,23 @@ export default function GeneModal({
     try {
       setLoadingUsers(true);
       setError(null);
-      const token = localStorage.getItem('token');
+      // Try to get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
       if (!token) {
-        router.push('/login');
+        setError('Authentication token not found. Please ensure you are logged in.');
+        setLoadingUsers(false);
         return;
       }
 
       const baseUrl = API_CONSTANTS.BASE_URL;
-      const response = await axios.post(
-        `${baseUrl}/auth/allUser`,
-        {},
+      const response = await axios.get(
+        `${baseUrl}/api/users`,
         {
           headers: {
             'Accept': 'application/json',
@@ -154,24 +162,48 @@ export default function GeneModal({
       );
 
       console.log('Users Response:', response.data);
-      if (response.data.success || response.data.data) {
-        const usersData = response.data.data || response.data.users || [];
-        setUsers(Array.isArray(usersData) ? usersData : []);
+      
+      // Handle different response formats
+      let usersData = [];
+      if (Array.isArray(response.data)) {
+        // Direct array response
+        usersData = response.data;
+      } else if (response.data.success && response.data.data) {
+        // Wrapped in success/data
+        usersData = response.data.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        usersData = response.data.data;
+      } else if (response.data.users && Array.isArray(response.data.users)) {
+        usersData = response.data.users;
+      }
+      
+      // Normalize user objects - map user_id to id if needed
+      const normalizedUsers = usersData.map(user => ({
+        ...user,
+        id: user.id || user.user_id, // Use id if exists, otherwise use user_id
+        username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+        name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
+      }));
+      
+      setUsers(normalizedUsers);
        
-        if (selectedUsers.length > 0 && selectedUsers[0].username === undefined) {
-          const updatedSelectedUsers = usersData.filter(user =>
-            selectedUsers.some(selected => selected.id === user.id.toString())
-          );
-          setSelectedUsers(updatedSelectedUsers);
-        }
-      } else {
-        setError('Failed to fetch users');
+      if (selectedUsers.length > 0 && selectedUsers[0].username === undefined) {
+        const updatedSelectedUsers = normalizedUsers.filter(user =>
+          selectedUsers.some(selected => selected.id === user.id || selected.id === user.user_id)
+        );
+        setSelectedUsers(updatedSelectedUsers);
       }
     } catch (err) {
       console.error('Fetch error:', err);
       if (err.response?.status === 401) {
+        // Clear tokens from all storage
         localStorage.removeItem('token');
-        router.push('/login');
+        localStorage.removeItem('accessToken');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('accessToken');
+        authUtils.clearTokens();
+        setError('Session expired. Please login again.');
+        // Don't redirect automatically - let user continue working if they don't need users
       } else {
         setError(err.message || 'Failed to fetch users');
       }
@@ -181,25 +213,38 @@ export default function GeneModal({
   };
 
   const handleUserSelect = (user) => {
-    if (!selectedUsers.some(selected => selected.id === user.id)) {
+    const userId = user.id || user.user_id;
+    if (!selectedUsers.some(selected => (selected.id || selected.user_id) === userId)) {
       setSelectedUsers(prev => [...prev, user]);
     }
     setSearchTerm('');
   };
 
   const removeUser = (userId) => {
-    setSelectedUsers(prev => prev.filter(user => user.id !== userId));
+    setSelectedUsers(prev => prev.filter(user => (user.id || user.user_id) !== userId));
   };
 
   const clearAllUsers = () => {
     setSelectedUsers([]);
   };
 
-  const filteredUsers = users.filter(user =>
-    user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).filter(user => !selectedUsers.some(selected => selected.id === user.id));
+  const filteredUsers = users.filter(user => {
+    const userId = user.id || user.user_id;
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = 
+      user.username?.toLowerCase().includes(searchLower) ||
+      user.email?.toLowerCase().includes(searchLower) ||
+      user.name?.toLowerCase().includes(searchLower) ||
+      user.first_name?.toLowerCase().includes(searchLower) ||
+      user.last_name?.toLowerCase().includes(searchLower) ||
+      `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase().includes(searchLower);
+    
+    const isSelected = selectedUsers.some(selected => {
+      const selectedId = selected.id || selected.user_id;
+      return selectedId === userId;
+    });
+    return matchesSearch && !isSelected;
+  });
 
   // Check if form is valid
   const isFormValid = geneData.name &&
@@ -209,8 +254,8 @@ export default function GeneModal({
 
   return (
     <Dialog open={showModal} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center gap-2 text-2xl">
             <Network className="h-5 w-5" />
             {editingGene ? 'Edit Gene' : 'Create New Gene'}
@@ -220,7 +265,7 @@ export default function GeneModal({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 px-6 overflow-y-auto">
           <div className="space-y-6">
             {/* Gene Name Input */}
             <div className="space-y-2">
@@ -252,9 +297,8 @@ export default function GeneModal({
               )}
             </div>
 
-            {/* Users Multi-Select Dropdown - Only show in edit mode */}
-            {editingGene && (
-              <div className="space-y-2">
+            {/* Users Multi-Select Dropdown - Show in both create and edit mode */}
+            <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold">Assign Users</Label>
                   {selectedUsers.length > 0 && (
@@ -275,44 +319,51 @@ export default function GeneModal({
                     <Button
                       variant="outline"
                       role="combobox"
-                      className="w-full justify-between min-h-[52px] h-auto py-2"
+                      className="w-full justify-between min-h-[52px] h-auto py-2 px-3"
                     >
-                      {selectedUsers.length === 0 ? (
-                        <span className="text-muted-foreground text-sm">Select users...</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {selectedUsers.map((user) => (
-                            <Badge
-                              key={user.id}
-                              variant="secondary"
-                              className="flex items-center gap-1"
-                            >
-                              {user.username || user.name || `User ${user.id}`}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeUser(user.id);
-                                }}
-                                className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      <Users className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      <div className="flex-1 flex items-center min-w-0">
+                        {selectedUsers.length === 0 ? (
+                          <span className="text-muted-foreground text-sm">Select users...</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 w-full">
+                            {selectedUsers.map((user) => {
+                              const userId = user.id || user.user_id;
+                              const displayName = user.username || user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || `User ${userId}`;
+                              return (
+                                <Badge
+                                  key={userId}
+                                  variant="secondary"
+                                  className="flex items-center gap-1 text-xs"
+                                >
+                                  {displayName}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeUser(userId);
+                                    }}
+                                    className="ml-1 hover:bg-destructive/20 rounded-full p-0.5 -mr-1"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <Users className="ml-2 h-4 w-4 shrink-0 opacity-50 flex-shrink-0" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-full p-0" align="start">
-                    <Command>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command className="max-h-[300px]">
                       <CommandInput 
                         placeholder="Search users..." 
                         value={searchTerm}
                         onValueChange={setSearchTerm}
+                        className="h-9"
                       />
-                      <CommandList>
+                      <CommandList className="max-h-[250px] overflow-y-auto">
                         {loadingUsers ? (
                           <div className="flex items-center justify-center py-6">
                             <Loader2 className="h-5 w-5 animate-spin text-primary" />
@@ -336,45 +387,56 @@ export default function GeneModal({
                             </Button>
                           </div>
                         ) : filteredUsers.length === 0 ? (
-                          <CommandEmpty>
-                            {searchTerm ? 'No users found' : 'No users available'}
+                          <CommandEmpty className="py-6 text-center">
+                            {searchTerm ? 'No users found' : users.length === 0 ? 'No users available' : 'All users are selected'}
                           </CommandEmpty>
                         ) : (
                           <CommandGroup>
-                            {filteredUsers.map((user) => (
-                              <CommandItem
-                                key={user.id}
-                                value={`${user.username || user.name || user.id}`}
-                                onSelect={() => handleUserSelect(user)}
-                                className="cursor-pointer"
-                              >
-                                <div className="flex items-center justify-between w-full">
-                                  <div className="flex items-center gap-2">
-                                    <Users className="h-4 w-4" />
-                                    <span className="font-medium">
-                                      {user.username || user.name || `User ${user.id}`}
-                                    </span>
-                                    {user.email && (
-                                      <span className="text-xs text-muted-foreground">
-                                        ({user.email})
-                                      </span>
-                                    )}
+                            {filteredUsers.map((user) => {
+                              const userId = user.id || user.user_id;
+                              const displayName = user.username || user.name || 
+                                (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}`.trim() : null) || 
+                                user.email || 
+                                `User ${userId}`;
+                              return (
+                                <CommandItem
+                                  key={userId}
+                                  value={`${displayName} ${user.email || ''}`}
+                                  onSelect={() => {
+                                    handleUserSelect(user);
+                                    setOpenUserPopover(false);
+                                  }}
+                                  className="cursor-pointer py-2.5"
+                                >
+                                  <div className="flex items-center justify-between w-full gap-2">
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                      <Users className="h-4 w-4 shrink-0" />
+                                      <div className="flex flex-col min-w-0 flex-1">
+                                        <span className="font-medium truncate">
+                                          {displayName}
+                                        </span>
+                                        {user.email && (
+                                          <span className="text-xs text-muted-foreground truncate">
+                                            {user.email}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className={cn(
+                                      "w-2 h-2 rounded-full shrink-0",
+                                      user.is_active !== false ? 'bg-green-500' : 'bg-gray-300'
+                                    )} />
                                   </div>
-                                  <div className={cn(
-                                    "w-2 h-2 rounded-full",
-                                    user.is_active ? 'bg-green-500' : 'bg-gray-300'
-                                  )} />
-                                </div>
-                              </CommandItem>
-                            ))}
+                                </CommandItem>
+                              );
+                            })}
                           </CommandGroup>
                         )}
                       </CommandList>
                     </Command>
                   </PopoverContent>
                 </Popover>
-              </div>
-            )}
+            </div>
 
             <Separator />
 
@@ -512,7 +574,7 @@ export default function GeneModal({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+        <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between px-6 pb-6 pt-4 border-t">
           <div className="text-sm text-muted-foreground">
             {geneData.levels.length > 0
               ? `${geneData.levels.length} level${geneData.levels.length > 1 ? 's' : ''} configured • Status: ${geneData.is_active === true ? 'Active' : 'Inactive'}`

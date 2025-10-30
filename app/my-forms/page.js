@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
-import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore } from "lucide-react"
+import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
 import EditFormDialog from "../component/EditForm/edit-form"
@@ -43,6 +43,9 @@ export default function MyFormsPage() {
   const [sortDirection, setSortDirection] = useState("asc")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(5)
+  
+  // View mode state
+  const [viewMode, setViewMode] = useState("table") // "table", "list", or "card"
 
   useEffect(() => {
     fetchForms()
@@ -822,7 +825,35 @@ export default function MyFormsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Forms List ({filteredForms.length} forms)</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Forms List ({filteredForms.length} forms)</CardTitle>
+            <div className="flex gap-2">
+              <Button
+                variant={viewMode === "table" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("table")}
+                title="Table View"
+              >
+                <TableIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "list" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("list")}
+                title="List View"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === "card" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("card")}
+                title="Card View"
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {forms.length === 0 ? (
@@ -859,85 +890,193 @@ export default function MyFormsPage() {
             </div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSort("form_name")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Form Name
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSort("fieldCount")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Fields
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSort("createdDate")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Created
-                        <ArrowUpDown className="h-4 w-4" />
-                      </div>
-                    </TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              {/* Table View */}
+              {viewMode === "table" && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleSort("form_name")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Form Name
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleSort("fieldCount")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Fields
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </TableHead>
+                      <TableHead
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleSort("createdDate")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Created
+                          <ArrowUpDown className="h-4 w-4" />
+                        </div>
+                      </TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedForms.map((form) => (
+                      <TableRow key={`${form.form_id}-v${form.version || 1}`}>
+                        <TableCell className="font-medium">
+                          <div>
+                            {form.form_name} v-{form.version || 1}
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {/* ID: {form.form_id?.substring(0, 8)}... */}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {form.description || 'No description'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            {form.fieldCount || 0} fields
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            {form.created}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <Badge
+                              variant={
+                                form.archived ? "destructive" :
+                                  form.published ? "default" : "secondary"
+                              }
+                            >
+                              {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
+                            </Badge>
+                            {form.archived && (
+                              <span className="text-xs text-muted-foreground">
+                                Inactive - Users cannot access
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditForm(form.form_id)}
+                              title="Edit form"
+                              disabled={form.archived}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => copyFormLink(form.form_id, form.archived)}
+                              title={form.archived ? "Form archived - cannot copy link" : "Copy form link"}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openFormInNewTab(form.form_id, form.archived)}
+                              title={form.archived ? "Form archived - cannot open" : "Open form in new tab"}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              title="View analytics"
+                              disabled
+                            >
+                              <BarChart3 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={form.archived ? "default" : "outline"}
+                              onClick={() => toggleArchiveForm(form.form_id, form.archived)}
+                              title={form.archived ? "Unarchive form" : "Archive form"}
+                              disabled={archivingForm === form.form_id}
+                            >
+                              {archivingForm === form.form_id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : form.archived ? (
+                                <ArchiveRestore className="h-4 w-4" />
+                              ) : (
+                                <Archive className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => confirmDelete(form)}
+                              title="Delete form"
+                              disabled={deletingForm === form.form_id}
+                            >
+                              {deletingForm === form.form_id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+
+              {/* List View */}
+              {viewMode === "list" && (
+                <div className="space-y-3">
                   {paginatedForms.map((form) => (
-                    <TableRow key={`${form.form_id}-v${form.version || 1}`}>
-                      <TableCell className="font-medium">
-                        <div>
-                          {form.form_name} v-{form.version || 1}
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {/* ID: {form.form_id?.substring(0, 8)}... */}
+                    <div 
+                      key={`${form.form_id}-v${form.version || 1}`}
+                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="font-semibold text-lg">{form.form_name}</h3>
+                            <Badge variant="outline">v-{form.version || 1}</Badge>
+                            <Badge
+                              variant={
+                                form.archived ? "destructive" :
+                                  form.published ? "default" : "secondary"
+                              }
+                            >
+                              {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
+                            </Badge>
+                          </div>
+                          <p className="text-muted-foreground mb-2">
+                            {form.description || 'No description'}
+                          </p>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              {form.fieldCount || 0} fields
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-4 w-4" />
+                              {form.created}
+                            </div>
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        {form.description || 'No description'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          {form.fieldCount || 0} fields
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          {form.created}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge
-                            variant={
-                              form.archived ? "destructive" :
-                                form.published ? "default" : "secondary"
-                            }
-                          >
-                            {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
-                          </Badge>
-                          {form.archived && (
-                            <span className="text-xs text-muted-foreground">
-                              Inactive - Users cannot access
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
                         <div className="flex gap-2">
                           <Button
                             size="sm"
@@ -963,14 +1102,6 @@ export default function MyFormsPage() {
                             title={form.archived ? "Form archived - cannot open" : "Open form in new tab"}
                           >
                             <ExternalLink className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            title="View analytics"
-                            disabled
-                          >
-                            <BarChart3 className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
@@ -1001,11 +1132,109 @@ export default function MyFormsPage() {
                             )}
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              )}
+
+              {/* Card View */}
+              {viewMode === "card" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {paginatedForms.map((form) => (
+                    <Card key={`${form.form_id}-v${form.version || 1}`} className="hover:shadow-lg transition-shadow">
+                      <CardHeader>
+                        <div className="flex items-start justify-between mb-2">
+                          <CardTitle className="text-lg leading-tight">{form.form_name}</CardTitle>
+                          <Badge
+                            variant={
+                              form.archived ? "destructive" :
+                                form.published ? "default" : "secondary"
+                            }
+                          >
+                            {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Badge variant="outline">v-{form.version || 1}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                          {form.description || 'No description'}
+                        </p>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                            {form.fieldCount || 0} fields
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {form.created}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditForm(form.form_id)}
+                            title="Edit form"
+                            disabled={form.archived}
+                            className="flex-1"
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => copyFormLink(form.form_id, form.archived)}
+                            title={form.archived ? "Form archived - cannot copy link" : "Copy form link"}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openFormInNewTab(form.form_id, form.archived)}
+                            title={form.archived ? "Form archived - cannot open" : "Open form in new tab"}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={form.archived ? "default" : "outline"}
+                            onClick={() => toggleArchiveForm(form.form_id, form.archived)}
+                            title={form.archived ? "Unarchive form" : "Archive form"}
+                            disabled={archivingForm === form.form_id}
+                          >
+                            {archivingForm === form.form_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : form.archived ? (
+                              <ArchiveRestore className="h-4 w-4" />
+                            ) : (
+                              <Archive className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => confirmDelete(form)}
+                            title="Delete form"
+                            disabled={deletingForm === form.form_id}
+                          >
+                            {deletingForm === form.form_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
 
               {/* Pagination */}
               {totalPages > 1 && (

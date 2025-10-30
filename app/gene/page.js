@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { authUtils } from '@/lib/auth-utils';
 import { 
   Eye, Edit, Trash2, Plus, Search, Upload, Table2, List, LayoutGrid,
   Loader2, AlertCircle, RefreshCw, X, CheckCircle2, Building, 
@@ -21,6 +22,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,134 +36,21 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 import UserGeneMappingModal from "./components/UserGeneMappingModal";
 import GeneModal from "./components/GeneModal";
 import GeneCsvModal from "./components/GeneCsvModal";
 
-// API Constants placeholder - Replace with actual constants if available
+// API Constants
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001';
 const API_CONSTANTS = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || '',
-  geneView: '/api/genes/view',
-  geneCreate: '/api/genes/create',
-  geneUpdate: '/api/genes/update',
-  geneDelete: '/api/genes/delete',
+  BASE_URL: API_BASE_URL,
+  geneList: '/api/genes',
+  geneCreate: '/api/genes',
+  geneUpdate: '/api/genes', // Will append /{g_id} in the request
+  geneDelete: '/api/genes', // Will append /{g_id} in the request
 };
-
-// Dummy data for demonstration
-const DUMMY_GENES = [
-  {
-    id: 1,
-    g_id: 1,
-    g_name: 'Sales Hierarchy',
-    type: 'Gene',
-    totalMembers: 45,
-    hierarchyLevels: 4,
-    users: 12,
-    lastUpdated: 'Jan 15, 2024',
-    completion: 100,
-    createdBy: 'admin',
-    levels: [
-      { id: 1, title: 'Regional Director', members: 5 },
-      { id: 2, title: 'Area Manager', members: 15 },
-      { id: 3, title: 'Team Lead', members: 25 },
-      { id: 4, title: 'Sales Executive', members: 45 }
-    ],
-    createdAt: '2024-01-01',
-    hierarchy_level: { '1': 'Regional Director', '2': 'Area Manager', '3': 'Team Lead', '4': 'Sales Executive' },
-    level_depth: 4,
-    organizations: Array(45).fill({}),
-    is_active: true
-  },
-  {
-    id: 2,
-    g_id: 2,
-    g_name: 'Engineering Teams',
-    type: 'Gene',
-    totalMembers: 78,
-    hierarchyLevels: 3,
-    users: 24,
-    lastUpdated: 'Feb 3, 2024',
-    completion: 85,
-    createdBy: 'tech_lead',
-    levels: [
-      { id: 1, title: 'Engineering Manager', members: 8 },
-      { id: 2, title: 'Senior Engineer', members: 25 },
-      { id: 3, title: 'Software Engineer', members: 78 }
-    ],
-    createdAt: '2024-01-15',
-    hierarchy_level: { '1': 'Engineering Manager', '2': 'Senior Engineer', '3': 'Software Engineer' },
-    level_depth: 3,
-    organizations: Array(78).fill({}),
-    is_active: true
-  },
-  {
-    id: 3,
-    g_id: 3,
-    g_name: 'Marketing Structure',
-    type: 'Gene',
-    totalMembers: 32,
-    hierarchyLevels: 3,
-    users: 8,
-    lastUpdated: 'Mar 10, 2024',
-    completion: 92,
-    createdBy: 'marketing_head',
-    levels: [
-      { id: 1, title: 'Marketing Director', members: 3 },
-      { id: 2, title: 'Campaign Manager', members: 12 },
-      { id: 3, title: 'Marketing Specialist', members: 32 }
-    ],
-    createdAt: '2024-02-01',
-    hierarchy_level: { '1': 'Marketing Director', '2': 'Campaign Manager', '3': 'Marketing Specialist' },
-    level_depth: 3,
-    organizations: Array(32).fill({}),
-    is_active: false
-  },
-  {
-    id: 4,
-    g_id: 4,
-    g_name: 'Customer Support',
-    type: 'Gene',
-    totalMembers: 56,
-    hierarchyLevels: 4,
-    users: 18,
-    lastUpdated: 'Apr 22, 2024',
-    completion: 78,
-    createdBy: 'support_manager',
-    levels: [
-      { id: 1, title: 'Support Manager', members: 4 },
-      { id: 2, title: 'Team Lead', members: 12 },
-      { id: 3, title: 'Senior Agent', members: 25 },
-      { id: 4, title: 'Support Agent', members: 56 }
-    ],
-    createdAt: '2024-03-05',
-    hierarchy_level: { '1': 'Support Manager', '2': 'Team Lead', '3': 'Senior Agent', '4': 'Support Agent' },
-    level_depth: 4,
-    organizations: Array(56).fill({}),
-    is_active: true
-  },
-  {
-    id: 5,
-    g_id: 5,
-    g_name: 'Operations Team',
-    type: 'Gene',
-    totalMembers: 23,
-    hierarchyLevels: 2,
-    users: 6,
-    lastUpdated: 'May 5, 2024',
-    completion: 100,
-    createdBy: 'operations_head',
-    levels: [
-      { id: 1, title: 'Operations Manager', members: 5 },
-      { id: 2, title: 'Operations Staff', members: 23 }
-    ],
-    createdAt: '2024-04-10',
-    hierarchy_level: { '1': 'Operations Manager', '2': 'Operations Staff' },
-    level_depth: 2,
-    organizations: Array(23).fill({}),
-    is_active: true
-  }
-];
 
 export default function GeneDashboard() {
   const router = useRouter();
@@ -184,11 +73,18 @@ export default function GeneDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [geneToDelete, setGeneToDelete] = useState(null);
+  const [geneToDeleteObj, setGeneToDeleteObj] = useState(null);
   const [showCsvModal, setShowCsvModal] = useState(false);
   const [showCsvGeneUserModal, setShowCsvGeneUserModal] = useState(false);
   const [searches, setSearhes] = useState(null);
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [useDummyData, setUseDummyData] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0
+  });
 
   // Debounce function
   const debounce = (func, delay) => {
@@ -222,31 +118,26 @@ export default function GeneDashboard() {
       setLoading(true);
       setError(null);
      
-      // Use dummy data if enabled
-      if (useDummyData) {
-        console.log('Using dummy data for genes');
-        setTimeout(() => {
-          setGenes(DUMMY_GENES);
-          setLoading(false);
-        }, 1000);
-        return;
-      }
-
-      console.log('Fetching Genes from API...');
-     
-      const token = localStorage.getItem('token');
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
       if (!token) {
         setError('Authentication required. Please login again.');
+        toast.error('Authentication required. Please login again.');
+        router.push('/login');
         return;
       }
      
-      const baseUrl = API_CONSTANTS.BASE_URL;
-      const endPoint = API_CONSTANTS.geneView;
-      const fullUrl = baseUrl + endPoint;
+      const fullUrl = `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneList}`;
      
       console.log("Making API call to:", fullUrl);
      
-      const response = await axios.post(fullUrl, {search : debouncedSearch }, {  
+      const response = await axios.get(fullUrl, {  
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
@@ -257,30 +148,93 @@ export default function GeneDashboard() {
 
       console.log('Full API Response:', response.data);
      
-      if (response.data.success) {
-        const apiGenes = response.data.message || [];
+      if (response.data.success && response.data.data) {
+        const apiGenes = response.data.data || [];
         console.log('API Genes:', apiGenes);
+        console.log('Sample gene structure:', apiGenes[0]); // Log first gene to see structure
+       
+      // Try to fetch users if created_by is just IDs, to create a user ID to name mapping
+      let userMap = {};
+      try {
+        const uniqueUserIds = [...new Set(apiGenes.map(g => g.created_by).filter(Boolean))];
+        if (uniqueUserIds.length > 0) {
+          // Try to fetch users if we have user IDs
+          const tokens = authUtils.getTokens();
+          const token = tokens?.accessToken || 
+                       localStorage.getItem('token') || 
+                       localStorage.getItem('accessToken') ||
+                       sessionStorage.getItem('token') ||
+                       sessionStorage.getItem('accessToken');
+          if (token) {
+              const usersResponse = await axios.get(`${API_CONSTANTS.BASE_URL}/api/users`, {
+                headers: {
+                  Accept: 'application/json',
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                timeout: 30000
+              });
+              if (usersResponse.data && Array.isArray(usersResponse.data)) {
+                usersResponse.data.forEach(user => {
+                  userMap[user.user_id || user.id] = user.first_name && user.last_name 
+                    ? `${user.first_name} ${user.last_name}`.trim()
+                    : user.username || user.email || user.name || user.user_id || user.id;
+                });
+              }
+            }
+          }
+        } catch (userFetchError) {
+          console.warn('Could not fetch users for name mapping:', userFetchError);
+        }
        
         // Transform API data to match your component structure
         const transformedGenes = apiGenes.map(gene => {
-          console.log('Processing gene:', gene);
-         
           const levels = [];
           if (gene.hierarchy_level && typeof gene.hierarchy_level === 'object') {
             Object.entries(gene.hierarchy_level).forEach(([key, value]) => {
-              levels.push({
-                id: parseInt(key),
-                title: value,
-                members: 0
-              });
+              // Handle numeric keys like "1", "2" or string keys like "level1", "level2"
+              const levelNum = key.replace(/[^0-9]/g, '');
+              if (levelNum) {
+                levels.push({
+                  id: parseInt(levelNum),
+                  title: value,
+                  members: 0
+                });
+              }
             });
             levels.sort((a, b) => a.id - b.id);
           }
          
           // Safe handling for potentially null/undefined arrays
-          const usersCount = gene.users ? gene.users.length : 0;
-          const organizationsCount = gene.organizations ? gene.organizations.length : 0;
+          const usersCount = gene.users ? (Array.isArray(gene.users) ? gene.users.length : 0) : 0;
+          const organizationsCount = gene.organizations ? (Array.isArray(gene.organizations) ? gene.organizations.length : 0) : 0;
          
+          // Extract created by name from various possible API response formats
+          let createdByName = 'Unknown';
+          if (gene.created_by_details) {
+            // If API provides user details object
+            createdByName = gene.created_by_details.user_data?.username || 
+                           gene.created_by_details.user_data?.name ||
+                           gene.created_by_details.user_data?.email ||
+                           gene.created_by_details.name ||
+                           gene.created_by_details.username ||
+                           'Unknown';
+          } else if (gene.created_by_name) {
+            // If API directly provides created_by_name field
+            createdByName = gene.created_by_name;
+          } else if (gene.created_by && typeof gene.created_by === 'object') {
+            // If created_by is an object with name/username
+            createdByName = gene.created_by.name || gene.created_by.username || gene.created_by.email || 'Unknown';
+          } else if (gene.created_by) {
+            // If created_by is just an ID, try to look it up in userMap
+            if (userMap[gene.created_by]) {
+              createdByName = userMap[gene.created_by];
+            } else {
+              // Fallback to ID if we couldn't find the user
+              createdByName = gene.created_by;
+            }
+          }
+          
           return {
             id: gene.g_id,
             name: gene.g_name || 'Unnamed Gene',
@@ -294,7 +248,8 @@ export default function GeneDashboard() {
               day: 'numeric'
             }),
             completion: 100,
-            createdBy: gene.created_by_details?.user_data?.username || 'Unknown',
+            createdBy: createdByName,
+            createdById: gene.created_by, // Keep the ID for reference if needed
             levels: levels,
             createdAt: gene.created_at,
             hierarchy_level: gene.hierarchy_level,
@@ -308,23 +263,35 @@ export default function GeneDashboard() {
        
         console.log('Transformed Genes:', transformedGenes);
         setGenes(transformedGenes);
+        
+        // Update pagination state
+        if (response.data.pagination) {
+          setPagination(response.data.pagination);
+        }
       } else {
         console.error('API returned success: false');
-        setError('Failed to fetch genes: ' + (response.data.message || 'Unknown error'));
+        const errorMsg = response.data.message || 'Failed to fetch genes';
+        setError(errorMsg);
+        toast.error(errorMsg);
+        setGenes([]);
       }
     } catch (err) {
       console.error('Fetch error:', err);
       console.error('Error response:', err.response?.data);
+      
       if (err.response?.status === 401) {
-        setError('Session expired. Please login again.');
-        localStorage.removeItem('token');
+        const errorMsg = 'Session expired. Please login again.';
+        setError(errorMsg);
+        toast.error(errorMsg);
+        // Clear all tokens using auth utils
+        authUtils.clearTokens();
+        localStorage.removeItem('token'); // Also remove legacy token if exists
         router.push('/login');
       } else {
-        setError(err.message || 'Failed to fetch genes');
-        // Fallback to dummy data on error
-        console.log('Falling back to dummy data due to error');
-        setUseDummyData(true);
-        setGenes(DUMMY_GENES);
+        const errorMsg = err.response?.data?.message || err.message || 'Failed to fetch genes';
+        setError(errorMsg);
+        toast.error(errorMsg);
+        setGenes([]);
       }
     } finally {
       setLoading(false);
@@ -333,7 +300,17 @@ export default function GeneDashboard() {
 
   useEffect(() => {
     fetchGenes();
-  }, [debouncedSearch, useDummyData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize]);
+
+  // Handle search separately - reset to page 1 when search changes
+  useEffect(() => {
+    if (debouncedSearch !== undefined && debouncedSearch !== null) {
+      setCurrentPage(1);
+      // Note: fetchGenes will be called when currentPage changes
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }
+  }, [debouncedSearch]);
 
   const getStatusBadge = (is_active) => {
     return (
@@ -341,6 +318,89 @@ export default function GeneDashboard() {
         {is_active ? 'Active' : 'Inactive'}
       </Badge>
     );
+  };
+
+  const handleToggleStatus = async (geneId, currentStatus) => {
+    const loadingToast = toast.loading('Updating status...');
+    
+    try {
+      // Optimistically update the UI
+      setGenes(prevGenes => 
+        prevGenes.map(gene => 
+          gene.g_id === geneId || gene.id === geneId
+            ? { ...gene, is_active: !currentStatus }
+            : gene
+        )
+      );
+
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        // Revert optimistic update
+        setGenes(prevGenes => 
+          prevGenes.map(gene => 
+            gene.g_id === geneId || gene.id === geneId
+              ? { ...gene, is_active: currentStatus }
+              : gene
+          )
+        );
+        toast.error('Authentication required. Please login again.', { id: loadingToast });
+        router.push('/login');
+        return;
+      }
+
+      console.log('Toggling status for gene with ID:', geneId);
+
+      // Call the toggle API endpoint
+      const response = await axios.patch(
+        `${API_CONSTANTS.BASE_URL}/api/genes/${geneId}/toggle-active`,
+        {},
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.success) {
+        const newStatus = !currentStatus;
+        toast.success(`Gene status updated to ${newStatus ? 'Active' : 'Inactive'}!`, {
+          id: loadingToast,
+        });
+        // No need to call fetchGenes() since we've already updated optimistically
+      } else {
+        // Revert optimistic update on error
+        setGenes(prevGenes => 
+          prevGenes.map(gene => 
+            gene.g_id === geneId || gene.id === geneId
+              ? { ...gene, is_active: currentStatus }
+              : gene
+          )
+        );
+        throw new Error(response.data.message || 'Failed to toggle status');
+      }
+    } catch (error) {
+      console.error('Error toggling status:', error);
+      // Revert optimistic update on error
+      setGenes(prevGenes => 
+        prevGenes.map(gene => 
+          gene.g_id === geneId || gene.id === geneId
+            ? { ...gene, is_active: currentStatus }
+            : gene
+        )
+      );
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to toggle status';
+      toast.error(errorMsg, {
+        id: loadingToast,
+      });
+    }
   };
 
   // Gene Data Management
@@ -398,7 +458,8 @@ export default function GeneDashboard() {
   const convertLevelsToHierarchy = (levels) => {
     const hierarchy_level = {};
     levels.forEach((level, index) => {
-      hierarchy_level[(index + 1).toString()] = level.title;
+      // Use L1, L2 format as per API requirements
+      hierarchy_level[`L${index + 1}`] = level.title;
     });
     return hierarchy_level;
   };
@@ -420,80 +481,54 @@ export default function GeneDashboard() {
     const loadingToast = toast.loading(editingGene ? 'Updating gene...' : 'Creating gene...');
 
     try {
-      if (useDummyData) {
-        setTimeout(() => {
-          if (editingGene) {
-            setGenes(prev => prev.map(gene =>
-              gene.id === editingGene.id
-                ? {
-                    ...gene,
-                    g_name: geneData.name,
-                    name: geneData.name,
-                    levels: geneData.levels,
-                    hierarchy_level: convertLevelsToHierarchy(geneData.levels),
-                    level_depth: geneData.levels.length,
-                    is_active: geneData.is_active,
-                    lastUpdated: new Date().toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric'
-                    })
-                  }
-                : gene
-            ));
-            toast.success(`Gene "${geneData.name}" updated successfully!`, {
-              id: loadingToast,
-            });
-          } else {
-            const newGene = {
-              id: Date.now(),
-              g_id: Date.now(),
-              g_name: geneData.name,
-              name: geneData.name,
-              type: 'Gene',
-              totalMembers: 0,
-              hierarchyLevels: geneData.levels.length,
-              users: 0,
-              lastUpdated: new Date().toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-              }),
-              completion: 100,
-              createdBy: 'Current User',
-              levels: geneData.levels,
-              createdAt: new Date().toISOString(),
-              hierarchy_level: convertLevelsToHierarchy(geneData.levels),
-              level_depth: geneData.levels.length,
-              organizations: [],
-              is_active: geneData.is_active
-            };
-            setGenes(prev => [...prev, newGene]);
-            toast.success(`Gene "${geneData.name}" created successfully with ${geneData.levels.length} levels!`, {
-              id: loadingToast,
-            });
-          }
-          closeModal();
-        }, 1000);
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        toast.error('Authentication required. Please login again.', { id: loadingToast });
+        router.push('/login');
         return;
       }
 
-      const token = localStorage.getItem('token');
       const hierarchy_level = convertLevelsToHierarchy(geneData.levels);
+      const level_depth = geneData.levels.length;
      
       if (editingGene) {
+        // Build payload for updating gene - only include fields that can be updated
         const payload = {
-          g_id: geneData.g_id,
           g_name: geneData.name,
-          hierarchy_level: hierarchy_level,
           is_active: geneData.is_active,
-          users: selectedUsers ? selectedUsers.map(user => user.id) : []
+          level_depth: level_depth
         };
+
+        // Add hierarchy_level if provided
+        if (hierarchy_level && Object.keys(hierarchy_level).length > 0) {
+          payload.hierarchy_level = hierarchy_level;
+        }
+
+        // Add users if selected
+        if (selectedUsers && Array.isArray(selectedUsers) && selectedUsers.length > 0) {
+          payload.users = selectedUsers.map(user => {
+            // Handle both object with id and direct id value
+            return user.id || user.user_id || user;
+          });
+        }
+
+        // Add organizations if provided
+        if (geneData.organizations && Array.isArray(geneData.organizations) && geneData.organizations.length > 0) {
+          payload.organizations = geneData.organizations;
+        }
 
         console.log('Update Gene Payload:', payload);
 
+        // Update endpoint uses PUT with g_id in the URL path
         const response = await axios.put(
-          `${API_CONSTANTS.BASE_URL}/${API_CONSTANTS.geneUpdate}`,
+          `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneUpdate}/${geneData.g_id}`,
           payload,
           {
             headers: {
@@ -504,7 +539,7 @@ export default function GeneDashboard() {
         );
 
         if (response.data.success) {
-          toast.success(`Gene "${geneData.name}" updated successfully!`, {
+          toast.success(response.data.message || `Gene "${geneData.name}" updated successfully!`, {
             id: loadingToast,
           });
           fetchGenes();
@@ -513,11 +548,26 @@ export default function GeneDashboard() {
           throw new Error(response.data.message || 'Failed to update gene');
         }
       } else {
+        // Build payload for creating new gene
         const payload = {
           g_name: geneData.name,
           hierarchy_level: hierarchy_level,
-          is_active: geneData.is_active
+          is_active: geneData.is_active,
+          level_depth: level_depth
         };
+
+        // Add organizations if provided
+        if (geneData.organizations && Array.isArray(geneData.organizations) && geneData.organizations.length > 0) {
+          payload.organizations = geneData.organizations;
+        }
+
+        // Add users if selected
+        if (selectedUsers && Array.isArray(selectedUsers) && selectedUsers.length > 0) {
+          payload.users = selectedUsers.map(user => {
+            // Handle both object with id and direct id value
+            return user.id || user.user_id || user;
+          });
+        }
 
         console.log('Create Gene Payload:', payload);
 
@@ -533,7 +583,7 @@ export default function GeneDashboard() {
         );
 
         if (response.data.success) {
-          toast.success(`Gene "${geneData.name}" created successfully with ${geneData.levels.length} levels!`, {
+          toast.success(response.data.message || `Gene "${geneData.name}" created successfully with ${level_depth} levels!`, {
             id: loadingToast,
           });
           fetchGenes();
@@ -544,7 +594,8 @@ export default function GeneDashboard() {
       }
     } catch (error) {
       console.error('Error saving gene:', error);
-      toast.error(`Failed to ${editingGene ? 'update' : 'create'} gene: ${error.response?.data?.message || error.message}`, {
+      const errorMsg = error.response?.data?.message || error.message || `Failed to ${editingGene ? 'update' : 'create'} gene`;
+      toast.error(errorMsg, {
         id: loadingToast,
       });
     }
@@ -561,7 +612,9 @@ export default function GeneDashboard() {
   };
 
   const handleDeleteGene = async (geneId) => {
+    const geneObj = genes.find(g => (g.g_id || g.id) === geneId);
     setGeneToDelete(geneId);
+    setGeneToDeleteObj(geneObj);
     setShowDeleteModal(true);
   };
 
@@ -569,49 +622,48 @@ export default function GeneDashboard() {
     const loadingToast = toast.loading('Deleting gene...');
    
     try {
-      if (useDummyData) {
-        setTimeout(() => {
-          setGenes(prev => prev.filter(gene => gene.id !== geneToDelete));
-          toast.success('Gene deleted successfully!', {
-            id: loadingToast,
-          });
-          setShowDeleteModal(false);
-          setGeneToDelete(null);
-        }, 1000);
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        toast.error('Authentication required. Please login again.', { id: loadingToast });
+        router.push('/login');
         return;
       }
 
-      const token = localStorage.getItem('token');
-      const payload = {
-        id: geneToDelete
-      };
+      console.log('Deleting gene with ID:', geneToDelete);
 
-      console.log('Delete Gene Payload:', payload);
-
+      // Delete endpoint uses DELETE with g_id in the URL path
       const response = await axios.delete(
-        `${API_CONSTANTS.BASE_URL}/${API_CONSTANTS.geneDelete}`,
+        `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneDelete}/${geneToDelete}`,
         {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
-          },
-          data: payload
+          }
         }
       );
 
       if (response.data.success) {
-        setGenes(prev => prev.filter(gene => gene.id !== geneToDelete));
-        toast.success('Gene deleted successfully!', {
+        toast.success(response.data.message || 'Gene deleted successfully!', {
           id: loadingToast,
         });
         setShowDeleteModal(false);
         setGeneToDelete(null);
+        setGeneToDeleteObj(null);
+        fetchGenes(); // Refresh the list
       } else {
         throw new Error(response.data.message || 'Failed to delete gene');
       }
     } catch (error) {
       console.error('Error deleting gene:', error);
-      toast.error(`Failed to delete gene: ${error.response?.data?.message || error.message}`, {
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to delete gene';
+      toast.error(errorMsg, {
         id: loadingToast,
       });
     }
@@ -625,11 +677,6 @@ export default function GeneDashboard() {
     const matchesSearch = !search || geneName.includes(search) || createdBy.includes(search);
     return matchesSearch;
   });
-
-  const toggleDataMode = () => {
-    setUseDummyData(!useDummyData);
-    toast.info(useDummyData ? 'Switching to real API data' : 'Using demo data');
-  };
 
   const handleShowCsvModal = () => {
     setShowCsvModal(true);
@@ -648,17 +695,23 @@ export default function GeneDashboard() {
   };
 
   const handleCsvSubmit = async (formData) => {
+    const loadingToast = toast.loading('Importing genes from CSV...');
+    
     try {
-      if (useDummyData) {
-        setTimeout(() => {
-          toast.success('Genes imported successfully from CSV!');
-          setShowCsvModal(false);
-          fetchGenes();
-        }, 1500);
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        toast.error('Authentication required. Please login again.', { id: loadingToast });
+        router.push('/login');
         return;
       }
 
-      const token = localStorage.getItem('token');
       const baseUrl = API_CONSTANTS.BASE_URL;
 
       const response = await axios.post(
@@ -672,7 +725,10 @@ export default function GeneDashboard() {
         }
       );
 
-      if (response.data.message) {
+      if (response.data.success || response.data.message) {
+        toast.success(response.data.message || 'Genes imported successfully from CSV!', {
+          id: loadingToast,
+        });
         setShowCsvModal(false);
         fetchGenes();
       } else {
@@ -680,22 +736,31 @@ export default function GeneDashboard() {
       }
     } catch (err) {
       console.error('CSV import error:', err);
-      toast.error('Failed to import genes from CSV');
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to import genes from CSV';
+      toast.error(errorMsg, {
+        id: loadingToast,
+      });
     }
   };
 
   const handleCsvUserGeneSubmit = async (formData) => {
+    const loadingToast = toast.loading('Importing user mappings from CSV...');
+    
     try {
-      if (useDummyData) {
-        setTimeout(() => {
-          toast.success('User mappings imported successfully from CSV!');
-          setShowCsvGeneUserModal(false);
-          fetchGenes();
-        }, 1500);
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        toast.error('Authentication required. Please login again.', { id: loadingToast });
+        router.push('/login');
         return;
       }
 
-      const token = localStorage.getItem('token');
       const baseUrl = API_CONSTANTS.BASE_URL;
 
       const response = await axios.post(
@@ -709,7 +774,10 @@ export default function GeneDashboard() {
         }
       );
 
-      if (response.data.message) {
+      if (response.data.success || response.data.message) {
+        toast.success(response.data.message || 'User mappings imported successfully from CSV!', {
+          id: loadingToast,
+        });
         setShowCsvGeneUserModal(false);
         fetchGenes();
       } else {
@@ -717,7 +785,10 @@ export default function GeneDashboard() {
       }
     } catch (err) {
       console.error('CSV import error:', err);
-      toast.error('Failed to import user mappings from CSV');
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to import user mappings from CSV';
+      toast.error(errorMsg, {
+        id: loadingToast,
+      });
     }
   };
 
@@ -731,7 +802,12 @@ export default function GeneDashboard() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-base truncate">{geneName}</CardTitle>
+                  <Link
+                    href={`/geneManagement/geanUser/${gene.g_id || gene.id}`}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    <CardTitle className="text-base truncate">{geneName}</CardTitle>
+                  </Link>
                   <CardDescription className="text-xs truncate">{gene.type}</CardDescription>
                 </div>
                 {getStatusBadge(gene.is_active)}
@@ -799,7 +875,12 @@ export default function GeneDashboard() {
                     <span className="text-primary font-bold text-sm">G</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base truncate">{geneName}</CardTitle>
+                    <Link
+                      href={`/geneManagement/geanUser/${gene.g_id || gene.id}`}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      <CardTitle className="text-base truncate">{geneName}</CardTitle>
+                    </Link>
                     <CardDescription className="text-sm truncate">
                       {gene.type} • {gene.hierarchyLevels} levels • Created by {gene.createdBy}
                     </CardDescription>
@@ -892,7 +973,7 @@ export default function GeneDashboard() {
                     <div className="flex items-center space-x-3">
                       <div className="min-w-0 max-w-[240px]">
                         <Link
-                          href={`/geneManagement/geanUser/${gene.id}`}
+                          href={`/geneManagement/geanUser/${gene.g_id || gene.id}`}
                           className="font-medium text-primary hover:underline truncate text-sm md:text-base transition-colors"
                         >
                           {geneName}
@@ -907,7 +988,15 @@ export default function GeneDashboard() {
                     <span className="text-sm text-foreground">{gene.createdBy}</span>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell py-4">
-                    {getStatusBadge(gene.is_active)}
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={gene.is_active}
+                        onCheckedChange={() => handleToggleStatus(gene.g_id || gene.id, gene.is_active)}
+                      />
+                      <span className={`text-sm ${gene.is_active ? 'text-muted-foreground' : 'text-red-500 font-medium'}`}>
+                        {gene.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-center py-4">
                     <span className="font-medium text-foreground">{gene.hierarchyLevels}</span>
@@ -970,7 +1059,7 @@ export default function GeneDashboard() {
       );
     }
 
-    if (error && !useDummyData) {
+    if (error) {
       return (
         <div className="flex justify-center items-center py-12">
           <div className="text-center">
@@ -983,9 +1072,6 @@ export default function GeneDashboard() {
               <Button onClick={fetchGenes}>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Retry
-              </Button>
-              <Button variant="outline" onClick={toggleDataMode}>
-                Use Demo Data
               </Button>
             </div>
           </div>
@@ -1045,13 +1131,6 @@ export default function GeneDashboard() {
                   className="pl-10"
                 />
               </div>
-              <Button
-                variant={useDummyData ? "secondary" : "default"}
-                onClick={toggleDataMode}
-                size="sm"
-              >
-                {useDummyData ? 'Demo Mode' : 'Live Mode'}
-              </Button>
             </div>
           </div>
         </div>
@@ -1059,17 +1138,6 @@ export default function GeneDashboard() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 md:py-8">
-        {/* Demo Data Notice */}
-        {useDummyData && (
-          <Alert className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Demo Mode</AlertTitle>
-            <AlertDescription>
-              Using sample data. Switch to Live Mode for real API data.
-            </AlertDescription>
-          </Alert>
-        )}
-
         {/* Dashboard Header */}
         <div className="mb-6 md:mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
@@ -1203,7 +1271,7 @@ export default function GeneDashboard() {
             </CardContent>
           </Card>
          
-          <Card>
+          {/* <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Levels</CardTitle>
               <Layers className="h-4 w-4 text-muted-foreground" />
@@ -1214,9 +1282,9 @@ export default function GeneDashboard() {
               </div>
               <p className="text-xs text-muted-foreground">Across all genes</p>
             </CardContent>
-          </Card>
+          </Card> */}
          
-          <Card>
+          {/* <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Avg. Depth</CardTitle>
               <Building className="h-4 w-4 text-muted-foreground" />
@@ -1227,7 +1295,7 @@ export default function GeneDashboard() {
               </div>
               <p className="text-xs text-muted-foreground">Average levels</p>
             </CardContent>
-          </Card>
+          </Card> */}
          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1285,14 +1353,18 @@ export default function GeneDashboard() {
                 >
                   <LayoutGrid className="h-4 w-4" />
                 </Button>
-                <Select defaultValue="12">
+                <Select value={pageSize.toString()} onValueChange={(value) => {
+                  setPageSize(parseInt(value));
+                  setCurrentPage(1);
+                }}>
                   <SelectTrigger className="w-[130px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="12">12 per page</SelectItem>
-                    <SelectItem value="24">24 per page</SelectItem>
-                    <SelectItem value="48">48 per page</SelectItem>
+                    <SelectItem value="10">10 per page</SelectItem>
+                    <SelectItem value="20">20 per page</SelectItem>
+                    <SelectItem value="50">50 per page</SelectItem>
+                    <SelectItem value="100">100 per page</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1301,6 +1373,56 @@ export default function GeneDashboard() {
           <CardContent>
             {renderGeneView()}
           </CardContent>
+          {pagination.total > 0 && (
+            <div className="flex items-center justify-between border-t px-4 py-3">
+              <div className="text-sm text-muted-foreground">
+                Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} genes
+              </div>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: Math.min(5, Math.ceil(pagination.total / pageSize)) }, (_, i) => {
+                    const pageNum = i + 1;
+                    const totalPages = Math.ceil(pagination.total / pageSize);
+                    let displayPage;
+                    
+                    if (totalPages <= 5) {
+                      displayPage = pageNum;
+                    } else if (currentPage <= 3) {
+                      displayPage = pageNum;
+                    } else if (currentPage >= totalPages - 2) {
+                      displayPage = totalPages - 4 + pageNum;
+                    } else {
+                      displayPage = currentPage - 2 + pageNum;
+                    }
+                    
+                    return (
+                      <PaginationItem key={displayPage}>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(displayPage)}
+                          isActive={currentPage === displayPage}
+                          className="cursor-pointer"
+                        >
+                          {displayPage}
+                        </PaginationLink>
+                      </PaginationItem>
+                    );
+                  })}
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => setCurrentPage(prev => Math.min(Math.ceil(pagination.total / pageSize), prev + 1))}
+                      className={currentPage >= Math.ceil(pagination.total / pageSize) ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </Card>
       </div>
 
@@ -1432,24 +1554,40 @@ export default function GeneDashboard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Gene</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the gene and remove all associated data including:
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Gene structure and hierarchy</li>
-                <li>All associated levels</li>
-                <li>Organization mappings</li>
-              </ul>
+              {geneToDeleteObj ? (
+                <>
+                  Are you sure you want to delete <strong className="font-semibold text-foreground">"{geneToDeleteObj.g_name || geneToDeleteObj.name || 'Unknown'}"</strong>?
+                  <br /><br />
+                  This action cannot be undone. This will permanently delete the gene and remove all associated data including:
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Gene structure and hierarchy</li>
+                    <li>All associated levels</li>
+                    <li>Organization mappings</li>
+                  </ul>
+                </>
+              ) : (
+                <>
+                  This action cannot be undone. This will permanently delete the gene and remove all associated data including:
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>Gene structure and hierarchy</li>
+                    <li>All associated levels</li>
+                    <li>Organization mappings</li>
+                  </ul>
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => {
               setShowDeleteModal(false);
               setGeneToDelete(null);
+              setGeneToDeleteObj(null);
             }}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90 focus:ring-destructive dark:bg-destructive dark:text-white"
             >
               Delete Gene
             </AlertDialogAction>
