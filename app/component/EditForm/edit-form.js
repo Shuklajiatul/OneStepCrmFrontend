@@ -237,7 +237,6 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
         } else if (typeof field.options === 'string') {
           try {
             const parsedOptions = JSON.parse(field.options)
-            console.log('🔍 Raw parsed options:', parsedOptions)
             if (Array.isArray(parsedOptions)) {
               // Extract options and nested fields from the complex structure
               options = parsedOptions.map((option, optionIndex) => {
@@ -260,14 +259,12 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
                         
                         // Parse options if they exist
                         if (nestedField.options && Array.isArray(nestedField.options)) {
-                          console.log('🔍 Parsing nested field options:', nestedField.options)
                           parsedNestedField.options = nestedField.options.map(opt => {
                             if (typeof opt === 'object' && opt.value) {
                               return opt.value || opt.label || 'Option'
                             }
                             return typeof opt === 'string' ? opt : (opt.value || opt.label || 'Option')
                           })
-                          console.log('🔍 Parsed nested field options:', parsedNestedField.options)
                           
                           // Parse sub-nested fields from options
                           const subNestedFields = {}
@@ -292,7 +289,6 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
                 }
                 return typeof option === 'string' ? option : (option.value || option.label || 'Option')
               })
-              console.log('🔍 Final options array:', options)
             } else {
               options = parsedOptions
             }
@@ -382,7 +378,6 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
         // Parse nestedValues from form values if they exist
         if (form.values && form.values[field.id] && form.values[field.id].nestedValues) {
           const nestedValues = form.values[field.id].nestedValues
-          console.log('🔍 Found nestedValues for field:', field.id, nestedValues)
           
           // Convert nestedValues structure to nestedFields structure
           const convertNestedValues = (nestedValuesObj, level = 0) => {
@@ -472,16 +467,6 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
         }
       })
       
-      console.log('🎯 Final parsed fields:', parsedFields)
-      console.log('🔍 Nested fields in parsed data:', parsedFields.map(f => ({ 
-        id: f.id, 
-        type: f.type, 
-        label: f.label, 
-        hasNestedFields: !!f.nestedFields,
-        nestedFieldsCount: f.nestedFields ? Object.keys(f.nestedFields).length : 0,
-        nestedFieldsKeys: f.nestedFields ? Object.keys(f.nestedFields) : []
-      })))
-      
       setFormData({
         form_name: form.form_name || "",
         description: form.description || "",
@@ -559,14 +544,6 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
         })
       }
       
-      console.log('💾 Saving processed form data:', processedFormData)
-      console.log('🔍 Nested fields in processed data:', processedFormData.fields.map(f => ({ 
-        id: f.id, 
-        type: f.type, 
-        label: f.label, 
-        hasNestedFields: !!f.nestedFields,
-        nestedFieldsCount: f.nestedFields ? Object.keys(f.nestedFields).length : 0
-      })))
       await onSave(processedFormData)
     } catch (error) {
       console.error('Error saving form:', error)
@@ -1626,7 +1603,6 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
                           field={{
                             ...field,
                             onAddTableColumns: (newFields) => {
-                              console.log('🚀 onAddTableColumns called in EditForm with:', newFields)
                               // Add the new fields to the form
                               setFormData(prev => ({
                                 ...prev,

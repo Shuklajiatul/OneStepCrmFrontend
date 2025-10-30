@@ -1024,7 +1024,6 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
       }
     })
 
-    console.log('✅ transformApiNestedValuesToNestedFields output:', result)
     return result
   }
 
@@ -1059,7 +1058,6 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
           // Create a file object from base64 string
           const fileObject = createFileFromBase64(fieldValue, field.label || field.name || 'uploaded_file')
           if (fileObject) {
-            console.log('✅ Created file object:', fileObject)
             return fileObject
           } else {
             console.log('❌ Failed to create file object from base64')
@@ -1193,7 +1191,6 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
           // Create a file object from base64 string
           const fileObject = createFileFromBase64(parsedValue.value, field.label || field.name || 'uploaded_file')
           if (fileObject) {
-            console.log('✅ Created file object from value property:', fileObject)
             return fileObject
           } else {
             console.log('❌ Failed to create file object from value property')
@@ -1228,8 +1225,6 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
             })
           }
 
-          console.log(`🔍 Found option index ${optionIndex} for value "${parsedValue.value}"`)
-
           if (optionIndex !== -1) {
             // Create the nested fields structure organized by option index
             processedValue.nestedFields = {
@@ -1240,11 +1235,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
             processedValue.nestedFields = transformApiNestedValuesToNestedFields(parsedValue.nestedValues, 0)
           }
 
-          console.log(`✅ Processed nested fields for ${field.type} field ${fieldId}:`, processedValue.nestedFields)
-          console.log(`🔍 Nested fields structure:`, JSON.stringify(processedValue.nestedFields, null, 2))
         }
-
-        console.log(`✅ Final processed value for ${field.type} field ${fieldId}:`, processedValue)
         return processedValue
       } else {
         // Direct object without value property
@@ -1899,7 +1890,6 @@ export default function PublicFormPage() {
               if (typeof fieldData.options === 'string') {
                 try {
                   options = JSON.parse(fieldData.options)
-                  console.log(`✅ Parsed options for field ${fieldData.label}:`, options)
                 } catch (e) {
                   console.error(`❌ Failed to parse options for field ${fieldData.label}:`, e)
                   // Fallback: try to split by commas for simple options
@@ -1923,13 +1913,11 @@ export default function PublicFormPage() {
               // Recursively process nested fields for this option
               if (option.nestedFields && Array.isArray(option.nestedFields)) {
                 processedOption.nestedFields = parseNestedFields(option.nestedFields)
-                console.log(`✅ Processed nested fields for option ${option.value}:`, processedOption.nestedFields)
               }
 
               return processedOption
             })
 
-            console.log(`✅ Final processed options for field ${fieldData.label}:`, processedOptions)
 
             // Parse validation
             let validation = {}
@@ -2209,7 +2197,6 @@ export default function PublicFormPage() {
       })
 
       const values = transformSubmissionValues(submissionData.values, formData.fields, phoneCountries)
-      console.log('✅ Transformed submission values for form:', values)
       return values
     }
 
@@ -2704,7 +2691,6 @@ export default function PublicFormPage() {
   // Debug parsed form data structure
   useEffect(() => {
     if (formData) {
-      console.log('🔍 Debug: Parsed Form Data Structure')
       formData.fields.forEach((field, index) => {
         console.log(`Field ${index}: ${field.label} (${field.type})`, {
           id: field.id,

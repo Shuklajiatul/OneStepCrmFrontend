@@ -603,7 +603,6 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
       }))
       // Force a re-render to immediately show the new nested field
       setForceRenderKey(prev => prev + 1)
-      console.log('🔍 Added nested field at path:', path, 'option:', optionIndex, 'forcing UI update')
     }, [nestedFields, path, fieldId, onUpdateField, uniqueKey, field])
 
     const updateOption = useCallback((optionIndex, newValue) => {
@@ -1589,7 +1588,6 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                 }))
                                 // Force a re-render to immediately show the new nested field
                                 setForceRenderKey(prev => prev + 1)
-                                console.log('🔍 Added nested field to root level, forcing UI update')
                               }}
                               className="h-7 text-xs gap-1 hover:bg-accent/50 flex-shrink-0"
                             >

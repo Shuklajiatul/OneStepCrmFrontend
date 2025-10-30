@@ -376,17 +376,13 @@ export default function CustomFormPage() {
   }
 
   const addField = useCallback((type, predefinedFields = null) => {
-    console.log('🎯 addField called with:', { type, predefinedFields })
-
     if (predefinedFields) {
       // Handle predefined fields (like from table columns)
       if (Array.isArray(predefinedFields)) {
         // Multiple fields - ensure all IDs are unique
-        console.log('📦 Adding multiple fields:', predefinedFields)
         const fieldsWithUniqueIds = ensureUniqueFieldIds(predefinedFields)
         setFields(prev => {
           const newFields = [...prev, ...fieldsWithUniqueIds]
-          console.log('✅ Fields after addition:', newFields)
           
           // Immediately save to localStorage if in edit mode
           if (isEditMode && editFormData) {
@@ -395,7 +391,6 @@ export default function CustomFormPage() {
               fields: newFields
             }
             localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-            console.log('🔍 Saved new fields to localStorage:', newFields)
             window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
           }
           
@@ -406,11 +401,9 @@ export default function CustomFormPage() {
         }
       } else {
         // Single field - ensure ID is unique
-        console.log('📦 Adding single field:', predefinedFields)
         const fieldWithUniqueId = ensureUniqueFieldIds([predefinedFields])[0]
         setFields(prev => {
           const newFields = [...prev, fieldWithUniqueId]
-          console.log('✅ Fields after addition:', newFields)
           
           // Immediately save to localStorage if in edit mode
           if (isEditMode && editFormData) {
@@ -419,7 +412,6 @@ export default function CustomFormPage() {
               fields: newFields
             }
             localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-            console.log('🔍 Saved new field to localStorage:', newFields)
             window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
           }
           
@@ -438,37 +430,30 @@ export default function CustomFormPage() {
         required: false,
         nestedFields: {},
         onAddTableColumns: (newFields) => {
-          console.log('🚀 onAddTableColumns called with:', newFields)
-
           if (Array.isArray(newFields) && newFields.length > 0) {
-            console.log('📦 Adding table column fields:', newFields)
             // Ensure all field IDs are unique before adding
             const fieldsWithUniqueIds = ensureUniqueFieldIds(newFields)
             setFields(prev => {
               const updatedFields = [...prev, ...fieldsWithUniqueIds]
-              console.log('✅ All fields after table column addition:', updatedFields)
               
               // Immediately save to localStorage if in edit mode
               if (isEditMode && editFormData) {
                 const formBuilderData = {
                   ...editFormData,
-                  fields: updatedFields
-                }
-                localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-                console.log('🔍 Saved table column fields to localStorage:', updatedFields)
-                window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+                fields: updatedFields
+              }
+              localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+              window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
               }
               
               return updatedFields
             })
             setSelectedField(fieldsWithUniqueIds[0])
-            console.log('✅ Successfully added fields to form')
           } else {
             console.error('❌ No fields to add or invalid format')
           }
         }
       }
-      console.log('📦 Adding table column selector field')
       setFields(prev => [...prev, newField])
       setSelectedField(newField)
     } else {
@@ -483,7 +468,6 @@ export default function CustomFormPage() {
         validation: {},
         nestedFields: {},
       }
-      console.log('📦 Adding regular field:', newField)
       setFields(prev => {
         const newFields = [...prev, newField]
         
@@ -491,11 +475,10 @@ export default function CustomFormPage() {
         if (isEditMode && editFormData) {
           const formBuilderData = {
             ...editFormData,
-            fields: newFields
-          }
-          localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-          console.log('🔍 Saved regular field to localStorage:', newFields)
-          window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+              fields: newFields
+            }
+            localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+            window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
         }
         
         return newFields
@@ -601,14 +584,11 @@ export default function CustomFormPage() {
     try {
       if (isEditMode && editFormData) {
         // Update existing form
-        console.log('🔍 Updating existing form:', editFormData.formId)
-        console.log('🔍 Fields to update:', fields)
 
         // TODO: Implement actual update API call
         alert(`Update functionality will be implemented for form: ${editFormData.formName}`)
       } else {
         // Create new form
-        console.log('🔍 Creating new form with fields:', fields)
 
         // TODO: Implement actual create API call
         alert('Create functionality will be implemented')
@@ -645,7 +625,6 @@ export default function CustomFormPage() {
       sessionStorage.setItem('form-preview-fields', JSON.stringify(fields))
       sessionStorage.setItem('intended-tab', 'custom-form')
 
-      console.log('🔍 Preview data saved:', previewData)
       router.push('/form-preview')
     } else {
       setActiveTab(value)
