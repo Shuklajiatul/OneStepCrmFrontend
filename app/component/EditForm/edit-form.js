@@ -301,7 +301,7 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
           }
         }
         
-        // Parse validation
+        // Parse validation - check both 'validation' and 'validations' fields
         let validation = {}
         if (typeof field.validation === 'string') {
           try {
@@ -311,6 +311,14 @@ export default function EditFormDialog({ form, open, onOpenChange, onSave }) {
           }
         } else if (typeof field.validation === 'object') {
           validation = field.validation
+        } else if (typeof field.validations === 'string') {
+          try {
+            validation = JSON.parse(field.validations)
+          } catch (e) {
+            console.warn('Failed to parse validations as JSON:', field.validations)
+          }
+        } else if (typeof field.validations === 'object') {
+          validation = field.validations
         }
         
         const isRequired = field.required === true || field.required === "true" || false

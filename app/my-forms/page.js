@@ -104,13 +104,22 @@ export default function MyFormsPage() {
           }
         }
 
-        // Parse validation
+        // Parse validation - check both 'validation' and 'validations' fields
         if (typeof parsedField.validation === 'string') {
           try {
             parsedField.validation = JSON.parse(parsedField.validation)
           } catch (e) {
             parsedField.validation = {}
           }
+        } else if (typeof parsedField.validations === 'string') {
+          try {
+            parsedField.validation = JSON.parse(parsedField.validations)
+          } catch (e) {
+            parsedField.validation = {}
+          }
+        } else if (typeof parsedField.validations === 'object') {
+          // If validations is already an object, use it as validation
+          parsedField.validation = parsedField.validations
         }
 
         return parsedField
@@ -452,7 +461,7 @@ export default function MyFormsPage() {
       const parsedFields = formDetails.fields.map(field => {
         const parsedField = parseFieldData(field)
 
-        // Parse validation if it's a string
+        // Parse validation if it's a string - check both 'validation' and 'validations' fields
         let validation = {}
         if (typeof parsedField.validation === 'string') {
           try {
@@ -462,6 +471,14 @@ export default function MyFormsPage() {
           }
         } else if (typeof parsedField.validation === 'object') {
           validation = parsedField.validation
+        } else if (typeof parsedField.validations === 'string') {
+          try {
+            validation = JSON.parse(parsedField.validations)
+          } catch (e) {
+            console.warn('Failed to parse validations:', parsedField.validations)
+          }
+        } else if (typeof parsedField.validations === 'object') {
+          validation = parsedField.validations
         }
 
         // Recursive function to parse nested fields structure
