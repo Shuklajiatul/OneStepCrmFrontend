@@ -412,24 +412,24 @@ export default function MyFormsPage() {
     }
   }
 
-  const copyFormLink = (formId, isArchived) => {
-    if (isArchived) {
+  const copyFormLink = (form) => {
+    if (form.archived) {
       toast.error("Cannot copy link: Form is archived")
       return
     }
 
-    const link = `${window.location.origin}/forms/${formId}?user_id=${USER_ID}`
+    const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${form.version || 1}`
     navigator.clipboard.writeText(link)
     toast.success("Form link copied to clipboard!")
   }
 
-  const openFormInNewTab = (formId, isArchived) => {
-    if (isArchived) {
+  const openFormInNewTab = (form) => {
+    if (form.archived) {
       toast.error("Cannot open form: Form is archived")
       return
     }
 
-    const link = `${window.location.origin}/forms/${formId}?user_id=${USER_ID}`
+    const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${form.version || 1}`
     window.open(link, '_blank', 'noopener,noreferrer')
     toast.info("Opening form in new tab")
   }
@@ -986,16 +986,16 @@ export default function MyFormsPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => copyFormLink(form.form_id, form.archived)}
-                              title={form.archived ? "Form archived - cannot copy link" : "Copy form link"}
+                              onClick={() => copyFormLink(form)}
+                              title={form.archived ? "Form archived - cannot copy link" : "Copy form link (v-" + (form.version || 1) + ")"}
                             >
                               <Copy className="h-4 w-4" />
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => openFormInNewTab(form.form_id, form.archived)}
-                              title={form.archived ? "Form archived - cannot open" : "Open form in new tab"}
+                              onClick={() => openFormInNewTab(form)}
+                              title={form.archived ? "Form archived - cannot open" : "Open form in new tab (v-" + (form.version || 1) + ")"}
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
@@ -1092,16 +1092,16 @@ export default function MyFormsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => copyFormLink(form.form_id, form.archived)}
-                            title={form.archived ? "Form archived - cannot copy link" : "Copy form link"}
+                            onClick={() => copyFormLink(form)}
+                            title={form.archived ? "Form archived - cannot copy link" : "Copy form link (v-" + (form.version || 1) + ")"}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => openFormInNewTab(form.form_id, form.archived)}
-                            title={form.archived ? "Form archived - cannot open" : "Open form in new tab"}
+                            onClick={() => openFormInNewTab(form)}
+                            title={form.archived ? "Form archived - cannot open" : "Open form in new tab (v-" + (form.version || 1) + ")"}
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Button>
@@ -1190,16 +1190,16 @@ export default function MyFormsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => copyFormLink(form.form_id, form.archived)}
-                            title={form.archived ? "Form archived - cannot copy link" : "Copy form link"}
+                            onClick={() => copyFormLink(form)}
+                            title={form.archived ? "Form archived - cannot copy link" : "Copy form link (v-" + (form.version || 1) + ")"}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => openFormInNewTab(form.form_id, form.archived)}
-                            title={form.archived ? "Form archived - cannot open" : "Open form in new tab"}
+                            onClick={() => openFormInNewTab(form)}
+                            title={form.archived ? "Form archived - cannot open" : "Open form in new tab (v-" + (form.version || 1) + ")"}
                           >
                             <ExternalLink className="h-4 w-4" />
                           </Button>

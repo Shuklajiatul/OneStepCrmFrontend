@@ -551,7 +551,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
         if (result.success && result.form) {
           // Generate the public URL
-          const publicUrl = `${window.location.origin}/forms/${result.form.form_id}?user_id=${USER_ID}`
+          const publicUrl = `${window.location.origin}/forms/${result.form.form_id}?user_id=${USER_ID}&version=${result.form.version || 1}`
           setGeneratedLink(publicUrl)
 
           // Store form data locally for the form view page

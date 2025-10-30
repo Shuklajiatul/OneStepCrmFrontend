@@ -1335,6 +1335,7 @@ export default function PublicFormPage() {
   const token = searchParams.get('token')
   const submissionId = searchParams.get('submission_id')
   const userIdFromUrl = searchParams.get('user_id')
+  const versionParam = searchParams.get('version')
 
   // Properly handle null, undefined, or "undefined" string values
   const finalUserId = (userIdFromUrl && userIdFromUrl !== 'undefined' && userIdFromUrl !== 'null') ? userIdFromUrl : USER_ID
@@ -1348,6 +1349,8 @@ export default function PublicFormPage() {
   const [updateSuccess, setUpdateSuccess] = useState(false)
   const [editCountLeft, setEditCountLeft] = useState(null)
   const [isEditable, setIsEditable] = useState(true)
+  const [latestVersion, setLatestVersion] = useState(null)
+  const [isVersionReadOnly, setIsVersionReadOnly] = useState(false)
   const [lastSubmissionId, setLastSubmissionId] = useState(null)
   const [lastSubmissionToken, setLastSubmissionToken] = useState(null)
   const [phoneCountries, setPhoneCountries] = useState([])
@@ -1391,7 +1394,39 @@ export default function PublicFormPage() {
     }
   }, [token, submissionId])
 
+  // Enforce view-only in edit mode if the submission's form version is older than latest
+  useEffect(() => {
+    const enforceEditModeVersion = async () => {
+      if (!formId || !isEditMode || !formData?.version) return
+      try {
+        const baseUrl = `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`
+        const latestResp = await axios.get(baseUrl, {
+          headers: {
+            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Content-Type': 'application/json',
+          }
+        })
+        const latestRes = latestResp.data
+        if (latestRes?.success && latestRes?.form) {
+          const latestVer = latestRes.form.version || null
+          setLatestVersion(latestVer)
+          if (latestVer && Number(formData.version) < Number(latestVer)) {
+            setIsEditable(false)
+            setIsVersionReadOnly(true)
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to check latest version for edit mode:', e?.message)
+      }
+    }
+    enforceEditModeVersion()
+  }, [formId, isEditMode, formData?.version])
+
   const checkExistingSubmission = () => {
+    // If a specific version is requested, ignore any local submission state to avoid redirecting
+    if (versionParam) {
+      return
+    }
     try {
       const savedFormId = localStorage.getItem("FORM_ID")
       const savedSubmissionId = localStorage.getItem("SUBMISSION_ID")
@@ -2004,18 +2039,89 @@ export default function PublicFormPage() {
 
   const fetchFormData = async () => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`,
-        {
+      const baseUrl = `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`
+
+      let result
+      let usedVersionEndpoint = null
+
+      if (versionParam) {
+        // Try primary query-param endpoint first
+        const primaryUrl = `${baseUrl}?version=${versionParam}`
+        try {
+          const resp = await axios.get(primaryUrl, {
+            headers: {
+              'Authorization': `Bearer ${AUTH_TOKEN}`,
+              'Content-Type': 'application/json',
+            }
+          })
+          if (resp.data?.success && resp.data?.form) {
+            result = resp.data
+            usedVersionEndpoint = primaryUrl
+          } else {
+            throw new Error('Versioned form not returned')
+          }
+        } catch (e1) {
+          // Try alternative endpoints
+          const alternatives = [
+            `${API_BASE_URL}/api/forms/version/${formId}/${versionParam}`,
+            `${API_BASE_URL}/api/forms/${formId}/version/${versionParam}`,
+            `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${formId}/version/${versionParam}`,
+            `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}/version/${versionParam}`
+          ]
+          for (const alt of alternatives) {
+            try {
+              const altResp = await axios.get(alt, {
+                headers: {
+                  'Authorization': `Bearer ${AUTH_TOKEN}`,
+                  'Content-Type': 'application/json',
+                }
+              })
+              if (altResp.data?.success && altResp.data?.form) {
+                result = altResp.data
+                usedVersionEndpoint = alt
+                break
+              }
+            } catch {}
+          }
+        }
+      }
+
+      // Fallback to latest if no version or version-specific fetch failed
+      if (!result) {
+        const response = await axios.get(baseUrl, {
           headers: {
             'Authorization': `Bearer ${AUTH_TOKEN}`,
             'Content-Type': 'application/json',
           }
-        }
-      )
-      const result = response.data
+        })
+        result = response.data
+      }
 
       if (result.success && result.form) {
+        if (versionParam) {
+          console.log('Form version load:', { requestedVersion: versionParam, usedVersionEndpoint })
+        }
+        try {
+          // Also fetch latest to determine read-only state when a specific version is requested
+          const latestResp = await axios.get(baseUrl, {
+            headers: {
+              'Authorization': `Bearer ${AUTH_TOKEN}`,
+              'Content-Type': 'application/json',
+            }
+          })
+          const latestRes = latestResp.data
+          if (latestRes.success && latestRes.form) {
+            const latestVer = latestRes.form.version || null
+            setLatestVersion(latestVer)
+            if (versionParam && latestVer && Number(versionParam) < Number(latestVer)) {
+              setIsVersionReadOnly(true)
+            } else {
+              setIsVersionReadOnly(false)
+            }
+          }
+        } catch (e) {
+          console.warn('Unable to fetch latest form version for comparison:', e?.message)
+        }
         // Check if form is archived/inactive
         if (result.form.archived || result.form.status === false) {
           console.log('⚠️ Form is archived/inactive:', result.form.archived, result.form.status)
@@ -2984,7 +3090,7 @@ export default function PublicFormPage() {
               )}
               {!isEditMode && formData.version && (
                 <p className="text-xs text-gray-500 mt-1">
-                  Form v{formData.version} (Latest)
+                  Form v{formData.version} {isVersionReadOnly ? '(View Only - older version)' : '(Latest)'}
                 </p>
               )}
             </CardHeader>
@@ -3067,7 +3173,7 @@ export default function PublicFormPage() {
                     {([canSubmit, isSubmitting]) => (
                       <Button
                         type="submit"
-                        disabled={!canSubmit || submitting || (isEditMode && !isEditable)}
+                        disabled={!canSubmit || submitting || (isEditMode && !isEditable) || (!isEditMode && isVersionReadOnly)}
                         className="gap-2 min-w-32"
                       >
                         {submitting || isSubmitting ? (
@@ -3084,8 +3190,17 @@ export default function PublicFormPage() {
                               </>
                             ) : !isEditMode ? (
                               <>
-                                <Send className="h-4 w-4" />
-                                Submit Form
+                                {isVersionReadOnly ? (
+                                  <>
+                                    <Lock className="h-4 w-4" />
+                                    View Only
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="h-4 w-4" />
+                                    Submit Form
+                                  </>
+                                )}
                               </>
                             ) : (
                               <>
