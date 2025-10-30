@@ -1,12 +1,13 @@
 "use client"
 
-import { Home, Settings, HelpCircle, BookCopy, ClipboardMinus, FileChartColumnIncreasing, X, ChevronLeft, ChevronRight, ChevronDown, FormInput, BarChart3, List, Table, Users, Network, Layers } from "lucide-react"
+import { Home, Settings, HelpCircle, BookCopy, ClipboardMinus, FileChartColumnIncreasing, X, ChevronLeft, ChevronRight, ChevronDown, FormInput, BarChart3, List, Table, Users, Network, Layers, UserCog } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import Image from 'next/image'
 import { useState } from "react"
+import { useRouter, usePathname } from "next/navigation"
 
 const menuItems = [
     { label: "Dashboard", icon: Home, href: "dashboard", active: true },
@@ -33,6 +34,7 @@ const menuItems = [
             { label: "Gene", icon: Layers, href: "gene" },
         ]
     },
+    { label: "User Management", icon: UserCog, href: "/users", isRoute: true },
     { label: "Custom Table", icon: Table, href: "custom-table" },
     { label: "Report", icon: ClipboardMinus, href: "report" },
     { label: "Setting", icon: Settings, href: "setting" },
@@ -40,6 +42,8 @@ const menuItems = [
 ]
 
 export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCollapsed }) {
+    const router = useRouter()
+    const pathname = usePathname()
     const [expandedMenus, setExpandedMenus] = useState(new Set())
 
     const toggleSubmenu = (menuLabel) => {
@@ -57,17 +61,32 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
     const handleMenuClick = (item) => {
         if (item.submenu) {
             toggleSubmenu(item.label)
+        } else if (item.isRoute) {
+            // Navigate to route using Next.js router
+            router.push(item.href)
         } else {
-            setActiveTab(item.href)
+            // If on a different page (like /users), navigate to home and set active tab
+            if (pathname !== '/') {
+                sessionStorage.setItem('intended-tab', item.href)
+                router.push('/')
+            } else {
+                setActiveTab(item.href)
+            }
         }
     }
 
-    const isActive = (href) => activeTab === href
+    const isActive = (href, isRoute = false) => {
+        if (isRoute) {
+            return pathname === href
+        }
+        // Non-route items should only be active when on the home page
+        return pathname === '/' && activeTab === href
+    }
     const isParentActive = (item) => {
         if (item.submenu) {
             return item.submenu.some(subItem => isActive(subItem.href))
         }
-        return isActive(item.href)
+        return isActive(item.href, item.isRoute)
     }
 
     return (
@@ -207,7 +226,14 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                                                         "w-full gap-2 justify-start py-2 h-auto text-sm",
                                                         isActive(subItem.href) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
                                                     )}
-                                                    onClick={() => setActiveTab(subItem.href)}
+                                                    onClick={() => {
+                                                        if (pathname !== '/') {
+                                                            sessionStorage.setItem('intended-tab', subItem.href)
+                                                            router.push('/')
+                                                        } else {
+                                                            setActiveTab(subItem.href)
+                                                        }
+                                                    }}
                                                 >
                                                     <subItem.icon className="size-4 shrink-0" />
                                                     <span className="truncate">{subItem.label}</span>

@@ -13,8 +13,22 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { LogOut, Settings, Palette, User, Bell, Menu } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { authUtils } from "@/lib/auth-utils"
 
 export default function Topbar({darkMode, toggleDarkMode, toggleSidebar}) {
+    const router = useRouter()
+
+    const handleLogout = async () => {
+        try {
+            await authUtils.logout()
+            router.push('/login')
+        } catch (error) {
+            console.error('Logout error:', error)
+            // Even if logout fails, redirect to login
+            router.push('/login')
+        }
+    }
     return (
         <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -69,7 +83,10 @@ export default function Topbar({darkMode, toggleDarkMode, toggleSidebar}) {
                                 </span>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive focus:text-destructive">
+                            <DropdownMenuItem 
+                                className="text-destructive focus:text-destructive"
+                                onClick={handleLogout}
+                            >
                                 <LogOut className="mr-2 size-4" />
                                 <span>Logout</span>
                             </DropdownMenuItem>
