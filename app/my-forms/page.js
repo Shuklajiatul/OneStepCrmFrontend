@@ -421,15 +421,48 @@ export default function MyFormsPage() {
     }
   }
 
-  const copyFormLink = (form) => {
+  const copyFormLink = async (form) => {
     if (form.archived) {
       toast.error("Cannot copy link: Form is archived")
       return
     }
 
     const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${form.version || 1}`
-    navigator.clipboard.writeText(link)
-    toast.success("Form link copied to clipboard!")
+    
+    try {
+      // Check if clipboard API is available
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(link)
+        toast.success("Form link copied to clipboard!")
+      } else {
+        // Fallback for browsers that don't support clipboard API
+        const textArea = document.createElement('textarea')
+        textArea.value = link
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        
+        try {
+          const successful = document.execCommand('copy')
+          if (successful) {
+            toast.success("Form link copied to clipboard!")
+          } else {
+            toast.error("Failed to copy link. Please copy manually.")
+          }
+        } catch (err) {
+          console.error('Fallback copy failed:', err)
+          toast.error("Failed to copy link. Please copy manually.")
+        } finally {
+          document.body.removeChild(textArea)
+        }
+      }
+    } catch (err) {
+      console.error('Clipboard copy failed:', err)
+      toast.error("Failed to copy link. Please copy manually.")
+    }
   }
 
   const openFormInNewTab = (form) => {

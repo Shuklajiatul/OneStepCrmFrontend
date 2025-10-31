@@ -218,10 +218,28 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
         // This is a numeric key, process its contents directly
         if (typeof value === 'object' && value !== null) {
           // Recursively process the content of numeric keys with increased depth
+          // The value here contains field IDs as keys
           const nestedResult = transformNestedValues(value, parentValue, fieldDefinition, depth + 1)
-          // Merge the nested result into fieldValues
+          // Merge the nested result into fieldValues - this should extract all field IDs from the nested structure
           Object.assign(fieldValues, nestedResult)
+        } else if (value !== undefined && value !== null) {
+          // Numeric key with a simple value - this shouldn't normally happen but handle it
+          console.warn(`Numeric key ${key} has non-object value:`, value)
         }
+        return
+      }
+      
+      // If it's a non-numeric key (field ID), process it in the second loop below
+      // But first check if it's a simple value (like a string)
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        // This might be a direct field value, process it in the second loop
+        return
+      }
+      
+      // Check if this is a field ID key with nested structure - extract it here if it has value or nestedFields
+      if (typeof key === 'string' && !key.startsWith('field-') && (value.value !== undefined || value.nestedFields)) {
+        // This is likely a field ID (UUID) with a value/nestedFields structure
+        // We'll process it in the second loop, but we need to make sure we don't skip it
         return
       }
     })
@@ -449,18 +467,18 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
           }
         }
       } else if (value !== undefined && value !== null) {
-        // Handle checkbox fields in nested values - check if this is a checkbox field
-        if (Array.isArray(value) && value.length > 1) {
-          // This looks like multiple checkbox selections - create array of objects
-          const checkboxArray = value.map(optionValue => {
-            return { value: optionValue }
-          })
-          fieldValues[fieldId] = { value: checkboxArray }
-        } else if (Array.isArray(value) && value.length === 1) {
-          // Single item array - extract the item
-          fieldValues[fieldId] = { value: value[0] }
+        // Handle simple values (strings, numbers, etc.) - this is for direct field values
+        // This can happen when a field has a simple value stored directly (not wrapped in an object)
+        if (Array.isArray(value)) {
+          if (value.length === 1) {
+            // Single item array - extract the item
+            fieldValues[fieldId] = { value: value[0] }
+          } else {
+            // Multiple values - keep as array
+            fieldValues[fieldId] = { value }
+          }
         } else {
-          // Simple value
+          // Simple value (string, number, etc.)
           fieldValues[fieldId] = { value }
         }
       }
@@ -573,7 +591,25 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
 
                 // Attach nested values per option, if present
                 if (nested && Object.keys(nested).length > 0) {
-                  const optionNested = nested[primitiveValue] ?? nested[idx]
+                  // Use processed options if available, otherwise fall back to regular options
+                  const optionsToSearch = field._processedOptions || field.options || []
+                  
+                  // Try to find nested fields by option index first, then by option value
+                  let optionNested = nested[idx]
+                  if (!optionNested) {
+                    // Find option index in field options
+                    const optionIndex = optionsToSearch.findIndex(opt => {
+                      const optValue = typeof opt === 'string' ? opt : (opt?.value || opt?.label)
+                      return optValue === primitiveValue
+                    })
+                    if (optionIndex !== -1) {
+                      optionNested = nested[optionIndex]
+                    }
+                  }
+                  if (!optionNested) {
+                    optionNested = nested[primitiveValue]
+                  }
+                  
                   if (optionNested) {
                     const processed = transformNestedValues(optionNested, primitiveValue, field, 0)
                     if (processed && Object.keys(processed).length > 0) {
@@ -629,14 +665,55 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
 
               // Only include nested fields if they exist and are relevant to the selected option
               if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
-                const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field, 0)
-                if (Object.keys(processedNested).length > 0) {
-                  // Filter out empty nested values
-                  const filteredNested = Object.fromEntries(
-                    Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
-                  )
-                  if (Object.keys(filteredNested).length > 0) {
-                    fieldData.nestedValues = filteredNested
+                // Use processed options if available, otherwise fall back to regular options
+                const optionsToSearch = field._processedOptions || field.options || []
+                
+                // Find the option index for the selected value
+                const selectedOptionIndex = optionsToSearch.findIndex(opt => {
+                  const optValue = typeof opt === 'string' ? opt : (opt?.value || opt?.label)
+                  return optValue === processedValue
+                })
+                
+                // Get nested fields for the selected option index
+                let optionNestedFields = null
+                if (selectedOptionIndex !== -1 && fieldValue.nestedFields[selectedOptionIndex]) {
+                  optionNestedFields = fieldValue.nestedFields[selectedOptionIndex]
+                } else {
+                  // Fallback: try to get by numeric keys or process all
+                  optionNestedFields = fieldValue.nestedFields
+                }
+                
+                if (optionNestedFields) {
+                  const processedNested = transformNestedValues(optionNestedFields, processedValue, field, 0)
+                  if (Object.keys(processedNested).length > 0) {
+                    // Filter out empty nested values - handle arrays and objects properly
+                    const filteredNested = Object.fromEntries(
+                      Object.entries(processedNested).filter(([key, value]) => {
+                        // For arrays, check if array has items
+                        if (Array.isArray(value)) {
+                          return value.length > 0
+                        }
+                        // For objects, check various value structures
+                        if (typeof value === 'object' && value !== null) {
+                          // Check for phone fields
+                          if (value.countryCode && value.number) return true
+                          // Check for location fields
+                          if (value.country || value.state || value.city) return true
+                          // Check for value property
+                          if (value.value !== undefined && value.value !== null && value.value !== '') return true
+                          // Check for nestedValues
+                          if (value.nestedValues && Object.keys(value.nestedValues).length > 0) return true
+                          // Check if object has any meaningful keys
+                          if (Object.keys(value).length > 0) return true
+                          return false
+                        }
+                        // For strings and other primitives, use isEmptyValue
+                        return !isEmptyValue(value?.value !== undefined ? value.value : value)
+                      })
+                    )
+                    if (Object.keys(filteredNested).length > 0) {
+                      fieldData.nestedValues = filteredNested
+                    }
                   }
                 }
               }
@@ -670,21 +747,61 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
             // For checkboxes, handle multiple selections properly
             if (Array.isArray(processedValue)) {
               // Multiple checkbox selections - create array of objects
-              const checkboxArray = processedValue.map(optionValue => {
+              const checkboxArray = processedValue.map((optionValue, arrayIndex) => {
                 const checkboxItem = { value: optionValue }
 
                 // Find nested fields for this specific option
                 if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
-                  // Look for nested fields that match this option value
-                  const optionNestedFields = fieldValue.nestedFields[optionValue] ||
-                    fieldValue.nestedFields[processedValue.indexOf(optionValue)]
+                  // Use processed options if available, otherwise fall back to regular options
+                  const optionsToSearch = field._processedOptions || field.options || []
+                  
+                  // Try to find nested fields by option index first
+                  let optionNestedFields = fieldValue.nestedFields[arrayIndex]
+                  
+                  if (!optionNestedFields) {
+                    // Find option index in field options
+                    const optionIndex = optionsToSearch.findIndex(opt => {
+                      const optValue = typeof opt === 'string' ? opt : (opt?.value || opt?.label)
+                      return optValue === optionValue
+                    })
+                    if (optionIndex !== -1) {
+                      optionNestedFields = fieldValue.nestedFields[optionIndex]
+                    }
+                  }
+                  
+                  if (!optionNestedFields) {
+                    // Fallback: try by option value or by index in array
+                    optionNestedFields = fieldValue.nestedFields[optionValue] ||
+                      fieldValue.nestedFields[processedValue.indexOf(optionValue)]
+                  }
 
                   if (optionNestedFields) {
                     const processedNested = transformNestedValues(optionNestedFields, optionValue, field, 0)
                     if (Object.keys(processedNested).length > 0) {
-                      // Filter out empty nested values
+                      // Filter out empty nested values - handle arrays and objects properly
                       const filteredNested = Object.fromEntries(
-                        Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
+                        Object.entries(processedNested).filter(([key, value]) => {
+                          // For arrays, check if array has items
+                          if (Array.isArray(value)) {
+                            return value.length > 0
+                          }
+                          // For objects, check various value structures
+                          if (typeof value === 'object' && value !== null) {
+                            // Check for phone fields
+                            if (value.countryCode && value.number) return true
+                            // Check for location fields
+                            if (value.country || value.state || value.city) return true
+                            // Check for value property
+                            if (value.value !== undefined && value.value !== null && value.value !== '') return true
+                            // Check for nestedValues
+                            if (value.nestedValues && Object.keys(value.nestedValues).length > 0) return true
+                            // Check if object has any meaningful keys
+                            if (Object.keys(value).length > 0) return true
+                            return false
+                          }
+                          // For strings and other primitives, use isEmptyValue
+                          return !isEmptyValue(value?.value !== undefined ? value.value : value)
+                        })
                       )
                       if (Object.keys(filteredNested).length > 0) {
                         checkboxItem.nestedValues = filteredNested
@@ -703,14 +820,34 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
               const fieldData = { value: processedValue }
 
               if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
-                const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field, 0)
-                if (Object.keys(processedNested).length > 0) {
-                  // Filter out empty nested values
-                  const filteredNested = Object.fromEntries(
-                    Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
-                  )
-                  if (Object.keys(filteredNested).length > 0) {
-                    fieldData.nestedValues = filteredNested
+                // Use processed options if available, otherwise fall back to regular options
+                const optionsToSearch = field._processedOptions || field.options || []
+                
+                // Find the option index for the selected value
+                const selectedOptionIndex = optionsToSearch.findIndex(opt => {
+                  const optValue = typeof opt === 'string' ? opt : (opt?.value || opt?.label)
+                  return optValue === processedValue
+                })
+                
+                // Get nested fields for the selected option index
+                let optionNestedFields = null
+                if (selectedOptionIndex !== -1 && fieldValue.nestedFields[selectedOptionIndex]) {
+                  optionNestedFields = fieldValue.nestedFields[selectedOptionIndex]
+                } else {
+                  // Fallback: try to get by numeric keys or process all
+                  optionNestedFields = fieldValue.nestedFields
+                }
+                
+                if (optionNestedFields) {
+                  const processedNested = transformNestedValues(optionNestedFields, processedValue, field, 0)
+                  if (Object.keys(processedNested).length > 0) {
+                    // Filter out empty nested values
+                    const filteredNested = Object.fromEntries(
+                      Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
+                    )
+                    if (Object.keys(filteredNested).length > 0) {
+                      fieldData.nestedValues = filteredNested
+                    }
                   }
                 }
               }
@@ -751,14 +888,55 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
 
             // Add nested values if they exist
             if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
-              const processedNested = transformNestedValues(fieldValue.nestedFields, processedValue, field)
-              if (Object.keys(processedNested).length > 0) {
-                // Filter out empty nested values
-                const filteredNested = Object.fromEntries(
-                  Object.entries(processedNested).filter(([key, value]) => !isEmptyValue(value?.value))
-                )
-                if (Object.keys(filteredNested).length > 0) {
-                  fieldData.nestedValues = filteredNested
+              // Use processed options if available, otherwise fall back to regular options
+              const optionsToSearch = field._processedOptions || field.options || []
+              
+              // Find the option index for the selected value
+              const selectedOptionIndex = optionsToSearch.findIndex(opt => {
+                const optValue = typeof opt === 'string' ? opt : (opt?.value || opt?.label)
+                return optValue === processedValue
+              })
+              
+              // Get nested fields for the selected option index
+              let optionNestedFields = null
+              if (selectedOptionIndex !== -1 && fieldValue.nestedFields[selectedOptionIndex]) {
+                optionNestedFields = fieldValue.nestedFields[selectedOptionIndex]
+              } else {
+                // Fallback: try to get by numeric keys or process all
+                optionNestedFields = fieldValue.nestedFields
+              }
+              
+              if (optionNestedFields) {
+                const processedNested = transformNestedValues(optionNestedFields, processedValue, field, 0)
+                if (Object.keys(processedNested).length > 0) {
+                  // Filter out empty nested values - handle arrays and objects properly
+                  const filteredNested = Object.fromEntries(
+                    Object.entries(processedNested).filter(([key, value]) => {
+                      // For arrays, check if array has items
+                      if (Array.isArray(value)) {
+                        return value.length > 0
+                      }
+                      // For objects, check various value structures
+                      if (typeof value === 'object' && value !== null) {
+                        // Check for phone fields
+                        if (value.countryCode && value.number) return true
+                        // Check for location fields
+                        if (value.country || value.state || value.city) return true
+                        // Check for value property
+                        if (value.value !== undefined && value.value !== null && value.value !== '') return true
+                        // Check for nestedValues
+                        if (value.nestedValues && Object.keys(value.nestedValues).length > 0) return true
+                        // Check if object has any meaningful keys
+                        if (Object.keys(value).length > 0) return true
+                        return false
+                      }
+                      // For strings and other primitives, use isEmptyValue
+                      return !isEmptyValue(value?.value !== undefined ? value.value : value)
+                    })
+                  )
+                  if (Object.keys(filteredNested).length > 0) {
+                    fieldData.nestedValues = filteredNested
+                  }
                 }
               }
             }

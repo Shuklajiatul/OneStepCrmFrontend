@@ -607,10 +607,44 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
   const copyToClipboard = async () => {
     if (generatedLink) {
-      await navigator.clipboard.writeText(generatedLink)
-      setCopied(true)
-      toast.success("Link copied to clipboard!")
-      setTimeout(() => setCopied(false), 2000)
+      try {
+        // Check if clipboard API is available
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(generatedLink)
+          setCopied(true)
+          toast.success("Link copied to clipboard!")
+          setTimeout(() => setCopied(false), 2000)
+        } else {
+          // Fallback for browsers that don't support clipboard API
+          const textArea = document.createElement('textarea')
+          textArea.value = generatedLink
+          textArea.style.position = 'fixed'
+          textArea.style.left = '-999999px'
+          textArea.style.top = '-999999px'
+          document.body.appendChild(textArea)
+          textArea.focus()
+          textArea.select()
+          
+          try {
+            const successful = document.execCommand('copy')
+            if (successful) {
+              setCopied(true)
+              toast.success("Link copied to clipboard!")
+              setTimeout(() => setCopied(false), 2000)
+            } else {
+              toast.error("Failed to copy link. Please copy manually.")
+            }
+          } catch (err) {
+            console.error('Fallback copy failed:', err)
+            toast.error("Failed to copy link. Please copy manually.")
+          } finally {
+            document.body.removeChild(textArea)
+          }
+        }
+      } catch (err) {
+        console.error('Clipboard copy failed:', err)
+        toast.error("Failed to copy link. Please copy manually.")
+      }
     }
   }
 
