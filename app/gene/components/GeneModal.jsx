@@ -73,13 +73,24 @@ export default function GeneModal({
   // Initialize selected users when geneData changes
   useEffect(() => {
     if (editingGene && geneData.users) {
-      const userIds = geneData.users.split(',').filter(id => id.trim() !== '');
+      const userIds = geneData.users.split(',').filter(id => id.trim() !== '').map(id => id.trim());
      
-      if (users.length > 0) {
-        const userObjects = users.filter(user => userIds.includes(user.id.toString()));
+      if (users.length > 0 && userIds.length > 0) {
+        // Match users by comparing both string and number representations
+        const userObjects = users.filter(user => {
+          const userId = user.id || user.user_id;
+          return userIds.some(id => 
+            userId.toString() === id || 
+            userId.toString() === id.toString() ||
+            String(userId) === String(id)
+          );
+        });
         setSelectedUsers(userObjects);
-      } else {
+      } else if (userIds.length > 0) {
+        // If users haven't loaded yet, store the IDs temporarily
         setSelectedUsers(userIds.map(id => ({ id: id.toString() })));
+      } else {
+        setSelectedUsers([]);
       }
     } else {
       setSelectedUsers([]);
@@ -230,6 +241,13 @@ export default function GeneModal({
 
   const filteredUsers = users.filter(user => {
     const userId = user.id || user.user_id;
+    
+    // Only show active users
+    const isActive = user.is_active !== false;
+    if (!isActive) {
+      return false;
+    }
+    
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
       user.username?.toLowerCase().includes(searchLower) ||
@@ -355,68 +373,97 @@ export default function GeneModal({
                       <Users className="ml-2 h-4 w-4 shrink-0 opacity-50 flex-shrink-0" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-                    <Command className="max-h-[300px]">
-                      <CommandInput 
-                        placeholder="Search users..." 
-                        value={searchTerm}
-                        onValueChange={setSearchTerm}
-                        className="h-9"
-                      />
-                      <CommandList className="max-h-[250px] overflow-y-auto">
-                        {loadingUsers ? (
-                          <div className="flex items-center justify-center py-6">
-                            <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                            <span className="ml-2 text-sm text-muted-foreground">Loading users...</span>
-                          </div>
-                        ) : error ? (
-                          <div className="p-3 text-center">
-                            <Alert variant="destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertDescription className="text-xs">
-                                {error}
-                              </AlertDescription>
-                            </Alert>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={fetchUsers}
-                              className="mt-2"
-                            >
-                              Retry
-                            </Button>
-                          </div>
-                        ) : filteredUsers.length === 0 ? (
-                          <CommandEmpty className="py-6 text-center">
-                            {searchTerm ? 'No users found' : users.length === 0 ? 'No users available' : 'All users are selected'}
-                          </CommandEmpty>
-                        ) : (
-                          <CommandGroup>
-                            {filteredUsers.map((user) => {
-                              const userId = user.id || user.user_id;
-                              const displayName = user.username || user.name || 
-                                (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}`.trim() : null) || 
-                                user.email || 
-                                `User ${userId}`;
-                              return (
-                                <CommandItem
-                                  key={userId}
-                                  value={`${displayName} ${user.email || ''}`}
-                                  onSelect={() => {
-                                    handleUserSelect(user);
-                                    setOpenUserPopover(false);
-                                  }}
-                                  className="cursor-pointer py-2.5"
-                                >
-                                  <div className="flex items-center justify-between w-full gap-2">
+                  <PopoverContent 
+                    className="w-[var(--radix-popover-trigger-width)] p-0" 
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <div 
+                      className="max-h-[300px] overflow-y-auto cursor-pointer scrollbar-area"
+                      onClick={(e) => {
+                        // Force focus on the scrollable area when clicked
+                        e.currentTarget.focus();
+                        e.stopPropagation();
+                      }}
+                      onWheel={(e) => e.stopPropagation()}
+                      tabIndex={0}
+                      style={{ 
+                        scrollbarWidth: 'thin',
+                        scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))'
+                      }}
+                    >
+                      <Command>
+                        <CommandInput 
+                          placeholder="Search users..." 
+                          value={searchTerm}
+                          onValueChange={setSearchTerm}
+                          className="h-9 border-b sticky top-0 bg-background z-10"
+                        />
+                        <CommandList className="max-h-[250px]">
+                          {loadingUsers ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                              <span className="text-sm text-muted-foreground">Loading users...</span>
+                            </div>
+                          ) : error ? (
+                            <div className="p-4 text-center">
+                              <Alert variant="destructive" className="py-2">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertDescription className="text-xs">
+                                  {error}
+                                </AlertDescription>
+                              </Alert>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={fetchUsers}
+                                className="mt-2"
+                              >
+                                Retry
+                              </Button>
+                            </div>
+                          ) : filteredUsers.length === 0 ? (
+                            <div className="py-6 text-center text-sm text-muted-foreground">
+                              <CommandEmpty>
+                                {searchTerm ? 'No active users found' : users.length === 0 ? 'No users available' : 'All active users are selected'}
+                              </CommandEmpty>
+                            </div>
+                          ) : (
+                            <CommandGroup>
+                              {filteredUsers.map((user) => {
+                                const userId = user.id || user.user_id;
+                                // Use same logic as eye modal: name -> username -> first_name+last_name -> email -> fallback
+                                // Handle empty strings by checking if value exists and is not empty
+                                const fullName = user.first_name && user.last_name 
+                                  ? `${user.first_name} ${user.last_name}`.trim()
+                                  : null;
+                                const displayName = (user.name && user.name.trim()) || 
+                                                  (user.username && user.username.trim()) ||
+                                                  fullName ||
+                                                  (user.email && user.email.trim()) ||
+                                                  `User ${userId}`;
+                                // Show email if it exists and is different from displayName
+                                const showEmail = user.email && user.email.trim() && user.email !== displayName;
+                                return (
+                                  <CommandItem
+                                    key={userId}
+                                    value={`${displayName} ${user.email || ''}`}
+                                    onSelect={() => {
+                                      handleUserSelect(user);
+                                      // Keep dropdown open for multi-select
+                                    }}
+                                    className="cursor-pointer py-2 px-3 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
+                                  >
                                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                                      <Users className="h-4 w-4 shrink-0" />
+                                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <Users className="h-4 w-4 text-primary" />
+                                      </div>
                                       <div className="flex flex-col min-w-0 flex-1">
-                                        <span className="font-medium truncate">
+                                        <span className="font-medium truncate text-sm" title={displayName}>
                                           {displayName}
                                         </span>
-                                        {user.email && (
-                                          <span className="text-xs text-muted-foreground truncate">
+                                        {showEmail && (
+                                          <span className="text-xs text-muted-foreground truncate" title={user.email}>
                                             {user.email}
                                           </span>
                                         )}
@@ -426,14 +473,14 @@ export default function GeneModal({
                                       "w-2 h-2 rounded-full shrink-0",
                                       user.is_active !== false ? 'bg-green-500' : 'bg-gray-300'
                                     )} />
-                                  </div>
-                                </CommandItem>
-                              );
-                            })}
-                          </CommandGroup>
-                        )}
-                      </CommandList>
-                    </Command>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          )}
+                        </CommandList>
+                      </Command>
+                    </div>
                   </PopoverContent>
                 </Popover>
             </div>

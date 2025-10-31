@@ -188,4 +188,54 @@
   max-height: 95vh !important;
   overflow-y: auto !important;
 }
+
+/* Fix for Gene Modal User Dropdown Scrollbar */
+.scrollbar-area {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--muted));
+}
+
+.scrollbar-area::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-area::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+
+.scrollbar-area::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 4px;
+  border: 2px solid hsl(var(--muted));
+}
+
+.scrollbar-area::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground));
+  cursor: pointer;
+}
+
+.scrollbar-area::-webkit-scrollbar-thumb:active {
+  background: hsl(var(--primary));
+}
+
+/* Ensure the dropdown content is focusable and scrollable */
+.scrollbar-area:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Prevent body scroll when dropdown is open */
+body:has(.scrollbar-area:focus) {
+  overflow: hidden;
+}
+
+/* Make sure command list is properly scrollable */
+.command-list {
+  scrollbar-width: none; /* Hide native scrollbar */
+}
+
+.command-list::-webkit-scrollbar {
+  display: none; /* Hide native scrollbar */
+}
 }
