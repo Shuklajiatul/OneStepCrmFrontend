@@ -865,7 +865,7 @@ export default function GeneDashboard() {
       const baseUrl = API_CONSTANTS.BASE_URL;
 
       const response = await axios.post(
-        `${baseUrl}/api/genes/uploadCsv`,
+        `${baseUrl}/api/genes/assign-users-csv`,
         formData,
         {
           headers: {
@@ -914,7 +914,7 @@ export default function GeneDashboard() {
       const baseUrl = API_CONSTANTS.BASE_URL;
 
       const response = await axios.post(
-        `${baseUrl}/uploadCSV`,
+        `${baseUrl}/api/genes/uploadCSV`,
         formData,
         {
           headers: {
@@ -1096,9 +1096,10 @@ export default function GeneDashboard() {
 
   // Render Table View
   const renderTableView = () => (
-    <div className="rounded-md border overflow-hidden">
-      <div className="overflow-x-auto">
-        <Table>
+    <div className="rounded-md border overflow-hidden w-full">
+      <div className="overflow-x-auto w-full">
+        <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
+          <Table className="w-full table-auto">
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
               <TableHead className="font-semibold text-foreground">Gene Name</TableHead>
@@ -1121,7 +1122,7 @@ export default function GeneDashboard() {
                 >
                   <TableCell className="py-4">
                     <div className="flex items-center space-x-3">
-                      <div className="min-w-0 max-w-[240px]">
+                      <div className="min-w-0">
                         <Link
                           href={`/geneManagement/geanUser/${gene.g_id || gene.id}`}
                           className="font-medium text-primary hover:underline truncate text-sm md:text-base transition-colors"
@@ -1134,7 +1135,7 @@ export default function GeneDashboard() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell max-w-[160px] truncate py-4">
+                  <TableCell className="hidden lg:table-cell truncate py-4">
                     <span className="text-sm text-foreground">{gene.createdBy}</span>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell py-4">
@@ -1196,6 +1197,7 @@ export default function GeneDashboard() {
             })}
           </TableBody>
         </Table>
+        </div>
       </div>
     </div>
   );
@@ -1287,7 +1289,7 @@ export default function GeneDashboard() {
       </header>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 md:py-8">
+      <div className="w-full px-4 sm:px-6 py-4 md:py-8">
         {/* Dashboard Header */}
         <div className="mb-6 md:mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
@@ -1462,7 +1464,7 @@ export default function GeneDashboard() {
         </div>
 
         {/* Genes View */}
-        <Card>
+        <Card className="w-full">
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
@@ -1520,7 +1522,7 @@ export default function GeneDashboard() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="w-full">
             {renderGeneView()}
           </CardContent>
           {pagination.total > 0 && (
