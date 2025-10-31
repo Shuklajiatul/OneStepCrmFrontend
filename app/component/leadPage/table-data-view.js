@@ -27,7 +27,7 @@ import axios from "axios"
 
 // API Configuration
 const API_BASE_URL = 'http://10.10.15.194:3001'
-const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYxODA3MTc0LCJleHAiOjE3NjE4OTM1NzR9.veM_dzvXFYL1N_g-XErj0T9PiIjP8sUafknPKogkuH0'
+const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiYzJhOTg1Y2UtZDM4NS00MzQ5LThmMGMtZDQ2ZTYzMDI3Y2U0Iiwib3JnYW5pemF0aW9uX2lkIjoiYzhjNzJjMjEtN2I1Yy00MzVhLTkxMmEtODAzMTA1ZTdlY2M5IiwiaWF0IjoxNzYxODg3NzkyLCJleHAiOjE3NjE5NzQxOTJ9.sbAn6FFDcGVZQLLvSDLrr8Advfhv6mcmw6dqq4D0YCQ'
 
 export default function TableDataView({ table, onBack }) {
   const [columns, setColumns] = useState([])
@@ -131,7 +131,130 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  // Helper function to get field value for a column
+  const parseJsonSafely = (value) => {
+    if (value === null || value === undefined) return null
+    if (typeof value === 'object') return value
+    if (typeof value !== 'string') return value
+    const trimmed = value.trim()
+    if (!trimmed) return ''
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        return JSON.parse(trimmed)
+      } catch (error) {
+        console.warn('parseJsonSafely error:', error)
+        return value
+      }
+    }
+    return value
+  }
+
+  const formatDateOnly = (input) => {
+    if (input instanceof Date && !Number.isNaN(input.getTime())) {
+      return input.toLocaleDateString()
+    }
+
+    if (input === null || input === undefined) return null
+
+    const str = String(input).trim()
+    if (!str) return null
+
+    const direct = new Date(str)
+    if (!Number.isNaN(direct.getTime())) {
+      return direct.toLocaleDateString()
+    }
+
+    const match = str.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2})(?::(\d{2})(?::(\d{2}))?)?)?$/)
+    if (match) {
+      const [ , datePart ] = match
+      const [yearStr, monthStr, dayStr] = datePart.split('-')
+      const year = Number(yearStr)
+      const month = Number(monthStr)
+      const day = Number(dayStr)
+
+      if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+        const dateObj = new Date(year, month - 1, day)
+        if (!Number.isNaN(dateObj.getTime())) {
+          return dateObj.toLocaleDateString()
+        }
+      }
+
+      return datePart
+    }
+
+    return null
+  }
+
+  const toDateInputValue = (input, includeTime = false) => {
+    if (!input && input !== 0) return ''
+
+    const dateObj = input instanceof Date
+      ? input
+      : (() => {
+          const str = String(input).trim()
+          if (!str) return null
+
+          const direct = new Date(str)
+          if (!Number.isNaN(direct.getTime())) return direct
+
+          const match = str.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2})(?::(\d{2})(?::(\d{2}))?)?)?$/)
+          if (match) {
+            const [ , datePart, hh = '00', mm = '00' ] = match
+            const [yearStr, monthStr, dayStr] = datePart.split('-')
+            const year = Number(yearStr)
+            const month = Number(monthStr)
+            const day = Number(dayStr)
+
+            if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+              return new Date(year, month - 1, day, Number(hh), Number(mm))
+            }
+            return null
+          }
+
+          return null
+        })()
+
+    if (!dateObj || Number.isNaN(dateObj.getTime())) return ''
+
+    if (includeTime) {
+      const iso = dateObj.toISOString()
+      return iso.slice(0, 16)
+    }
+
+    return dateObj.toISOString().slice(0, 10)
+  }
+
+  const formatPhoneDisplay = (value) => {
+    const parsed = parseJsonSafely(value)
+    if (parsed && typeof parsed === 'object') {
+      const countryCode = parsed.countryCode || parsed.code || ''
+      const number = parsed.number || parsed.value || ''
+      const country = parsed.country || ''
+      const line = [countryCode, number].filter(Boolean).join(' ').trim()
+      return (
+        <div className="text-sm">
+          {line && <div className="font-medium">{line}</div>}
+          {country && <div className="text-xs text-muted-foreground">{country}</div>}
+        </div>
+      )
+    }
+    return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
+  }
+
+  const formatLocationDisplay = (value) => {
+    const parsed = parseJsonSafely(value)
+    if (parsed && typeof parsed === 'object') {
+      const title = parsed.address || parsed.name || ''
+      const subtitle = [parsed.city, parsed.state, parsed.country].filter(Boolean).join(', ')
+      return (
+        <div className="text-sm">
+          {title && <div className="font-medium">{title}</div>}
+          {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+        </div>
+      )
+    }
+    return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
+  }
+
   const getFieldValue = (record, columnId) => {
     if (!record.field_values) return null
     
@@ -381,174 +504,177 @@ export default function TableDataView({ table, onBack }) {
   }
 
   // Helper function to format field value based on data type
-  const formatFieldValue = (value, dataType, column = null, record = null) => {
-
-    console.log('formatFieldValue ::', value, column)
-    if (value === null || value === undefined || value === "") {
+  const formatFieldValue = (rawValue, dataType, column = null, record = null) => {
+    if (rawValue === null || rawValue === undefined || rawValue === "") {
       return <span className="text-muted-foreground italic">-</span>
     }
 
-    // First, handle simple JSON wrapped values (like {"value": "something"})
-    // This applies to all data types, not just nested data
-    let parsedValue = null
-    if (typeof value === 'string' && value.trim().startsWith('{')) {
-      try {
-        parsedValue = JSON.parse(value)
-        
-        // Extract simple value wrapper for text, textarea, number, email fields
-        if (parsedValue.value !== undefined && !parsedValue.nestedValues && !parsedValue.countryCode && !parsedValue.country && !parsedValue.state && !parsedValue.city) {
-          value = parsedValue.value
-          parsedValue = null // Clear parsed value since we extracted the simple value
+    const effectiveType = column?.parent_datatype || dataType || 'text'
+    const rawString = typeof rawValue === 'string' ? rawValue : String(rawValue)
+    const trimmed = rawString.trim()
+    const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[')
+
+    const isArrayStructure = Array.isArray(parseJsonSafely(rawString))
+    const hasNestedStructure = parseJsonSafely(rawString) && (
+      isArrayStructure
+        ? parseJsonSafely(rawString).some(item => item && typeof item === 'object' && item.nestedValues !== undefined)
+        : typeof parseJsonSafely(rawString) === 'object' && parseJsonSafely(rawString) !== null && parseJsonSafely(rawString).nestedValues !== undefined
+    )
+
+    if (hasNestedStructure && column && hasNestedData(column)) {
+      let displayLabel = ''
+
+      if (isArrayStructure) {
+        displayLabel = parseJsonSafely(rawString)
+          .map(item => {
+            if (!item || typeof item !== 'object') return ''
+            if (Array.isArray(item.value)) return item.value.join(' → ')
+            if (item.value !== undefined && item.value !== null) return String(item.value)
+            if (item.label) return item.label
+            return ''
+          })
+          .filter(Boolean)
+          .join(' → ')
+      } else {
+        if (Array.isArray(parseJsonSafely(rawString).value)) {
+          displayLabel = parseJsonSafely(rawString).value.join(' → ')
+        } else if (parseJsonSafely(rawString).value !== undefined && parseJsonSafely(rawString).value !== null) {
+          displayLabel = String(parseJsonSafely(rawString).value)
+        } else if (parseJsonSafely(rawString).label) {
+          displayLabel = parseJsonSafely(rawString).label
         }
-      } catch (error) {
-        // Not JSON, continue with original value
-        console.log(`Not JSON: ${value}`)
-        parsedValue = null
       }
+
+      if (!displayLabel) {
+        displayLabel = 'View details'
+      }
+
+      return (
+        <button
+          onClick={() => openNestedModal(rawString, column, record?.record_id)}
+          className="bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer px-2 py-1 rounded border border-blue-300 text-sm font-medium"
+          title="Click to view/edit nested data"
+        >
+          {displayLabel}
+          <span className="ml-1 text-xs">📋</span>
+        </button>
+      )
     }
 
-    // Check if this is nested data that should open a modal
-    // Handle both single object {value:..., nestedValues:...} and array [{value:..., nestedValues:...}, ...]
-    if (dataType === 'text' && typeof value === 'string' && (value.trim().startsWith('{') || value.trim().startsWith('['))) {
-      console.log(`Processing JSON value for column ${column?.column_name}:`, value)
-      try {
-        const parsed = JSON.parse(value)
-        console.log(`Parsed JSON:`, parsed)
-        
-        // Check if this is an array (multi-select)
-        const isMulti = Array.isArray(parsed)
-        
-        // For multi-select: check if any item has nested data
-        // For single: check if it has nested data structure
-        let hasNestedStructure = false
-        let displayValue = null
-        
-        if (isMulti) {
-          // Multi-select case
-          hasNestedStructure = parsed.some(item => item.value !== undefined && item.nestedValues !== undefined)
-          displayValue = parsed.map(item => item.value).join(' → ')
-        } else {
-          // Single select case
-          hasNestedStructure = parsed.value !== undefined && parsed.nestedValues !== undefined
-          displayValue = Array.isArray(parsed.value) ? parsed.value.join(' → ') : parsed.value
-        }
-        
-        // Only show modal if this looks like nested data AND column has nested capability
-        if (hasNestedStructure && column && hasNestedData(column)) {
-          console.log(`Column ${column.column_name} has nested data capability`)
-          
-          // Show modal button if the nestedValues key exists (even if empty)
-          // This is because the presence of nestedValues indicates it's a structured field
-          console.log(`Showing modal for ${column.column_name} (has nestedValues structure)`)
-          return (
-            <button
-              onClick={() => openNestedModal(value, column, record?.record_id)}
-              className="bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer px-2 py-1 rounded border border-blue-300 text-sm font-medium"
-              title="Click to view/edit nested data"
-            >
-              {displayValue}
-              <span className="ml-1 text-xs">📋</span>
-            </button>
-          )
-        } else {
-          console.log(`Not showing modal for ${column?.column_name}:`, {
-            hasNestedStructure,
-            hasColumn: !!column,
-            hasNestedCapability: column ? hasNestedData(column) : false
-          })
-          
-          // If it's a simple JSON structure, render the value normally
-          // This includes:
-          // - {"value":"sim"} - no nestedValues property
-          // - {"value":"Sel2","nestedValues":{}} - has nestedValues but column has no nested capability
-          if (!isMulti && parsed.value !== undefined) {
-            return (
-              <span className="truncate max-w-[200px]">
-                {Array.isArray(parsed.value) ? parsed.value.join(' → ') : parsed.value}
-              </span>
-            )
+    if (!isArrayStructure && parseJsonSafely(rawString) && parseJsonSafely(rawString).value !== undefined) {
+      const nestedValuesEmpty = !parseJsonSafely(rawString).nestedValues || (typeof parseJsonSafely(rawString).nestedValues === 'object' && Object.keys(parseJsonSafely(rawString).nestedValues).length === 0)
+      const hasStructuredKeys = parseJsonSafely(rawString).countryCode || parseJsonSafely(rawString).country || parseJsonSafely(rawString).state || parseJsonSafely(rawString).city || parseJsonSafely(rawString).name || parseJsonSafely(rawString).address || parseJsonSafely(rawString).number
+
+      if (nestedValuesEmpty && !hasStructuredKeys) {
+        if (effectiveType === 'datetime' || effectiveType === 'date') {
+          const formattedDate = formatDateOnly(parseJsonSafely(rawString).value)
+          if (formattedDate) {
+            return <span className="truncate max-w-[200px]">{formattedDate}</span>
           }
         }
-      } catch (error) {
-        console.log(`Error parsing JSON for ${column?.column_name}:`, error)
-        // If parsing fails, fall through to default handling
+
+        const displayValue = Array.isArray(parseJsonSafely(rawString).value) ? parseJsonSafely(rawString).value.join(' → ') : String(parseJsonSafely(rawString).value)
+        return <span className="truncate max-w-[200px]">{displayValue}</span>
       }
     }
 
-    switch (dataType) {
+    const renderJsonAsText = (jsonValue) => {
+      if (typeof jsonValue === 'string') {
+        return jsonValue
+      }
+      try {
+        return JSON.stringify(jsonValue)
+      } catch {
+        return rawString
+      }
+    }
+
+    switch (effectiveType) {
       case 'email':
         return (
-          <a href={`mailto:${value}`} className="text-blue-600 hover:underline">
-            {value}
+          <a href={`mailto:${rawValue}`} className="text-blue-600 hover:underline">
+            {rawValue}
           </a>
         )
-      case 'phone':
-        try {
-          const phoneData = parsedValue || JSON.parse(value)
-          if (phoneData.countryCode && phoneData.number) {
-            return (
-              <div className="text-sm">
-                <div className="font-medium">{phoneData.countryCode} {phoneData.number}</div>
-              </div>
-            )
+      case 'phone': {
+        let phoneData = (!isArrayStructure && parseJsonSafely(rawString) && typeof parseJsonSafely(rawString) === 'object') ? parseJsonSafely(rawString) : null
+        if (!phoneData) {
+          try {
+            phoneData = JSON.parse(rawString)
+          } catch {
+            phoneData = null
           }
-          return (
-            <div className="text-sm">
-              <div className="font-medium">{phoneData.number}</div>
-              <div className="text-xs text-muted-foreground">{phoneData.country}</div>
-            </div>
-          )
-        } catch {
-          return (
-            <a href={`tel:${value}`} className="text-blue-600 hover:underline">
-              {value}
-            </a>
-          )
         }
+
+        if (phoneData && typeof phoneData === 'object') {
+          const countryCode = phoneData.countryCode || phoneData.code || ''
+          const number = phoneData.number || phoneData.value || ''
+          if (countryCode || number) {
+            return formatPhoneDisplay(phoneData)
+          }
+        }
+
+        return (
+          <a href={`tel:${rawValue}`} className="text-blue-600 hover:underline">
+            {rawValue}
+          </a>
+        )
+      }
+      case 'location': {
+        let locationData = (!isArrayStructure && parseJsonSafely(rawString) && typeof parseJsonSafely(rawString) === 'object') ? parseJsonSafely(rawString) : null
+        if (!locationData) {
+          try {
+            locationData = JSON.parse(rawString)
+          } catch {
+            locationData = null
+          }
+        }
+
+        if (locationData && typeof locationData === 'object') {
+          const title = locationData.address || locationData.name
+          const subtitle = [locationData.city, locationData.state, locationData.country].filter(Boolean).join(', ')
+
+          if (title || subtitle) {
+            return formatLocationDisplay(locationData)
+          }
+        }
+
+        return <span className="truncate max-w-[200px]">{renderJsonAsText(locationData || rawValue)}</span>
+      }
       case 'boolean':
         return (
-          <Badge variant={value === 'true' || value === true ? 'default' : 'secondary'}>
-            {value === 'true' || value === true ? 'Yes' : 'No'}
+          <Badge variant={rawValue === 'true' || rawValue === true ? 'default' : 'secondary'}>
+            {rawValue === 'true' || rawValue === true ? 'Yes' : 'No'}
           </Badge>
         )
       case 'date':
-        try {
-          return new Date(value).toLocaleDateString()
-        } catch {
-          return <span className="truncate max-w-[200px]">{value}</span>
+        {
+          const formatted = formatDateOnly(rawValue)
+          if (formatted) {
+            return <span>{formatted}</span>
+          }
+          return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
         }
       case 'datetime':
-        try {
-          return new Date(value).toLocaleString()
-        } catch {
-          return <span className="truncate max-w-[200px]">{value}</span>
+        {
+          const formatted = formatDateOnly(rawValue)
+          if (formatted) {
+            return <span>{formatted}</span>
+          }
+          return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
         }
-      case 'textarea':
-        return <span className="truncate max-w-[200px]">{value}</span>
-      case 'text':
-        return <span className="truncate max-w-[200px]">{value}</span>
       case 'number':
-        return <span className="truncate max-w-[200px]">{value}</span>
+      case 'textarea':
+      case 'text':
       case 'select':
-        return <span className="truncate max-w-[200px]">{value}</span>
-      case 'location':
-        try {
-          const locationData = parsedValue || JSON.parse(value)
-          return (
-            <div className="text-sm">
-              {locationData.address || locationData.name ? (
-                <div className="font-medium">{locationData.address || locationData.name}</div>
-              ) : null}
-              <div className="text-xs text-muted-foreground">
-                {[locationData.city, locationData.state, locationData.country].filter(Boolean).join(', ')}
-              </div>
-            </div>
-          )
-        } catch {
-          return <span className="truncate max-w-[200px]">{value}</span>
-        }
+      case 'radio':
+      case 'checkbox':
+        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
       default:
-        return <span className="truncate max-w-[200px]">{value}</span>
+        if (parseJsonSafely(rawString)) {
+          return <span className="truncate max-w-[200px]">{renderJsonAsText(parseJsonSafely(rawString))}</span>
+        }
+        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
     }
   }
 
@@ -1015,7 +1141,7 @@ export default function TableDataView({ table, onBack }) {
                       : 'bg-muted/50 cursor-not-allowed'
                   }`}
                 >
-                  <option value="">Select {fieldDef.label}</option>
+                  {!value && <option value="">Select {fieldDef.label}</option>}
                   {fieldDef.options?.map((option, idx) => (
                     <option key={idx} value={option.value}>
                       {option.label}
@@ -1196,6 +1322,139 @@ export default function TableDataView({ table, onBack }) {
                   return null
                 })()
               )}
+
+              {(() => {
+                const handledTypes = ['select', 'text', 'radio', 'checkbox']
+                if (handledTypes.includes(fieldDef.type)) {
+                  return null
+                }
+
+                const enhancedTypes = ['email', 'number', 'date', 'datetime', 'textarea', 'phone', 'location']
+                if (!enhancedTypes.includes(fieldDef.type)) {
+                  return (
+                    <span className="text-sm text-muted-foreground italic">
+                      Unsupported field type: {fieldDef.type}
+                    </span>
+                  )
+                }
+
+                const parsedValue = parseJsonSafely(value)
+                const primitiveValue = (
+                  parsedValue && typeof parsedValue === 'object' && !Array.isArray(parsedValue) && parsedValue.value !== undefined
+                    ? parsedValue.value
+                    : parsedValue
+                )
+
+                if (!isEditMode) {
+                  switch (fieldDef.type) {
+                    case 'email':
+                      if (!primitiveValue) return <span className="text-muted-foreground">-</span>
+                      return (
+                        <a href={`mailto:${primitiveValue}`} className="text-sm text-blue-600 hover:underline">
+                          {primitiveValue}
+                        </a>
+                      )
+                    case 'number':
+                      return <span className="text-sm">{primitiveValue ?? '-'}</span>
+                    case 'date':
+                    case 'datetime': {
+                      const formatted = formatDateOnly(primitiveValue)
+                      return <span className="text-sm">{formatted || primitiveValue || '-'}</span>
+                    }
+                    case 'textarea':
+                      return (
+                        <div className="text-sm whitespace-pre-wrap break-words">
+                          {primitiveValue ?? '-'}
+                        </div>
+                      )
+                    case 'phone':
+                      return formatPhoneDisplay(value)
+                    case 'location':
+                      return formatLocationDisplay(value)
+                    default:
+                      return <span className="text-sm">{primitiveValue ?? '-'}</span>
+                  }
+                }
+
+                const handleSimpleChange = (newValue) => handleFieldChange(fieldId, newValue, path)
+                const baseInputClass = 'w-full px-3 py-2 border rounded-md text-sm bg-background border-input focus:border-primary focus:ring-1 focus:ring-primary'
+
+                switch (fieldDef.type) {
+                  case 'email':
+                    return (
+                      <Input
+                        type="email"
+                        value={primitiveValue ?? ''}
+                        onChange={(e) => handleSimpleChange(e.target.value)}
+                        className={baseInputClass}
+                      />
+                    )
+                  case 'number':
+                    return (
+                      <Input
+                        type="number"
+                        value={primitiveValue ?? ''}
+                        onChange={(e) => handleSimpleChange(e.target.value)}
+                        className={baseInputClass}
+                      />
+                    )
+                  case 'date':
+                    return (
+                      <Input
+                        type="date"
+                        value={toDateInputValue(primitiveValue, false)}
+                        onChange={(e) => handleSimpleChange(e.target.value)}
+                        className={baseInputClass}
+                      />
+                    )
+                  case 'datetime':
+                    return (
+                      <Input
+                        type="datetime-local"
+                        value={toDateInputValue(primitiveValue, true)}
+                        onChange={(e) => handleSimpleChange(e.target.value)}
+                        className={baseInputClass}
+                      />
+                    )
+                  case 'textarea':
+                    return (
+                      <textarea
+                        value={primitiveValue ?? ''}
+                        onChange={(e) => handleSimpleChange(e.target.value)}
+                        className={`${baseInputClass} min-h-[100px]`}
+                      />
+                    )
+                  case 'phone':
+                    return (
+                      <Input
+                        type="tel"
+                        value={typeof parsedValue === 'object' ? JSON.stringify(parsedValue) : String(primitiveValue ?? '')}
+                        onChange={(e) => handleSimpleChange(e.target.value)}
+                        className={baseInputClass}
+                        placeholder='{"countryCode":"+91","number":"9876543210"}'
+                      />
+                    )
+                  case 'location':
+                    return (
+                      <Input
+                        type="text"
+                        value={typeof parsedValue === 'object' ? JSON.stringify(parsedValue) : String(primitiveValue ?? '')}
+                        onChange={(e) => handleSimpleChange(e.target.value)}
+                        className={baseInputClass}
+                        placeholder='{"city":"Mumbai","state":"Maharashtra","country":"India"}'
+                      />
+                    )
+                  default:
+                    return (
+                      <Input
+                        type="text"
+                        value={primitiveValue ?? ''}
+                        onChange={(e) => handleSimpleChange(e.target.value)}
+                        className={baseInputClass}
+                      />
+                    )
+                }
+              })()}
             </div>
           )
         })}
@@ -1240,24 +1499,14 @@ export default function TableDataView({ table, onBack }) {
         const fieldValue = getFieldValue(record, column.column_id)
         
         // Format field value using helper function
-        return formatFieldValue(fieldValue, column.data_type, column, record)
+        const displayDataType = column.parent_datatype || column.data_type
+        return formatFieldValue(fieldValue, displayDataType, column, record)
       },
     }))
 
     // Add metadata columns
     const metadataColumns = [
-      {
-        accessorKey: "record_id",
-        header: "Record ID",
-        cell: ({ row }) => {
-          const recordId = row.getValue("record_id")
-          return (
-            <div className="font-mono text-xs bg-muted/50 px-2 py-1 rounded-md border">
-              {String(recordId).slice(0, 8)}...
-            </div>
-          )
-        },
-      },
+      // Record ID column removed - not shown to users
       {
         accessorKey: "created_at",
         header: "Created At",
@@ -1534,6 +1783,7 @@ export default function TableDataView({ table, onBack }) {
                 data={filteredRecords} 
                 searchKey=""
                 searchPlaceholder=""
+                showColumnsDropdown={false}
               />
             </div>
           </div>
@@ -1567,7 +1817,7 @@ export default function TableDataView({ table, onBack }) {
 
       {/* Nested Data Modal */}
       <Dialog open={isNestedModalOpen} onOpenChange={setIsNestedModalOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0 flex flex-col">
+        <DialogContent className="w-[80vw] sm:w-[75vw] max-w-[1000px] sm:max-w-none max-h-[95vh] p-0 gap-0 flex flex-col">
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>Nested Data - {nestedData?.columnName}</DialogTitle>
             <DialogDescription>
@@ -1655,7 +1905,7 @@ export default function TableDataView({ table, onBack }) {
                           onChange={(e) => handlePrimaryValueChange(e.target.value)}
                           className="w-full px-4 py-2 border rounded-md text-sm bg-background border-input hover:border-primary focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer font-medium"
                         >
-                          <option value="">Select primary value</option>
+                          {!editablePrimaryValue && <option value="">Select primary value</option>}
                           {nestedData.options?.map((option, idx) => (
                             <option key={idx} value={option.value}>
                               {option.label}
