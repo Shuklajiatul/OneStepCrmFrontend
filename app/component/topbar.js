@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { 
@@ -18,6 +19,40 @@ import { authUtils } from "@/lib/auth-utils"
 
 export default function Topbar({darkMode, toggleDarkMode, toggleSidebar}) {
     const router = useRouter()
+    const [userName, setUserName] = useState("")
+    const [userEmail, setUserEmail] = useState("")
+    const [userInitials, setUserInitials] = useState("AP")
+
+    useEffect(() => {
+        const tokens = authUtils.getTokens()
+        if (tokens?.user) {
+            const user = tokens.user
+            // Get user name - try first_name + last_name, then name, then username
+            const name = user.first_name && user.last_name
+                ? `${user.first_name} ${user.last_name}`.trim()
+                : user.name || user.username || "User"
+            setUserName(name)
+            
+            // Get user email
+            setUserEmail(user.email || "")
+            
+            // Generate initials for avatar
+            if (user.first_name && user.last_name) {
+                setUserInitials(`${user.first_name[0]}${user.last_name[0]}`.toUpperCase())
+            } else if (user.name) {
+                const nameParts = user.name.trim().split(" ")
+                if (nameParts.length >= 2) {
+                    setUserInitials(`${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase())
+                } else {
+                    setUserInitials(nameParts[0][0].toUpperCase())
+                }
+            } else if (user.username) {
+                setUserInitials(user.username.substring(0, 2).toUpperCase())
+            } else if (user.email) {
+                setUserInitials(user.email.substring(0, 2).toUpperCase())
+            }
+        }
+    }, [])
 
     const handleLogout = async () => {
         try {
@@ -59,15 +94,25 @@ export default function Topbar({darkMode, toggleDarkMode, toggleSidebar}) {
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="gap-2 h-auto py-2">
                                 <Avatar className="size-8">
-                                    <AvatarFallback>AP</AvatarFallback>
+                                    <AvatarFallback>{userInitials}</AvatarFallback>
                                 </Avatar>
-                                <span className="hidden md:inline font-medium">Aspaszin</span>
+                                <div className="hidden md:flex flex-col items-start">
+                                    <span className="font-medium text-sm">{userName || "User"}</span>
+                                    {userEmail && (
+                                        <span className="text-xs text-muted-foreground">{userEmail}</span>
+                                    )}
+                                </div>
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
-                            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                            <DropdownMenuLabel className="flex flex-col gap-1">
+                                <span>{userName || "User"}</span>
+                                {userEmail && (
+                                    <span className="text-xs font-normal text-muted-foreground">{userEmail}</span>
+                                )}
+                            </DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push('/profile')}>
                                 <User className="mr-2 size-4" />
                                 <span>Profile</span>
                             </DropdownMenuItem>

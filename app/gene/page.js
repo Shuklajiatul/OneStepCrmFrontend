@@ -85,6 +85,10 @@ export default function GeneDashboard() {
     limit: 10,
     total: 0
   });
+  const [organizations, setOrganizations] = useState([]);
+  const [loadingOrganizations, setLoadingOrganizations] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   // Debounce function
   const debounce = (func, delay) => {
@@ -242,6 +246,7 @@ export default function GeneDashboard() {
             totalMembers: organizationsCount,
             hierarchyLevels: gene.level_depth || levels.length,
             users: usersCount,
+            usersArray: gene.users || [], // Preserve original users array for editing
             lastUpdated: new Date(gene.updated_at).toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'short',
@@ -298,8 +303,118 @@ export default function GeneDashboard() {
     }
   };
 
+  const fetchOrganizations = async () => {
+    try {
+      setLoadingOrganizations(true);
+      
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        console.warn('No token available for fetching organizations');
+        return;
+      }
+
+      const response = await axios.get(
+        `${API_CONSTANTS.BASE_URL}/api/organizations`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      // Handle different response formats
+      let orgsData = [];
+      if (Array.isArray(response.data)) {
+        orgsData = response.data;
+      } else if (response.data.success && response.data.data) {
+        orgsData = response.data.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        orgsData = response.data.data;
+      } else if (response.data.organizations && Array.isArray(response.data.organizations)) {
+        orgsData = response.data.organizations;
+      }
+
+      setOrganizations(orgsData);
+    } catch (err) {
+      console.error('Error fetching organizations:', err);
+      // Don't show error to user, just log it
+      setOrganizations([]);
+    } finally {
+      setLoadingOrganizations(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        console.warn('No token available for fetching users');
+        return;
+      }
+
+      const response = await axios.get(
+        `${API_CONSTANTS.BASE_URL}/api/users`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      // Handle different response formats
+      let usersData = [];
+      if (Array.isArray(response.data)) {
+        usersData = response.data;
+      } else if (response.data.success && response.data.data) {
+        usersData = response.data.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        usersData = response.data.data;
+      } else if (response.data.users && Array.isArray(response.data.users)) {
+        usersData = response.data.users;
+      }
+
+      // Normalize user objects - map user_id to id if needed
+      const normalizedUsers = usersData.map(user => ({
+        ...user,
+        id: user.id || user.user_id,
+        username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+        name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
+      }));
+
+      setUsers(normalizedUsers);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      // Don't show error to user, just log it
+      setUsers([]);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   useEffect(() => {
     fetchGenes();
+    fetchOrganizations();
+    fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, pageSize]);
 
@@ -440,11 +555,31 @@ export default function GeneDashboard() {
 
   const openEditModal = (gene) => {
     setEditingGene(gene);
+    
+    // Extract user IDs from gene.usersArray (preserved original array) or gene.users
+    let usersString = '';
+    const usersArray = gene.usersArray || gene.users;
+    
+    if (usersArray && Array.isArray(usersArray)) {
+      // If users is an array of objects with id/user_id, extract the IDs
+      const userIds = usersArray.map(user => {
+        if (typeof user === 'object' && user !== null) {
+          return user.id || user.user_id || user;
+        }
+        return user;
+      }).filter(Boolean); // Remove any null/undefined values
+      usersString = userIds.join(',');
+    } else if (usersArray && typeof usersArray === 'string') {
+      // If users is already a string (comma-separated)
+      usersString = usersArray;
+    }
+    
     setGeneData({
       name: gene.g_name || gene.name,
       levels: gene.levels || [],
       g_id: gene.g_id,
-      is_active: gene.is_active
+      is_active: gene.is_active,
+      users: usersString
     });
     setShowModal(true);
   };
@@ -618,7 +753,13 @@ export default function GeneDashboard() {
     setShowDeleteModal(true);
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (e) => {
+    // Prevent any form submission or default behavior
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     const loadingToast = toast.loading('Deleting gene...');
    
     try {
@@ -653,10 +794,19 @@ export default function GeneDashboard() {
         toast.success(response.data.message || 'Gene deleted successfully!', {
           id: loadingToast,
         });
+        
+        // Update local state instead of refetching to avoid page refresh
+        setGenes(prevGenes => prevGenes.filter(gene => (gene.g_id || gene.id) !== geneToDelete));
+        
+        // Update pagination if needed
+        setPagination(prev => ({
+          ...prev,
+          total: Math.max(0, prev.total - 1)
+        }));
+        
         setShowDeleteModal(false);
         setGeneToDelete(null);
         setGeneToDeleteObj(null);
-        fetchGenes(); // Refresh the list
       } else {
         throw new Error(response.data.message || 'Failed to delete gene');
       }
@@ -715,7 +865,7 @@ export default function GeneDashboard() {
       const baseUrl = API_CONSTANTS.BASE_URL;
 
       const response = await axios.post(
-        `${baseUrl}/uploadCSV`,
+        `${baseUrl}/api/genes/uploadCsv`,
         formData,
         {
           headers: {
@@ -1441,6 +1591,8 @@ export default function GeneDashboard() {
                   <span>{selectedGene?.hierarchyLevels} Levels</span>
                   <span>•</span>
                   <span>Users: {selectedGene?.users}</span>
+                  <span>•</span>
+                  <span>Organizations: {selectedGene?.organizations?.length || selectedGene?.totalMembers || 0}</span>
                 </DialogDescription>
               </div>
             </div>
@@ -1529,6 +1681,176 @@ export default function GeneDashboard() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Mapped Users */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <UsersIcon className="h-5 w-5" />
+                      Mapped Users
+                    </CardTitle>
+                    <Badge variant="secondary">
+                      {selectedGene?.usersArray?.length || selectedGene?.users || 0}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loadingUsers ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                      <span className="text-sm text-muted-foreground">Loading users...</span>
+                    </div>
+                  ) : (selectedGene?.usersArray || (selectedGene?.users && Array.isArray(selectedGene.users))) ? (
+                    (() => {
+                      const usersArray = selectedGene?.usersArray || selectedGene?.users || [];
+                      return usersArray.length > 0 ? (
+                        <div className="space-y-3">
+                          {usersArray.map((userIdOrObj, index) => {
+                            // Extract user ID - handle both string IDs and objects
+                            const userId = typeof userIdOrObj === 'string' 
+                              ? userIdOrObj 
+                              : (userIdOrObj.user_id || userIdOrObj.id || userIdOrObj);
+                            
+                            // Find the matching user from fetched users
+                            const matchedUser = users.find(user => 
+                              user.id === userId || 
+                              user.user_id === userId ||
+                              String(user.id) === String(userId) ||
+                              String(user.user_id) === String(userId)
+                            );
+                            
+                            // Use matched user name if found, otherwise fallback
+                            const displayName = matchedUser?.name || 
+                                              matchedUser?.username ||
+                                              (matchedUser?.first_name && matchedUser?.last_name 
+                                                ? `${matchedUser.first_name} ${matchedUser.last_name}`.trim()
+                                                : null) ||
+                                              matchedUser?.email ||
+                                              userIdOrObj?.name ||
+                                              userIdOrObj?.username ||
+                                              (userIdOrObj?.first_name && userIdOrObj?.last_name
+                                                ? `${userIdOrObj.first_name} ${userIdOrObj.last_name}`.trim()
+                                                : null) ||
+                                              (typeof userIdOrObj === 'string' ? `User ${userId.substring(0, 8)}...` : `User ${index + 1}`);
+                            
+                            const userEmail = matchedUser?.email || userIdOrObj?.email;
+                            const displayUserId = matchedUser?.id || matchedUser?.user_id || userId;
+                            
+                            return (
+                              <div key={displayUserId || index} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <UsersIcon className="h-5 w-5 text-primary" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-sm truncate flex-1" title={displayName}>{displayName}</p>
+                                    <div className={cn(
+                                      "w-2 h-2 rounded-full shrink-0",
+                                      matchedUser?.is_active !== false ? 'bg-green-500' : 'bg-gray-300'
+                                    )} />
+                                  </div>
+                                  {userEmail && (
+                                    <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
+                                  )}
+                                  {matchedUser?.is_active === false && (
+                                    <p className="text-xs text-muted-foreground mt-1">Inactive</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <UsersIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                          <p className="text-sm font-medium">No users mapped</p>
+                          <p className="text-xs mt-1">This gene doesn't have any users assigned yet</p>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <UsersIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm font-medium">No users mapped</p>
+                      <p className="text-xs mt-1">This gene doesn't have any users assigned yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Mapped Organizations */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Building className="h-5 w-5" />
+                      Mapped Organizations
+                    </CardTitle>
+                    <Badge variant="secondary">
+                      {selectedGene?.organizations?.length || selectedGene?.totalMembers || 0}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {loadingOrganizations ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                      <span className="text-sm text-muted-foreground">Loading organizations...</span>
+                    </div>
+                  ) : selectedGene?.organizations && Array.isArray(selectedGene.organizations) && selectedGene.organizations.length > 0 ? (
+                    <div className="space-y-3">
+                      {selectedGene.organizations.map((orgIdOrObj, index) => {
+                        // Extract organization ID - handle both string IDs and objects
+                        const orgId = typeof orgIdOrObj === 'string' 
+                          ? orgIdOrObj 
+                          : (orgIdOrObj.organization_id || orgIdOrObj.id || orgIdOrObj.org_id || orgIdOrObj);
+                        
+                        // Find the matching organization from fetched organizations
+                        const matchedOrg = organizations.find(org => 
+                          org.organization_id === orgId || 
+                          org.id === orgId ||
+                          String(org.organization_id) === String(orgId) ||
+                          String(org.id) === String(orgId)
+                        );
+                        
+                        // Use matched organization name if found, otherwise fallback
+                        const orgName = matchedOrg?.name || 
+                                      orgIdOrObj?.name || 
+                                      orgIdOrObj?.organization_name || 
+                                      orgIdOrObj?.org_name || 
+                                      (typeof orgIdOrObj === 'string' ? `Organization ${orgId.substring(0, 8)}...` : `Organization ${index + 1}`);
+                        
+                        const displayOrgId = matchedOrg?.organization_id || orgId;
+                        
+                        return (
+                          <div key={displayOrgId || index} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <Building className="h-5 w-5 text-primary" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate" title={orgName}>{orgName}</p>
+                              {matchedOrg?.subscription_tier && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  <Badge variant="outline" className="text-xs">
+                                    {matchedOrg.subscription_tier}
+                                  </Badge>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Building className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p className="text-sm font-medium">No organizations mapped</p>
+                      <p className="text-xs mt-1">This gene doesn't have any organizations assigned yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </ScrollArea>
           <DialogFooter>
@@ -1586,8 +1908,13 @@ export default function GeneDashboard() {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={confirmDelete}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                confirmDelete(e);
+              }}
               className="bg-destructive text-white hover:bg-destructive/90 focus:ring-destructive dark:bg-destructive dark:text-white"
+              type="button"
             >
               Delete Gene
             </AlertDialogAction>

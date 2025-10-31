@@ -28,17 +28,17 @@ export default function GeneCsvModal({ isOpen, onClose, onSubmit }) {
     try {
       const formData = new FormData();
       formData.append('csvfile', selectedFile);
-      formData.append('tableName', 'genes');
      
       await onSubmit(formData);
       
-      toast.success('Genes imported successfully!');
+      // Note: Success toast is handled by parent component
       setSelectedFile(null);
       setFileName('');
       onClose();
     } catch (error) {
       console.error('CSV submission error:', error);
-      toast.error('Failed to import genes');
+      // Error toast is handled by parent component
+      throw error; // Re-throw to let parent handle it
     } finally {
       setLoading(false);
     }
@@ -117,47 +117,57 @@ sales-gene,"{1:territory, 2:area}",true`;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <Upload className="h-5 w-5" />
-            Import Genes
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="pb-4 border-b">
+          <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
+            <Upload className="h-5 w-5 text-primary" />
+            Import Genes from CSV
           </DialogTitle>
-          <DialogDescription>
-            Upload a CSV file to import genes in bulk
+          <DialogDescription className="text-sm text-muted-foreground pt-1">
+            Upload a CSV file to import genes in bulk. Make sure your file follows the required format.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-5 py-4">
           {/* Sample CSV Download */}
-          <Alert className="bg-blue-50/50 border-blue-200">
-            <FileText className="h-4 w-4 text-blue-600" />
-            <AlertTitle className="text-sm font-medium text-blue-800">Download Template</AlertTitle>
-            <AlertDescription className="text-xs text-blue-600 space-y-2 mt-1">
-              <p>Get the sample CSV file with proper format</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={downloadSampleCSV}
-                className="w-full sm:w-auto border-blue-600 text-blue-700 hover:bg-blue-50"
-              >
-                <Download className="mr-2 h-3.5 w-3.5" />
-                Download CSV Template
-              </Button>
-            </AlertDescription>
+          <Alert className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+            <div className="flex items-start gap-3">
+              <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <AlertTitle className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+                  Download Template
+                </AlertTitle>
+                <AlertDescription className="text-xs text-blue-700 dark:text-blue-300">
+                  <p className="mb-2">Get the sample CSV file with proper format</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadSampleCSV}
+                    className="w-full sm:w-auto border-blue-600 dark:border-blue-500 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download CSV Template
+                  </Button>
+                </AlertDescription>
+              </div>
+            </div>
           </Alert>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* File Upload Section */}
-            <div className="space-y-2">
-              <Label htmlFor="csv-file" className="text-sm font-medium">Upload CSV File</Label>
+            <div className="space-y-3">
+              <Label htmlFor="csv-file" className="text-sm font-semibold text-foreground">
+                Upload CSV File
+              </Label>
               <div
                 className={cn(
-                  "relative border-2 border-dashed rounded-lg p-8 transition-colors min-h-[140px] flex items-center justify-center",
+                  "relative border-2 border-dashed rounded-lg transition-all duration-200 min-h-[160px] flex items-center justify-center group",
                   dragActive
-                    ? "border-primary bg-primary/5"
-                    : "border-muted-foreground/25 hover:border-primary/50 bg-muted/30",
-                  fileName && "border-green-500 bg-green-50/50"
+                    ? "border-primary bg-primary/10 dark:bg-primary/20"
+                    : fileName 
+                      ? "border-green-500 dark:border-green-600 bg-green-50/50 dark:bg-green-950/20" 
+                      : "border-muted-foreground/30 hover:border-primary/60 bg-muted/20 hover:bg-muted/40",
+                  loading && "opacity-60 cursor-not-allowed"
                 )}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
@@ -170,30 +180,37 @@ sales-gene,"{1:territory, 2:area}",true`;
                   accept=".csv"
                   onChange={handleFileUpload}
                   disabled={loading}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
                 />
-                <div className="flex flex-col items-center justify-center text-center space-y-2">
+                <div className="flex flex-col items-center justify-center text-center space-y-3 px-4 py-6">
                   {fileName ? (
                     <>
-                      <FileCheck className="h-10 w-10 text-green-600" />
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-foreground">
+                      <div className="relative">
+                        <FileCheck className="h-12 w-12 text-green-600 dark:text-green-500" />
+                        <div className="absolute -top-1 -right-1 h-5 w-5 bg-green-600 dark:bg-green-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-xs">✓</span>
+                        </div>
+                      </div>
+                      <div className="space-y-2 max-w-full">
+                        <p className="text-sm font-semibold text-foreground truncate px-2">
                           {fileName}
                         </p>
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-300 dark:border-green-700">
                           File Selected
                         </Badge>
                       </div>
                     </>
                   ) : (
                     <>
-                      <Upload className="h-10 w-10 text-muted-foreground" />
-                      <div className="space-y-1">
+                      <div className="rounded-full bg-muted p-4 group-hover:bg-primary/10 transition-colors">
+                        <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </div>
+                      <div className="space-y-1.5">
                         <p className="text-sm text-muted-foreground">
-                          <span className="font-medium text-primary">Click to upload</span> or drag and drop
+                          <span className="font-semibold text-primary">Click to upload</span> or drag and drop
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          CSV file only
+                          CSV file only (Max size: 10MB)
                         </p>
                       </div>
                     </>
@@ -203,76 +220,83 @@ sales-gene,"{1:territory, 2:area}",true`;
             </div>
 
             {/* CSV Format Instructions */}
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Format Requirements</AlertTitle>
-              <AlertDescription>
-                <ul className="text-xs space-y-1.5 mt-2">
-                  <li className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>
-                      <strong>Required columns:</strong>
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2 ml-4">
-                    <span className="text-muted-foreground">•</span>
-                    <span>
-                      <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">
-                        g_name
-                      </code>
-                      {' '}- Gene name
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2 ml-4">
-                    <span className="text-muted-foreground">•</span>
-                    <span>
-                      <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">
-                        hierarchy_level
-                      </code>
-                      {' '}- Format: {'"{"'}1:level1, 2:level2, 3:level3{'"}"'}
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2 ml-4">
-                    <span className="text-muted-foreground">•</span>
-                    <span>
-                      <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">
-                        is_active
-                      </code>
-                      {' '}- true/false
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2 mt-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>First row must be header row with column names</span>
-                  </li>
-                </ul>
-              </AlertDescription>
+            <Alert className="bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <AlertTitle className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                    Format Requirements
+                  </AlertTitle>
+                  <AlertDescription className="text-xs text-amber-800 dark:text-amber-200">
+                    <ul className="space-y-2 mt-2">
+                      <li className="flex items-start gap-2">
+                        <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
+                        <span>
+                          <strong className="font-semibold">Required columns:</strong>
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2 ml-5">
+                        <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
+                        <span>
+                          <code className="bg-muted dark:bg-muted/50 px-2 py-1 rounded text-xs font-mono border border-amber-200 dark:border-amber-800">
+                            g_name
+                          </code>
+                          {' '}- Gene name
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2 ml-5">
+                        <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
+                        <span>
+                          <code className="bg-muted dark:bg-muted/50 px-2 py-1 rounded text-xs font-mono border border-amber-200 dark:border-amber-800">
+                            hierarchy_level
+                          </code>
+                          {' '}- Format: {'"{"'}1:level1, 2:level2, 3:level3{'"}"'}
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2 ml-5">
+                        <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
+                        <span>
+                          <code className="bg-muted dark:bg-muted/50 px-2 py-1 rounded text-xs font-mono border border-amber-200 dark:border-amber-800">
+                            is_active
+                          </code>
+                          {' '}- true/false
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2 mt-3">
+                        <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
+                        <span className="font-medium">First row must be header row with column names</span>
+                      </li>
+                    </ul>
+                  </AlertDescription>
+                </div>
+              </div>
             </Alert>
 
             {fileName && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-2">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={clearForm}
                   disabled={loading}
-                  className="flex-1"
+                  className="flex-1 sm:flex-none"
                   size="sm"
                 >
                   <X className="mr-2 h-4 w-4" />
-                  Clear
+                  Clear File
                 </Button>
               </div>
             )}
           </form>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 pt-4 border-t mt-4">
           <Button
             type="button"
             variant="outline"
             onClick={handleClose}
             disabled={loading}
+            className="min-w-[100px]"
           >
             Cancel
           </Button>
@@ -280,6 +304,7 @@ sales-gene,"{1:territory, 2:area}",true`;
             type="submit"
             onClick={handleSubmit}
             disabled={loading || !selectedFile}
+            className="min-w-[140px]"
           >
             {loading ? (
               <>
