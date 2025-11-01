@@ -24,10 +24,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import axios from "axios"
+import { authUtils } from '@/lib/auth-utils'
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN
 
 export default function TableDataView({ table, onBack }) {
   const [columns, setColumns] = useState([])
@@ -61,13 +61,13 @@ export default function TableDataView({ table, onBack }) {
       const [columnsResponse, recordsResponse] = await Promise.all([
         axios.get(`${API_BASE_URL}/api/datatables/${table.table_id}/columns`, {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json',
           }
         }),
         axios.get(`${API_BASE_URL}/api/records/${table.table_id}`, {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json',
           }
         })
@@ -113,7 +113,7 @@ export default function TableDataView({ table, onBack }) {
     try {
       const response = await axios.delete(`${API_BASE_URL}/api/records/${table.table_id}/${recordId}`, {
         headers: {
-          'Authorization': `Bearer ${AUTH_TOKEN}`,
+          'Authorization': authUtils.getAuthHeader(),
           'Content-Type': 'application/json',
         }
       })
@@ -838,7 +838,7 @@ export default function TableDataView({ table, onBack }) {
         payload,
         {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json'
           }
         }

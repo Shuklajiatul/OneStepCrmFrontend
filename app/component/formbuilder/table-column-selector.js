@@ -11,6 +11,7 @@ import { Database, Loader2, Search, Check, RefreshCw } from "lucide-react"
 import axios from "axios"
 import { toast } from "sonner"
 import { v4 as uuidv4 } from 'uuid'
+import { authUtils } from '@/lib/auth-utils'
 
 export function TableColumnSelector({ field, onUpdateField, existingFields = [] }) {
   const [tableColumns, setTableColumns] = useState([])
@@ -43,7 +44,6 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
   // API configuration
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
   const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
-  const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN
 
   // Fetch table columns
   const fetchTableColumns = async () => {
@@ -51,7 +51,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
     try {
       const response = await axios.get(`${API_BASE_URL}/api/datatables/${TABLE_ID}/columns`, {
         headers: {
-          'Authorization': `Bearer ${AUTH_TOKEN}`,
+          'Authorization': authUtils.getAuthHeader(),
           'Content-Type': 'application/json',
         },
       })

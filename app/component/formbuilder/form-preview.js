@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useEffect } from "react"
+import { authUtils } from '@/lib/auth-utils'
 
 // Helper function to process field options with nested structure
 const processFieldOptions = (field) => {
@@ -172,7 +173,6 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
 const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 const USER_ID = process.env.NEXT_PUBLIC_USER_ID
-const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN
 
 export function FormPreview({ fields, isEditMode = false, formData = null, onRetryCountChange = null }) {
   const [generatedLink, setGeneratedLink] = useState(null)
@@ -541,7 +541,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
       try {
         const response = await axios.post(endpoint, formData, {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json',
           },
         })

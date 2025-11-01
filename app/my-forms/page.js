@@ -23,6 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { v4 as uuidv4 } from 'uuid'
+import { authUtils } from '@/lib/auth-utils'
 
 const USER_ID = process.env.NEXT_PUBLIC_USER_ID;
 
@@ -178,7 +179,7 @@ export default function MyFormsPage() {
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/${process.env.NEXT_PUBLIC_ORGANIZATION_ID}/${process.env.NEXT_PUBLIC_TABLE_ID}/${formId}`,
         {
           headers: {
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json'
           }
         }
@@ -202,7 +203,7 @@ export default function MyFormsPage() {
     try {
       const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/update`, formData, {
         headers: {
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
+          'Authorization': authUtils.getAuthHeader(),
           'Content-Type': 'application/json'
         }
       })
@@ -253,7 +254,7 @@ export default function MyFormsPage() {
         archivePayload,
         {
           headers: {
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json'
           }
         }
@@ -325,7 +326,7 @@ export default function MyFormsPage() {
         deletePayload,
         {
           headers: {
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json'
           }
         }
@@ -374,7 +375,7 @@ export default function MyFormsPage() {
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/all/${process.env.NEXT_PUBLIC_ORGANIZATION_ID}/${process.env.NEXT_PUBLIC_TABLE_ID}`,
         {
           headers: {
-            'Authorization': `Bearer ${process.env.NEXT_PUBLIC_AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json'
           }
         }

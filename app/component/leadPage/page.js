@@ -33,10 +33,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import axios from "axios"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { authUtils } from '@/lib/auth-utils'
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN
 const LEADS_TABLE_ID = 'dc6032a9-391b-43b6-bab3-405b397d5283'
 
 export default function LeadsPage() {
@@ -235,7 +235,7 @@ export default function LeadsPage() {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/datatables`, {
         headers: {
-          'Authorization': `Bearer ${AUTH_TOKEN}`,
+          'Authorization': authUtils.getAuthHeader(),
           'Content-Type': 'application/json',
         }
       })
@@ -261,7 +261,7 @@ export default function LeadsPage() {
     try {
       const response = await axios.delete(`${API_BASE_URL}/api/datatables/${tableId}`, {
         headers: {
-          'Authorization': `Bearer ${AUTH_TOKEN}`,
+          'Authorization': authUtils.getAuthHeader(),
           'Content-Type': 'application/json',
         }
       })

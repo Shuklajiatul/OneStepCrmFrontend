@@ -15,13 +15,13 @@ import Image from "next/image"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { fetchPhoneCountries } from "@/lib/constants/location-api"
 import { v4 as uuidv4 } from 'uuid';
+import { authUtils } from '@/lib/auth-utils'
 
 // API configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
 const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 const USER_ID = process.env.NEXT_PUBLIC_USER_ID
-const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN
 
 // Helper functions
 const formatFileSize = (bytes) => {
@@ -1577,7 +1577,7 @@ export default function PublicFormPage() {
         const baseUrl = `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`
         const latestResp = await axios.get(baseUrl, {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json',
           }
         })
@@ -1682,7 +1682,7 @@ export default function PublicFormPage() {
         },
         {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json'
           }
         }
@@ -1757,7 +1757,7 @@ export default function PublicFormPage() {
                 `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}?version=${result.form_version}`,
                 {
                   headers: {
-                    'Authorization': `Bearer ${AUTH_TOKEN}`,
+                    'Authorization': authUtils.getAuthHeader(),
                     'Content-Type': 'application/json',
                   }
                 }
@@ -1787,7 +1787,7 @@ export default function PublicFormPage() {
                 try {
                   const altResponse = await axios.get(endpoint, {
                     headers: {
-                      'Authorization': `Bearer ${AUTH_TOKEN}`,
+                      'Authorization': authUtils.getAuthHeader(),
                       'Content-Type': 'application/json',
                     }
                   })
@@ -2211,7 +2211,7 @@ export default function PublicFormPage() {
         try {
           const resp = await axios.get(primaryUrl, {
             headers: {
-              'Authorization': `Bearer ${AUTH_TOKEN}`,
+              'Authorization': authUtils.getAuthHeader(),
               'Content-Type': 'application/json',
             }
           })
@@ -2233,7 +2233,7 @@ export default function PublicFormPage() {
             try {
               const altResp = await axios.get(alt, {
                 headers: {
-                  'Authorization': `Bearer ${AUTH_TOKEN}`,
+                  'Authorization': authUtils.getAuthHeader(),
                   'Content-Type': 'application/json',
                 }
               })
@@ -2251,7 +2251,7 @@ export default function PublicFormPage() {
       if (!result) {
         const response = await axios.get(baseUrl, {
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json',
           }
         })
@@ -2266,7 +2266,7 @@ export default function PublicFormPage() {
           // Also fetch latest to determine read-only state when a specific version is requested
           const latestResp = await axios.get(baseUrl, {
             headers: {
-              'Authorization': `Bearer ${AUTH_TOKEN}`,
+              'Authorization': authUtils.getAuthHeader(),
               'Content-Type': 'application/json',
             }
           })

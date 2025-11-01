@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { ArrowLeft, FileText } from "lucide-react"
+import { authUtils } from '@/lib/auth-utils'
 
 export default function FormPreviewPage() {
   const [fields, setFields] = useState([])
@@ -144,7 +145,6 @@ export default function FormPreviewPage() {
         const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
         const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
         const USER_ID = process.env.NEXT_PUBLIC_USER_ID
-        const AUTH_TOKEN = process.env.NEXT_PUBLIC_AUTH_TOKEN
         
         // Recursive function to process nested fields
         const processNestedFields = (nestedFields, parentIndex = null) => {
@@ -277,7 +277,7 @@ export default function FormPreviewPage() {
         const response = await fetch(`${API_BASE_URL}/api/forms/update`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(updatePayload)
