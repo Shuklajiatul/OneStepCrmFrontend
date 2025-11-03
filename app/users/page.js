@@ -74,7 +74,7 @@ import {
 } from "@/components/ui/tooltip"
 
 // API Base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
 export default function UsersPage() {
   const [users, setUsers] = useState([])
@@ -93,12 +93,13 @@ export default function UsersPage() {
     last_name: "",
     password: "",
     is_active: true,
-    role: "User",
+    role_id: "",
   })
   const [roleFormData, setRoleFormData] = useState({
     role_id: "",
   })
   const [availableRoles, setAvailableRoles] = useState([])
+  const [rolesLoading, setRolesLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -106,6 +107,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers()
+    fetchRoles()
   }, [])
 
   useEffect(() => {
@@ -167,6 +169,37 @@ export default function UsersPage() {
     }
   }
 
+  const fetchRoles = async () => {
+    try {
+      setRolesLoading(true)
+      const response = await axios.get(`${API_BASE_URL}/api/roles`, {
+        headers: getAuthHeaders(),
+        timeout: 30000,
+      })
+
+      if (response.data) {
+        const roleData = Array.isArray(response.data)
+          ? response.data
+          : response.data.data || response.data.roles || []
+        setAvailableRoles(roleData)
+        console.log("Roles fetched:", roleData)
+      }
+    } catch (error) {
+      console.error("Error fetching roles:", error)
+      if (error.response?.status === 404) {
+        toast.info("Roles API endpoint not found. Using default roles.")
+        setAvailableRoles([])
+      } else if (error.response?.status !== 401) {
+        toast.error("Failed to fetch roles. Please check your connection.")
+      }
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.")
+      }
+    } finally {
+      setRolesLoading(false)
+    }
+  }
+
   const fetchUserDetails = async (userId) => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/users/${userId}`, {
@@ -183,7 +216,7 @@ export default function UsersPage() {
           last_name: userData.last_name || "",
           password: "",
           is_active: userData.is_active !== undefined ? userData.is_active : true,
-          role: userData.roles || userData.role || "User",
+          role_id: userData.role_id || userData.roles?.id || userData.roles || "",
         })
         return userData
       }
@@ -195,6 +228,11 @@ export default function UsersPage() {
   }
 
   const handleCreateUser = async () => {
+    if (!formData.role_id) {
+      toast.error("Please select a role")
+      return
+    }
+
     try {
       setSubmitting(true)
       const payload = {
@@ -203,7 +241,7 @@ export default function UsersPage() {
         last_name: formData.last_name,
         password: formData.password,
         is_active: formData.is_active,
-        role: formData.role,
+        role_id: formData.role_id,
       }
 
       const response = await axios.post(`${API_BASE_URL}/api/users`, payload, {
@@ -242,8 +280,8 @@ export default function UsersPage() {
         payload.password = formData.password
       if (formData.is_active !== selectedUser.is_active)
         payload.is_active = formData.is_active
-      const currentRole = selectedUser.roles || selectedUser.role
-      if (formData.role !== currentRole) payload.role = formData.role
+      const currentRoleId = selectedUser.role_id || selectedUser.roles?.id || selectedUser.roles
+      if (formData.role_id && formData.role_id !== currentRoleId) payload.role_id = formData.role_id
 
       if (Object.keys(payload).length === 0) {
         toast.info("No changes to update")
@@ -453,7 +491,7 @@ export default function UsersPage() {
       last_name: "",
       password: "",
       is_active: true,
-      role: "User",
+      role_id: "",
     })
     setSelectedUser(null)
   }
@@ -478,8 +516,10 @@ export default function UsersPage() {
     setIsRoleDialogOpen(true)
   }
 
-  // Fixed role options
-  const roleOptions = ["User", "Admin", "Manager"]
+  // Get role options from API or use fallback
+  const roleOptions = availableRoles.length > 0 
+    ? availableRoles 
+    : []
 
   const filteredUsers = users.filter((user) => {
     // Search filter
@@ -622,20 +662,31 @@ export default function UsersPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="create-role">Role</Label>
+                        <Label htmlFor="create-role">Role *</Label>
                         <Select
-                          value={formData.role}
+                          value={formData.role_id}
                           onValueChange={(value) =>
-                            setFormData({ ...formData, role: value })
+                            setFormData({ ...formData, role_id: value })
                           }
+                          disabled={rolesLoading}
                         >
                           <SelectTrigger id="create-role">
-                            <SelectValue placeholder="Select role" />
+                            <SelectValue placeholder={rolesLoading ? "Loading roles..." : "Select role"} />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="User">User</SelectItem>
-                            <SelectItem value="Admin">Admin</SelectItem>
-                            <SelectItem value="Manager">Manager</SelectItem>
+                            {roleOptions.length === 0 && !rolesLoading ? (
+                              <SelectItem value="" disabled>No roles available</SelectItem>
+                            ) : (
+                              roleOptions.map((role) => {
+                                const roleId = role.role_id || role.id
+                                const roleName = role.role_name || role.name || role
+                                return (
+                                  <SelectItem key={roleId} value={roleId}>
+                                    {roleName}
+                                  </SelectItem>
+                                )
+                              })
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -710,11 +761,15 @@ export default function UsersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                {roleOptions.map((role) => (
-                  <SelectItem key={role} value={role}>
-                    {role}
-                  </SelectItem>
-                ))}
+                {roleOptions.map((role) => {
+                  const roleName = role.role_name || role.name || role
+                  const roleValue = role.role_id || role.id || role
+                  return (
+                    <SelectItem key={roleValue} value={roleName}>
+                      {roleName}
+                    </SelectItem>
+                  )
+                })}
               </SelectContent>
             </Select>
 
@@ -1027,16 +1082,27 @@ export default function UsersPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit-role">Role</Label>
                 <Select
-                  value={formData.role}
-                  onValueChange={(value) => setFormData({ ...formData, role: value })}
+                  value={formData.role_id}
+                  onValueChange={(value) => setFormData({ ...formData, role_id: value })}
+                  disabled={rolesLoading}
                 >
                   <SelectTrigger id="edit-role">
-                    <SelectValue placeholder="Select role" />
+                    <SelectValue placeholder={rolesLoading ? "Loading roles..." : "Select role"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="User">User</SelectItem>
-                    <SelectItem value="Admin">Admin</SelectItem>
-                    <SelectItem value="Manager">Manager</SelectItem>
+                    {roleOptions.length === 0 && !rolesLoading ? (
+                      <SelectItem value="" disabled>No roles available</SelectItem>
+                    ) : (
+                      roleOptions.map((role) => {
+                        const roleId = role.role_id || role.id
+                        const roleName = role.role_name || role.name || role
+                        return (
+                          <SelectItem key={roleId} value={roleId}>
+                            {roleName}
+                          </SelectItem>
+                        )
+                      })
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -1135,11 +1201,19 @@ export default function UsersPage() {
                     <SelectValue placeholder="Select a role to assign" />
                   </SelectTrigger>
                   <SelectContent>
-                    {roleOptions.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {role}
-                      </SelectItem>
-                    ))}
+                    {availableRoles.length === 0 ? (
+                      <SelectItem value="" disabled>No roles available. Please fetch roles first.</SelectItem>
+                    ) : (
+                      availableRoles.map((role) => {
+                        const roleId = role.role_id || role.id
+                        const roleName = role.role_name || role.name || role
+                        return (
+                          <SelectItem key={roleId} value={roleId}>
+                            {roleName}
+                          </SelectItem>
+                        )
+                      })
+                    )}
                   </SelectContent>
                 </Select>
                 <Button onClick={handleAssignRole} disabled={submitting || !roleFormData.role_id}>
