@@ -132,7 +132,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
             </Tooltip>
 
             <Card className={cn(
-                "h-[calc(100vh-1.5rem)] flex flex-col bg-sidebar border-0 shadow-none",
+                "h-[calc(100vh-1.5rem)] flex flex-col bg-sidebar border-0 shadow-none overflow-hidden",
                 isCollapsed ? "m-2 p-2" : "m-3 p-3"
             )}>
                 {/* Header Section - Single row layout */}
@@ -170,18 +170,34 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                     </Button>
                 </div>
 
-                <nav className="flex-1 mt-4">
+                <nav className="flex-1 mt-4 overflow-y-auto overflow-x-hidden">
                     {!isCollapsed && (
                         <div className="text-xs uppercase text-sidebar-foreground/70 px-2 mb-3 font-semibold tracking-wider">
                             General
                         </div>
                     )}
                     <ul className={cn(
-                        "grid gap-1",
+                        "space-y-1",
                         isCollapsed && "space-y-1"
                     )}>
-                        {menuItems.map((item) => (
+                        {menuItems.map((item, index) => {
+                            // Show "Gene Management" section header before Gene Management item
+                            const showGeneManagementSection = !isCollapsed && index === 3 && item.label === "Gene Management"
+                            // Show "User Management" section header before User item
+                            const showUserSection = !isCollapsed && index === 4 && item.label === "User"
+                            
+                            return (
                             <li key={item.label}>
+                                {showGeneManagementSection && (
+                                    <div className="text-xs uppercase text-sidebar-foreground/70 px-2 mb-3 mt-4 font-semibold tracking-wider">
+                                        Gene Management
+                                    </div>
+                                )}
+                                {showUserSection && (
+                                    <div className="text-xs uppercase text-sidebar-foreground/70 px-2 mb-3 mt-4 font-semibold tracking-wider">
+                                        User Management
+                                    </div>
+                                )}
                                 <div className="space-y-1">
                                     {isCollapsed ? (
                                         <Tooltip>
@@ -228,13 +244,13 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
 
                                     {/* Submenu */}
                                     {!isCollapsed && item.submenu && isMenuExpanded(item.label) && (
-                                        <div className="ml-4 space-y-1 border-l-2 border-sidebar-border pl-2">
+                                        <div className="mt-1 space-y-1 pl-4 border-l-2 border-sidebar-border">
                                             {item.submenu.map((subItem) => (
                                                 <Button
                                                     key={subItem.label}
                                                     variant={isActive(subItem.href, subItem.isRoute) ? "secondary" : "ghost"}
                                                     className={cn(
-                                                        "w-full gap-2 justify-start py-2 h-auto text-sm",
+                                                        "w-full gap-2 justify-start py-2 h-auto text-sm min-h-[2rem] pr-2",
                                                         isActive(subItem.href, subItem.isRoute) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
                                                     )}
                                                     onClick={() => {
@@ -249,14 +265,14 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                                                     }}
                                                 >
                                                     <subItem.icon className="size-4 shrink-0" />
-                                                    <span className="truncate">{subItem.label}</span>
+                                                    <span className="truncate flex-1">{subItem.label}</span>
                                                 </Button>
                                             ))}
                                         </div>
                                     )}
                                 </div>
                             </li>
-                        ))}
+                        )})}
                     </ul>
                 </nav>
 
