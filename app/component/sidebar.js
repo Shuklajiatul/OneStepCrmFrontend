@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Settings, HelpCircle, BookCopy, ClipboardMinus, FileChartColumnIncreasing, X, ChevronLeft, ChevronRight, ChevronDown, FormInput, BarChart3, List, Table, Users, Network, Layers, UserCog } from "lucide-react"
+import { Home, Settings, HelpCircle, BookCopy, ClipboardMinus, FileChartColumnIncreasing, X, ChevronLeft, ChevronRight, ChevronDown, FormInput, BarChart3, List, Table, Users, Network, Layers, UserCog, Shield, Building, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -32,9 +32,20 @@ const menuItems = [
         href: "general-management",
         submenu: [
             { label: "Gene", icon: Layers, href: "gene" },
+            { label: "Feature", icon: Shield, href: "/feature", isRoute: true },
+            { label: "Permission Management System", icon: Lock, href: "/permissionManagementSystem", isRoute: true },
         ]
     },
-    { label: "User Management", icon: UserCog, href: "/users", isRoute: true },
+    {
+        label: "User",
+        icon: UserCog,
+        href: "user",
+        submenu: [
+            { label: "User Management", icon: UserCog, href: "/users", isRoute: true },
+            { label: "Role Management", icon: Shield, href: "/roles", isRoute: true },
+            { label: "Org Management", icon: Building, href: "/organizations", isRoute: true },
+        ]
+    },
     { label: "Custom Table", icon: Table, href: "custom-table" },
     { label: "Report", icon: ClipboardMinus, href: "report" },
     { label: "Setting", icon: Settings, href: "setting" },
@@ -84,7 +95,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
     }
     const isParentActive = (item) => {
         if (item.submenu) {
-            return item.submenu.some(subItem => isActive(subItem.href))
+            return item.submenu.some(subItem => isActive(subItem.href, subItem.isRoute))
         }
         return isActive(item.href, item.isRoute)
     }
@@ -221,13 +232,15 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                                             {item.submenu.map((subItem) => (
                                                 <Button
                                                     key={subItem.label}
-                                                    variant={isActive(subItem.href) ? "secondary" : "ghost"}
+                                                    variant={isActive(subItem.href, subItem.isRoute) ? "secondary" : "ghost"}
                                                     className={cn(
                                                         "w-full gap-2 justify-start py-2 h-auto text-sm",
-                                                        isActive(subItem.href) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
+                                                        isActive(subItem.href, subItem.isRoute) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
                                                     )}
                                                     onClick={() => {
-                                                        if (pathname !== '/') {
+                                                        if (subItem.isRoute) {
+                                                            router.push(subItem.href)
+                                                        } else if (pathname !== '/') {
                                                             sessionStorage.setItem('intended-tab', subItem.href)
                                                             router.push('/')
                                                         } else {
