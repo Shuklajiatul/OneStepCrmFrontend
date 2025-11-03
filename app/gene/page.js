@@ -865,9 +865,9 @@ export default function GeneDashboard() {
       const baseUrl = API_CONSTANTS.BASE_URL;
 
       const response = await axios.post(
-        `${baseUrl}/api/genes/assign-users-csv`,
+        `${baseUrl}/api/genes/uploadCSV`,
         formData,
-        {
+        { 
           headers: {
             'Content-Type': 'multipart/form-data',
             'Authorization': `Bearer ${token}`
@@ -893,6 +893,20 @@ export default function GeneDashboard() {
     }
   };
 
+  // Helper function to download CSV data
+  const downloadCsv = (csvContent, filename = 'invalid-data.csv') => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleCsvUserGeneSubmit = async (formData) => {
     const loadingToast = toast.loading('Importing user mappings from CSV...');
     
@@ -901,9 +915,7 @@ export default function GeneDashboard() {
       const tokens = authUtils.getTokens();
       const token = tokens?.accessToken || 
                    localStorage.getItem('token') || 
-                   localStorage.getItem('accessToken') ||
-                   sessionStorage.getItem('token') ||
-                   sessionStorage.getItem('accessToken');
+                   localStorage.getItem('accessToken');
       
       if (!token) {
         toast.error('Authentication required. Please login again.', { id: loadingToast });
@@ -914,7 +926,7 @@ export default function GeneDashboard() {
       const baseUrl = API_CONSTANTS.BASE_URL;
 
       const response = await axios.post(
-        `${baseUrl}/api/genes/uploadCSV`,
+        `${baseUrl}/api/genes/assign-users-csv`,
         formData,
         {
           headers: {
@@ -924,7 +936,43 @@ export default function GeneDashboard() {
         }
       );
 
-      if (response.data.success || response.data.message) {
+      // Check if response contains error data (could be CSV string or object)
+      let errorCsvData = null;
+      
+      if (response.data) {
+        // Check if response.data is a CSV string (starts with "row,error,data")
+        if (typeof response.data === 'string' && response.data.trim().startsWith('row,error,data')) {
+          errorCsvData = response.data;
+        }
+        // Check if response.data.errors is a CSV string
+        else if (response.data.errors && typeof response.data.errors === 'string' && response.data.errors.trim().startsWith('row,error,data')) {
+          errorCsvData = response.data.errors;
+        }
+        // Check if response.data.errorData is a CSV string
+        else if (response.data.errorData && typeof response.data.errorData === 'string' && response.data.errorData.trim().startsWith('row,error,data')) {
+          errorCsvData = response.data.errorData;
+        }
+        // Check if response.data.invalidData is a CSV string
+        else if (response.data.invalidData && typeof response.data.invalidData === 'string' && response.data.invalidData.trim().startsWith('row,error,data')) {
+          errorCsvData = response.data.invalidData;
+        }
+      }
+
+      // If there are errors, download them as CSV
+      if (errorCsvData) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        downloadCsv(errorCsvData, `invalid-user-mappings-${timestamp}.csv`);
+        
+        toast.warning('Some rows had errors. Invalid data has been downloaded.', {
+          id: loadingToast,
+        });
+        
+        // Still close modal and refresh if partial success
+        if (response.data.success || response.data.message?.toLowerCase().includes('success')) {
+          setShowCsvGeneUserModal(false);
+          fetchGenes();
+        }
+      } else if (response.data.success || response.data.message) {
         toast.success(response.data.message || 'User mappings imported successfully from CSV!', {
           id: loadingToast,
         });
@@ -935,10 +983,37 @@ export default function GeneDashboard() {
       }
     } catch (err) {
       console.error('CSV import error:', err);
-      const errorMsg = err.response?.data?.message || err.message || 'Failed to import user mappings from CSV';
-      toast.error(errorMsg, {
-        id: loadingToast,
-      });
+      
+      // Check if error response contains CSV error data
+      let errorCsvData = null;
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        
+        // Check various possible locations for error CSV data
+        if (typeof errorData === 'string' && errorData.trim().startsWith('row,error,data')) {
+          errorCsvData = errorData;
+        } else if (errorData.errors && typeof errorData.errors === 'string' && errorData.errors.trim().startsWith('row,error,data')) {
+          errorCsvData = errorData.errors;
+        } else if (errorData.errorData && typeof errorData.errorData === 'string' && errorData.errorData.trim().startsWith('row,error,data')) {
+          errorCsvData = errorData.errorData;
+        } else if (errorData.invalidData && typeof errorData.invalidData === 'string' && errorData.invalidData.trim().startsWith('row,error,data')) {
+          errorCsvData = errorData.invalidData;
+        }
+      }
+      
+      // Download error CSV if found
+      if (errorCsvData) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        downloadCsv(errorCsvData, `invalid-user-mappings-${timestamp}.csv`);
+        toast.error('Import failed with errors. Invalid data has been downloaded.', {
+          id: loadingToast,
+        });
+      } else {
+        const errorMsg = err.response?.data?.message || err.message || 'Failed to import user mappings from CSV';
+        toast.error(errorMsg, {
+          id: loadingToast,
+        });
+      }
     }
   };
 

@@ -83,8 +83,8 @@ export default function UserGeneMappingModal({ isOpen, onClose, onSubmit }) {
   };
 
   const downloadSampleCSV = () => {
-    const sampleCSV = `g_name,username
-test,"{user1, user2, 3:pune}"`;
+    const sampleCSV = `g_name,email
+    test,"{user1, user2, user3}"`;
     
     const blob = new Blob([sampleCSV], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);

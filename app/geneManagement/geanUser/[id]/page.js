@@ -56,11 +56,9 @@ const RolePriorityTree = () => {
   const fetchGeneDetails = async () => {
     try {
       setLoadingGene(true);
-      // Get token from localStorage or sessionStorage
+      // Get token from localStorage
       const token = localStorage.getItem('token') || 
-                   localStorage.getItem('accessToken') ||
-                   sessionStorage.getItem('token') ||
-                   sessionStorage.getItem('accessToken');
+                   localStorage.getItem('accessToken');
       
       if (!token) {
         console.warn('No token available for fetching gene details');
@@ -102,7 +100,7 @@ const RolePriorityTree = () => {
     try {
       setLoading(true);
       setError(null);
-
+  
       // Get token from localStorage or sessionStorage
       const token = localStorage.getItem('token') || 
                    localStorage.getItem('accessToken') ||
@@ -132,31 +130,33 @@ const RolePriorityTree = () => {
       );
      
       const resp = response.data || {};
+      console.log('API Response:', resp);
+      
       const isOk = resp.status === 'success' || resp.success === true;
       if (isOk) {
-        const rawUsers = Array.isArray(resp)
-          ? resp
-          : Array.isArray(resp.data)
-            ? resp.data
-            : Array.isArray(resp.users)
-              ? resp.users
-              : [];
-
-        // Normalize users for UI consumption
+        const rawUsers = Array.isArray(resp.data) ? resp.data : [];
+  
+        // Normalize users for UI consumption - FIXED VERSION
         const normalizedUsers = rawUsers.map((u) => {
-          const id = u.id || u.user_id;
+          const id = u.user_id || u.id;
           const name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
-          const username = u.username || u.email || (name || undefined) || `User ${id || ''}`;
-          const roleName = (u.role_info && u.role_info.role_name) || u.roles || u.role || 'User';
-          const priority = (u.role_info && u.role_info.priority) || 1;
+          const username = name || u.email || `User ${id || ''}`;
+          
+          // Extract role and assign priority based on role
+          const roleName = u.roles || 'User';
+          
           return {
             ...u,
             id,
             username,
-            role_info: u.role_info || { role_name: roleName, priority },
+            role_info: {
+              role_name: roleName,
+              // priority: priority
+            },
           };
         });
-
+  
+        console.log('Normalized Users:', normalizedUsers); 
         setUsers(normalizedUsers);
         extractPriorityLevels(normalizedUsers);
         buildPriorityTree(normalizedUsers);
@@ -177,6 +177,21 @@ const RolePriorityTree = () => {
       setLoading(false);
     }
   };
+  
+  // // Helper function to assign priority based on role
+  // const assignPriorityByRole = (roleName) => {
+  //   const rolePriorityMap = {
+  //     'admin': 1,
+  //     'supervisor': 2,
+  //     'manager': 3,
+  //     'user': 4,
+  //     'viewer': 5,
+  //     'guest': 6
+  //   };
+    
+  //   const lowerCaseRole = roleName.toLowerCase();
+  //   return rolePriorityMap[lowerCaseRole] || 7; // Default priority for unknown roles
+  // };
 
   const extractPriorityLevels = (usersData) => {
     const levels = new Map();
