@@ -149,8 +149,6 @@ export function EditPolicyTab({ policy, onPolicyUpdated, onCancel }) {
               <SelectContent>
                 <SelectItem value="internal">Internal</SelectItem>
                 <SelectItem value="shared">Shared</SelectItem>
-                <SelectItem value="privacy">Privacy</SelectItem>
-                <SelectItem value="terms">Terms</SelectItem>
               </SelectContent>
             </Select>
           </div>

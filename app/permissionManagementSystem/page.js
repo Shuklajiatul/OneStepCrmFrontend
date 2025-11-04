@@ -17,7 +17,6 @@ import { ModuleDetailTab } from "./components/ModuleDetailTab"
 import { PolicyMappingDetailTab } from "./components/PolicyMappingDetailTab"
 import { PolicyMappedUsersTab } from "./components/PolicyMappedUsersTab"
 import { PolicyOverview } from "./components/PolicyOverview"
-import { PolicyDetailsDialog } from "./components/PolicyDetailsDialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   AlertDialog,
@@ -48,9 +47,10 @@ const fetchAllData = async () => {
       axios.get(`${API_BASE_URL}/api/policies`, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       }),
-      // axios.get(`${API_BASE_URL}/api/policy-feature-mappings`, {
-      //   headers: { Authorization: token, "Content-Type": "application/json" },
-      // }),
+      // POST /api/policyMapping/list - Fetch policy feature mappings
+      axios.post(`${API_BASE_URL}/api/policyMapping/list`, {}, {
+        headers: { Authorization: token, "Content-Type": "application/json" },
+      }),
     ])
 
     // Handle response structure: { success: true, data: [...] }
@@ -63,10 +63,36 @@ const fetchAllData = async () => {
       ? policiesRes.data 
       : policiesRes.data?.data || policiesRes.data?.policies || []
 
+    // Handle policy mapping response structure
+    // Response: { success: true, status: 200, data: [...], count: 1, message: "..." }
+    let mappings = []
+    if (mappingsRes?.data) {
+      const mappingsData = Array.isArray(mappingsRes.data) 
+        ? mappingsRes.data 
+        : mappingsRes.data?.data || []
+      
+      // Transform the mappings data structure
+      // Each mapping has: { p_id, p_name, features: { feature_id: feature_object }, ... }
+      // Convert features object to array for easier handling
+      mappings = mappingsData.map(mapping => {
+        // Convert features object to array
+        const featuresArray = mapping.features 
+          ? Object.values(mapping.features)
+          : []
+        
+        return {
+          ...mapping,
+          features: featuresArray,
+          // Keep the original features object as well for compatibility
+          featuresObject: mapping.features || {}
+        }
+      })
+    }
+
     return {
       features: features,
       policies: policies,
-      mappings: Array.isArray(mappingsRes?.data) ? mappingsRes.data : mappingsRes?.data?.data || mappingsRes?.data?.mappings || [],
+      mappings: mappings,
     }
   } catch (error) {
     console.error("Error fetching data:", error)
@@ -141,8 +167,6 @@ export default function PermissionManagement() {
   const [userCounts, setUserCounts] = useState({})
   const [editingPolicy, setEditingPolicy] = useState(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [viewingPolicy, setViewingPolicy] = useState(null)
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [policyToDelete, setPolicyToDelete] = useState(null)
   const [deletingPolicy, setDeletingPolicy] = useState(false)
@@ -199,6 +223,21 @@ export default function PermissionManagement() {
     setActiveTab("mapping-detail")
   }
 
+  const handleViewPolicyFeatures = (policy) => {
+    // Create a mapping object from policy for viewing features
+    const mapping = {
+      p_id: policy.p_id || policy.policy_id || policy.id,
+      p_name: policy.p_name || policy.policy_name || policy.name,
+      type: policy.type || policy.policy_type,
+      is_active: policy.is_active,
+      created_at: policy.created_at,
+      updated_at: policy.updated_at,
+      policy: policy
+    }
+    setSelectedMapping(mapping)
+    setActiveTab("mapping-detail")
+  }
+
   const handleBackToOverview = () => {
     setActiveTab("overview")
     setSelectedModule(null)
@@ -206,10 +245,6 @@ export default function PermissionManagement() {
     setSelectedMapping(null)
   }
 
-  const handleViewPolicyDetails = (policy) => {
-    setViewingPolicy(policy)
-    setDetailsDialogOpen(true)
-  }
 
   const handleEditPolicy = (policy) => {
     setEditingPolicy(policy)
@@ -352,14 +387,15 @@ export default function PermissionManagement() {
                           onModuleClick={handleModuleClick}
                           onViewMappedUsers={handlePolicyMappedUsersClick}
                           onMappingClick={handleMappingClick}
-                          onViewPolicyDetails={handleViewPolicyDetails}
                           onEditPolicy={handleEditPolicy}
                           onDeletePolicy={handleDeletePolicy}
+                          onPolicyUpdate={loadAllData}
                         />
                       </TabsContent>
 
                       <TabsContent value="create-policy" className="mt-6">
                         <CreatePolicyTab
+                          allFeatures={allFeatures}
                           onPolicyCreated={() => {
                             setActiveTab("overview")
                             loadAllData()
@@ -381,7 +417,12 @@ export default function PermissionManagement() {
 
                       <TabsContent value="mapping-detail" className="mt-6">
                         {selectedMapping && (
-                          <PolicyMappingDetailTab mapping={selectedMapping} onBack={handleBackToOverview} onUpdate={loadAllData} />
+                          <PolicyMappingDetailTab 
+                            mapping={selectedMapping} 
+                            onBack={handleBackToOverview} 
+                            onUpdate={loadAllData}
+                            allFeatures={allFeatures}
+                          />
                         )}
                       </TabsContent>
                     </Tabs>
@@ -393,15 +434,6 @@ export default function PermissionManagement() {
         </section>
       </div>
 
-      {/* Policy Details Dialog */}
-      <PolicyDetailsDialog
-        policy={viewingPolicy}
-        open={detailsDialogOpen}
-        onOpenChange={setDetailsDialogOpen}
-        onEdit={handleEditPolicy}
-        onDelete={handleDeletePolicy}
-        onViewMappedUsers={handlePolicyMappedUsersClick}
-      />
 
       {/* Edit Policy Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
