@@ -19,10 +19,10 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
   const [currentPageAllPolicies, setCurrentPageAllPolicies] = useState(1)
   const [currentPageFeatureMappings, setCurrentPageFeatureMappings] = useState(1)
   const [pageSize] = useState(5)
-  
+
   const activePolicies = policies.filter(p => p.is_active !== false)
   const inactivePolicies = policies.filter(p => p.is_active === false)
-  
+
   // Group features by module
   const moduleGroups = allFeatures.reduce((acc, feature) => {
     const module = feature.module || "Uncategorized"
@@ -89,7 +89,7 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
       )
 
       toast.success(`Policy ${newStatus ? "activated" : "deactivated"} successfully`)
-      
+
       // Call update callback to refresh data
       if (onPolicyUpdate) {
         onPolicyUpdate()
@@ -169,9 +169,9 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {Object.entries(moduleGroups).map(([module, stats]) => (
-              <Card 
-                key={module} 
-                className="cursor-pointer hover:bg-muted/50 transition-colors" 
+              <Card
+                key={module}
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
                 onClick={() => onModuleClick(module)}
               >
                 <CardContent className="p-4">
@@ -204,132 +204,132 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
             </TabsList>
 
             <TabsContent value="all-policies" className="mt-6">
-          {policies.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No policies found</p>
-            </div>
-          ) : (
-                <>
-            <div className="rounded-md border overflow-hidden w-full">
-              <div className="overflow-x-auto w-full">
-                <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
-                  <Table className="w-full table-auto">
-                    <TableHeader>
-                      <TableRow className="bg-muted/50 hover:bg-muted/50">
-                        <TableHead className="font-semibold text-foreground">Policy Name</TableHead>
-                        <TableHead className="font-semibold text-foreground">Type</TableHead>
-                        <TableHead className="font-semibold text-foreground">Mapped Users</TableHead>
-                        <TableHead className="font-semibold text-foreground">Status</TableHead>
-                        <TableHead className="hidden md:table-cell font-semibold text-foreground">Created</TableHead>
-                        <TableHead className="hidden md:table-cell font-semibold text-foreground">Updated</TableHead>
-                        <TableHead className="whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                            {paginatedAllPolicies.map((policy) => {
-                        const policyId = policy.p_id || policy.policy_id || policy.id
-                        const userCount = userCounts[policyId] || 0
-                        const policyName = policy.p_name || policy.policy_name || policy.name || "Unnamed Policy"
-                        return (
-                          <TableRow 
-                            key={policyId}
-                            className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
-                          >
-                                <TableCell className="py-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="min-w-0">
-                                      <span className="font-medium text-primary truncate text-sm md:text-base">
-                                    {policyName}
-                                  </span>
-                                  {policyId && (
-                                    <div className="text-xs text-muted-foreground mt-1">{String(policyId).substring(0, 8)}...</div>
-                                  )}
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="py-4">
-                              <Badge variant={(policy.type || policy.policy_type) === "shared" ? "default" : "secondary"}>
-                                {policy.type || policy.policy_type || "internal"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="py-4">
-                              <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4 text-muted-foreground" />
-                                <span>{userCount} users</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="py-4">
-                              <div className="flex items-center gap-2">
-                                <Switch
-                                  checked={policy.is_active !== false}
-                                  onCheckedChange={(checked) => handleToggleStatus(policy, checked)}
-                                />
-                                <span className="text-sm text-muted-foreground">
-                                  {policy.is_active !== false ? "Active" : "Inactive"}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell py-4">
-                              <span className="text-sm text-muted-foreground">
-                                {policy.created_at ? new Date(policy.created_at).toLocaleDateString() : "-"}
-                              </span>
-                            </TableCell>
-                            <TableCell className="hidden md:table-cell py-4">
-                              <span className="text-sm text-muted-foreground">
-                                {policy.updated_at ? new Date(policy.updated_at).toLocaleDateString() : "-"}
-                              </span>
-                            </TableCell>
-                            <TableCell 
-                              className="whitespace-nowrap text-center py-4"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="flex items-center justify-center gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => onViewMappedUsers(policy)}
-                                  className="flex items-center gap-2"
-                                >
-                                  View Mapped Users
-                                </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            )
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
+              {policies.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No policies found</p>
                 </div>
-
-                {/* Pagination for All Policies */}
-                {policies.length > pageSize && (
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="text-sm text-muted-foreground">
-                      Showing {allPoliciesStartIndex + 1} to {Math.min(allPoliciesEndIndex, policies.length)} of {policies.length} results
-                    </div>
-                    <div className="flex items-center gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                        onClick={() => setCurrentPageAllPolicies(prev => Math.max(1, prev - 1))}
-                        disabled={currentPageAllPolicies === 1}
+              ) : (
+                <>
+                  <div className="rounded-md border overflow-hidden w-full">
+                    <div className="overflow-x-auto w-full">
+                      <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
+                        <Table className="w-full table-auto">
+                          <TableHeader>
+                            <TableRow className="bg-muted/50 hover:bg-muted/50">
+                              <TableHead className="font-semibold text-foreground">Policy Name</TableHead>
+                              <TableHead className="font-semibold text-foreground">Type</TableHead>
+                              <TableHead className="font-semibold text-foreground">Mapped Users</TableHead>
+                              <TableHead className="font-semibold text-foreground">Status</TableHead>
+                              <TableHead className="hidden md:table-cell font-semibold text-foreground">Created</TableHead>
+                              <TableHead className="hidden md:table-cell font-semibold text-foreground">Updated</TableHead>
+                              <TableHead className="whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {paginatedAllPolicies.map((policy) => {
+                              const policyId = policy.p_id || policy.policy_id || policy.id
+                              const userCount = userCounts[policyId] || 0
+                              const policyName = policy.p_name || policy.policy_name || policy.name || "Unnamed Policy"
+                              return (
+                                <TableRow
+                                  key={policyId}
+                                  className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                                >
+                                  <TableCell className="py-4">
+                                    <div className="flex items-center space-x-3">
+                                      <div className="min-w-0">
+                                        <span className="font-medium text-primary truncate text-sm md:text-base">
+                                          {policyName}
+                                        </span>
+                                        {policyId && (
+                                          <div className="text-xs text-muted-foreground mt-1">{String(policyId).substring(0, 8)}...</div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <Badge variant={(policy.type || policy.policy_type) === "shared" ? "default" : "secondary"}>
+                                      {policy.type || policy.policy_type || "internal"}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <div className="flex items-center gap-2">
+                                      <Users className="h-4 w-4 text-muted-foreground" />
+                                      <span>{userCount} users</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <div className="flex items-center gap-2">
+                                      <Switch
+                                        checked={policy.is_active !== false}
+                                        onCheckedChange={(checked) => handleToggleStatus(policy, checked)}
+                                      />
+                                      <span className="text-sm text-muted-foreground">
+                                        {policy.is_active !== false ? "Active" : "Inactive"}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell py-4">
+                                    <span className="text-sm text-muted-foreground">
+                                      {policy.created_at ? new Date(policy.created_at).toLocaleDateString() : "-"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell py-4">
+                                    <span className="text-sm text-muted-foreground">
+                                      {policy.updated_at ? new Date(policy.updated_at).toLocaleDateString() : "-"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell
+                                    className="whitespace-nowrap text-center py-4"
+                                    onClick={(e) => e.stopPropagation()}
                                   >
-                        Previous
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                        onClick={() => setCurrentPageAllPolicies(prev => Math.min(totalPagesAllPolicies, prev + 1))}
-                        disabled={currentPageAllPolicies === totalPagesAllPolicies}
-                                  >
-                        Next
-                                  </Button>
+                                    <div className="flex items-center justify-center gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => onViewMappedUsers(policy)}
+                                        className="flex items-center gap-2"
+                                      >
+                                        View Mapped Users
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   </div>
-                )}
+
+                  {/* Pagination for All Policies */}
+                  {policies.length > pageSize && (
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {allPoliciesStartIndex + 1} to {Math.min(allPoliciesEndIndex, policies.length)} of {policies.length} results
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPageAllPolicies(prev => Math.max(1, prev - 1))}
+                          disabled={currentPageAllPolicies === 1}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPageAllPolicies(prev => Math.min(totalPagesAllPolicies, prev + 1))}
+                          disabled={currentPageAllPolicies === totalPagesAllPolicies}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </TabsContent>
@@ -359,150 +359,149 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                           </TableHeader>
                           <TableBody>
                             {paginatedFeatureMappings.map((policy) => {
-                            const policyId = policy.p_id || policy.policy_id || policy.id
-                            const userCount = userCounts[policyId] || 0
-                            const policyName = policy.p_name || policy.policy_name || policy.name || "Unnamed Policy"
-                            const policyType = policy.type || policy.policy_type || "internal"
-                            
-                            // Find the mapping for this policy
-                            const policyMapping = policyFeatureMappings.find(mapping => {
-                              const mappingPolicyId = mapping.p_id || mapping.policy_id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
-                              return mappingPolicyId === policyId
-                            })
+                              const policyId = policy.p_id || policy.policy_id || policy.id
+                              const userCount = userCounts[policyId] || 0
+                              const policyName = policy.p_name || policy.policy_name || policy.name || "Unnamed Policy"
+                              const policyType = policy.type || policy.policy_type || "internal"
 
-                            // Count features mapped to this policy
-                            // Features can be in features array or featuresObject
-                            let featureCount = 0
-                            if (policyMapping) {
-                              if (policyMapping.features && Array.isArray(policyMapping.features)) {
-                                featureCount = policyMapping.features.length
-                              } else if (policyMapping.featuresObject && typeof policyMapping.featuresObject === 'object') {
-                                featureCount = Object.keys(policyMapping.featuresObject).length
+                              // Find the mapping for this policy
+                              const policyMapping = policyFeatureMappings.find(mapping => {
+                                const mappingPolicyId = mapping.p_id || mapping.policy_id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
+                                return mappingPolicyId === policyId
+                              })
+
+                              // Count features mapped to this policy
+                              let featureCount = 0
+                              if (policyMapping) {
+                                if (policyMapping.features && Array.isArray(policyMapping.features)) {
+                                  featureCount = policyMapping.features.length
+                                } else if (policyMapping.featuresObject && typeof policyMapping.featuresObject === 'object') {
+                                  featureCount = Object.keys(policyMapping.featuresObject).length
+                                }
                               }
-                            }
 
-                            // Get features for this policy if available
-                            const policyFeatures = policyMapping?.features || (policyMapping?.featuresObject ? Object.values(policyMapping.featuresObject) : [])
+                              // Get features for this policy if available
+                              const policyFeatures = policyMapping?.features || (policyMapping?.featuresObject ? Object.values(policyMapping.featuresObject) : [])
 
-                            return (
-                              <TableRow 
-                                key={policyId}
-                                className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
-                              >
-                                <TableCell 
-                                  className="py-4 cursor-pointer"
-                                  onClick={() => onViewPolicyDetails && onViewPolicyDetails(policy)}
+                              return (
+                                <TableRow
+                                  key={policyId}
+                                  className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
                                 >
-                                  <div className="flex items-center space-x-3">
-                                    <div className="min-w-0">
-                                      <span className="font-medium text-primary truncate text-sm md:text-base transition-colors hover:underline">
-                                        {policyName}
-                                      </span>
-                                      {policyId && (
-                                        <div className="text-xs text-muted-foreground mt-1">ID: {String(policyId).substring(0, 8)}...</div>
-                                      )}
+                                  <TableCell
+                                    className="py-4 cursor-pointer"
+                                    onClick={() => onViewPolicyDetails && onViewPolicyDetails(policy)}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <div className="min-w-0">
+                                        <span className="font-medium text-primary truncate text-sm md:text-base transition-colors hover:underline">
+                                          {policyName}
+                                        </span>
+                                        {policyId && (
+                                          <div className="text-xs text-muted-foreground mt-1">ID: {String(policyId).substring(0, 8)}...</div>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="py-4">
-                                  <Badge variant={policyType === "shared" ? "default" : "secondary"}>
-                                    {policyType}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="py-4">
-                                  <div className="flex items-center gap-2">
-                                    <LinkIcon className="h-4 w-4 text-muted-foreground" />
-                                    <span className="font-medium">{featureCount}</span>
-                                    <span className="text-sm text-muted-foreground">feature{featureCount !== 1 ? 's' : ''}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="py-4">
-                                  <div className="flex items-center gap-2">
-                                    <Users className="h-4 w-4 text-muted-foreground" />
-                                    <span>{userCount} user{userCount !== 1 ? 's' : ''}</span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="py-4">
-                                  <Badge variant={policy.is_active !== false ? "default" : "secondary"}>
-                                    {policy.is_active !== false ? "Active" : "Inactive"}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="hidden md:table-cell py-4">
-                                  <span className="text-sm text-muted-foreground">
-                                    {policy.updated_at ? new Date(policy.updated_at).toLocaleDateString() : policy.created_at ? new Date(policy.created_at).toLocaleDateString() : "-"}
-                                  </span>
-                                </TableCell>
-                                <TableCell 
-                                  className="whitespace-nowrap text-center py-4"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <div className="flex items-center justify-center gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        // Find the mapping for this policy
-                                        const policyMapping = policyFeatureMappings.find(mapping => {
-                                          const mappingPolicyId = mapping.p_id || mapping.policy_id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
-                                          return mappingPolicyId === policyId
-                                        })
-                                        
-                                        // If mapping exists, use it; otherwise create a mapping object from policy
-                                        const mappingData = policyMapping || {
-                                          p_id: policy.p_id || policy.policy_id || policy.id,
-                                          p_name: policy.p_name || policy.policy_name || policy.name,
-                                          type: policy.type || policy.policy_type,
-                                          is_active: policy.is_active,
-                                          created_at: policy.created_at,
-                                          updated_at: policy.updated_at,
-                                          features: [],
-                                          featuresObject: {},
-                                          policy: policy
-                                        }
-                                        
-                                        onMappingClick && onMappingClick(mappingData)
-                                      }}
-                                      className="flex items-center gap-2"
-                                    >
-                                      View Features
-                                    </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </div>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <Badge variant={policyType === "shared" ? "default" : "secondary"}>
+                                      {policyType}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <div className="flex items-center gap-2">
+                                      <LinkIcon className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium">{featureCount}</span>
+                                      <span className="text-sm text-muted-foreground">feature{featureCount !== 1 ? 's' : ''}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <div className="flex items-center gap-2">
+                                      <Users className="h-4 w-4 text-muted-foreground" />
+                                      <span>{userCount} user{userCount !== 1 ? 's' : ''}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <Badge variant={policy.is_active !== false ? "default" : "secondary"}>
+                                      {policy.is_active !== false ? "Active" : "Inactive"}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell py-4">
+                                    <span className="text-sm text-muted-foreground">
+                                      {policy.updated_at ? new Date(policy.updated_at).toLocaleDateString() : policy.created_at ? new Date(policy.created_at).toLocaleDateString() : "-"}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell
+                                    className="whitespace-nowrap text-center py-4"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="flex items-center justify-center gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          // Find the mapping for this policy
+                                          const policyMapping = policyFeatureMappings.find(mapping => {
+                                            const mappingPolicyId = mapping.p_id || mapping.policy_id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
+                                            return mappingPolicyId === policyId
+                                          })
 
-                {/* Pagination for Policy Feature Mappings */}
-                {policies.length > pageSize && (
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="text-sm text-muted-foreground">
-                      Showing {featureMappingsStartIndex + 1} to {Math.min(featureMappingsEndIndex, policies.length)} of {policies.length} results
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPageFeatureMappings(prev => Math.max(1, prev - 1))}
-                        disabled={currentPageFeatureMappings === 1}
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPageFeatureMappings(prev => Math.min(totalPagesFeatureMappings, prev + 1))}
-                        disabled={currentPageFeatureMappings === totalPagesFeatureMappings}
-                      >
-                        Next
-                      </Button>
+                                          // If mapping exists, use it; otherwise create a mapping object from policy
+                                          const mappingData = policyMapping || {
+                                            p_id: policy.p_id || policy.policy_id || policy.id,
+                                            p_name: policy.p_name || policy.policy_name || policy.name,
+                                            type: policy.type || policy.policy_type,
+                                            is_active: policy.is_active,
+                                            created_at: policy.created_at,
+                                            updated_at: policy.updated_at,
+                                            features: [],
+                                            featuresObject: {},
+                                            policy: policy
+                                          }
+
+                                          onMappingClick && onMappingClick(mappingData)
+                                        }}
+                                        className="flex items-center gap-2"
+                                      >
+                                        View Features
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   </div>
-                )}
+
+                  {/* Pagination for Policy Feature Mappings */}
+                  {policies.length > pageSize && (
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="text-sm text-muted-foreground">
+                        Showing {featureMappingsStartIndex + 1} to {Math.min(featureMappingsEndIndex, policies.length)} of {policies.length} results
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPageFeatureMappings(prev => Math.max(1, prev - 1))}
+                          disabled={currentPageFeatureMappings === 1}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCurrentPageFeatureMappings(prev => Math.min(totalPagesFeatureMappings, prev + 1))}
+                          disabled={currentPageFeatureMappings === totalPagesFeatureMappings}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </TabsContent>
@@ -512,4 +511,3 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
     </div>
   )
 }
-

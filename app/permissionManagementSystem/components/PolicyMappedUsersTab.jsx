@@ -59,7 +59,7 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
       if (!token) return
 
       const policyId = policy.p_id || policy.policy_id || policy.id
-      const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}/users`, {
+      const response = await axios.get(`${API_BASE_URL}/api/policies/userByPolicy/${policyId}`, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       })
 
@@ -327,44 +327,53 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
               <p>No users mapped to this policy</p>
             </div>
           ) : (
-            <div className="rounded-md border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                        <TableHead className="font-semibold">User Details</TableHead>
-                        <TableHead className="font-semibold">Contact Info</TableHead>
-                    <TableHead className="font-semibold">Status</TableHead>
-                        <TableHead className="font-semibold">Total Policies</TableHead>
-                        <TableHead className="font-semibold">User ID</TableHead>
-                        <TableHead className="font-semibold text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <div className="rounded-md border overflow-hidden w-full">
+              <div className="overflow-x-auto w-full">
+                <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
+                  <Table className="w-full table-auto">
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableHead className="font-semibold text-foreground">User Details</TableHead>
+                        <TableHead className="font-semibold text-foreground">Role</TableHead>
+                        <TableHead className="font-semibold text-foreground">Status</TableHead>
+                        <TableHead className="font-semibold text-foreground">User ID</TableHead>
+                        <TableHead className="w-[140px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {filteredMappedUsers.map((user) => (
-                    <TableRow key={user.user_id || user.id} className="hover:bg-muted/30">
-                      <TableCell>
-                            <div className="flex items-center gap-3">
+                        <TableRow 
+                          key={user.user_id || user.id} 
+                          className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                        >
+                          <TableCell className="py-4">
+                            <div className="flex items-center space-x-3">
                               <Avatar className="h-10 w-10">
                                 <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
                               </Avatar>
-                              <div>
-                                <p className="font-medium">{getUserDisplayName(user)}</p>
-                                <p className="text-sm text-muted-foreground">{user.email || "-"}</p>
+                              <div className="min-w-0">
+                                <p className="font-medium text-primary truncate text-sm md:text-base transition-colors">
+                                  {getUserDisplayName(user)}
+                                </p>
+                                <p className="text-sm text-muted-foreground truncate">{user.email || "-"}</p>
                               </div>
                             </div>
-                      </TableCell>
-                          <TableCell>{user.phone || user.contact || "-"}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.is_active !== false ? "default" : "secondary"}>
-                          {user.is_active !== false ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                          <TableCell>{user.total_policies || "0"}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {String(user.user_id || user.id || "").substring(0, 8)}...
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
+                          <TableCell className="py-4">
+                            <span className="text-sm text-muted-foreground">{getUserRole(user)}</span>
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <Badge variant={user.is_active !== false ? "default" : "secondary"}>
+                              {user.is_active !== false ? "Active" : "Inactive"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="py-4 font-mono text-xs">
+                            <span className="text-muted-foreground">
+                              {String(user.user_id || user.id || "").substring(0, 8)}...
+                            </span>
+                          </TableCell>
+                          <TableCell className="w-[140px] whitespace-nowrap text-center py-4">
+                            <div className="flex items-center justify-center space-x-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -384,10 +393,12 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
                               </Button>
                             </div>
                           </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </div>
               )}
             </TabsContent>

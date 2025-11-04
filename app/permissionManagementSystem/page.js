@@ -40,50 +40,47 @@ const fetchAllData = async () => {
 
   try {
     const [featuresRes, policiesRes, mappingsRes] = await Promise.all([
+      //Fetch all features
       axios.get(`${API_BASE_URL}/api/features`, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       }),
-      // GET /api/policies - Fetch all policies
+      //Fetch all policies
       axios.get(`${API_BASE_URL}/api/policies`, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       }),
-      // POST /api/policyMapping/list - Fetch policy feature mappings
+      //Fetch policy feature mappings
       axios.post(`${API_BASE_URL}/api/policyMapping/list`, {}, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       }),
     ])
 
-    // Handle response structure: { success: true, data: [...] }
     // Extract data from response, handling both direct array and wrapped structures
-    const features = Array.isArray(featuresRes.data) 
-      ? featuresRes.data 
+    const features = Array.isArray(featuresRes.data)
+      ? featuresRes.data
       : featuresRes.data?.data || featuresRes.data?.features || []
-    
-    const policies = Array.isArray(policiesRes.data) 
-      ? policiesRes.data 
+
+    const policies = Array.isArray(policiesRes.data)
+      ? policiesRes.data
       : policiesRes.data?.data || policiesRes.data?.policies || []
 
     // Handle policy mapping response structure
-    // Response: { success: true, status: 200, data: [...], count: 1, message: "..." }
     let mappings = []
     if (mappingsRes?.data) {
-      const mappingsData = Array.isArray(mappingsRes.data) 
-        ? mappingsRes.data 
+      const mappingsData = Array.isArray(mappingsRes.data)
+        ? mappingsRes.data
         : mappingsRes.data?.data || []
-      
-      // Transform the mappings data structure
-      // Each mapping has: { p_id, p_name, features: { feature_id: feature_object }, ... }
+
       // Convert features object to array for easier handling
       mappings = mappingsData.map(mapping => {
         // Convert features object to array
-        const featuresArray = mapping.features 
+        const featuresArray = mapping.features
           ? Object.values(mapping.features)
           : []
-        
+
         return {
           ...mapping,
           features: featuresArray,
-          // Keep the original features object as well for compatibility
+          // Keeping the original features object for compatibility
           featuresObject: mapping.features || {}
         }
       })
@@ -100,7 +97,7 @@ const fetchAllData = async () => {
       console.error("Response status:", error.response.status)
       console.error("Response data:", error.response.data)
     }
-    // Return empty arrays if endpoints don't exist yet
+    // Returning empty arrays if endpoints don't exist yet
     return { features: [], policies: [], mappings: [] }
   }
 }
@@ -115,9 +112,7 @@ const fetchSinglePolicy = async (policyId) => {
     const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}`, {
       headers: { Authorization: token, "Content-Type": "application/json" },
     })
-    
-    // Handle response structure: { success: true, data: {...} }
-    // Also handle direct object or nested structures
+
     return response.data?.data || response.data || null
   } catch (error) {
     console.error(`Error fetching policy ${policyId}:`, error)
@@ -245,7 +240,6 @@ export default function PermissionManagement() {
     setSelectedMapping(null)
   }
 
-
   const handleEditPolicy = (policy) => {
     setEditingPolicy(policy)
     setEditDialogOpen(true)
@@ -267,6 +261,7 @@ export default function PermissionManagement() {
     if (!policyToDelete) return
 
     const policyId = policyToDelete.p_id || policyToDelete.policy_id || policyToDelete.id
+
     if (!policyId) {
       toast.error("Policy ID is required")
       return
@@ -302,15 +297,15 @@ export default function PermissionManagement() {
   return (
     <main className="min-h-screen bg-background">
       {!isCollapsed && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setIsCollapsed(true)}
         />
       )}
-      
+
       <div className="flex min-h-screen">
-        <Sidebar 
-          activeTab={activeTab} 
+        <Sidebar
+          activeTab={activeTab}
           setActiveTab={setActiveTab}
           isCollapsed={isCollapsed}
           setIsCollapsed={setIsCollapsed}
@@ -320,8 +315,8 @@ export default function PermissionManagement() {
           isCollapsed ? "md:ml-0" : "md:ml-0"
         )}>
           <div className="p-4 border-b border-border bg-card/50">
-            <Topbar 
-              darkMode={darkMode} 
+            <Topbar
+              darkMode={darkMode}
               toggleDarkMode={() => setDarkMode(!darkMode)}
               toggleSidebar={() => setIsCollapsed(!isCollapsed)}
             />
@@ -417,9 +412,9 @@ export default function PermissionManagement() {
 
                       <TabsContent value="mapping-detail" className="mt-6">
                         {selectedMapping && (
-                          <PolicyMappingDetailTab 
-                            mapping={selectedMapping} 
-                            onBack={handleBackToOverview} 
+                          <PolicyMappingDetailTab
+                            mapping={selectedMapping}
+                            onBack={handleBackToOverview}
                             onUpdate={loadAllData}
                             allFeatures={allFeatures}
                           />

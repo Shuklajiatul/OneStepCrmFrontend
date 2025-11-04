@@ -11,9 +11,9 @@ import { useRouter, usePathname } from "next/navigation"
 
 const menuItems = [
     { label: "Dashboard", icon: Home, href: "dashboard", active: true },
-    { 
-        label: "Leads", 
-        icon: Users, 
+    {
+        label: "Leads",
+        icon: Users,
         href: "leads"
     },
     {
@@ -59,7 +59,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
 
     // Auto-expand parent menus when their submenu items are active
     useEffect(() => {
-        const activeSubmenuItems = menuItems.filter(item => 
+        const activeSubmenuItems = menuItems.filter(item =>
             item.submenu?.some(subItem => {
                 if (subItem.isRoute) {
                     return pathname === subItem.href
@@ -67,7 +67,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                 return pathname === '/' && activeTab === subItem.href
             })
         )
-        
+
         if (activeSubmenuItems.length > 0) {
             setExpandedMenus(prev => {
                 const newExpanded = new Set(prev)
@@ -75,7 +75,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                     newExpanded.add(item.label)
                 })
                 // Only update if there's a change
-                if (newExpanded.size === prev.size && 
+                if (newExpanded.size === prev.size &&
                     Array.from(newExpanded).every(label => prev.has(label))) {
                     return prev
                 }
@@ -100,10 +100,8 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
         if (item.submenu) {
             toggleSubmenu(item.label)
         } else if (item.isRoute) {
-            // Navigate to route using Next.js router
             router.push(item.href)
         } else {
-            // If on a different page (like /users), navigate to home and set active tab
             if (pathname !== '/') {
                 sessionStorage.setItem('intended-tab', item.href)
                 router.push('/')
@@ -132,7 +130,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
             "fixed md:sticky top-0 h-screen inset-y-0 left-0 z-50 transition-all duration-300 bg-sidebar border-r border-sidebar-border relative group/sidebar",
             isCollapsed ? "-translate-x-full md:translate-x-0 md:w-16" : "translate-x-0 w-64 md:w-64"
         )}>
-            {/* Modern Toggle Button on Border - Desktop Only */}
+            {/* Toggle Button */}
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button
@@ -208,98 +206,97 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                         isCollapsed && "space-y-1"
                     )}>
                         {menuItems.map((item, index) => {
-                            // Show "Gene Management" section header before Gene Management item
                             const showGeneManagementSection = !isCollapsed && index === 3 && item.label === "Gene Management"
-                            // Show "User Management" section header before User item
                             const showUserSection = !isCollapsed && index === 4 && item.label === "User"
-                            
-                            return (
-                            <li key={item.label}>
-                                {showGeneManagementSection && (
-                                    <div className="text-xs uppercase text-sidebar-foreground/70 px-2 mb-3 mt-4 font-semibold tracking-wider">
-                                        Gene Management
-                                    </div>
-                                )}
-                                {showUserSection && (
-                                    <div className="text-xs uppercase text-sidebar-foreground/70 px-2 mb-3 mt-4 font-semibold tracking-wider">
-                                        User Management
-                                    </div>
-                                )}
-                                <div className="space-y-1">
-                                    {isCollapsed ? (
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    variant={isParentActive(item) ? "secondary" : "ghost"}
-                                                    className={cn(
-                                                        "w-full gap-2 transition-all duration-200 group md:justify-center md:p-2 h-9",
-                                                        isParentActive(item) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
-                                                    )}
-                                                    onClick={() => handleMenuClick(item)}
-                                                >
-                                                    <item.icon className={cn(
-                                                        "shrink-0",
-                                                        isCollapsed ? "size-4" : "size-5"
-                                                    )} />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="right">
-                                                <p>{item.label}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    ) : (
-                                        <Button
-                                            variant={isParentActive(item) ? "secondary" : "ghost"}
-                                            className={cn(
-                                                "w-full gap-2 transition-all duration-200 group md:justify-center md:p-2 h-9",
-                                                isParentActive(item) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
-                                            )}
-                                            onClick={() => handleMenuClick(item)}
-                                        >
-                                            <item.icon className={cn(
-                                                "shrink-0 size-5"
-                                            )} />
-                                            <span className="truncate flex-1 text-left">{item.label}</span>
-                                            {item.submenu && (
-                                                <ChevronDown className={cn(
-                                                    "size-4 transition-transform duration-200",
-                                                    isMenuExpanded(item.label) && "rotate-180"
-                                                )} />
-                                            )}
-                                        </Button>
-                                    )}
 
-                                    {/* Submenu */}
-                                    {!isCollapsed && item.submenu && isMenuExpanded(item.label) && (
-                                        <div className="mt-1 space-y-1 pl-4 border-l-2 border-sidebar-border">
-                                            {item.submenu.map((subItem) => (
-                                                <Button
-                                                    key={subItem.label}
-                                                    variant={isActive(subItem.href, subItem.isRoute) ? "secondary" : "ghost"}
-                                                    className={cn(
-                                                        "w-full gap-2 justify-start py-2 h-auto text-sm min-h-[2rem] pr-2",
-                                                        isActive(subItem.href, subItem.isRoute) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
-                                                    )}
-                                                    onClick={() => {
-                                                        if (subItem.isRoute) {
-                                                            router.push(subItem.href)
-                                                        } else if (pathname !== '/') {
-                                                            sessionStorage.setItem('intended-tab', subItem.href)
-                                                            router.push('/')
-                                                        } else {
-                                                            setActiveTab(subItem.href)
-                                                        }
-                                                    }}
-                                                >
-                                                    <subItem.icon className="size-4 shrink-0" />
-                                                    <span className="truncate flex-1">{subItem.label}</span>
-                                                </Button>
-                                            ))}
+                            return (
+                                <li key={item.label}>
+                                    {showGeneManagementSection && (
+                                        <div className="text-xs uppercase text-sidebar-foreground/70 px-2 mb-3 mt-4 font-semibold tracking-wider">
+                                            Gene Management
                                         </div>
                                     )}
-                                </div>
-                            </li>
-                        )})}
+                                    {showUserSection && (
+                                        <div className="text-xs uppercase text-sidebar-foreground/70 px-2 mb-3 mt-4 font-semibold tracking-wider">
+                                            User Management
+                                        </div>
+                                    )}
+                                    <div className="space-y-1">
+                                        {isCollapsed ? (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Button
+                                                        variant={isParentActive(item) ? "secondary" : "ghost"}
+                                                        className={cn(
+                                                            "w-full gap-2 transition-all duration-200 group md:justify-center md:p-2 h-9",
+                                                            isParentActive(item) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
+                                                        )}
+                                                        onClick={() => handleMenuClick(item)}
+                                                    >
+                                                        <item.icon className={cn(
+                                                            "shrink-0",
+                                                            isCollapsed ? "size-4" : "size-5"
+                                                        )} />
+                                                    </Button>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="right">
+                                                    <p>{item.label}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        ) : (
+                                            <Button
+                                                variant={isParentActive(item) ? "secondary" : "ghost"}
+                                                className={cn(
+                                                    "w-full gap-2 transition-all duration-200 group md:justify-center md:p-2 h-9",
+                                                    isParentActive(item) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
+                                                )}
+                                                onClick={() => handleMenuClick(item)}
+                                            >
+                                                <item.icon className={cn(
+                                                    "shrink-0 size-5"
+                                                )} />
+                                                <span className="truncate flex-1 text-left">{item.label}</span>
+                                                {item.submenu && (
+                                                    <ChevronDown className={cn(
+                                                        "size-4 transition-transform duration-200",
+                                                        isMenuExpanded(item.label) && "rotate-180"
+                                                    )} />
+                                                )}
+                                            </Button>
+                                        )}
+
+                                        {/* Submenu */}
+                                        {!isCollapsed && item.submenu && isMenuExpanded(item.label) && (
+                                            <div className="mt-1 space-y-1 pl-4 border-l-2 border-sidebar-border">
+                                                {item.submenu.map((subItem) => (
+                                                    <Button
+                                                        key={subItem.label}
+                                                        variant={isActive(subItem.href, subItem.isRoute) ? "secondary" : "ghost"}
+                                                        className={cn(
+                                                            "w-full gap-2 justify-start py-2 h-auto text-sm min-h-[2rem] pr-2",
+                                                            isActive(subItem.href, subItem.isRoute) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
+                                                        )}
+                                                        onClick={() => {
+                                                            if (subItem.isRoute) {
+                                                                router.push(subItem.href)
+                                                            } else if (pathname !== '/') {
+                                                                sessionStorage.setItem('intended-tab', subItem.href)
+                                                                router.push('/')
+                                                            } else {
+                                                                setActiveTab(subItem.href)
+                                                            }
+                                                        }}
+                                                    >
+                                                        <subItem.icon className="size-4 shrink-0" />
+                                                        <span className="truncate flex-1">{subItem.label}</span>
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </li>
+                            )
+                        })}
                     </ul>
                 </nav>
 
