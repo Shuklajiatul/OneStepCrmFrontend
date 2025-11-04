@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
-import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon } from "lucide-react"
+import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon, Database } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
 import EditFormDialog from "../component/EditForm/edit-form"
@@ -24,10 +24,21 @@ import {
 } from "@/components/ui/alert-dialog"
 import { v4 as uuidv4 } from 'uuid'
 import { authUtils } from '@/lib/auth-utils'
+import { useRouter, usePathname } from 'next/navigation'
+import Sidebar from "../component/sidebar"
+import Topbar from "../component/topbar"
+import { cn } from "@/lib/utils"
 
 const USER_ID = process.env.NEXT_PUBLIC_USER_ID;
 
 export default function MyFormsPage() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const isStandaloneRoute = pathname === '/my-forms'
+  
+  const [darkMode, setDarkMode] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [activeTab, setActiveTab] = useState("my-forms")
   const [forms, setForms] = useState([])
   const [loading, setLoading] = useState(true)
   const [editingForm, setEditingForm] = useState(null)
@@ -51,6 +62,22 @@ export default function MyFormsPage() {
   useEffect(() => {
     fetchForms()
   }, [])
+
+  useEffect(() => {
+    if (isStandaloneRoute && darkMode) {
+      document.documentElement.classList.add('dark');
+    } else if (isStandaloneRoute) {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode, isStandaloneRoute]);
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+  };
+
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed)
+  }
 
   // Helper function to generate unique field IDs
   const generateUniqueFieldId = (prefix = 'field') => {
@@ -857,8 +884,9 @@ export default function MyFormsPage() {
     setCurrentPage(1)
   }
 
+  // Loading state - only wrap with layout if standalone route
   if (loading) {
-    return (
+    const loadingContent = (
       <div className="p-8 flex items-center justify-center min-h-64">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
@@ -866,9 +894,49 @@ export default function MyFormsPage() {
         </div>
       </div>
     )
+
+    if (!isStandaloneRoute) {
+      return loadingContent
   }
 
   return (
+      <main className="min-h-screen bg-background">
+        {!isCollapsed && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setIsCollapsed(true)}
+          />
+        )}
+        
+        <div className="flex min-h-screen">
+          <Sidebar 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab}
+            isCollapsed={isCollapsed}
+            setIsCollapsed={setIsCollapsed}
+          />
+          <section className={cn(
+            "flex-1 transition-all duration-300 flex flex-col min-h-screen overflow-hidden",
+            isCollapsed ? "md:ml-0" : "md:ml-0"
+          )}>
+            <div className="p-4 border-b border-border bg-card/50">
+              <Topbar 
+                darkMode={darkMode} 
+                toggleDarkMode={toggleDarkMode}
+                toggleSidebar={toggleSidebar}
+              />
+            </div>
+            <div className="flex-1 p-4 md:p-6 bg-background overflow-x-hidden">
+              {loadingContent}
+            </div>
+          </section>
+        </div>
+      </main>
+    )
+  }
+
+  // Main content
+  const mainContent = (
     <div className="p-4 sm:p-6 lg:p-8 max-w-full">
       <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
@@ -1085,6 +1153,7 @@ export default function MyFormsPage() {
                                   variant="outline"
                                   onClick={() => copyFormLink(form)}
                                   title={form.archived ? "Form archived - cannot copy link" : "Copy form link (v-" + (form.version || 1) + ")"}
+                                  disabled={form.archived}
                                   className="h-8 w-8 p-0"
                                 >
                                   <Copy className="h-4 w-4" />
@@ -1094,9 +1163,20 @@ export default function MyFormsPage() {
                                   variant="outline"
                                   onClick={() => openFormInNewTab(form)}
                                   title={form.archived ? "Form archived - cannot open" : "Open form in new tab (v-" + (form.version || 1) + ")"}
+                                  disabled={form.archived}
                                   className="h-8 w-8 p-0"
                                 >
                                   <ExternalLink className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                                  title="View form submissions"
+                                  disabled={form.archived}
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Database className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1199,6 +1279,7 @@ export default function MyFormsPage() {
                             variant="outline"
                             onClick={() => copyFormLink(form)}
                             title={form.archived ? "Form archived - cannot copy link" : "Copy form link (v-" + (form.version || 1) + ")"}
+                            disabled={form.archived}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -1207,8 +1288,18 @@ export default function MyFormsPage() {
                             variant="outline"
                             onClick={() => openFormInNewTab(form)}
                             title={form.archived ? "Form archived - cannot open" : "Open form in new tab (v-" + (form.version || 1) + ")"}
+                            disabled={form.archived}
                           >
                             <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                            title="View form submissions"
+                            disabled={form.archived}
+                          >
+                            <Database className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
@@ -1298,6 +1389,7 @@ export default function MyFormsPage() {
                             variant="outline"
                             onClick={() => copyFormLink(form)}
                             title={form.archived ? "Form archived - cannot copy link" : "Copy form link (v-" + (form.version || 1) + ")"}
+                            disabled={form.archived}
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -1306,8 +1398,18 @@ export default function MyFormsPage() {
                             variant="outline"
                             onClick={() => openFormInNewTab(form)}
                             title={form.archived ? "Form archived - cannot open" : "Open form in new tab (v-" + (form.version || 1) + ")"}
+                            disabled={form.archived}
                           >
                             <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                            title="View form submissions"
+                            disabled={form.archived}
+                          >
+                            <Database className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
@@ -1471,5 +1573,46 @@ export default function MyFormsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  )
+
+  // If not standalone route (used within main page), return just the content
+  if (!isStandaloneRoute) {
+    return mainContent
+  }
+
+  // If standalone route, wrap with layout
+  return (
+    <main className="min-h-screen bg-background">
+      {!isCollapsed && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsCollapsed(true)}
+        />
+      )}
+      
+      <div className="flex min-h-screen">
+        <Sidebar 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
+        />
+        <section className={cn(
+          "flex-1 transition-all duration-300 flex flex-col min-h-screen overflow-hidden",
+          isCollapsed ? "md:ml-0" : "md:ml-0"
+        )}>
+          <div className="p-4 border-b border-border bg-card/50">
+            <Topbar 
+              darkMode={darkMode} 
+              toggleDarkMode={toggleDarkMode}
+              toggleSidebar={toggleSidebar}
+            />
+          </div>
+          <div className="flex-1 p-4 md:p-6 bg-background overflow-x-hidden">
+            {mainContent}
+          </div>
+        </section>
+      </div>
+    </main>
   )
 }
