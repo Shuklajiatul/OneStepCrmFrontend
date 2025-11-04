@@ -67,11 +67,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
 
 // API Base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
@@ -800,84 +795,83 @@ export default function UsersPage() {
                       <p>No users found</p>
                     </div>
                   ) : (
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Role</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-center w-20">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredUsers.map((user) => (
-                            <TableRow key={user.user_id}>
-                              <TableCell className="font-medium">
-                                {user.first_name || user.last_name
-                                  ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
-                                  : "N/A"}
-                              </TableCell>
-                              <TableCell>{user.email || "N/A"}</TableCell>
-                              <TableCell>
-                                <Badge variant="secondary">{user.roles || user.role || "User"}</Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Switch
-                                    checked={user.is_active}
-                                    onCheckedChange={(checked) =>
-                                      handleToggleStatus(user, checked)
-                                    }
-                                    disabled={submitting}
-                                  />
-                                  <span className="text-sm text-muted-foreground">
-                                    {user.is_active ? "Active" : "Inactive"}
-                                  </span>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center justify-end gap-1">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
+                    <div className="rounded-md border overflow-hidden w-full">
+                      <div className="overflow-x-auto w-full">
+                        <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
+                          <Table className="w-full table-auto">
+                            <TableHeader>
+                              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                <TableHead className="font-semibold text-foreground">Name</TableHead>
+                                <TableHead className="font-semibold text-foreground">Email</TableHead>
+                                <TableHead className="font-semibold text-foreground">Role</TableHead>
+                                <TableHead className="font-semibold text-foreground">Status</TableHead>
+                                <TableHead className="w-[120px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {filteredUsers.map((user) => (
+                                <TableRow 
+                                  key={user.user_id}
+                                  className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                                >
+                                  <TableCell className="py-4">
+                                    <div className="flex items-center space-x-3">
+                                      <div className="min-w-0">
+                                        <span className="font-medium text-primary truncate text-sm md:text-base transition-colors">
+                                          {user.first_name || user.last_name
+                                            ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+                                            : "N/A"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="py-4">{user.email || "N/A"}</TableCell>
+                                  <TableCell className="py-4">
+                                    <Badge variant="secondary">{user.roles || user.role || "User"}</Badge>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <div className="flex items-center gap-2">
+                                      <Switch
+                                        checked={user.is_active}
+                                        onCheckedChange={(checked) =>
+                                          handleToggleStatus(user, checked)
+                                        }
+                                        disabled={submitting}
+                                      />
+                                      <span className="text-sm text-muted-foreground">
+                                        {user.is_active ? "Active" : "Inactive"}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="w-[120px] whitespace-nowrap text-right py-4">
+                                    <div className="flex items-center justify-end space-x-1">
                                       <Button
                                         variant="ghost"
-                                        size="sm"
+                                        size="icon"
                                         onClick={() => openViewDialog(user)}
-                                        className="h-8 w-8 p-0"
+                                        title="View"
+                                        className="h-8 w-8"
                                       >
                                         <Eye className="h-4 w-4" />
                                       </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>View Details</TooltipContent>
-                                  </Tooltip>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
                                       <Button
                                         variant="ghost"
-                                        size="sm"
+                                        size="icon"
                                         onClick={() => openEditDialog(user)}
-                                        className="h-8 w-8 p-0"
+                                        title="Edit"
+                                        className="h-8 w-8"
                                       >
                                         <Edit className="h-4 w-4" />
                                       </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Edit User</TooltipContent>
-                                  </Tooltip>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
                                       <Button
                                         variant="ghost"
-                                        size="sm"
+                                        size="icon"
                                         onClick={() => openRoleDialog(user)}
-                                        className="h-8 w-8 p-0"
+                                        title="Manage Roles"
+                                        className="h-8 w-8"
                                       >
                                         <Shield className="h-4 w-4" />
                                       </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Manage Roles</TooltipContent>
-                                  </Tooltip>
                                   {/* <Tooltip>
                             <TooltipTrigger asChild>
                               <AlertDialog>
@@ -927,8 +921,10 @@ export default function UsersPage() {
                               </TableCell>
                             </TableRow>
                           ))}
-                        </TableBody>
-                      </Table>
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </CardContent>
