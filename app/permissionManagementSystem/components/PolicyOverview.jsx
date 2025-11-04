@@ -1,12 +1,12 @@
 "use client"
 
-import { Users, Link as LinkIcon, FileText, CheckCircle2, AlertTriangle, BarChart3 } from "lucide-react"
+import { Users, Link as LinkIcon, FileText, CheckCircle2, AlertTriangle, BarChart3, Edit, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, userCounts, onModuleClick, onViewMappedUsers, onMappingClick }) {
+export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, userCounts, onModuleClick, onViewMappedUsers, onMappingClick, onViewPolicyDetails, onEditPolicy, onDeletePolicy }) {
   const activePolicies = policies.filter(p => p.is_active !== false)
   const inactivePolicies = policies.filter(p => p.is_active === false)
   
@@ -146,18 +146,21 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                     </TableHeader>
                     <TableBody>
                       {policies.map((policy) => {
-                        const policyId = policy.policy_id || policy.id
+                        const policyId = policy.p_id || policy.policy_id || policy.id
                         const userCount = userCounts[policyId] || 0
-                        const policyName = policy.policy_name || policy.name || "Unnamed Policy"
+                        const policyName = policy.p_name || policy.policy_name || policy.name || "Unnamed Policy"
                         return (
                           <TableRow 
                             key={policyId}
                             className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
                           >
-                            <TableCell className="py-4">
+                            <TableCell 
+                              className="py-4 cursor-pointer"
+                              onClick={() => onViewPolicyDetails && onViewPolicyDetails(policy)}
+                            >
                               <div className="flex items-center space-x-3">
                                 <div className="min-w-0">
-                                  <span className="font-medium text-primary truncate text-sm md:text-base transition-colors">
+                                  <span className="font-medium text-primary truncate text-sm md:text-base transition-colors hover:underline">
                                     {policyName}
                                   </span>
                                   {policyId && (
@@ -167,8 +170,8 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                               </div>
                             </TableCell>
                             <TableCell className="py-4">
-                              <Badge variant={policy.policy_type === "shared" ? "default" : "secondary"}>
-                                {policy.policy_type || "internal"}
+                              <Badge variant={(policy.type || policy.policy_type) === "shared" ? "default" : "secondary"}>
+                                {policy.type || policy.policy_type || "internal"}
                               </Badge>
                             </TableCell>
                             <TableCell className="py-4">
@@ -192,8 +195,11 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                                 {policy.updated_at ? new Date(policy.updated_at).toLocaleDateString() : "-"}
                               </span>
                             </TableCell>
-                            <TableCell className="whitespace-nowrap text-center py-4">
-                              <div className="flex items-center justify-center">
+                            <TableCell 
+                              className="whitespace-nowrap text-center py-4"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-center gap-2">
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -202,6 +208,28 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                                 >
                                   View Mapped Users
                                 </Button>
+                                {onEditPolicy && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onEditPolicy(policy)}
+                                    className="flex items-center gap-2"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                    Edit
+                                  </Button>
+                                )}
+                                {onDeletePolicy && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onDeletePolicy(policy)}
+                                    className="flex items-center gap-2 text-destructive hover:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

@@ -34,9 +34,16 @@ export function CreatePolicyTab({ onPolicyCreated }) {
         return
       }
 
+      // Prepare API payload with correct field names
+      const apiPayload = {
+        p_name: formData.policy_name,
+        type: formData.policy_type,
+        is_active: formData.is_active,
+      }
+
       const response = await axios.post(
         `${API_BASE_URL}/api/policies`,
-        formData,
+        apiPayload,
         {
           headers: {
             Authorization: token,
@@ -96,6 +103,8 @@ export function CreatePolicyTab({ onPolicyCreated }) {
               <SelectContent>
                 <SelectItem value="internal">Internal</SelectItem>
                 <SelectItem value="shared">Shared</SelectItem>
+                <SelectItem value="privacy">Privacy</SelectItem>
+                <SelectItem value="terms">Terms</SelectItem>
               </SelectContent>
             </Select>
           </div>

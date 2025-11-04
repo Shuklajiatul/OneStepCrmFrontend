@@ -42,8 +42,8 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate }) {
     }
   }
 
-  const policyName = mapping.policy_name || mapping.policy?.policy_name || "Unknown Policy"
-  const policyType = mapping.policy_type || mapping.policy?.policy_type || "internal"
+  const policyName = mapping.p_name || mapping.policy_name || mapping.policy?.p_name || mapping.policy?.policy_name || "Unknown Policy"
+  const policyType = mapping.type || mapping.policy_type || mapping.policy?.type || mapping.policy?.policy_type || "internal"
 
   return (
     <Card>

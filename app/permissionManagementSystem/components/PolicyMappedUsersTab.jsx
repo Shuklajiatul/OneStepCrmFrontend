@@ -25,7 +25,7 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
       const token = authUtils.getAuthHeader()
       if (!token) return
 
-      const policyId = policy.policy_id || policy.id
+      const policyId = policy.p_id || policy.policy_id || policy.id
       const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}/users`, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       })
@@ -43,7 +43,7 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
     }
   }
 
-  const policyName = policy.policy_name || policy.name || "Unknown Policy"
+  const policyName = policy.p_name || policy.policy_name || policy.name || "Unknown Policy"
 
   return (
     <Card>

@@ -12,34 +12,25 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { CreatePolicyTab } from "./components/CreatePolicyTab"
+import { EditPolicyTab } from "./components/EditPolicyTab"
 import { ModuleDetailTab } from "./components/ModuleDetailTab"
 import { PolicyMappingDetailTab } from "./components/PolicyMappingDetailTab"
 import { PolicyMappedUsersTab } from "./components/PolicyMappedUsersTab"
 import { PolicyOverview } from "./components/PolicyOverview"
+import { PolicyDetailsDialog } from "./components/PolicyDetailsDialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
-
-// Dummy data for testing
-const dummyPolicies = [
-  {
-    policy_id: "dummy-1",
-    policy_name: "Admin Access Policy",
-    policy_type: "shared",
-    description: "Full administrative access to all system features",
-    is_active: true,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    policy_id: "dummy-2",
-    policy_name: "User Read-Only Policy",
-    policy_type: "internal",
-    description: "Limited read-only access for regular users",
-    is_active: true,
-    created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-]
 
 // API utility functions
 const fetchAllData = async () => {
@@ -53,23 +44,62 @@ const fetchAllData = async () => {
       axios.get(`${API_BASE_URL}/api/features`, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       }),
+      // GET /api/policies - Fetch all policies
       axios.get(`${API_BASE_URL}/api/policies`, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       }),
-      axios.get(`${API_BASE_URL}/api/policy-feature-mappings`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      }),
+      // axios.get(`${API_BASE_URL}/api/policy-feature-mappings`, {
+      //   headers: { Authorization: token, "Content-Type": "application/json" },
+      // }),
     ])
 
+    // Handle response structure: { success: true, data: [...] }
+    // Extract data from response, handling both direct array and wrapped structures
+    const features = Array.isArray(featuresRes.data) 
+      ? featuresRes.data 
+      : featuresRes.data?.data || featuresRes.data?.features || []
+    
+    const policies = Array.isArray(policiesRes.data) 
+      ? policiesRes.data 
+      : policiesRes.data?.data || policiesRes.data?.policies || []
+
     return {
-      features: Array.isArray(featuresRes.data) ? featuresRes.data : featuresRes.data?.data || featuresRes.data?.features || [],
-      policies: Array.isArray(policiesRes.data) ? policiesRes.data : policiesRes.data?.data || policiesRes.data?.policies || [],
-      mappings: Array.isArray(mappingsRes.data) ? mappingsRes.data : mappingsRes.data?.data || mappingsRes.data?.mappings || [],
+      features: features,
+      policies: policies,
+      mappings: Array.isArray(mappingsRes?.data) ? mappingsRes.data : mappingsRes?.data?.data || mappingsRes?.data?.mappings || [],
     }
   } catch (error) {
     console.error("Error fetching data:", error)
+    if (error.response) {
+      console.error("Response status:", error.response.status)
+      console.error("Response data:", error.response.data)
+    }
     // Return empty arrays if endpoints don't exist yet
     return { features: [], policies: [], mappings: [] }
+  }
+}
+
+const fetchSinglePolicy = async (policyId) => {
+  const token = authUtils.getAuthHeader()
+  if (!token) {
+    throw new Error("Authentication required")
+  }
+
+  try {
+    const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}`, {
+      headers: { Authorization: token, "Content-Type": "application/json" },
+    })
+    
+    // Handle response structure: { success: true, data: {...} }
+    // Also handle direct object or nested structures
+    return response.data?.data || response.data || null
+  } catch (error) {
+    console.error(`Error fetching policy ${policyId}:`, error)
+    if (error.response) {
+      console.error("Response status:", error.response.status)
+      console.error("Response data:", error.response.data)
+    }
+    throw error
   }
 }
 
@@ -82,12 +112,14 @@ const fetchUserCountsForPolicies = async (policies) => {
   const counts = {}
   for (const policy of policies) {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/policies/${policy.policy_id || policy.id}/users/count`, {
+      const policyId = policy.p_id || policy.policy_id || policy.id
+      const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}/users/count`, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       })
-      counts[policy.policy_id || policy.id] = response.data?.count || response.data?.data?.count || 0
+      counts[policyId] = response.data?.count || response.data?.data?.count || 0
     } catch (error) {
-      counts[policy.policy_id || policy.id] = 0
+      const policyId = policy.p_id || policy.policy_id || policy.id
+      counts[policyId] = 0
     }
   }
   return counts
@@ -107,6 +139,13 @@ export default function PermissionManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [userCounts, setUserCounts] = useState({})
+  const [editingPolicy, setEditingPolicy] = useState(null)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [viewingPolicy, setViewingPolicy] = useState(null)
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [policyToDelete, setPolicyToDelete] = useState(null)
+  const [deletingPolicy, setDeletingPolicy] = useState(false)
 
   useEffect(() => {
     loadAllData()
@@ -123,39 +162,23 @@ export default function PermissionManagement() {
   const loadAllData = async () => {
     try {
       setLoading(true)
+      setError(null)
       const data = await fetchAllData()
 
-      // Use dummy data if API returns empty arrays
-      const finalPolicies = data.policies.length > 0 ? data.policies : dummyPolicies
-      const finalFeatures = data.features.length > 0 ? data.features : []
-      const finalMappings = data.mappings.length > 0 ? data.mappings : []
+      setAllFeatures(data.features || [])
+      setPolicies(data.policies || [])
+      setPolicyFeatureMappings(data.mappings || [])
 
-      setAllFeatures(finalFeatures)
-      setPolicies(finalPolicies)
-      setPolicyFeatureMappings(finalMappings)
-
-      // Set dummy user counts for dummy policies
-      const userCountsMap = await fetchUserCountsForPolicies(finalPolicies)
-      // Add dummy user counts if API fails
-      if (Object.keys(userCountsMap).length === 0 && finalPolicies === dummyPolicies) {
-        setUserCounts({
-          "dummy-1": 5,
-          "dummy-2": 12,
-        })
-      } else {
-        setUserCounts(userCountsMap)
-      }
+      // Fetch user counts for all policies
+      const userCountsMap = await fetchUserCountsForPolicies(data.policies || [])
+      setUserCounts(userCountsMap)
     } catch (err) {
       console.error("Error fetching data:", err)
-      // Use dummy data on error
+      setError(err.response?.data?.message || "Failed to load data. Please try again.")
       setAllFeatures([])
-      setPolicies(dummyPolicies)
+      setPolicies([])
       setPolicyFeatureMappings([])
-      setUserCounts({
-        "dummy-1": 5,
-        "dummy-2": 12,
-      })
-      setError(null) // Don't show error if we have dummy data
+      setUserCounts({})
     } finally {
       setLoading(false)
     }
@@ -181,6 +204,64 @@ export default function PermissionManagement() {
     setSelectedModule(null)
     setSelectedPolicy(null)
     setSelectedMapping(null)
+  }
+
+  const handleViewPolicyDetails = (policy) => {
+    setViewingPolicy(policy)
+    setDetailsDialogOpen(true)
+  }
+
+  const handleEditPolicy = (policy) => {
+    setEditingPolicy(policy)
+    setEditDialogOpen(true)
+  }
+
+  const handleUpdatePolicy = async () => {
+    setEditDialogOpen(false)
+    // Refresh all data to get updated policy
+    await loadAllData()
+    setEditingPolicy(null)
+  }
+
+  const handleDeletePolicy = (policy) => {
+    setPolicyToDelete(policy)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDeletePolicy = async () => {
+    if (!policyToDelete) return
+
+    const policyId = policyToDelete.p_id || policyToDelete.policy_id || policyToDelete.id
+    if (!policyId) {
+      toast.error("Policy ID is required")
+      return
+    }
+
+    setDeletingPolicy(true)
+    try {
+      const token = authUtils.getAuthHeader()
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
+
+      await axios.delete(`${API_BASE_URL}/api/policies/${policyId}`, {
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json",
+        },
+      })
+
+      toast.success("Policy deleted successfully")
+      setDeleteDialogOpen(false)
+      setPolicyToDelete(null)
+      await loadAllData()
+    } catch (error) {
+      console.error("Error deleting policy:", error)
+      toast.error(error.response?.data?.message || "Failed to delete policy. Please try again.")
+    } finally {
+      setDeletingPolicy(false)
+    }
   }
 
   return (
@@ -271,6 +352,9 @@ export default function PermissionManagement() {
                           onModuleClick={handleModuleClick}
                           onViewMappedUsers={handlePolicyMappedUsersClick}
                           onMappingClick={handleMappingClick}
+                          onViewPolicyDetails={handleViewPolicyDetails}
+                          onEditPolicy={handleEditPolicy}
+                          onDeletePolicy={handleDeletePolicy}
                         />
                       </TabsContent>
 
@@ -308,7 +392,69 @@ export default function PermissionManagement() {
           </div>
         </section>
       </div>
+
+      {/* Policy Details Dialog */}
+      <PolicyDetailsDialog
+        policy={viewingPolicy}
+        open={detailsDialogOpen}
+        onOpenChange={setDetailsDialogOpen}
+        onEdit={handleEditPolicy}
+        onDelete={handleDeletePolicy}
+        onViewMappedUsers={handlePolicyMappedUsersClick}
+      />
+
+      {/* Edit Policy Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Policy</DialogTitle>
+          </DialogHeader>
+          {editingPolicy && (
+            <EditPolicyTab
+              policy={editingPolicy}
+              onPolicyUpdated={handleUpdatePolicy}
+              onCancel={() => {
+                setEditDialogOpen(false)
+                setEditingPolicy(null)
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this policy?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the policy "
+              <span className="font-semibold">
+                {policyToDelete?.policy_name || policyToDelete?.name || policyToDelete?.p_name || "Unknown"}
+              </span>" and all of its data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingPolicy}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeletePolicy}
+              disabled={deletingPolicy}
+              className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {deletingPolicy ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Policy"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   )
 }
-

@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import Image from 'next/image'
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 
 const menuItems = [
@@ -56,6 +56,33 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
     const router = useRouter()
     const pathname = usePathname()
     const [expandedMenus, setExpandedMenus] = useState(new Set())
+
+    // Auto-expand parent menus when their submenu items are active
+    useEffect(() => {
+        const activeSubmenuItems = menuItems.filter(item => 
+            item.submenu?.some(subItem => {
+                if (subItem.isRoute) {
+                    return pathname === subItem.href
+                }
+                return pathname === '/' && activeTab === subItem.href
+            })
+        )
+        
+        if (activeSubmenuItems.length > 0) {
+            setExpandedMenus(prev => {
+                const newExpanded = new Set(prev)
+                activeSubmenuItems.forEach(item => {
+                    newExpanded.add(item.label)
+                })
+                // Only update if there's a change
+                if (newExpanded.size === prev.size && 
+                    Array.from(newExpanded).every(label => prev.has(label))) {
+                    return prev
+                }
+                return newExpanded
+            })
+        }
+    }, [pathname, activeTab])
 
     const toggleSubmenu = (menuLabel) => {
         const newExpanded = new Set(expandedMenus)

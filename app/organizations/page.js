@@ -16,8 +16,6 @@ import {
   Eye,
   Loader2,
 } from "lucide-react"
-
-// Shadcn UI Components
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -54,7 +52,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 
 // API Base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 export default function OrganizationsPage() {
   const [organizations, setOrganizations] = useState([])
@@ -246,7 +244,6 @@ export default function OrganizationsPage() {
       setSubmitting(false)
     }
   }
-
 
   const handleDeleteOrganization = async (organizationId) => {
     if (!organizationId) {
@@ -773,4 +770,3 @@ export default function OrganizationsPage() {
     </main>
   )
 }
-

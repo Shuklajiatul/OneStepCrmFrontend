@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { User, Loader2, AlertCircle, RefreshCw, Network, Users } from "lucide-react"
+import { User, Loader2, AlertCircle, RefreshCw, Network, Users, ArrowLeft } from "lucide-react"
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001';
 const API_CONSTANTS = {
   BASE_URL: API_BASE_URL,
-  geneDetails: '/api/genes', // Will append /{g_id} in the request
+  geneDetails: '/api/genes',
   geneMappedUser: '/api/genes/by-geneId',
 };
 
@@ -381,6 +381,12 @@ const RolePriorityTree = () => {
     custom: CustomNode,
   };
 
+  const handleBack = () => {
+    // Navigate back to home page with gene tab active
+    sessionStorage.setItem('intended-tab', 'gene')
+    router.push('/')
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -390,6 +396,17 @@ const RolePriorityTree = () => {
               <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
               <CardTitle>Loading...</CardTitle>
               <CardDescription className="mt-2">Fetching user hierarchy</CardDescription>
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBack}
+                  className="flex items-center gap-2 mx-auto"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Genes
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -409,6 +426,14 @@ const RolePriorityTree = () => {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
               <div className="flex gap-2 justify-center mt-4">
+                <Button
+                  variant="outline"
+                  onClick={handleBack}
+                  className="flex items-center gap-2"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Genes
+                </Button>
                 <Button onClick={fetchGeanMappedUser}>
                   <RefreshCw className="mr-2 h-4 w-4" />
                   Retry
@@ -432,6 +457,17 @@ const RolePriorityTree = () => {
               <CardDescription className="mt-2">
                 No users are mapped to this gene
               </CardDescription>
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleBack}
+                  className="flex items-center gap-2 mx-auto"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Genes
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -445,21 +481,32 @@ const RolePriorityTree = () => {
       <Card className="m-0 rounded-none border-x-0 border-t-0 border-b shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Network className="h-5 w-5 text-primary" />
-                <CardTitle className="text-2xl">
-                  {geneDetails ? (geneDetails.g_name || geneDetails.name || 'User Priority Hierarchy') : 'User Priority Hierarchy'}
-                </CardTitle>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBack}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Genes
+              </Button>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Network className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-2xl">
+                    {geneDetails ? (geneDetails.g_name || geneDetails.name || 'User Priority Hierarchy') : 'User Priority Hierarchy'}
+                  </CardTitle>
+                </div>
+                <CardDescription>
+                  {geneDetails && (
+                    <>
+                      Gene: {geneDetails.g_name || geneDetails.name} • 
+                    </>
+                  )}{' '}
+                  Role-based tree visualization • {users.length} users across {priorityLevels.length} levels
+                </CardDescription>
               </div>
-              <CardDescription>
-                {geneDetails && (
-                  <>
-                    Gene: {geneDetails.g_name || geneDetails.name} • 
-                  </>
-                )}{' '}
-                Role-based tree visualization • {users.length} users across {priorityLevels.length} levels
-              </CardDescription>
             </div>
            
             <div className="flex items-center gap-4">

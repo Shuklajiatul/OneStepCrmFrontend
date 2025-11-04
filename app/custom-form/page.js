@@ -35,8 +35,6 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { v4 as uuidv4 } from 'uuid'
 
-// Field types are defined in the FieldPalette component
-
 export default function CustomFormPage() {
   const router = useRouter()
   const [fields, setFields] = useState([])
