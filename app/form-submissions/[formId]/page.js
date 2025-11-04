@@ -24,7 +24,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from "sonner"
 import axios from "axios"
 import { authUtils } from '@/lib/auth-utils'
-import { useParams, useRouter } from "next/navigation"
+import { useParams, useRouter, usePathname } from "next/navigation"
+import Sidebar from "../../component/sidebar"
+import Topbar from "../../component/topbar"
+import { cn } from "@/lib/utils"
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -34,7 +37,13 @@ const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 export default function FormSubmissionsPage() {
   const params = useParams()
   const router = useRouter()
+  const pathname = usePathname()
   const formId = params.formId
+  const isStandaloneRoute = pathname?.startsWith('/form-submissions/')
+  
+  const [darkMode, setDarkMode] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [activeTab, setActiveTab] = useState("my-forms")
   
   const [formDetails, setFormDetails] = useState(null)
   const [submissions, setSubmissions] = useState([])
@@ -46,6 +55,10 @@ export default function FormSubmissionsPage() {
   const [currentField, setCurrentField] = useState(null)
   const [currentSubmission, setCurrentSubmission] = useState(null)
 
+  // File preview modal state
+  const [isFileModalOpen, setIsFileModalOpen] = useState(false)
+  const [filePreview, setFilePreview] = useState(null) // { name, mime, dataUrl }
+
   // Fetch form details and submissions on component mount
   useEffect(() => {
     if (formId) {
@@ -53,6 +66,22 @@ export default function FormSubmissionsPage() {
       fetchSubmissions()
     }
   }, [formId])
+
+  useEffect(() => {
+    if (isStandaloneRoute && darkMode) {
+      document.documentElement.classList.add('dark');
+    } else if (isStandaloneRoute) {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode, isStandaloneRoute]);
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+  };
+
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed)
+  }
 
   const fetchFormDetails = async () => {
     setLoading(true)
@@ -414,6 +443,98 @@ export default function FormSubmissionsPage() {
     }
   }
 
+  // Infer filename from data URL and optional field label
+  const inferFilenameFromDataUrl = (dataUrl, field) => {
+    try {
+      if (typeof dataUrl !== 'string') return 'file'
+      const match = dataUrl.match(/^data:([^;]+);base64,/)
+      const mime = match ? match[1] : 'application/octet-stream'
+      const ext = ({
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',
+        'image/gif': 'gif',
+        'image/webp': 'webp',
+        'application/pdf': 'pdf'
+      })[mime] || 'bin'
+      const base = (field?.label || field?.name || 'file').toString().replace(/\s+/g, '_').toLowerCase()
+      return `${base}.${ext}`
+    } catch {
+      return 'file'
+    }
+  }
+
+  const openFileModal = (dataUrl, field) => {
+    if (!dataUrl || typeof dataUrl !== 'string') return
+    const match = dataUrl.match(/^data:([^;]+);base64,/)
+    const mime = match ? match[1] : 'application/octet-stream'
+    const name = inferFilenameFromDataUrl(dataUrl, field)
+    setFilePreview({ name, mime, dataUrl })
+    setIsFileModalOpen(true)
+  }
+
+  const downloadDataUrl = (dataUrl, filename) => {
+    try {
+      const a = document.createElement('a')
+      a.href = dataUrl
+      a.download = filename || 'download'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch (e) {
+      console.error('Download failed', e)
+    }
+  }
+
+  // Helper to render an options dropdown for select/checkbox fields
+  const renderOptionsDropdown = (displayNode, field, selectedValues, onOpenNested) => {
+    const options = Array.isArray(field?.options)
+      ? field.options
+      : []
+
+    const selectedSet = new Set(
+      (Array.isArray(selectedValues) ? selectedValues : [selectedValues])
+        .filter(Boolean)
+        .map(v => String(v))
+    )
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="px-2 py-1 rounded border border-border hover:bg-muted/50">
+            {displayNode}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">Options</div>
+          {options.length > 0 ? (
+            options.map((opt) => {
+              const label = String(opt?.label ?? opt?.value ?? '')
+              const value = String(opt?.value ?? label)
+              const isSelected = selectedSet.has(value) || selectedSet.has(label)
+              return (
+                <DropdownMenuItem key={value} className="flex items-center gap-2">
+                  <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>
+                    {label}
+                  </span>
+                  {isSelected && <span className="ml-auto text-xs">✓</span>}
+                </DropdownMenuItem>
+              )
+            })
+          ) : (
+            <DropdownMenuItem disabled>No options</DropdownMenuItem>
+          )}
+          {onOpenNested && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onOpenNested}>View nested details</DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
   // Helper function to format field value based on data type
   const formatFieldValue = (rawValue, field, submission) => {
     if (rawValue === null || rawValue === undefined || rawValue === "") {
@@ -421,55 +542,73 @@ export default function FormSubmissionsPage() {
     }
 
     const fieldType = field.type || 'text'
-    const rawString = typeof rawValue === 'string' ? rawValue : String(rawValue)
-    const trimmed = rawString.trim()
-
-    // Check if it has nested data
-    if (hasNestedData(field, rawString)) {
-      let displayLabel = ''
-      const parsed = parseJsonSafely(rawString)
-      
-      if (Array.isArray(parsed)) {
-        displayLabel = parsed
+    
+    // rawValue is already parsed by getFieldValue, so it could be:
+    // - An array: [{"value":"Iphone "},{"value":"Samsung"}]
+    // - An object: {"value":"Male","nestedValues":{}}
+    // - A string: (fallback case)
+    
+    // Handle arrays (multi-select, checkbox)
+    if (Array.isArray(rawValue)) {
+      const values = rawValue
           .map(item => {
-            if (!item || typeof item !== 'object') return ''
-            if (Array.isArray(item.value)) return item.value.join(' → ')
-            if (item.value !== undefined && item.value !== null) return String(item.value)
-            return ''
+          if (item && typeof item === 'object' && item.value !== undefined) {
+            return String(item.value)
+          }
+          return String(item)
           })
           .filter(Boolean)
-          .join(', ')
-      } else {
-        if (Array.isArray(parsed.value)) {
-          displayLabel = parsed.value.join(' → ')
-        } else if (parsed.value !== undefined && parsed.value !== null) {
-          displayLabel = String(parsed.value)
-        }
+      
+      if (values.length === 0) {
+        return <span className="text-muted-foreground italic">-</span>
       }
-
-      if (!displayLabel) {
-        displayLabel = 'View details'
-      }
-
-      return (
-        <button
-          onClick={() => openNestedModal(rawString, field, submission)}
-          className="bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer px-2 py-1 rounded border border-blue-300 text-sm font-medium"
-          title="Click to view nested data"
-        >
-          {displayLabel}
-          <span className="ml-1 text-xs">📋</span>
-        </button>
+      
+      // Check if any item has nested data
+      const hasNested = rawValue.some(item => 
+        item && typeof item === 'object' && item.nestedValues && 
+        Object.keys(item.nestedValues).length > 0
       )
-    }
+      
+      const badgesNode = (
+        <div className="flex flex-wrap gap-1">
+          {values.map((val, idx) => (
+            <Badge key={idx} variant="secondary" className="text-xs">
+              {val}
+            </Badge>
+          ))}
+        </div>
+      )
 
-    // Parse JSON if it looks like JSON
-    const parsedValue = parseJsonSafely(rawString)
-    const isArrayStructure = Array.isArray(parsedValue)
+      const onOpenNested = hasNested
+        ? () => openNestedModal(JSON.stringify(rawValue), field, submission)
+        : undefined
+
+      return renderOptionsDropdown(badgesNode, field, values, onOpenNested)
+    }
     
-    // Handle simple value extraction
-    if (!isArrayStructure && parsedValue && typeof parsedValue === 'object' && parsedValue.value !== undefined) {
-      const simpleValue = parsedValue.value
+    // Handle objects with value property
+    if (typeof rawValue === 'object' && rawValue !== null) {
+      // Check if it has nested values
+      const hasNested = rawValue.nestedValues && 
+        typeof rawValue.nestedValues === 'object' && 
+        Object.keys(rawValue.nestedValues).length > 0
+      
+      // Handle object with value property
+      if (rawValue.value !== undefined) {
+        const simpleValue = String(rawValue.value)
+
+        const displayNode = (
+          <span className="truncate max-w-[200px]">{simpleValue}</span>
+        )
+
+        const onOpenNested = hasNested
+          ? () => openNestedModal(JSON.stringify(rawValue), field, submission)
+          : undefined
+
+        // For select/radio types, show dropdown of all options
+        if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
+          return renderOptionsDropdown(displayNode, field, simpleValue, onOpenNested)
+        }
       
       switch (fieldType) {
         case 'email':
@@ -479,27 +618,56 @@ export default function FormSubmissionsPage() {
             </a>
           )
         case 'phone':
-          return formatPhoneDisplay(parsedValue)
+            return formatPhoneDisplay(rawValue)
         case 'location':
-          return formatLocationDisplay(parsedValue)
+            return formatLocationDisplay(rawValue)
         case 'date':
-        case 'datetime':
+          case 'datetime': {
           const formatted = formatDateOnly(simpleValue)
           if (formatted) {
             return <span>{formatted}</span>
           }
           return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
+          }
+          case 'file':
+            // Handle file with base64 data
+            if (typeof simpleValue === 'string' && simpleValue.startsWith('data:')) {
+              const fileName = inferFilenameFromDataUrl(simpleValue, field)
+              return (
+                <button
+                  onClick={() => openFileModal(simpleValue, field)}
+                  className="text-blue-600 hover:underline text-sm"
+                  title="Click to preview/download"
+                >
+                  {fileName}
+                </button>
+              )
+            }
+            return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
         default:
           return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
       }
     }
 
-    // Handle non-JSON values
+      // Handle location object (country, state, city)
+      if (rawValue.country || rawValue.state || rawValue.city) {
+        return formatLocationDisplay(rawValue)
+      }
+      
+      // Handle phone object (countryCode, number)
+      if (rawValue.countryCode || rawValue.number) {
+        return formatPhoneDisplay(rawValue)
+      }
+    }
+    
+    // Handle string values (fallback)
+    const rawString = String(rawValue)
+    
     switch (fieldType) {
       case 'email':
         return (
-          <a href={`mailto:${rawValue}`} className="text-blue-600 hover:underline">
-            {rawValue}
+          <a href={`mailto:${rawString}`} className="text-blue-600 hover:underline">
+            {rawString}
           </a>
         )
       case 'phone': {
@@ -508,8 +676,8 @@ export default function FormSubmissionsPage() {
           return formatPhoneDisplay(phoneData)
         }
         return (
-          <a href={`tel:${rawValue}`} className="text-blue-600 hover:underline">
-            {rawValue}
+          <a href={`tel:${rawString}`} className="text-blue-600 hover:underline">
+            {rawString}
           </a>
         )
       }
@@ -518,39 +686,96 @@ export default function FormSubmissionsPage() {
         if (locationData && typeof locationData === 'object') {
           return formatLocationDisplay(locationData)
         }
-        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
+        return <span className="truncate max-w-[200px]">{rawString}</span>
       }
       case 'boolean':
         return (
-          <Badge variant={rawValue === 'true' || rawValue === true ? 'default' : 'secondary'}>
-            {rawValue === 'true' || rawValue === true ? 'Yes' : 'No'}
+          <Badge variant={rawString === 'true' || rawValue === true ? 'default' : 'secondary'}>
+            {rawString === 'true' || rawValue === true ? 'Yes' : 'No'}
           </Badge>
         )
       case 'date':
-      case 'datetime':
-        {
-          const formatted = formatDateOnly(rawValue)
+      case 'datetime': {
+        const formatted = formatDateOnly(rawString)
           if (formatted) {
             return <span>{formatted}</span>
           }
-          return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
+        return <span className="truncate max-w-[200px]">{rawString}</span>
         }
       case 'number':
+        return <span className="truncate max-w-[200px]">{rawString}</span>
       case 'textarea':
+        return <span className="truncate max-w-[200px] whitespace-pre-wrap">{rawString}</span>
       case 'text':
       case 'select':
       case 'radio':
       case 'checkbox':
-        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
       default:
-        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
+        return <span className="truncate max-w-[200px]">{rawString}</span>
     }
   }
 
   // Get field value from submission
   const getFieldValue = (submission, fieldId) => {
     if (!submission.values || !submission.values[fieldId]) return null
-    return submission.values[fieldId]
+    
+    const rawValue = submission.values[fieldId]
+    
+    // If the value is a JSON string, parse it
+    if (typeof rawValue === 'string') {
+      const trimmed = rawValue.trim()
+      // Check if it's a JSON string (starts with { or [)
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+          (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          return JSON.parse(trimmed)
+        } catch (e) {
+          // If parsing fails, return the original string
+          return rawValue
+        }
+      }
+    }
+    
+    return rawValue
+  }
+
+  // Helper to extract searchable text from a value
+  const extractSearchableText = (value) => {
+    if (value === null || value === undefined) return ''
+    
+    // If it's an array, extract values from each item
+    if (Array.isArray(value)) {
+      return value
+        .map(item => {
+          if (item && typeof item === 'object' && item.value !== undefined) {
+            return String(item.value)
+          }
+          return String(item)
+        })
+        .join(' ')
+    }
+    
+    // If it's an object with value property
+    if (typeof value === 'object' && value.value !== undefined) {
+      return String(value.value)
+    }
+    
+    // If it's a string, try to parse it
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+          (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          const parsed = JSON.parse(trimmed)
+          return extractSearchableText(parsed)
+        } catch (e) {
+          return value
+        }
+      }
+      return value
+    }
+    
+    return String(value)
   }
 
   // Filter submissions based on search term
@@ -562,9 +787,10 @@ export default function FormSubmissionsPage() {
     // Search in field values
     if (submission.values) {
       const fieldValues = Object.values(submission.values)
-      if (fieldValues.some(value => 
-        value && String(value).toLowerCase().includes(searchLower)
-      )) {
+      if (fieldValues.some(value => {
+        const searchableText = extractSearchableText(value)
+        return searchableText && searchableText.toLowerCase().includes(searchLower)
+      })) {
         return true
       }
     }
@@ -683,22 +909,12 @@ export default function FormSubmissionsPage() {
         },
       },
       {
-        id: "actions",
-        header: "Actions",
+        accessorKey: "edit_count",
+        header: "Edit Attempts",
         cell: ({ row }) => {
           const submission = row.original
-          return (
-            <div className="flex items-center justify-end gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 hover:bg-primary/10"
-                title="View submission"
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-            </div>
-          )
+          const count = typeof submission.edit_count === 'number' ? submission.edit_count : 0
+          return <span>{count}</span>
         },
       },
     ]
@@ -756,48 +972,42 @@ export default function FormSubmissionsPage() {
     )
   }
 
-  if (loading && (!formDetails || submissions.length === 0)) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading form submissions...</p>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6 w-full p-4 sm:p-6 lg:p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={() => router.push('/my-forms')} className="gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Forms
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Database className="h-6 w-6" />
-              {formDetails?.form_name || 'Form Submissions'}
-            </h1>
-            <p className="text-muted-foreground">
-              {formDetails?.description || "View all submitted data for this form"}
-            </p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={fetchSubmissions}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        </div>
-      </div>
+  // Main content
+  const mainContent = (
+            <div className="space-y-6 w-full">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => router.push('/my-forms')} 
+                    className="h-8 w-8 p-0"
+                    title="Back to Forms"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div>
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                      <Database className="h-6 w-6" />
+                      {formDetails?.form_name || 'Form Submissions'}
+                    </h1>
+                    <p className="text-muted-foreground">
+                      {formDetails?.description || "View all submitted data for this form"}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={fetchSubmissions}
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
 
       {/* Error Display */}
       {error && (
@@ -1034,7 +1244,141 @@ export default function FormSubmissionsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* File Preview Modal */}
+      <Dialog open={isFileModalOpen} onOpenChange={setIsFileModalOpen}>
+        <DialogContent className="w-[80vw] sm:w-[70vw] max-w-[900px] max-h-[95vh] p-0 gap-0 flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+            <DialogTitle>File Preview</DialogTitle>
+            <DialogDescription className="truncate">
+              {filePreview?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto px-6 py-4">
+            {filePreview?.dataUrl ? (
+              (() => {
+                const isImage = filePreview.mime?.startsWith('image/')
+                const isPdf = filePreview.mime === 'application/pdf'
+                if (isImage) {
+                  return (
+                    <div className="flex items-center justify-center">
+                      <img src={filePreview.dataUrl} alt={filePreview.name} className="max-h-[70vh] object-contain" />
+            </div>
+                  )
+                }
+                if (isPdf) {
+                  return (
+                    <iframe src={filePreview.dataUrl} title={filePreview.name} className="w-full h-[70vh] border" />
+                  )
+                }
+                return (
+                  <div className="text-sm text-muted-foreground">
+                    Preview not available for this file type.
+                  </div>
+                )
+              })()
+            ) : (
+              <div className="text-sm text-muted-foreground">No file</div>
+            )}
+          </div>
+          <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex flex-row items-center justify-end gap-3">
+            <Button onClick={() => filePreview && downloadDataUrl(filePreview.dataUrl, filePreview.name)}>Download</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+
+  // Loading state - only wrap with layout if standalone route
+  if (loading && (!formDetails || submissions.length === 0)) {
+    const loadingContent = (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading form submissions...</p>
+        </div>
+      </div>
+    )
+
+    if (!isStandaloneRoute) {
+      return loadingContent
+    }
+
+    return (
+      <main className="min-h-screen bg-background">
+        {!isCollapsed && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setIsCollapsed(true)}
+          />
+        )}
+        
+        <div className="flex min-h-screen">
+          <Sidebar 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab}
+            isCollapsed={isCollapsed}
+            setIsCollapsed={setIsCollapsed}
+          />
+          <section className={cn(
+            "flex-1 transition-all duration-300 flex flex-col min-h-screen overflow-hidden",
+            isCollapsed ? "md:ml-0" : "md:ml-0"
+          )}>
+            <div className="p-4 border-b border-border bg-card/50">
+              <Topbar 
+                darkMode={darkMode} 
+                toggleDarkMode={toggleDarkMode}
+                toggleSidebar={toggleSidebar}
+              />
+            </div>
+            <div className="flex-1 p-4 md:p-6 bg-background overflow-x-hidden">
+              {loadingContent}
+            </div>
+          </section>
+        </div>
+      </main>
+    )
+  }
+
+  // If not standalone route (used within main page), return just the content
+  if (!isStandaloneRoute) {
+    return mainContent
+  }
+
+  // If standalone route, wrap with layout
+  return (
+    <main className="min-h-screen bg-background">
+      {!isCollapsed && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setIsCollapsed(true)}
+        />
+      )}
+      
+      <div className="flex min-h-screen">
+        <Sidebar 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
+        />
+        <section className={cn(
+          "flex-1 transition-all duration-300 flex flex-col min-h-screen overflow-hidden",
+          isCollapsed ? "md:ml-0" : "md:ml-0"
+        )}>
+          <div className="p-4 border-b border-border bg-card/50">
+            <Topbar 
+              darkMode={darkMode} 
+              toggleDarkMode={toggleDarkMode}
+              toggleSidebar={toggleSidebar}
+            />
+          </div>
+          <div className="flex-1 p-4 md:p-6 bg-background overflow-x-hidden">
+            {mainContent}
+          </div>
+        </section>
+      </div>
+    </main>
   )
 }
 
