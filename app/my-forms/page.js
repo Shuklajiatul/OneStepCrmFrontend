@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
-import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon } from "lucide-react"
+import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon, Database } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
 import EditFormDialog from "../component/EditForm/edit-form"
@@ -24,10 +24,12 @@ import {
 } from "@/components/ui/alert-dialog"
 import { v4 as uuidv4 } from 'uuid'
 import { authUtils } from '@/lib/auth-utils'
+import { useRouter } from 'next/navigation'
 
 const USER_ID = process.env.NEXT_PUBLIC_USER_ID;
 
 export default function MyFormsPage() {
+  const router = useRouter()
   const [forms, setForms] = useState([])
   const [loading, setLoading] = useState(true)
   const [editingForm, setEditingForm] = useState(null)
@@ -1101,6 +1103,15 @@ export default function MyFormsPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
+                                  onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                                  title="View form submissions"
+                                  className="h-8 w-8 p-0"
+                                >
+                                  <Database className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
                                   title="View analytics"
                                   disabled
                                   className="h-8 w-8 p-0"
@@ -1212,6 +1223,14 @@ export default function MyFormsPage() {
                           </Button>
                           <Button
                             size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                            title="View form submissions"
+                          >
+                            <Database className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
                             variant={form.archived ? "default" : "outline"}
                             onClick={() => toggleArchiveForm(form.form_id, form.archived)}
                             title={form.archived ? "Unarchive form" : "Archive form"}
@@ -1308,6 +1327,14 @@ export default function MyFormsPage() {
                             title={form.archived ? "Form archived - cannot open" : "Open form in new tab (v-" + (form.version || 1) + ")"}
                           >
                             <ExternalLink className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                            title="View form submissions"
+                          >
+                            <Database className="h-4 w-4" />
                           </Button>
                           <Button
                             size="sm"
