@@ -42,6 +42,7 @@ const RolePriorityTree = () => {
   const [priorityLevels, setPriorityLevels] = useState([]);
   const [geneDetails, setGeneDetails] = useState(null);
   const [loadingGene, setLoadingGene] = useState(true);
+  const [availableRoles, setAvailableRoles] = useState([]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -49,15 +50,79 @@ const RolePriorityTree = () => {
   useEffect(() => {
     if (gId) {
       fetchGeneDetails();
+      fetchRoles();
     }
   }, [gId]);
 
   // Fetch users after gene details are loaded (so we can use geneDetails.users as fallback)
+  // Note: We fetch users even if roles aren't loaded yet - roles will be used during normalization
   useEffect(() => {
     if (gId && geneDetails !== null) {
       fetchGeanMappedUser();
     }
   }, [gId, geneDetails]);
+
+  // Re-normalize users when roles become available (in case roles loaded after users)
+  useEffect(() => {
+    if (users.length > 0 && availableRoles.length > 0) {
+      // Check if any users are missing priority information
+      const needsReNormalization = users.some(u => 
+        !u.role_info?.priority || u.role_info.priority === 999
+      );
+      
+      if (!needsReNormalization) {
+        return; // All users already have proper priorities
+      }
+      
+      // Re-normalize existing users with updated role information
+      const normalizedUsers = users.map((u) => {
+        // If user already has a valid priority, keep it
+        if (u.role_info?.priority && u.role_info.priority !== 999) {
+          return u;
+        }
+        
+        const originalUser = u;
+        let roleName = u.role_info?.role_name || 'User';
+        let priority = u.role_info?.priority || 999;
+        
+        // If we have role_id but priority is still default, try to look it up
+        if (u.role_id) {
+          const role = availableRoles.find(r => 
+            (r.role_id || r.id) === u.role_id || 
+            String(r.role_id || r.id) === String(u.role_id)
+          );
+          if (role) {
+            roleName = role.role_name || role.name || roleName;
+            priority = role.priority || priority;
+          }
+        }
+        
+        // If we have role name but no priority, try to find by name
+        if (roleName !== 'User' && priority === 999) {
+          const roleByName = availableRoles.find(r => 
+            (r.role_name || r.name || '').toLowerCase() === roleName.toLowerCase()
+          );
+          if (roleByName) {
+            priority = roleByName.priority || priority;
+          }
+        }
+        
+        return {
+          ...originalUser,
+          role_info: {
+            role_name: roleName,
+            priority: priority,
+          },
+        };
+      });
+      
+      console.log('Re-normalizing users with updated role priorities');
+      setUsers(normalizedUsers);
+      extractPriorityLevels(normalizedUsers);
+      buildPriorityTree(normalizedUsers);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableRoles]);
 
   const fetchGeneDetails = async () => {
     try {
@@ -99,6 +164,47 @@ const RolePriorityTree = () => {
       // Don't show error - just continue without gene details
     } finally {
       setLoadingGene(false);
+    }
+  };
+
+  const fetchRoles = async () => {
+    try {
+      // Get token from localStorage
+      const token = localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken');
+      
+      if (!token) {
+        console.warn('No token available for fetching roles');
+        return;
+      }
+
+      const rolesUrl = `${API_CONSTANTS.BASE_URL}/api/roles`;
+      console.log('Fetching roles from:', rolesUrl);
+      
+      const response = await axios.get(
+        rolesUrl,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          timeout: 30000
+        }
+      );
+
+      console.log('Roles Response:', response.data);
+      if (response.data) {
+        const roleData = Array.isArray(response.data)
+          ? response.data
+          : response.data.data || response.data.roles || [];
+        setAvailableRoles(roleData);
+        console.log('Roles fetched:', roleData);
+      }
+    } catch (err) {
+      console.error('Error fetching roles:', err);
+      // Don't show error - just continue without roles (will use fallback)
+      setAvailableRoles([]);
     }
   };
 
@@ -209,15 +315,59 @@ const RolePriorityTree = () => {
         const name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
         const username = name || u.email || `User ${id || ''}`;
         
-        // Extract role - handle both string and object formats
+        // Extract role and priority - handle multiple formats
         let roleName = 'User';
-        if (u.roles && typeof u.roles === 'string') {
-          roleName = u.roles;
-        } else if (u.role && typeof u.role === 'string') {
-          roleName = u.role;
-        } else if (u.role_id) {
-          // If we have role_id, we might need to fetch role name, but for now use 'User'
-          roleName = 'User';
+        let priority = 999; // Default priority (lowest)
+        
+        // First, try to get role from role_id by looking up in availableRoles
+        if (u.role_id) {
+          const role = availableRoles.find(r => 
+            (r.role_id || r.id) === u.role_id || 
+            String(r.role_id || r.id) === String(u.role_id)
+          );
+          if (role) {
+            roleName = role.role_name || role.name || 'User';
+            priority = role.priority || 999;
+          }
+        }
+        
+        // If role_id lookup didn't work, try other formats
+        if (roleName === 'User' && priority === 999) {
+          if (u.roles && typeof u.roles === 'string') {
+            roleName = u.roles;
+            // Try to find priority by role name
+            const roleByName = availableRoles.find(r => 
+              (r.role_name || r.name || '').toLowerCase() === u.roles.toLowerCase()
+            );
+            if (roleByName) {
+              priority = roleByName.priority || 999;
+            }
+          } else if (u.role && typeof u.role === 'string') {
+            roleName = u.role;
+            // Try to find priority by role name
+            const roleByName = availableRoles.find(r => 
+              (r.role_name || r.name || '').toLowerCase() === u.role.toLowerCase()
+            );
+            if (roleByName) {
+              priority = roleByName.priority || 999;
+            }
+          } else if (u.roles && typeof u.roles === 'object') {
+            // Handle roles as object
+            if (u.roles.role_name || u.roles.name) {
+              roleName = u.roles.role_name || u.roles.name;
+              priority = u.roles.priority || 999;
+            }
+          }
+        }
+        
+        // Check if user object has role_info already (from API response)
+        if (u.role_info) {
+          if (u.role_info.role_name) {
+            roleName = u.role_info.role_name;
+          }
+          if (u.role_info.priority !== undefined && u.role_info.priority !== null) {
+            priority = u.role_info.priority;
+          }
         }
         
         return {
@@ -226,6 +376,7 @@ const RolePriorityTree = () => {
           username,
           role_info: {
             role_name: roleName,
+            priority: priority,
           },
         };
       });
