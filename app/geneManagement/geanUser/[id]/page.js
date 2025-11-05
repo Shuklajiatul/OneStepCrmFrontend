@@ -49,9 +49,15 @@ const RolePriorityTree = () => {
   useEffect(() => {
     if (gId) {
       fetchGeneDetails();
-      fetchGeanMappedUser();
     }
   }, [gId]);
+
+  // Fetch users after gene details are loaded (so we can use geneDetails.users as fallback)
+  useEffect(() => {
+    if (gId && geneDetails !== null) {
+      fetchGeanMappedUser();
+    }
+  }, [gId, geneDetails]);
 
   const fetchGeneDetails = async () => {
     try {
@@ -117,53 +123,117 @@ const RolePriorityTree = () => {
       const endPoint = API_CONSTANTS.geneMappedUser;
       const fullUrl = baseUrl + endPoint + '/' + gId;
      
-      const response = await axios.get(
-        fullUrl,
-        {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          timeout: 30000
-        }
-      );
-     
-      const resp = response.data || {};
-      console.log('API Response:', resp);
+      let rawUsers = [];
       
-      const isOk = resp.status === 'success' || resp.success === true;
-      if (isOk) {
-        const rawUsers = Array.isArray(resp.data) ? resp.data : [];
-  
-        // Normalize users for UI consumption - FIXED VERSION
-        const normalizedUsers = rawUsers.map((u) => {
-          const id = u.user_id || u.id;
-          const name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
-          const username = name || u.email || `User ${id || ''}`;
-          
-          // Extract role and assign priority based on role
-          const roleName = u.roles || 'User';
-          
-          return {
-            ...u,
-            id,
-            username,
-            role_info: {
-              role_name: roleName,
-              // priority: priority
+      try {
+        // First, try the specific endpoint
+        const response = await axios.get(
+          fullUrl,
+          {
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
             },
-          };
-        });
-  
-        console.log('Normalized Users:', normalizedUsers); 
-        setUsers(normalizedUsers);
-        extractPriorityLevels(normalizedUsers);
-        buildPriorityTree(normalizedUsers);
-      } else {
-        setError('Failed to fetch mapped users');
-        toast.error('Failed to fetch mapped users');
+            timeout: 30000
+          }
+        );
+       
+        const resp = response.data || {};
+        console.log('API Response:', resp);
+       
+        const isOk = resp.status === 'success' || resp.success === true;
+        if (isOk) {
+          rawUsers = Array.isArray(resp.data) ? resp.data : [];
+        }
+      } catch (apiErr) {
+        console.warn('Primary API endpoint failed, trying fallback:', apiErr);
       }
+      
+      // Fallback: If API returned empty or failed, fetch all users and filter by g_ids
+      if (!rawUsers || rawUsers.length === 0) {
+        console.log('Using fallback: fetching all users and filtering by g_ids');
+        try {
+          const allUsersResponse = await axios.get(
+            `${baseUrl}/api/users`,
+            {
+              headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              timeout: 30000
+            }
+          );
+          
+          let allUsers = [];
+          if (Array.isArray(allUsersResponse.data)) {
+            allUsers = allUsersResponse.data;
+          } else if (allUsersResponse.data?.success && Array.isArray(allUsersResponse.data.data)) {
+            allUsers = allUsersResponse.data.data;
+          } else if (Array.isArray(allUsersResponse.data?.data)) {
+            allUsers = allUsersResponse.data.data;
+          }
+          
+          // Filter users where g_ids array contains the current gene ID
+          rawUsers = allUsers.filter(user => {
+            const gIds = user.g_ids || [];
+            if (Array.isArray(gIds)) {
+              return gIds.some(id => String(id) === String(gId));
+            }
+            return String(gIds) === String(gId);
+          });
+          
+          console.log(`Found ${rawUsers.length} users mapped to gene ${gId}`);
+        } catch (fallbackErr) {
+          console.error('Fallback also failed:', fallbackErr);
+          // If fallback fails, try to use user IDs from gene details if available
+          if (geneDetails && geneDetails.users && Array.isArray(geneDetails.users) && geneDetails.users.length > 0) {
+            console.log('Using user IDs from gene details as last resort');
+            // We have user IDs but not full user objects, so we'll create minimal user objects
+            rawUsers = geneDetails.users.map(userId => ({
+              user_id: userId,
+              id: userId,
+              first_name: '',
+              last_name: '',
+              email: '',
+              roles: 'User'
+            }));
+          }
+        }
+      }
+
+      // Normalize users for UI consumption
+      const normalizedUsers = rawUsers.map((u) => {
+        const id = u.user_id || u.id;
+        const name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+        const username = name || u.email || `User ${id || ''}`;
+        
+        // Extract role - handle both string and object formats
+        let roleName = 'User';
+        if (u.roles && typeof u.roles === 'string') {
+          roleName = u.roles;
+        } else if (u.role && typeof u.role === 'string') {
+          roleName = u.role;
+        } else if (u.role_id) {
+          // If we have role_id, we might need to fetch role name, but for now use 'User'
+          roleName = 'User';
+        }
+        
+        return {
+          ...u,
+          id,
+          username,
+          role_info: {
+            role_name: roleName,
+          },
+        };
+      });
+
+      console.log('Normalized Users:', normalizedUsers); 
+      setUsers(normalizedUsers);
+      extractPriorityLevels(normalizedUsers);
+      buildPriorityTree(normalizedUsers);
     } catch (err) {
       console.error('Fetch error:', err);
       if (err.response?.status === 401) {
@@ -336,7 +406,6 @@ const RolePriorityTree = () => {
     setEdges(newEdges);
   };
 
-  // Custom node component with shadcn styling
   const CustomNode = ({ data }) => {
     return (
       <Card className="min-w-[140px] hover:shadow-lg transition-all cursor-default">

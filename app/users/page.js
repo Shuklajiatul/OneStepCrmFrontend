@@ -89,12 +89,18 @@ export default function UsersPage() {
     password: "",
     is_active: true,
     role_id: "",
+    "g_ids": "",
+    "p_id": "",
   })
   const [roleFormData, setRoleFormData] = useState({
     role_id: "",
   })
   const [availableRoles, setAvailableRoles] = useState([])
   const [rolesLoading, setRolesLoading] = useState(false)
+  const [availableGenes, setAvailableGenes] = useState([])
+  const [genesLoading, setGenesLoading] = useState(false)
+  const [availablePolicies, setAvailablePolicies] = useState([])
+  const [policiesLoading, setPoliciesLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -104,6 +110,13 @@ export default function UsersPage() {
     fetchUsers()
     fetchRoles()
   }, [])
+
+  useEffect(() => {
+    if (isCreateDialogOpen || isEditDialogOpen) {
+      fetchGenes()
+      fetchPolicies()
+    }
+  }, [isCreateDialogOpen, isEditDialogOpen])
 
   useEffect(() => {
     if (darkMode) {
@@ -128,7 +141,6 @@ export default function UsersPage() {
 
   const getAuthHeaders = () => {
     const token = getAuthToken()
-    console.log("Token:", token)
     return {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -195,6 +207,56 @@ export default function UsersPage() {
     }
   }
 
+  const fetchGenes = async () => {
+    try {
+      setGenesLoading(true)
+      const response = await axios.get(`${API_BASE_URL}/api/genes`, {
+        headers: getAuthHeaders(),
+        timeout: 30000,
+      })
+
+      if (response.data) {
+        const geneData = Array.isArray(response.data)
+          ? response.data
+          : response.data.data || response.data.genes || []
+        setAvailableGenes(geneData)
+      }
+    } catch (error) {
+      console.error("Error fetching genes:", error)
+      if (error.response?.status !== 401) {
+        toast.error("Failed to fetch genes. Please check your connection.")
+      }
+      setAvailableGenes([])
+    } finally {
+      setGenesLoading(false)
+    }
+  }
+
+  const fetchPolicies = async () => {
+    try {
+      setPoliciesLoading(true)
+      const response = await axios.get(`${API_BASE_URL}/api/policies`, {
+        headers: getAuthHeaders(),
+        timeout: 30000,
+      })
+
+      if (response.data) {
+        const policyData = Array.isArray(response.data)
+          ? response.data
+          : response.data.data || response.data.policies || []
+        setAvailablePolicies(policyData)
+      }
+    } catch (error) {
+      console.error("Error fetching policies:", error)
+      if (error.response?.status !== 401) {
+        toast.error("Failed to fetch policies. Please check your connection.")
+      }
+      setAvailablePolicies([])
+    } finally {
+      setPoliciesLoading(false)
+    }
+  }
+
   const fetchUserDetails = async (userId) => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/users/${userId}`, {
@@ -205,6 +267,15 @@ export default function UsersPage() {
       if (response.data) {
         const userData = response.data.data || response.data
         setSelectedUser(userData)
+        // Handle g_ids and p_id as arrays - take first element if array, otherwise use as is
+        const gIdsValue = Array.isArray(userData["g_ids"]) 
+          ? (userData["g_ids"].length > 0 ? userData["g_ids"][0] : "")
+          : (userData["g_ids"] || "")
+        
+        const pIdValue = Array.isArray(userData["p_id"])
+          ? (userData["p_id"].length > 0 ? userData["p_id"][0] : "")
+          : (userData["p_id"] || "")
+
         setFormData({
           email: userData.email || "",
           first_name: userData.first_name || "",
@@ -212,6 +283,8 @@ export default function UsersPage() {
           password: "",
           is_active: userData.is_active !== undefined ? userData.is_active : true,
           role_id: userData.role_id || userData.roles?.id || userData.roles || "",
+          "g_ids": gIdsValue,
+          "p_id": pIdValue,
         })
         return userData
       }
@@ -237,6 +310,8 @@ export default function UsersPage() {
         password: formData.password,
         is_active: formData.is_active,
         role_id: formData.role_id,
+        "g_ids": formData["g_ids"] || "",
+        "p_id": formData["p_id"] || "",
       }
 
       const response = await axios.post(`${API_BASE_URL}/api/users`, payload, {
@@ -277,6 +352,10 @@ export default function UsersPage() {
         payload.is_active = formData.is_active
       const currentRoleId = selectedUser.role_id || selectedUser.roles?.id || selectedUser.roles
       if (formData.role_id && formData.role_id !== currentRoleId) payload.role_id = formData.role_id
+      
+      // Add gene and policy fields
+      if (formData["g_ids"] !== selectedUser["g_ids"]) payload["g_ids"] = formData["g_ids"]
+      if (formData["p_id"] !== selectedUser["p_id"]) payload["p_id"] = formData["p_id"]
 
       if (Object.keys(payload).length === 0) {
         toast.info("No changes to update")
@@ -487,8 +566,15 @@ export default function UsersPage() {
       password: "",
       is_active: true,
       role_id: "",
+      "g_ids": "",
+      "p_id": "",
     })
     setSelectedUser(null)
+  }
+
+  const openCreateDialog = () => {
+    resetForm()
+    setIsCreateDialogOpen(true)
   }
 
   const openEditDialog = async (user) => {
@@ -516,6 +602,24 @@ export default function UsersPage() {
     ? availableRoles
     : []
 
+  // Helper function to get role name from role_id
+  const getRoleName = (user) => {
+    if (user.roles && typeof user.roles === 'string') {
+      return user.roles
+    }
+    if (user.role && typeof user.role === 'string') {
+      return user.role
+    }
+    if (user.role_id) {
+      const role = availableRoles.find(r => (r.role_id || r.id) === user.role_id)
+      if (role) {
+        return role.role_name || role.name || "Unknown Role"
+      }
+      return "No Role"
+    }
+    return "No Role"
+  }
+
   const filteredUsers = users.filter((user) => {
     // Search filter
     const matchesSearch =
@@ -534,12 +638,11 @@ export default function UsersPage() {
       (statusFilter === "inactive" && user.is_active === false)
 
     // Role filter - case insensitive comparison with trim
-    // API uses 'roles' field (plural)
-    const userRole = user.roles || user.role
+    const userRoleName = getRoleName(user)
     const matchesRole =
       roleFilter === "all" ||
-      (userRole &&
-        String(userRole).trim().toLowerCase() ===
+      (userRoleName &&
+        String(userRoleName).trim().toLowerCase() ===
         String(roleFilter).trim().toLowerCase())
 
     return matchesSearch && matchesStatus && matchesRole
@@ -594,108 +697,202 @@ export default function UsersPage() {
                       </Button>
                       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                         <DialogTrigger asChild>
-                          <Button onClick={resetForm}>
+                          <Button onClick={openCreateDialog}>
                             <UserPlus className="h-4 w-4 mr-2" />
                             Create User
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="sm:max-w-[500px]">
+                        <DialogContent className="sm:max-w-[650px] max-h-[90vh] flex flex-col">
                           <DialogHeader>
                             <DialogTitle>Create New User</DialogTitle>
                             <DialogDescription>
-                              Enter the user details below. All fields are required.
+                              Enter the user details below. All required fields must be filled.
                             </DialogDescription>
                           </DialogHeader>
-                          <div className="space-y-4 py-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="create-email">Email</Label>
-                              <Input
-                                id="create-email"
-                                type="email"
-                                placeholder="bob@acme.com"
-                                value={formData.email}
-                                onChange={(e) =>
-                                  setFormData({ ...formData, email: e.target.value })
-                                }
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="create-first-name">First Name</Label>
-                                <Input
-                                  id="create-first-name"
-                                  placeholder="Bob"
-                                  value={formData.first_name}
-                                  onChange={(e) =>
-                                    setFormData({ ...formData, first_name: e.target.value })
-                                  }
-                                />
+                          <div className="flex-1 overflow-y-auto px-1">
+                            <div className="space-y-5 py-4">
+                              {/* Basic Information Section */}
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-3 text-foreground">Basic Information</h4>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="create-email">Email <span className="text-destructive">*</span></Label>
+                                  <Input
+                                    id="create-email"
+                                    type="email"
+                                    placeholder="bob@acme.com"
+                                    value={formData.email}
+                                    onChange={(e) =>
+                                      setFormData({ ...formData, email: e.target.value })
+                                    }
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="create-first-name">First Name <span className="text-destructive">*</span></Label>
+                                    <Input
+                                      id="create-first-name"
+                                      placeholder="Bob"
+                                      value={formData.first_name}
+                                      onChange={(e) =>
+                                        setFormData({ ...formData, first_name: e.target.value })
+                                      }
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="create-last-name">Last Name <span className="text-destructive">*</span></Label>
+                                    <Input
+                                      id="create-last-name"
+                                      placeholder="Jones"
+                                      value={formData.last_name}
+                                      onChange={(e) =>
+                                        setFormData({ ...formData, last_name: e.target.value })
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="create-password">Password <span className="text-destructive">*</span></Label>
+                                  <Input
+                                    id="create-password"
+                                    type="password"
+                                    placeholder="UserPass123"
+                                    value={formData.password}
+                                    onChange={(e) =>
+                                      setFormData({ ...formData, password: e.target.value })
+                                    }
+                                  />
+                                </div>
                               </div>
-                              <div className="space-y-2">
-                                <Label htmlFor="create-last-name">Last Name</Label>
-                                <Input
-                                  id="create-last-name"
-                                  placeholder="Jones"
-                                  value={formData.last_name}
-                                  onChange={(e) =>
-                                    setFormData({ ...formData, last_name: e.target.value })
-                                  }
-                                />
+
+                              <Separator />
+
+                              {/* Role & Permissions Section */}
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-3 text-foreground">Role & Permissions</h4>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="create-role">Role <span className="text-destructive">*</span></Label>
+                                  <Select
+                                    value={formData.role_id}
+                                    onValueChange={(value) =>
+                                      setFormData({ ...formData, role_id: value })
+                                    }
+                                    disabled={rolesLoading}
+                                  >
+                                    <SelectTrigger id="create-role">
+                                      <SelectValue placeholder={rolesLoading ? "Loading roles..." : "Select role"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {roleOptions.length === 0 && !rolesLoading ? (
+                                        <SelectItem value="" disabled>No roles available</SelectItem>
+                                      ) : (
+                                        roleOptions.map((role) => {
+                                          const roleId = role.role_id || role.id
+                                          const roleName = role.role_name || role.name || role
+                                          return (
+                                            <SelectItem key={roleId} value={roleId}>
+                                              {roleName}
+                                            </SelectItem>
+                                          )
+                                        })
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="create-gene">Gene</Label>
+                                    <Select
+                                      value={formData["g_ids"] || undefined}
+                                      onValueChange={(value) =>
+                                        setFormData({ ...formData, "g_ids": value === "__clear__" ? "" : value })
+                                      }
+                                      disabled={genesLoading}
+                                    >
+                                      <SelectTrigger id="create-gene">
+                                        <SelectValue placeholder={genesLoading ? "Loading genes..." : "Select gene (optional)"} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {availableGenes.length === 0 && !genesLoading ? (
+                                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No genes available</div>
+                                        ) : (
+                                          <>
+                                            {formData["g_ids"] && (
+                                              <SelectItem value="__clear__">Clear selection</SelectItem>
+                                            )}
+                                            {availableGenes.map((gene) => {
+                                              const geneId = gene.g_id || gene.id
+                                              const geneName = gene.name || gene.g_name || `Gene ${geneId}`
+                                              return (
+                                                <SelectItem key={geneId} value={geneId}>
+                                                  {geneName}
+                                                </SelectItem>
+                                              )
+                                            })}
+                                          </>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="create-policy">Policy</Label>
+                                    <Select
+                                      value={formData["p_id"] || undefined}
+                                      onValueChange={(value) =>
+                                        setFormData({ ...formData, "p_id": value === "__clear__" ? "" : value })
+                                      }
+                                      disabled={policiesLoading}
+                                    >
+                                      <SelectTrigger id="create-policy">
+                                        <SelectValue placeholder={policiesLoading ? "Loading policies..." : "Select policy (optional)"} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {availablePolicies.length === 0 && !policiesLoading ? (
+                                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No policies available</div>
+                                        ) : (
+                                          <>
+                                            {formData["p_id"] && (
+                                              <SelectItem value="__clear__">Clear selection</SelectItem>
+                                            )}
+                                            {availablePolicies.map((policy) => {
+                                              const policyId = policy.p_id || policy.policy_id || policy.id
+                                              const policyName = policy.p_name || policy.policy_name || policy.name || `Policy ${policyId}`
+                                              return (
+                                                <SelectItem key={policyId} value={policyId}>
+                                                  {policyName}
+                                                </SelectItem>
+                                              )
+                                            })}
+                                          </>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="create-password">Password</Label>
-                              <Input
-                                id="create-password"
-                                type="password"
-                                placeholder="UserPass123"
-                                value={formData.password}
-                                onChange={(e) =>
-                                  setFormData({ ...formData, password: e.target.value })
-                                }
-                              />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor="create-role">Role *</Label>
-                                <Select
-                                  value={formData.role_id}
-                                  onValueChange={(value) =>
-                                    setFormData({ ...formData, role_id: value })
-                                  }
-                                  disabled={rolesLoading}
-                                >
-                                  <SelectTrigger id="create-role">
-                                    <SelectValue placeholder={rolesLoading ? "Loading roles..." : "Select role"} />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {roleOptions.length === 0 && !rolesLoading ? (
-                                      <SelectItem value="" disabled>No roles available</SelectItem>
-                                    ) : (
-                                      roleOptions.map((role) => {
-                                        const roleId = role.role_id || role.id
-                                        const roleName = role.role_name || role.name || role
-                                        return (
-                                          <SelectItem key={roleId} value={roleId}>
-                                            {roleName}
-                                          </SelectItem>
-                                        )
-                                      })
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="flex items-center justify-center space-x-2 pt-6">
-                                <Label htmlFor="create-active" className="cursor-pointer">
-                                  Active
-                                </Label>
-                                <Switch
-                                  id="create-active"
-                                  checked={formData.is_active}
-                                  onCheckedChange={(checked) =>
-                                    setFormData({ ...formData, is_active: checked })
-                                  }
-                                />
+
+                              <Separator />
+
+                              {/* Status Section */}
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-3 text-foreground">Status</h4>
+                                </div>
+                                <div className="flex items-center space-x-3">
+                                  <Switch
+                                    id="create-active"
+                                    checked={formData.is_active}
+                                    onCheckedChange={(checked) =>
+                                      setFormData({ ...formData, is_active: checked })
+                                    }
+                                  />
+                                  <Label htmlFor="create-active" className="cursor-pointer font-normal">
+                                    User is active
+                                  </Label>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -827,7 +1024,7 @@ export default function UsersPage() {
                                   </TableCell>
                                   <TableCell className="py-4">{user.email || "N/A"}</TableCell>
                                   <TableCell className="py-4">
-                                    <Badge variant="secondary">{user.roles || user.role || "User"}</Badge>
+                                    <Badge variant="secondary">{getRoleName(user)}</Badge>
                                   </TableCell>
                                   <TableCell className="py-4">
                                     <div className="flex items-center gap-2">
@@ -872,55 +1069,10 @@ export default function UsersPage() {
                                       >
                                         <Shield className="h-4 w-4" />
                                       </Button>
-                                  {/* <Tooltip>
-                            <TooltipTrigger asChild>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Deactivate User</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to deactivate{" "}
-                                      <strong>
-                                        {user.first_name} {user.last_name}
-                                      </strong>
-                                      ? This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => handleDeactivateUser(user.user_id)}
-                                      className="bg-destructive text-destructive-foreground"
-                                      disabled={submitting}
-                                    >
-                                      {submitting ? (
-                                        <>
-                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                          Deactivating...
-                                        </>
-                                      ) : (
-                                        "Deactivate"
-                                      )}
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </TooltipTrigger>
-                            <TooltipContent>Deactivate User</TooltipContent>
-                          </Tooltip> */}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
                             </TableBody>
                           </Table>
                         </div>
@@ -957,7 +1109,7 @@ export default function UsersPage() {
                         <div>
                           <Label className="text-muted-foreground">Role</Label>
                           <p className="text-sm font-medium">
-                            <Badge variant="secondary">{selectedUser.roles || selectedUser.role || "User"}</Badge>
+                            <Badge variant="secondary">{selectedUser ? getRoleName(selectedUser) : "No Role"}</Badge>
                           </p>
                         </div>
                         <div>
@@ -1026,93 +1178,190 @@ export default function UsersPage() {
 
               {/* Edit User Dialog */}
               <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent className="sm:max-w-[500px]">
+                <DialogContent className="sm:max-w-[650px] max-h-[90vh] flex flex-col">
                   <DialogHeader>
                     <DialogTitle>Edit User</DialogTitle>
                     <DialogDescription>
-                      Update user information. Leave password empty to keep current password.
+                      Update user information. Leave password empty to keep the current password.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-email">Email</Label>
-                      <Input
-                        id="edit-email"
-                        type="email"
-                        placeholder="bob@acme.com"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-first-name">First Name</Label>
-                        <Input
-                          id="edit-first-name"
-                          placeholder="Bob"
-                          value={formData.first_name}
-                          onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                        />
+                  <div className="flex-1 overflow-y-auto px-1">
+                    <div className="space-y-5 py-4">
+                      {/* Basic Information Section */}
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="text-sm font-semibold mb-3 text-foreground">Basic Information</h4>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-email">Email</Label>
+                          <Input
+                            id="edit-email"
+                            type="email"
+                            placeholder="bob@acme.com"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-first-name">First Name</Label>
+                            <Input
+                              id="edit-first-name"
+                              placeholder="Bob"
+                              value={formData.first_name}
+                              onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-last-name">Last Name</Label>
+                            <Input
+                              id="edit-last-name"
+                              placeholder="Jones"
+                              value={formData.last_name}
+                              onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-password">New Password</Label>
+                          <Input
+                            id="edit-password"
+                            type="password"
+                            placeholder="Leave empty to keep current password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Leave blank to keep the current password unchanged.
+                          </p>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-last-name">Last Name</Label>
-                        <Input
-                          id="edit-last-name"
-                          placeholder="Jones"
-                          value={formData.last_name}
-                          onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                        />
+
+                      <Separator />
+
+                      {/* Role & Permissions Section */}
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="text-sm font-semibold mb-3 text-foreground">Role & Permissions</h4>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-role">Role</Label>
+                          <Select
+                            value={formData.role_id}
+                            onValueChange={(value) => setFormData({ ...formData, role_id: value })}
+                            disabled={rolesLoading}
+                          >
+                            <SelectTrigger id="edit-role">
+                              <SelectValue placeholder={rolesLoading ? "Loading roles..." : "Select role"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {roleOptions.length === 0 && !rolesLoading ? (
+                                <SelectItem value="" disabled>No roles available</SelectItem>
+                              ) : (
+                                roleOptions.map((role) => {
+                                  const roleId = role.role_id || role.id
+                                  const roleName = role.role_name || role.name || role
+                                  return (
+                                    <SelectItem key={roleId} value={roleId}>
+                                      {roleName}
+                                    </SelectItem>
+                                  )
+                                })
+                              )}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-gene">Gene</Label>
+                            <Select
+                              value={formData["g_ids"] || undefined}
+                              onValueChange={(value) =>
+                                setFormData({ ...formData, "g_ids": value === "__clear__" ? "" : value })
+                              }
+                              disabled={genesLoading}
+                            >
+                              <SelectTrigger id="edit-gene">
+                                <SelectValue placeholder={genesLoading ? "Loading genes..." : "Select gene (optional)"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableGenes.length === 0 && !genesLoading ? (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No genes available</div>
+                                ) : (
+                                  <>
+                                    {formData["g_ids"] && (
+                                      <SelectItem value="__clear__">Clear selection</SelectItem>
+                                    )}
+                                    {availableGenes.map((gene) => {
+                                      const geneId = gene.g_id || gene.id
+                                      const geneName = gene.name || gene.g_name || `Gene ${geneId}`
+                                      return (
+                                        <SelectItem key={geneId} value={geneId}>
+                                          {geneName}
+                                        </SelectItem>
+                                      )
+                                    })}
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="edit-policy">Policy</Label>
+                            <Select
+                              value={formData["p_id"] || undefined}
+                              onValueChange={(value) =>
+                                setFormData({ ...formData, "p_id": value === "__clear__" ? "" : value })
+                              }
+                              disabled={policiesLoading}
+                            >
+                              <SelectTrigger id="edit-policy">
+                                <SelectValue placeholder={policiesLoading ? "Loading policies..." : "Select policy (optional)"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availablePolicies.length === 0 && !policiesLoading ? (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No policies available</div>
+                                ) : (
+                                  <>
+                                    {formData["p_id"] && (
+                                      <SelectItem value="__clear__">Clear selection</SelectItem>
+                                    )}
+                                    {availablePolicies.map((policy) => {
+                                      const policyId = policy.p_id || policy.policy_id || policy.id
+                                      const policyName = policy.p_name || policy.policy_name || policy.name || `Policy ${policyId}`
+                                      return (
+                                        <SelectItem key={policyId} value={policyId}>
+                                          {policyName}
+                                        </SelectItem>
+                                      )
+                                    })}
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="edit-password">New Password (optional)</Label>
-                      <Input
-                        id="edit-password"
-                        type="password"
-                        placeholder="Leave empty to keep current password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="edit-role">Role</Label>
-                        <Select
-                          value={formData.role_id}
-                          onValueChange={(value) => setFormData({ ...formData, role_id: value })}
-                          disabled={rolesLoading}
-                        >
-                          <SelectTrigger id="edit-role">
-                            <SelectValue placeholder={rolesLoading ? "Loading roles..." : "Select role"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {roleOptions.length === 0 && !rolesLoading ? (
-                              <SelectItem value="" disabled>No roles available</SelectItem>
-                            ) : (
-                              roleOptions.map((role) => {
-                                const roleId = role.role_id || role.id
-                                const roleName = role.role_name || role.name || role
-                                return (
-                                  <SelectItem key={roleId} value={roleId}>
-                                    {roleName}
-                                  </SelectItem>
-                                )
-                              })
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-center justify-center space-x-2 pt-6">
-                        <Label htmlFor="edit-active" className="cursor-pointer">
-                          Active
-                        </Label>
-                        <Switch
-                          id="edit-active"
-                          checked={formData.is_active}
-                          onCheckedChange={(checked) =>
-                            setFormData({ ...formData, is_active: checked })
-                          }
-                        />
+
+                      <Separator />
+
+                      {/* Status Section */}
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="text-sm font-semibold mb-3 text-foreground">Status</h4>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <Switch
+                            id="edit-active"
+                            checked={formData.is_active}
+                            onCheckedChange={(checked) =>
+                              setFormData({ ...formData, is_active: checked })
+                            }
+                          />
+                          <Label htmlFor="edit-active" className="cursor-pointer font-normal">
+                            User is active
+                          </Label>
+                        </div>
                       </div>
                     </div>
                   </div>
