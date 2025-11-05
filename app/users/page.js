@@ -67,6 +67,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 
 // API Base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
@@ -91,6 +99,7 @@ export default function UsersPage() {
     role_id: "",
     "g_ids": "",
     "p_id": "",
+    reporting_id: "",
   })
   const [roleFormData, setRoleFormData] = useState({
     role_id: "",
@@ -105,6 +114,8 @@ export default function UsersPage() {
   const [darkMode, setDarkMode] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [activeTab, setActiveTab] = useState("dashboard")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
 
   useEffect(() => {
     fetchUsers()
@@ -285,6 +296,7 @@ export default function UsersPage() {
           role_id: userData.role_id || userData.roles?.id || userData.roles || "",
           "g_ids": gIdsValue,
           "p_id": pIdValue,
+          reporting_id: userData.reporting_id || userData.reports_to || userData.reporting_to || "",
         })
         return userData
       }
@@ -312,6 +324,7 @@ export default function UsersPage() {
         role_id: formData.role_id,
         "g_ids": formData["g_ids"] || "",
         "p_id": formData["p_id"] || "",
+        reporting_id: formData.reporting_id || "",
       }
 
       const response = await axios.post(`${API_BASE_URL}/api/users`, payload, {
@@ -356,6 +369,10 @@ export default function UsersPage() {
       // Add gene and policy fields
       if (formData["g_ids"] !== selectedUser["g_ids"]) payload["g_ids"] = formData["g_ids"]
       if (formData["p_id"] !== selectedUser["p_id"]) payload["p_id"] = formData["p_id"]
+      
+      // Add reporting_id field
+      const currentReportingId = selectedUser.reporting_id || selectedUser.reports_to || selectedUser.reporting_to || ""
+      if (formData.reporting_id !== currentReportingId) payload.reporting_id = formData.reporting_id || ""
 
       if (Object.keys(payload).length === 0) {
         toast.info("No changes to update")
@@ -568,6 +585,7 @@ export default function UsersPage() {
       role_id: "",
       "g_ids": "",
       "p_id": "",
+      reporting_id: "",
     })
     setSelectedUser(null)
   }
@@ -620,6 +638,22 @@ export default function UsersPage() {
     return "No Role"
   }
 
+  // Helper function to get reporting manager name
+  const getReportingManagerName = (user) => {
+    const reportingId = user.reporting_id || user.reports_to || user.reporting_to
+    if (!reportingId) {
+      return "N/A"
+    }
+    const reportingToUser = users.find(u => (u.user_id || u.id) === reportingId)
+    if (reportingToUser) {
+      const userName = reportingToUser.first_name || reportingToUser.last_name
+        ? `${reportingToUser.first_name || ""} ${reportingToUser.last_name || ""}`.trim()
+        : reportingToUser.email || `User ${reportingId}`
+      return userName
+    }
+    return `User ID: ${reportingId}`
+  }
+
   const filteredUsers = users.filter((user) => {
     // Search filter
     const matchesSearch =
@@ -647,6 +681,21 @@ export default function UsersPage() {
 
     return matchesSearch && matchesStatus && matchesRole
   })
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedUsers = filteredUsers.slice(startIndex, startIndex + itemsPerPage)
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, statusFilter, roleFilter])
+
+  const handleItemsPerPageChange = (value) => {
+    setItemsPerPage(Number(value))
+    setCurrentPage(1)
+  }
 
   return (
     <main className="min-h-screen bg-background">
@@ -763,6 +812,51 @@ export default function UsersPage() {
                                       setFormData({ ...formData, password: e.target.value })
                                     }
                                   />
+                                </div>
+                              </div>
+
+                              <Separator />
+
+                              {/* Reporting Section */}
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-3 text-foreground">Reporting Structure</h4>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="create-reports-to">Reporting to</Label>
+                                  <Select
+                                    value={formData.reporting_id || undefined}
+                                    onValueChange={(value) =>
+                                      setFormData({ ...formData, reporting_id: value === "__clear__" ? "" : value })
+                                    }
+                                    disabled={loading}
+                                  >
+                                    <SelectTrigger id="create-reports-to">
+                                      <SelectValue placeholder={loading ? "Loading users..." : "Select user (optional)"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {users.length === 0 && !loading ? (
+                                        <div className="px-2 py-1.5 text-sm text-muted-foreground">No users available</div>
+                                      ) : (
+                                        <>
+                                          {formData.reporting_id && (
+                                            <SelectItem value="__clear__">Clear selection</SelectItem>
+                                          )}
+                                          {users.map((user) => {
+                                            const userId = user.user_id || user.id
+                                            const userName = user.first_name || user.last_name
+                                              ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+                                              : user.email || `User ${userId}`
+                                            return (
+                                              <SelectItem key={userId} value={userId}>
+                                                {userName} {user.email ? `(${user.email})` : ""}
+                                              </SelectItem>
+                                            )
+                                          })}
+                                        </>
+                                      )}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
                               </div>
 
@@ -1001,12 +1095,13 @@ export default function UsersPage() {
                                 <TableHead className="font-semibold text-foreground">Name</TableHead>
                                 <TableHead className="font-semibold text-foreground">Email</TableHead>
                                 <TableHead className="font-semibold text-foreground">Role</TableHead>
+                                <TableHead className="font-semibold text-foreground">Reporting</TableHead>
                                 <TableHead className="font-semibold text-foreground">Status</TableHead>
                                 <TableHead className="w-[120px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {filteredUsers.map((user) => (
+                              {paginatedUsers.map((user) => (
                                 <TableRow 
                                   key={user.user_id}
                                   className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
@@ -1025,6 +1120,11 @@ export default function UsersPage() {
                                   <TableCell className="py-4">{user.email || "N/A"}</TableCell>
                                   <TableCell className="py-4">
                                     <Badge variant="secondary">{getRoleName(user)}</Badge>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <span className="text-sm text-foreground">
+                                      {getReportingManagerName(user)}
+                                    </span>
                                   </TableCell>
                                   <TableCell className="py-4">
                                     <div className="flex items-center gap-2">
@@ -1079,6 +1179,86 @@ export default function UsersPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Pagination */}
+                  {filteredUsers.length > 0 && (
+                    <div className="mt-6 px-4 sm:px-0 pb-4 sm:pb-0">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                          {/* Items per page selector */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground whitespace-nowrap">Show</span>
+                            <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                              <SelectTrigger className="w-20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="5">5</SelectItem>
+                                <SelectItem value="10">10</SelectItem>
+                                <SelectItem value="20">20</SelectItem>
+                                <SelectItem value="50">50</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <span className="text-sm text-muted-foreground whitespace-nowrap">per page</span>
+                          </div>
+
+                          {/* Page info */}
+                          <div className="text-sm text-muted-foreground whitespace-nowrap">
+                            Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredUsers.length)} of {filteredUsers.length} users
+                          </div>
+                        </div>
+
+                        {/* Pagination controls */}
+                        {totalPages > 1 && (
+                          <Pagination>
+                            <PaginationContent>
+                              <PaginationItem>
+                                <PaginationPrevious
+                                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                              </PaginationItem>
+
+                              {/* Show limited page numbers for better UX */}
+                              {(() => {
+                                const pages = [];
+                                const maxVisiblePages = 5;
+                                let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+                                // Adjust start page if we're near the end
+                                if (endPage - startPage + 1 < maxVisiblePages) {
+                                  startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                                }
+
+                                for (let i = startPage; i <= endPage; i++) {
+                                  pages.push(
+                                    <PaginationItem key={i}>
+                                      <PaginationLink
+                                        onClick={() => setCurrentPage(i)}
+                                        isActive={currentPage === i}
+                                        className="cursor-pointer"
+                                      >
+                                        {i}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  );
+                                }
+                                return pages;
+                              })()}
+
+                              <PaginationItem>
+                                <PaginationNext
+                                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                              </PaginationItem>
+                            </PaginationContent>
+                          </Pagination>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1129,6 +1309,24 @@ export default function UsersPage() {
                           </p>
                         </div>
                       </div>
+                      {selectedUser.reporting_id || selectedUser.reports_to || selectedUser.reporting_to ? (
+                        <div>
+                          <Label className="text-muted-foreground">Reporting to</Label>
+                          <p className="text-sm font-medium">
+                            {(() => {
+                              const reportingId = selectedUser.reporting_id || selectedUser.reports_to || selectedUser.reporting_to
+                              const reportingToUser = users.find(u => (u.user_id || u.id) === reportingId)
+                              if (reportingToUser) {
+                                const userName = reportingToUser.first_name || reportingToUser.last_name
+                                  ? `${reportingToUser.first_name || ""} ${reportingToUser.last_name || ""}`.trim()
+                                  : reportingToUser.email || `User ${reportingId}`
+                                return `${userName}${reportingToUser.email ? ` (${reportingToUser.email})` : ""}`
+                              }
+                              return `User ID: ${reportingId}`
+                            })()}
+                          </p>
+                        </div>
+                      ) : null}
                       {selectedUser.user_id && (
                         <div>
                           <Label className="text-muted-foreground">User ID</Label>
@@ -1234,6 +1432,53 @@ export default function UsersPage() {
                           <p className="text-xs text-muted-foreground">
                             Leave blank to keep the current password unchanged.
                           </p>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Reporting Section */}
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="text-sm font-semibold mb-3 text-foreground">Reporting Structure</h4>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-reports-to">Reporting to</Label>
+                          <Select
+                            value={formData.reporting_id || undefined}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, reporting_id: value === "__clear__" ? "" : value })
+                            }
+                            disabled={loading}
+                          >
+                            <SelectTrigger id="edit-reports-to">
+                              <SelectValue placeholder={loading ? "Loading users..." : "Select user (optional)"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {users.length === 0 && !loading ? (
+                                <div className="px-2 py-1.5 text-sm text-muted-foreground">No users available</div>
+                              ) : (
+                                <>
+                                  {formData.reporting_id && (
+                                    <SelectItem value="__clear__">Clear selection</SelectItem>
+                                  )}
+                                  {users
+                                    .filter((user) => user.user_id !== selectedUser?.user_id) // Exclude current user
+                                    .map((user) => {
+                                      const userId = user.user_id || user.id
+                                      const userName = user.first_name || user.last_name
+                                        ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+                                        : user.email || `User ${userId}`
+                                      return (
+                                        <SelectItem key={userId} value={userId}>
+                                          {userName} {user.email ? `(${user.email})` : ""}
+                                        </SelectItem>
+                                      )
+                                    })}
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 
