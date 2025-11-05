@@ -12,21 +12,34 @@ import { ArrowLeft, Loader2, Users, CheckCircle2, XCircle, Shield, Download, Eye
 import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
-export function PolicyMappedUsersTab({ policy, onBack }) {
+export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
   const [mappedUsers, setMappedUsers] = useState([])
   const [availableUsers, setAvailableUsers] = useState([])
   const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState("mapped")
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [userToRemove, setUserToRemove] = useState(null)
+  const [removingUser, setRemovingUser] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
       await fetchRoles()
-      await fetchMappedUsers()
+      await fetchMappedUsers(true) // Show loading on initial load
       await fetchAvailableUsers()
     }
     loadData()
@@ -52,9 +65,11 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
     }
   }
 
-  const fetchMappedUsers = async () => {
+  const fetchMappedUsers = async (showLoading = false) => {
     try {
-      setLoading(true)
+      if (showLoading) {
+        setLoading(true)
+      }
       const token = authUtils.getAuthHeader()
       if (!token) return
 
@@ -74,11 +89,13 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
       setMappedUsers([])
       return []
     } finally {
-      setLoading(false)
+      if (showLoading) {
+        setLoading(false)
+      }
     }
   }
 
-  const fetchAvailableUsers = async () => {
+  const fetchAvailableUsers = async (freshMappedUsers = null) => {
     try {
       const token = authUtils.getAuthHeader()
       if (!token) return
@@ -91,10 +108,13 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
         ? response.data
         : response.data?.data || response.data?.users || []
 
-      // Get current mapped users to filter them out
-      const mappedUserData = mappedUsers.length > 0 
-        ? mappedUsers 
-        : await fetchMappedUsers()
+      // Use fresh mapped users if provided, otherwise get current mapped users
+      let mappedUserData = freshMappedUsers
+      if (!mappedUserData) {
+        mappedUserData = mappedUsers.length > 0 
+          ? mappedUsers 
+          : await fetchMappedUsers(false)
+      }
       
       const mappedUserIds = mappedUserData.map(u => u.user_id || u.id)
       const available = userData.filter(u => !mappedUserIds.includes(u.user_id || u.id))
@@ -122,25 +142,62 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
     return name.toLowerCase().includes(search) || email.toLowerCase().includes(search)
   })
 
-  const handleRemoveUser = async (user) => {
+  const handleRemoveUser = (user) => {
+    setUserToRemove(user)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmRemoveUser = async () => {
+    if (!userToRemove) return
+
     try {
+      setRemovingUser(true)
       const token = authUtils.getAuthHeader()
-      if (!token) return
+      if (!token) {
+        toast.error("Authentication required")
+        return
+      }
 
       const policyId = policy.p_id || policy.policy_id || policy.id
-      const userId = user.user_id || user.id
+      const userId = userToRemove.user_id || userToRemove.id
 
-      // API call to remove user from policy
-      await axios.delete(`${API_BASE_URL}/api/policies/${policyId}/users/${userId}`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      })
+      if (!policyId || !userId) {
+        toast.error("Policy ID and User ID are required")
+        return
+      }
+
+      // API call to remove user from policy using policyMapToUser endpoint
+      await axios.post(
+        `${API_BASE_URL}/api/users/policyMapToUser`,
+        {
+          userId: userId,
+          policyMapRemove: [policyId]
+        },
+        {
+          headers: { 
+            Authorization: token, 
+            "Content-Type": "application/json" 
+          },
+        }
+      )
 
       toast.success("User removed from policy successfully")
-      await fetchMappedUsers()
-      await fetchAvailableUsers()
+      setDeleteDialogOpen(false)
+      setUserToRemove(null)
+      
+      // First fetch updated mapped users, then use that data to update available users
+      const updatedMappedUsers = await fetchMappedUsers(false) // Silent update
+      await fetchAvailableUsers(updatedMappedUsers) // Pass fresh data to avoid stale state
+      
+      // Notify parent to refresh user counts (without full page reload)
+      if (onUserUpdate) {
+        onUserUpdate()
+      }
     } catch (error) {
       console.error("Error removing user:", error)
-      toast.error(error.response?.data?.message || "Failed to remove user from policy")
+      toast.error(error.response?.data?.message || error.response?.data?.error || "Failed to remove user from policy")
+    } finally {
+      setRemovingUser(false)
     }
   }
 
@@ -471,23 +528,47 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
                                     onClick={async () => {
                                       try {
                                         const token = authUtils.getAuthHeader()
-                                        if (!token) return
+                                        if (!token) {
+                                          toast.error("Authentication required")
+                                          return
+                                        }
 
                                         const policyId = policy.p_id || policy.policy_id || policy.id
                                         const userId = user.user_id || user.id
 
+                                        if (!policyId || !userId) {
+                                          toast.error("Policy ID and User ID are required")
+                                          return
+                                        }
+
+                                        // API call to add user to policy using policyMapToUser endpoint
                                         await axios.post(
-                                          `${API_BASE_URL}/api/policies/${policyId}/users`,
-                                          { user_id: userId },
-                                          { headers: { Authorization: token, "Content-Type": "application/json" } }
+                                          `${API_BASE_URL}/api/users/policyMapToUser`,
+                                          {
+                                            userId: userId,
+                                            policyMap: [policyId]
+                                          },
+                                          { 
+                                            headers: { 
+                                              Authorization: token, 
+                                              "Content-Type": "application/json" 
+                                            } 
+                                          }
                                         )
 
                                         toast.success("User added to policy successfully")
-                                        await fetchMappedUsers()
-                                        await fetchAvailableUsers()
+                                        
+                                        // First fetch updated mapped users, then use that data to update available users
+                                        const updatedMappedUsers = await fetchMappedUsers(false) // Silent update
+                                        await fetchAvailableUsers(updatedMappedUsers) // Pass fresh data to avoid stale state
+                                        
+                                        // Notify parent to refresh user counts (without full page reload)
+                                        if (onUserUpdate) {
+                                          onUserUpdate()
+                                        }
                                       } catch (error) {
                                         console.error("Error adding user:", error)
-                                        toast.error(error.response?.data?.message || "Failed to add user to policy")
+                                        toast.error(error.response?.data?.message || error.response?.data?.error || "Failed to add user to policy")
                                       }
                                     }}
                                   >
@@ -507,6 +588,48 @@ export function PolicyMappedUsersTab({ policy, onBack }) {
           </Tabs>
       </CardContent>
     </Card>
+
+    {/* Remove User Confirmation Dialog */}
+    <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove User from Policy?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to remove{" "}
+            <span className="font-semibold">
+              {userToRemove ? getUserDisplayName(userToRemove) : "this user"}
+            </span>{" "}
+            from the policy{" "}
+            <span className="font-semibold">{policyName}</span>?
+            <br />
+            <br />
+            This action will revoke the user's access to this policy. This action cannot be undone.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={removingUser}>
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={confirmRemoveUser}
+            disabled={removingUser}
+            className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {removingUser ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <UserMinus className="h-4 w-4 mr-2" />
+                Delete
+              </>
+            )}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </div>
   )
 }

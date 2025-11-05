@@ -131,18 +131,41 @@ const fetchUserCountsForPolicies = async (policies) => {
   }
 
   const counts = {}
-  for (const policy of policies) {
+  
+  // Fetch all user counts in parallel for better performance
+  const fetchPromises = policies.map(async (policy) => {
+    const policyId = policy.p_id || policy.policy_id || policy.id
+    if (!policyId) {
+      return { policyId: null, count: 0 }
+    }
+
     try {
-      const policyId = policy.p_id || policy.policy_id || policy.id
-      const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}/users/count`, {
+      // Use the same endpoint that PolicyMappedUsersTab uses to get users
+      const response = await axios.get(`${API_BASE_URL}/api/policies/userByPolicy/${policyId}`, {
         headers: { Authorization: token, "Content-Type": "application/json" },
       })
-      counts[policyId] = response.data?.count || response.data?.data?.count || 0
+
+      // Extract user data from response
+      const userData = Array.isArray(response.data)
+        ? response.data
+        : response.data?.data || response.data?.users || []
+
+      return { policyId, count: userData.length }
     } catch (error) {
-      const policyId = policy.p_id || policy.policy_id || policy.id
-      counts[policyId] = 0
+      console.error(`Error fetching user count for policy ${policyId}:`, error)
+      return { policyId, count: 0 }
     }
-  }
+  })
+
+  const results = await Promise.all(fetchPromises)
+  
+  // Convert results array to counts object
+  results.forEach(({ policyId, count }) => {
+    if (policyId) {
+      counts[policyId] = count
+    }
+  })
+
   return counts
 }
 
@@ -191,6 +214,38 @@ export default function PermissionManagement() {
       // Fetch user counts for all policies
       const userCountsMap = await fetchUserCountsForPolicies(data.policies || [])
       setUserCounts(userCountsMap)
+      
+      // Update selectedMapping if we're on mapping-detail tab to get fresh data
+      if (activeTab === "mapping-detail" && selectedMapping) {
+        const policyId = selectedMapping.p_id || selectedMapping.policy_id || selectedMapping.id || selectedMapping.policy?.p_id || selectedMapping.policy?.policy_id || selectedMapping.policy?.id
+        if (policyId) {
+          // Find the updated mapping from the fresh data
+          const updatedMapping = data.mappings.find(m => 
+            (m.p_id || m.policy_id || m.id) === policyId
+          )
+          if (updatedMapping) {
+            setSelectedMapping(updatedMapping)
+          } else {
+            // If mapping not found in mappings list, try to find in policies and create mapping object
+            const policy = data.policies.find(p => 
+              (p.p_id || p.policy_id || p.id) === policyId
+            )
+            if (policy) {
+              setSelectedMapping({
+                ...selectedMapping,
+                p_id: policy.p_id || policy.policy_id || policy.id,
+                p_name: policy.p_name || policy.policy_name || policy.name,
+                type: policy.type || policy.policy_type,
+                is_active: policy.is_active,
+                created_at: policy.created_at,
+                updated_at: policy.updated_at,
+                policy: policy,
+                features: [], // Features will be fetched by the component
+              })
+            }
+          }
+        }
+      }
     } catch (err) {
       console.error("Error fetching data:", err)
       setError(err.response?.data?.message || "Failed to load data. Please try again.")
@@ -406,7 +461,16 @@ export default function PermissionManagement() {
 
                       <TabsContent value="policy-mapped-users" className="mt-6">
                         {selectedPolicy && (
-                          <PolicyMappedUsersTab policy={selectedPolicy} onBack={handleBackToOverview} />
+                          <PolicyMappedUsersTab 
+                            policy={selectedPolicy} 
+                            onBack={handleBackToOverview}
+                            onUserUpdate={async () => {
+                              // Refresh user counts when users are added/removed
+                              // Use current policies state to get updated counts
+                              const updatedCounts = await fetchUserCountsForPolicies(policies)
+                              setUserCounts(updatedCounts)
+                            }}
+                          />
                         )}
                       </TabsContent>
 

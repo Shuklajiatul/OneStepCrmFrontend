@@ -44,11 +44,35 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
     }
   }
 
-  const fetchMappingFeatures = async () => {
+  const fetchMappingFeatures = async (forceRefresh = false) => {
     try {
       setLoading(true)
       
-      // Use features from mapping object (already transformed from API)
+      const policyId = mapping.p_id || mapping.policy_id || mapping.id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
+      const token = authUtils.getAuthHeader()
+      
+      // Always fetch from API if forceRefresh is true (after update) or if token is available
+      if (forceRefresh || token) {
+        if (token && policyId) {
+          try {
+            const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}/features`, {
+              headers: { Authorization: token, "Content-Type": "application/json" },
+            })
+
+            const featureData = Array.isArray(response.data)
+              ? response.data
+              : response.data?.data || response.data?.features || []
+
+            setFeatures(featureData)
+            return
+          } catch (apiError) {
+            console.error("Error fetching features from API:", apiError)
+            // Fall through to use mapping prop as fallback
+          }
+        }
+      }
+      
+      // Use features from mapping object (already transformed from API) as fallback
       // Features can be in features array or featuresObject
       if (mapping.features && Array.isArray(mapping.features)) {
         // Features are already an array
@@ -57,29 +81,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
         // Features are in object format, convert to array
         setFeatures(Object.values(mapping.featuresObject))
       } else {
-        // Try to fetch from API as fallback
-      const token = authUtils.getAuthHeader()
-        if (!token) {
-          setFeatures([])
-          return
-        }
-
-        const policyId = mapping.p_id || mapping.policy_id || mapping.id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
-        
-        try {
-          const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}/features`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      })
-
-      const featureData = Array.isArray(response.data)
-        ? response.data
-        : response.data?.data || response.data?.features || []
-
-      setFeatures(featureData)
-        } catch (apiError) {
-          console.error("Error fetching features from API:", apiError)
-          setFeatures([])
-        }
+        setFeatures([])
       }
     } catch (error) {
       console.error("Error fetching mapping features:", error)
@@ -234,8 +236,8 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
         setFeaturesToAdd([])
         setSelectedModule("")
         
-        // Refresh features
-        await fetchMappingFeatures()
+        // Refresh features - force API fetch to get updated list
+        await fetchMappingFeatures(true)
         
         if (onUpdate) {
           onUpdate()
