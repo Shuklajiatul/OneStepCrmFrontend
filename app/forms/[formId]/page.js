@@ -1531,14 +1531,12 @@ export default function PublicFormPage() {
       // Check for existing submission first
       const hasExistingSubmission = checkExistingSubmission()
       
-      // Only fetch latest form data if NOT in edit mode AND no existing submission
-      if (!token && !submissionId && !hasExistingSubmission) {
+      // Always fetch form data to verify version (even if submission exists)
+      // This ensures we clear FORM_SUBMITTED if version has changed
+      if (!token && !submissionId) {
         fetchFormData()
       } else if (token && submissionId) {
         // In edit mode - fetch form data will happen via fetchSubmissionData
-      } else if (hasExistingSubmission) {
-        // User already submitted - just show success page, no need to load form
-        setLoading(false)
       }
     }
   }, [formId, token, submissionId])
@@ -1603,8 +1601,23 @@ export default function PublicFormPage() {
       const savedSubmissionId = localStorage.getItem("SUBMISSION_ID")
       const savedEditToken = localStorage.getItem("EDIT_TOKEN")
       const isSubmitted = localStorage.getItem("FORM_SUBMITTED") === 'true'
+      const savedVersion = localStorage.getItem("FORM_VERSION")
 
+      // Check if form ID matches
       if (savedFormId === formId && savedSubmissionId && savedEditToken && isSubmitted) {
+        // If version is specified in URL, check if it matches saved version
+        if (versionParam && savedVersion) {
+          const currentVersion = String(versionParam)
+          const storedVersion = String(savedVersion)
+          
+          // If versions don't match, clear the submission data (new version created)
+          if (currentVersion !== storedVersion) {
+            console.log(`Version mismatch: current=${currentVersion}, stored=${storedVersion}. Clearing FORM_SUBMITTED.`)
+            clearSubmissionFromStorage()
+            return false
+          }
+        }
+        
         // Set the submission success state to show the success page
         setLastSubmissionId(savedSubmissionId)
         setLastSubmissionToken(savedEditToken)
@@ -1623,15 +1636,19 @@ export default function PublicFormPage() {
 
   const saveSubmissionToStorage = (submissionId, editToken) => {
     try {
+      const currentVersion = versionParam || (formData?.version ? String(formData.version) : '1')
+      
       localStorage.setItem("SUBMISSION_ID", submissionId)
       localStorage.setItem("EDIT_TOKEN", editToken)
       localStorage.setItem("FORM_SUBMITTED", 'true')
       localStorage.setItem("FORM_ID", formId)
+      localStorage.setItem("FORM_VERSION", currentVersion)
 
       console.log('Successfully saved to localStorage:', {
         submissionId,
         editToken,
-        formId
+        formId,
+        version: currentVersion
       })
     } catch (error) {
       console.error('Error saving to localStorage:', error)
@@ -1645,6 +1662,7 @@ export default function PublicFormPage() {
       localStorage.removeItem("EDIT_TOKEN")
       localStorage.removeItem("FORM_SUBMITTED")
       localStorage.removeItem("FORM_ID")
+      localStorage.removeItem("FORM_VERSION")
 
       setSubmissionSuccess(false)
       setLastSubmissionId(null)
@@ -2299,6 +2317,23 @@ export default function PublicFormPage() {
         try {
           const parsedForm = parseFormData(result.form)
           setFormData(parsedForm)
+          
+          // Check if version has changed and clear FORM_SUBMITTED if it has
+          const currentFormVersion = String(result.form.version || versionParam || '1')
+          const savedFormId = localStorage.getItem("FORM_ID")
+          const savedVersion = localStorage.getItem("FORM_VERSION")
+          
+          if (savedFormId === formId && savedVersion) {
+            const storedVersion = String(savedVersion)
+            if (currentFormVersion !== storedVersion) {
+              console.log(`Version changed: current=${currentFormVersion}, stored=${storedVersion}. Clearing FORM_SUBMITTED for previous version.`)
+              // Clear FORM_SUBMITTED for previous version
+              localStorage.removeItem("FORM_SUBMITTED")
+              localStorage.removeItem("SUBMISSION_ID")
+              localStorage.removeItem("EDIT_TOKEN")
+              localStorage.removeItem("FORM_VERSION")
+            }
+          }
         } catch (parseError) {
           console.error('❌ Error parsing form data:', parseError)
           toast.error('Failed to parse form data. The form may be corrupted.')

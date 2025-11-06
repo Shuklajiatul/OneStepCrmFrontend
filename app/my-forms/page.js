@@ -493,15 +493,43 @@ export default function MyFormsPage() {
     }
   }
 
-  const openFormInNewTab = (form) => {
+  const openFormInNewTab = async (form) => {
     if (form.archived) {
       toast.error("Cannot open form: Form is archived")
       return
     }
 
-    const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${form.version || 1}`
-    window.open(link, '_blank', 'noopener,noreferrer')
-    toast.info("Opening form in new tab")
+    try {
+      // Fetch the latest version of the form
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/${process.env.NEXT_PUBLIC_ORGANIZATION_ID}/${process.env.NEXT_PUBLIC_TABLE_ID}/${form.form_id}`,
+        {
+          headers: {
+            'Authorization': authUtils.getAuthHeader(),
+            'Content-Type': 'application/json'
+          }
+        }
+      )
+      
+      const result = response.data
+      if (result.success && result.form) {
+        const latestVersion = result.form.version || 1
+        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${latestVersion}`
+        window.open(link, '_blank', 'noopener,noreferrer')
+        toast.info("Opening form in new tab")
+      } else {
+        // Fallback to form.version if API call fails
+        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${form.version || 1}`
+        window.open(link, '_blank', 'noopener,noreferrer')
+        toast.info("Opening form in new tab")
+      }
+    } catch (error) {
+      console.error('Error fetching latest form version:', error)
+      // Fallback to form.version if API call fails
+      const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${form.version || 1}`
+      window.open(link, '_blank', 'noopener,noreferrer')
+      toast.info("Opening form in new tab")
+    }
   }
 
   const handleEditForm = async (formId) => {
