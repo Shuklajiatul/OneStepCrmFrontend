@@ -45,6 +45,10 @@ export default function TableDataView({ table, onBack }) {
   const [isSaving, setIsSaving] = useState(false)
   const [currentRecordId, setCurrentRecordId] = useState(null)
   const [currentColumnId, setCurrentColumnId] = useState(null)
+  
+  // File preview modal state
+  const [isFileModalOpen, setIsFileModalOpen] = useState(false)
+  const [filePreview, setFilePreview] = useState(null) // { name, mime, dataUrl }
 
   // Fetch columns and records on component mount
   useEffect(() => {
@@ -73,14 +77,25 @@ export default function TableDataView({ table, onBack }) {
         })
       ])
 
-      const columnsData = columnsResponse.data
-      const recordsData = recordsResponse.data
+      const columnsData = Array.isArray(columnsResponse.data) ? columnsResponse.data : (columnsResponse.data?.data || columnsResponse.data?.columns || [])
+      let recordsData = recordsResponse.data
+      
+      // Normalize recordsData to always be an array
+      if (!Array.isArray(recordsData)) {
+        if (recordsData?.data && Array.isArray(recordsData.data)) {
+          recordsData = recordsData.data
+        } else if (recordsData?.records && Array.isArray(recordsData.records)) {
+          recordsData = recordsData.records
+        } else {
+          recordsData = []
+        }
+      }
       
       console.log('Columns data:', columnsData)
       console.log('Records data:', recordsData)
       
       // Debug: Show column to field mapping
-      if (columnsData.length > 0 && recordsData.length > 0) {
+      if (Array.isArray(columnsData) && columnsData.length > 0 && Array.isArray(recordsData) && recordsData.length > 0) {
         console.log('Column to Field Mapping:')
         columnsData.forEach(column => {
           console.log(`Column: ${column.column_name} (${column.column_id})`)
@@ -93,7 +108,7 @@ export default function TableDataView({ table, onBack }) {
         })
       }
       
-      setColumns(columnsData)
+      setColumns(Array.isArray(columnsData) ? columnsData : [])
       setRecords(recordsData)
       toast.success(`Loaded ${recordsData.length} records successfully!`)
       
@@ -102,6 +117,9 @@ export default function TableDataView({ table, onBack }) {
       setError(errorMsg)
       toast.error(errorMsg)
       console.error("Error fetching table data:", err)
+      // Ensure records is always an array even on error
+      setRecords([])
+      setColumns([])
     } finally {
       setLoading(false)
     }
@@ -129,6 +147,140 @@ export default function TableDataView({ table, onBack }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Helper to check if a string is a base64 file
+  const isBase64File = (str) => {
+    if (typeof str !== 'string') return false
+    return str.startsWith('data:') && str.includes('base64,')
+  }
+
+  // Create a proper file object from base64
+  const createFileFromBase64 = (base64String, filename = 'uploaded_file', originalType = null, originalSize = null, originalLastModified = null) => {
+    if (!base64String) return null
+
+    try {
+      // Extract mime type and base64 data
+      const matches = base64String.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/)
+      if (!matches || matches.length !== 3) {
+        console.warn('Invalid base64 format:', base64String?.substring(0, 100))
+        return null
+      }
+
+      const mimeType = matches[1]
+      const base64Data = matches[2]
+
+      // Use original metadata if provided, otherwise use extracted/default values
+      const finalFilename = filename.includes('.') ? filename : `${filename}.${mimeType.split('/')[1] || 'bin'}`
+      const finalType = originalType || mimeType
+      const finalSize = originalSize || Math.floor((base64Data.length * 3) / 4)
+      const finalLastModified = originalLastModified || Date.now()
+
+      return {
+        name: finalFilename,
+        type: finalType,
+        size: finalSize,
+        base64: base64String,
+        previewUrl: base64String,
+        lastModified: finalLastModified,
+        isFromBase64: true // Flag to identify base64-originated files
+      }
+    } catch (error) {
+      console.error('Error creating file from base64:', error)
+      return null
+    }
+  }
+
+  // Recursively process nested values to convert base64 files to file objects
+  const processNestedValuesForFiles = (nestedValues, column = null) => {
+    if (!nestedValues || typeof nestedValues !== 'object') return nestedValues
+
+    const processed = Array.isArray(nestedValues) ? [] : {}
+
+    if (Array.isArray(nestedValues)) {
+      return nestedValues.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          // Handle array items with value and nestedValues
+          if (item.value !== undefined) {
+            const processedItem = { ...item }
+            
+            // Check if value is a base64 file
+            if (typeof item.value === 'string' && isBase64File(item.value)) {
+              const fileObject = createFileFromBase64(
+                item.value,
+                item.name || column?.column_name || 'nested_file',
+                item.type,
+                item.size,
+                item.lastModified
+              )
+              if (fileObject) {
+                processedItem.value = fileObject
+                processedItem.isFile = true
+              }
+            }
+            
+            // Recursively process nestedValues
+            if (item.nestedValues && typeof item.nestedValues === 'object') {
+              processedItem.nestedValues = processNestedValuesForFiles(item.nestedValues, column)
+            }
+            
+            return processedItem
+          }
+          // Handle direct objects (like location or phone)
+          return item
+        }
+        // Check if item itself is a base64 string
+        if (typeof item === 'string' && isBase64File(item)) {
+          const fileObject = createFileFromBase64(item, column?.column_name || 'nested_file')
+          return fileObject || item
+        }
+        return item
+      })
+    } else {
+      // Handle object structure
+      Object.keys(nestedValues).forEach(key => {
+        const value = nestedValues[key]
+        
+        if (typeof value === 'object' && value !== null) {
+          if (value.value !== undefined) {
+            const processedValue = { ...value }
+            
+            // Check if value is a base64 file
+            if (typeof value.value === 'string' && isBase64File(value.value)) {
+              const fileObject = createFileFromBase64(
+                value.value,
+                value.name || `nested_file_${key}`,
+                value.type,
+                value.size,
+                value.lastModified
+              )
+              if (fileObject) {
+                processedValue.value = fileObject
+                processedValue.isFile = true
+              }
+            }
+            
+            // Recursively process nestedValues
+            if (value.nestedValues && typeof value.nestedValues === 'object') {
+              processedValue.nestedValues = processNestedValuesForFiles(value.nestedValues, column)
+            }
+            
+            processed[key] = processedValue
+          } else {
+            // Direct object (location, phone, etc.) or recursive nested structure
+            processed[key] = processNestedValuesForFiles(value, column)
+          }
+        } else if (typeof value === 'string' && isBase64File(value)) {
+          // Direct base64 string
+          const fileObject = createFileFromBase64(value, `nested_file_${key}`)
+          processed[key] = fileObject || value
+        } else {
+          processed[key] = value
+        }
+      })
+    }
+
+    return processed
   }
 
   const parseJsonSafely = (value) => {
@@ -255,10 +407,401 @@ export default function TableDataView({ table, onBack }) {
     return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
   }
 
-  const getFieldValue = (record, columnId) => {
-    if (!record.field_values) return null
+  const getFieldValue = (record, columnId, column = null) => {
+    if (!record.field_values || !record.field_values[columnId]) return null
     
-    return record.field_values[columnId] || null
+    const rawValue = record.field_values[columnId]
+    
+    // If the value is a JSON string, parse it
+    if (typeof rawValue === 'string') {
+      const trimmed = rawValue.trim()
+      
+      // Check if it's a direct base64 file string
+      if (isBase64File(trimmed)) {
+        const fileObject = createFileFromBase64(trimmed, column?.column_name || 'file')
+        return fileObject || rawValue
+      }
+      
+      // Check if it's a JSON string (starts with { or [)
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+          (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          const parsed = JSON.parse(trimmed)
+          
+          // Recursively process nested values to convert base64 files
+          if (typeof parsed === 'object' && parsed !== null) {
+            // Check if it's an object with value property
+            if (parsed.value !== undefined) {
+              // Check if value itself is a base64 file
+              if (typeof parsed.value === 'string' && isBase64File(parsed.value)) {
+                const fileObject = createFileFromBase64(
+                  parsed.value,
+                  parsed.name || column?.column_name || 'file',
+                  parsed.type,
+                  parsed.size,
+                  parsed.lastModified
+                )
+                if (fileObject) {
+                  parsed.value = fileObject
+                  parsed.isFile = true
+                }
+              }
+              
+              // Process nestedValues recursively
+              if (parsed.nestedValues && typeof parsed.nestedValues === 'object') {
+                parsed.nestedValues = processNestedValuesForFiles(parsed.nestedValues, column)
+              }
+            }
+            // Check if it's an array (multi-select/checkbox)
+            else if (Array.isArray(parsed)) {
+              return parsed.map(item => {
+                if (typeof item === 'object' && item !== null) {
+                  if (item.value !== undefined) {
+                    // Check if value is a base64 file
+                    if (typeof item.value === 'string' && isBase64File(item.value)) {
+                      const fileObject = createFileFromBase64(
+                        item.value,
+                        item.name || column?.column_name || 'file',
+                        item.type,
+                        item.size,
+                        item.lastModified
+                      )
+                      if (fileObject) {
+                        item.value = fileObject
+                        item.isFile = true
+                      }
+                    }
+                    
+                    // Process nestedValues
+                    if (item.nestedValues && typeof item.nestedValues === 'object') {
+                      item.nestedValues = processNestedValuesForFiles(item.nestedValues, column)
+                    }
+                  }
+                  return item
+                }
+                // Check if item itself is a base64 string
+                if (typeof item === 'string' && isBase64File(item)) {
+                  const fileObject = createFileFromBase64(item, column?.column_name || 'file')
+                  return fileObject || item
+                }
+                return item
+              })
+            }
+          }
+          
+          return parsed
+        } catch (e) {
+          // If parsing fails, check if it's a base64 file
+          if (isBase64File(trimmed)) {
+            const fileObject = createFileFromBase64(trimmed, column?.column_name || 'file')
+            return fileObject || rawValue
+          }
+          // If parsing fails, return the original string
+          return rawValue
+        }
+      }
+    }
+    
+    return rawValue
+  }
+
+  // Infer filename from data URL and optional field label (accepts column or fieldDef)
+  const inferFilenameFromDataUrl = (dataUrl, columnOrFieldDef) => {
+    try {
+      if (typeof dataUrl !== 'string') return 'file'
+      const match = dataUrl.match(/^data:([^;]+);base64,/)
+      const mime = match ? match[1] : 'application/octet-stream'
+      const ext = ({
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',
+        'image/gif': 'gif',
+        'image/webp': 'webp',
+        'application/pdf': 'pdf'
+      })[mime] || 'bin'
+      // Support both column (has column_name) and fieldDef (has label)
+      const baseName = columnOrFieldDef?.column_name || columnOrFieldDef?.label || 'file'
+      const base = baseName.toString().replace(/\s+/g, '_').toLowerCase()
+      return `${base}.${ext}`
+    } catch {
+      return 'file'
+    }
+  }
+
+  const openFileModal = (dataUrl, columnOrFieldDef) => {
+    if (!dataUrl || typeof dataUrl !== 'string') return
+    const match = dataUrl.match(/^data:([^;]+);base64,/)
+    const mime = match ? match[1] : 'application/octet-stream'
+    const name = inferFilenameFromDataUrl(dataUrl, columnOrFieldDef)
+    setFilePreview({ name, mime, dataUrl })
+    setIsFileModalOpen(true)
+  }
+
+  const downloadDataUrl = (dataUrl, filename) => {
+    try {
+      const a = document.createElement('a')
+      a.href = dataUrl
+      a.download = filename || 'download'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch (e) {
+      console.error('Download failed', e)
+    }
+  }
+
+  // Helper to check if a value is a file object
+  const isFileObject = (val) => {
+    return val && typeof val === 'object' && (
+      val.base64 !== undefined || 
+      val.previewUrl !== undefined || 
+      val.isFromBase64 === true ||
+      (val.name !== undefined && val.type !== undefined)
+    )
+  }
+
+  // Helper to recursively find field definition in nested options
+  const findFieldDefinition = (fieldId, options, depth = 0) => {
+    if (depth > 10) return null // Prevent infinite recursion
+    
+    if (!options || !Array.isArray(options)) return null
+    
+    for (const opt of options) {
+      if (opt.nestedFields && Array.isArray(opt.nestedFields)) {
+        // Check direct nested fields
+        const found = opt.nestedFields.find(f => f.id === fieldId)
+        if (found) return found
+        
+        // Recursively search in nested fields' options
+        for (const nestedField of opt.nestedFields) {
+          if (nestedField.options && Array.isArray(nestedField.options)) {
+            const deepFound = findFieldDefinition(fieldId, nestedField.options.map(o => ({ nestedFields: o.nestedFields || [] })), depth + 1)
+            if (deepFound) return deepFound
+          }
+        }
+      }
+    }
+    return null
+  }
+
+  // Helper to render nested fields inline (similar to form submission page)
+  const renderInlineNestedFields = (nestedValues, column, depth = 0, parentOptions = null) => {
+    if (!nestedValues || typeof nestedValues !== 'object' || Object.keys(nestedValues).length === 0) {
+      return null
+    }
+
+    // Parse options to get field definitions
+    let options = parentOptions || []
+    if (!parentOptions) {
+      try {
+        if (column?.optional_values && column.optional_values.length > 0) {
+          options = JSON.parse(column.optional_values[0])
+        }
+      } catch (e) {
+        console.warn('Failed to parse options:', e)
+      }
+    }
+
+    const borderColorClass = depth === 0 ? 'border-primary/20' : depth === 1 ? 'border-blue-300/30' : 'border-green-300/30'
+    const dotColor = depth === 0 ? 'bg-primary' : depth === 1 ? 'bg-blue-500' : 'bg-green-500'
+
+    return (
+      <div className={`mt-2 pl-3 border-l-2 ${borderColorClass} space-y-2 max-w-[400px]`}>
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`}></div>
+          Additional Information {depth > 0 && `(Level ${depth + 1})`}
+        </div>
+        <div className="space-y-2">
+          {Object.entries(nestedValues).map(([fieldId, fieldData]) => {
+            // Try to find field definition from options (recursively)
+            const fieldDef = findFieldDefinition(fieldId, options)
+
+            const fieldLabel = fieldDef?.label || fieldId
+            let fieldValue = null
+            let nestedFieldValues = null
+
+            // Extract value from fieldData
+            if (fieldData && typeof fieldData === 'object') {
+              if (fieldData.value !== undefined) {
+                fieldValue = fieldData.value
+                nestedFieldValues = fieldData.nestedValues
+              } else {
+                fieldValue = fieldData
+              }
+            } else {
+              fieldValue = fieldData
+            }
+
+            // Format the value display
+            const renderFieldValue = () => {
+              if (fieldValue === null || fieldValue === undefined || fieldValue === '') {
+                return <span className="text-xs text-muted-foreground italic">-</span>
+              }
+
+              // Handle file objects
+              if (isFileObject(fieldValue)) {
+                const dataUrl = fieldValue.base64 || fieldValue.previewUrl
+                return (
+                  <button
+                    onClick={() => dataUrl && openFileModal(dataUrl, column)}
+                    className="text-blue-600 hover:underline text-xs"
+                    title="Click to preview/download"
+                  >
+                    {fieldValue.name || 'File'}
+                  </button>
+                )
+              }
+
+              // Handle base64 strings
+              if (typeof fieldValue === 'string' && isBase64File(fieldValue)) {
+                const fileName = inferFilenameFromDataUrl(fieldValue, fieldDef)
+                return (
+                  <button
+                    onClick={() => openFileModal(fieldValue, column)}
+                    className="text-blue-600 hover:underline text-xs"
+                    title="Click to preview/download"
+                  >
+                    {fileName}
+                  </button>
+                )
+              }
+
+              // Handle arrays
+              if (Array.isArray(fieldValue)) {
+                return (
+                  <div className="flex flex-wrap gap-1">
+                    {fieldValue.map((val, idx) => (
+                      <Badge key={idx} variant="secondary" className="text-xs">
+                        {isFileObject(val) ? val.name : String(val)}
+                      </Badge>
+                    ))}
+                  </div>
+                )
+              }
+
+              // Handle objects with nestedValues
+              if (nestedFieldValues && typeof nestedFieldValues === 'object' && Object.keys(nestedFieldValues).length > 0) {
+                // Get nested field options from fieldDef
+                let nestedOptions = null
+                if (fieldDef && fieldDef.options && Array.isArray(fieldDef.options)) {
+                  // Find the selected option to get its nested fields
+                  const selectedOption = fieldDef.options.find(opt => {
+                    const optValue = typeof opt === 'object' ? opt.value : opt
+                    return optValue === fieldValue
+                  })
+                  if (selectedOption && selectedOption.nestedFields) {
+                    nestedOptions = [selectedOption]
+                  }
+                }
+                return (
+                  <div className="space-y-1">
+                    <span className="text-xs">{String(fieldValue || '')}</span>
+                    {renderInlineNestedFields(nestedFieldValues, column, depth + 1, nestedOptions)}
+                  </div>
+                )
+              }
+
+              // Handle location/phone objects
+              if (typeof fieldValue === 'object' && fieldValue !== null) {
+                if (fieldValue.country || fieldValue.state || fieldValue.city) {
+                  return formatLocationDisplay(fieldValue)
+                }
+                if (fieldValue.countryCode || fieldValue.number) {
+                  return formatPhoneDisplay(fieldValue)
+                }
+              }
+
+              // Default: string value
+              return <span className="text-xs truncate max-w-[200px]">{String(fieldValue)}</span>
+            }
+
+            return (
+              <div key={fieldId} className="p-2 bg-muted/20 rounded text-xs space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-foreground">{fieldLabel}:</span>
+                  {fieldDef?.type && (
+                    <Badge variant="outline" className="text-xs">
+                      {fieldDef.type}
+                    </Badge>
+                  )}
+                </div>
+                <div className="pl-1">
+                  {renderFieldValue()}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  // Helper to render an options dropdown for select/checkbox fields (shows on hover)
+  const renderOptionsDropdown = (displayNode, column, selectedValues, onOpenNested) => {
+    // Parse options from column.optional_values if available
+    let options = []
+    try {
+      if (column?.optional_values && column.optional_values.length > 0) {
+        options = JSON.parse(column.optional_values[0])
+      }
+    } catch (e) {
+      console.warn('Failed to parse options:', e)
+    }
+
+    const selectedSet = new Set(
+      (Array.isArray(selectedValues) ? selectedValues : [selectedValues])
+        .filter(Boolean)
+        .map(v => String(v))
+    )
+
+    return (
+      <div className="group relative inline-block">
+        {/* Display the selected value */}
+        <div className="px-2 py-1 rounded border border-border hover:bg-muted/50 cursor-pointer">
+            {displayNode}
+        </div>
+        
+        {/* Dropdown that appears on hover */}
+        <div className="absolute left-0 top-full mt-1 w-56 bg-popover border border-border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+          <div className="p-1">
+            <div className="px-2 py-1.5 text-xs text-muted-foreground border-b">Options</div>
+            <div className="max-h-60 overflow-y-auto">
+          {options.length > 0 ? (
+            options.map((opt, idx) => {
+              const label = String(opt?.label ?? opt?.value ?? '')
+              const value = String(opt?.value ?? label)
+              const isSelected = selectedSet.has(value) || selectedSet.has(label)
+              return (
+                    <div
+                      key={idx}
+                      className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer flex items-center gap-2"
+                    >
+                  <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>
+                    {label}
+                  </span>
+                  {isSelected && <span className="ml-auto text-xs">✓</span>}
+                    </div>
+              )
+            })
+          ) : (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">No options</div>
+          )}
+            </div>
+          {onOpenNested && (
+            <>
+                <div className="border-t my-1"></div>
+                <div
+                  onClick={onOpenNested}
+                  className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer text-primary font-medium"
+                >
+                  View nested details
+                </div>
+            </>
+          )}
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Helper function to check if column has nested data or is a modal-editable type
@@ -327,8 +870,21 @@ export default function TableDataView({ table, onBack }) {
           if (Array.isArray(fieldData)) {
             console.log(`[extractFormData] Found array field: ${fieldId}`, fieldData)
             
-            // Store array values with nested data
-            const arrayValue = fieldData.map(item => item.value)
+            // Store array values with nested data, converting base64 files to file objects
+            const arrayValue = fieldData.map(item => {
+              // Check if value is a base64 file string
+              if (typeof item.value === 'string' && isBase64File(item.value)) {
+                const fileObject = createFileFromBase64(
+                  item.value,
+                  item.name || fieldDef.label || `file_${fieldId}`,
+                  item.type,
+                  item.size,
+                  item.lastModified
+                )
+                return fileObject || item.value
+              }
+              return item.value
+            })
             
             // Extract nested data from each array item
             const arrayNestedData = {}
@@ -360,7 +916,7 @@ export default function TableDataView({ table, onBack }) {
             
             formData[fieldId] = {
               fieldDef: fieldDef,
-              value: arrayValue, // Array of selected values
+              value: arrayValue, // Array of selected values (may include file objects)
               nestedData: arrayNestedData,
               _isArray: true // Mark this as an array field
             }
@@ -376,9 +932,24 @@ export default function TableDataView({ table, onBack }) {
               nestedFields = selectedOption?.nestedFields || []
             }
             
+            // Check if value is a base64 file string and convert to file object
+            let processedValue = fieldData.value
+            if (typeof fieldData.value === 'string' && isBase64File(fieldData.value)) {
+              const fileObject = createFileFromBase64(
+                fieldData.value,
+                fieldData.name || fieldDef.label || `file_${fieldId}`,
+                fieldData.type,
+                fieldData.size,
+                fieldData.lastModified
+              )
+              if (fileObject) {
+                processedValue = fileObject
+              }
+            }
+            
             formData[fieldId] = {
               fieldDef: fieldDef,
-              value: fieldData.value,
+              value: processedValue,
               nestedData: fieldData.nestedValues 
                 ? extractFormData(fieldData.nestedValues, nestedFields) 
                 : {}
@@ -389,18 +960,46 @@ export default function TableDataView({ table, onBack }) {
             // Check if it's a simple object with just a value
             const keys = Object.keys(fieldData)
             if (keys.length === 1 && keys[0] === 'value') {
+              // Check if value is a base64 file string
+              let processedValue = fieldData.value
+              if (fieldDef.type === 'file' && typeof fieldData.value === 'string' && isBase64File(fieldData.value)) {
+                const fileObject = createFileFromBase64(
+                  fieldData.value,
+                  fieldDef.label || `file_${fieldId}`,
+                  null,
+                  null,
+                  null
+                )
+                if (fileObject) {
+                  processedValue = fileObject
+                }
+              }
               formData[fieldId] = {
                 fieldDef: fieldDef,
-                value: fieldData.value,
+                value: processedValue,
                 nestedData: {}
               }
             }
           }
           // Handle plain string/number values
           else {
+            // Check if it's a file field with base64 string
+            let processedValue = fieldData
+            if (fieldDef.type === 'file' && typeof fieldData === 'string' && isBase64File(fieldData)) {
+              const fileObject = createFileFromBase64(
+                fieldData,
+                fieldDef.label || `file_${fieldId}`,
+                null,
+                null,
+                null
+              )
+              if (fileObject) {
+                processedValue = fileObject
+              }
+            }
             formData[fieldId] = {
               fieldDef: fieldDef,
-              value: fieldData,
+              value: processedValue,
               nestedData: {}
             }
           }
@@ -509,172 +1108,408 @@ export default function TableDataView({ table, onBack }) {
       return <span className="text-muted-foreground italic">-</span>
     }
 
-    const effectiveType = column?.parent_datatype || dataType || 'text'
-    const rawString = typeof rawValue === 'string' ? rawValue : String(rawValue)
-    const trimmed = rawString.trim()
-    const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[')
-
-    const isArrayStructure = Array.isArray(parseJsonSafely(rawString))
-    const hasNestedStructure = parseJsonSafely(rawString) && (
-      isArrayStructure
-        ? parseJsonSafely(rawString).some(item => item && typeof item === 'object' && item.nestedValues !== undefined)
-        : typeof parseJsonSafely(rawString) === 'object' && parseJsonSafely(rawString) !== null && parseJsonSafely(rawString).nestedValues !== undefined
-    )
-
-    if (hasNestedStructure && column && hasNestedData(column)) {
-      let displayLabel = ''
-
-      if (isArrayStructure) {
-        displayLabel = parseJsonSafely(rawString)
-          .map(item => {
-            if (!item || typeof item !== 'object') return ''
-            if (Array.isArray(item.value)) return item.value.join(' → ')
-            if (item.value !== undefined && item.value !== null) return String(item.value)
-            if (item.label) return item.label
-            return ''
-          })
-          .filter(Boolean)
-          .join(' → ')
-      } else {
-        if (Array.isArray(parseJsonSafely(rawString).value)) {
-          displayLabel = parseJsonSafely(rawString).value.join(' → ')
-        } else if (parseJsonSafely(rawString).value !== undefined && parseJsonSafely(rawString).value !== null) {
-          displayLabel = String(parseJsonSafely(rawString).value)
-        } else if (parseJsonSafely(rawString).label) {
-          displayLabel = parseJsonSafely(rawString).label
-        }
+    const fieldType = column?.parent_datatype || dataType || 'text'
+    
+    // rawValue is already parsed by getFieldValue, so it could be:
+    // - An array: [{"value":"Iphone "},{"value":"Samsung"}]
+    // - An object: {"value":"Male","nestedValues":{}} or file object
+    // - A string: (fallback case)
+    
+    // Handle arrays (multi-select, checkbox)
+    if (Array.isArray(rawValue)) {
+      const values = rawValue
+        .map(item => {
+          if (item && typeof item === 'object') {
+            // Handle file objects in array
+            if (isFileObject(item)) {
+              return item.name || 'File'
+            }
+            // Handle objects with value property
+            if (item.value !== undefined) {
+              // Check if value is a file object
+              if (isFileObject(item.value)) {
+                return item.value.name || 'File'
+              }
+            return String(item.value)
+            }
+            // Handle direct file object
+            if (isFileObject(item)) {
+              return item.name || 'File'
+            }
+          }
+          return String(item)
+        })
+        .filter(Boolean)
+      
+      if (values.length === 0) {
+        return <span className="text-muted-foreground italic">-</span>
       }
-
-      if (!displayLabel) {
-        displayLabel = 'View details'
-      }
-
-      return (
-        <button
-          onClick={() => openNestedModal(rawString, column, record?.record_id)}
-          className="bg-blue-100 text-blue-800 hover:bg-blue-200 cursor-pointer px-2 py-1 rounded border border-blue-300 text-sm font-medium"
-          title="Click to view/edit nested data"
-        >
-          {displayLabel}
-          <span className="ml-1 text-xs">📋</span>
-        </button>
-      )
-    }
-
-    if (!isArrayStructure && parseJsonSafely(rawString) && parseJsonSafely(rawString).value !== undefined) {
-      const nestedValuesEmpty = !parseJsonSafely(rawString).nestedValues || (typeof parseJsonSafely(rawString).nestedValues === 'object' && Object.keys(parseJsonSafely(rawString).nestedValues).length === 0)
-      const hasStructuredKeys = parseJsonSafely(rawString).countryCode || parseJsonSafely(rawString).country || parseJsonSafely(rawString).state || parseJsonSafely(rawString).city || parseJsonSafely(rawString).name || parseJsonSafely(rawString).address || parseJsonSafely(rawString).number
-
-      if (nestedValuesEmpty && !hasStructuredKeys) {
-        if (effectiveType === 'datetime' || effectiveType === 'date') {
-          const formattedDate = formatDateOnly(parseJsonSafely(rawString).value)
-          if (formattedDate) {
-            return <span className="truncate max-w-[200px]">{formattedDate}</span>
+      
+      // Check if any item has nested data or files
+      const hasNested = rawValue.some(item => {
+        if (item && typeof item === 'object') {
+          // Check for nested values
+          if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
+            return true
+          }
+          // Check if value is a file object
+          if (item.value && isFileObject(item.value)) {
+            return true
+          }
+          // Check if item itself is a file
+          if (isFileObject(item)) {
+            return true
           }
         }
+        return false
+      })
+      
+      // Render file buttons and badges
+      const displayItems = rawValue.map((item, idx) => {
+        if (item && typeof item === 'object') {
+          // Check if item.value is a file object
+          if (item.value !== undefined && isFileObject(item.value)) {
+            const fileObj = item.value
+            const dataUrl = fileObj.base64 || fileObj.previewUrl
+            return (
+              <button
+                key={idx}
+                onClick={() => dataUrl && openFileModal(dataUrl, column)}
+                className="text-blue-600 hover:underline text-xs"
+                title="Click to preview/download"
+              >
+                {fileObj.name || 'File'}
+              </button>
+            )
+          }
+          // Check if item itself is a file object
+          if (isFileObject(item)) {
+            const dataUrl = item.base64 || item.previewUrl
+            return (
+              <button
+                key={idx}
+                onClick={() => dataUrl && openFileModal(dataUrl, column)}
+                className="text-blue-600 hover:underline text-xs"
+                title="Click to preview/download"
+              >
+                {item.name || 'File'}
+              </button>
+            )
+          }
+          // Regular value
+          return (
+            <Badge key={idx} variant="secondary" className="text-xs">
+              {item.value !== undefined ? String(item.value) : String(item)}
+            </Badge>
+          )
+        }
+        return (
+          <Badge key={idx} variant="secondary" className="text-xs">
+            {String(item)}
+          </Badge>
+        )
+      })
+      
+      const badgesNode = (
+        <div className="flex flex-wrap gap-1">
+          {displayItems}
+        </div>
+      )
 
-        const displayValue = Array.isArray(parseJsonSafely(rawString).value) ? parseJsonSafely(rawString).value.join(' → ') : String(parseJsonSafely(rawString).value)
-        return <span className="truncate max-w-[200px]">{displayValue}</span>
+      // Collect nested fields from all items in the array
+      const allNestedFields = {}
+      rawValue.forEach((item, idx) => {
+        if (item && typeof item === 'object' && item.nestedValues && Object.keys(item.nestedValues).length > 0) {
+          // Merge nested values with index prefix to avoid conflicts
+          Object.entries(item.nestedValues).forEach(([fieldId, fieldData]) => {
+            const prefixedId = `${idx}_${fieldId}`
+            allNestedFields[prefixedId] = {
+              ...fieldData,
+              _itemIndex: idx,
+              _itemValue: item.value,
+              _originalFieldId: fieldId
+            }
+          })
+        }
+      })
+
+      const onOpenNested = hasNested && Object.keys(allNestedFields).length > 0
+        ? () => openNestedModal(JSON.stringify(rawValue), column, record?.record_id)
+        : undefined
+
+      return renderOptionsDropdown(badgesNode, column, values, onOpenNested)
+    }
+    
+    // Handle objects with value property
+    if (typeof rawValue === 'object' && rawValue !== null) {
+      // Check if it's a file object
+      if (isFileObject(rawValue)) {
+        const dataUrl = rawValue.base64 || rawValue.previewUrl
+        return (
+          <button
+            onClick={() => dataUrl && openFileModal(dataUrl, column)}
+            className="text-blue-600 hover:underline text-sm"
+            title="Click to preview/download"
+          >
+            {rawValue.name || 'File'}
+          </button>
+        )
+      }
+      
+      // Check if it has nested values
+      const hasNested = rawValue.nestedValues && 
+        typeof rawValue.nestedValues === 'object' && 
+        Object.keys(rawValue.nestedValues).length > 0
+      
+      // Handle object with value property
+      if (rawValue.value !== undefined) {
+        // Check if value is a file object
+        if (isFileObject(rawValue.value)) {
+          const fileObj = rawValue.value
+          const dataUrl = fileObj.base64 || fileObj.previewUrl
+          return (
+            <button
+              onClick={() => dataUrl && openFileModal(dataUrl, column)}
+              className="text-blue-600 hover:underline text-sm"
+              title="Click to preview/download"
+            >
+              {fileObj.name || 'File'}
+            </button>
+          )
+        }
+        
+        const simpleValue = String(rawValue.value)
+
+        const displayNode = (
+          <span className="truncate max-w-[200px]">{simpleValue}</span>
+        )
+
+        // For select/radio types, show dropdown of all options with "View nested" option
+        if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
+          return renderOptionsDropdown(
+            displayNode, 
+            column, 
+            simpleValue, 
+            hasNested ? () => openNestedModal(JSON.stringify(rawValue), column, record?.record_id) : undefined
+          )
+        }
+      
+        // For other field types, if they have nested values, show a hover dropdown with all options and "View nested" option
+        if (hasNested) {
+          // Parse options from column.optional_values if available
+          let options = []
+          try {
+            if (column?.optional_values && column.optional_values.length > 0) {
+              options = JSON.parse(column.optional_values[0])
+            }
+          } catch (e) {
+            console.warn('Failed to parse options:', e)
+          }
+
+          const selectedValue = simpleValue
+          const selectedSet = new Set([String(selectedValue)])
+
+          const displayValue = (() => {
+        switch (fieldType) {
+          case 'email':
+            return (
+              <a href={`mailto:${simpleValue}`} className="text-blue-600 hover:underline">
+                {simpleValue}
+              </a>
+            )
+          case 'phone':
+            return formatPhoneDisplay(rawValue)
+          case 'location':
+            return formatLocationDisplay(rawValue)
+          case 'date':
+          case 'datetime': {
+            const formatted = formatDateOnly(simpleValue)
+            if (formatted) {
+              return <span>{formatted}</span>
+            }
+            return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
+          }
+          case 'file':
+                if (typeof simpleValue === 'string' && simpleValue.startsWith('data:')) {
+                  const fileName = inferFilenameFromDataUrl(simpleValue, column)
+                  return (
+                    <button
+                      onClick={() => openFileModal(simpleValue, column)}
+                      className="text-blue-600 hover:underline text-sm"
+                      title="Click to preview/download"
+                    >
+                      {fileName}
+                    </button>
+                  )
+                }
+                return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
+              default:
+                return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
+            }
+          })()
+
+          return (
+            <div className="group relative inline-block">
+              {/* Display the selected value */}
+              <div className="px-2 py-1 rounded border border-border hover:bg-muted/50 cursor-pointer">
+                {displayValue}
+              </div>
+              
+              {/* Dropdown that appears on hover - same style as select/radio/checkbox */}
+              <div className="absolute left-0 top-full mt-1 w-56 bg-popover border border-border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                <div className="p-1">
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground border-b">Options</div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {options.length > 0 ? (
+                      options.map((opt, idx) => {
+                        const label = String(opt?.label ?? opt?.value ?? '')
+                        const value = String(opt?.value ?? label)
+                        const isSelected = selectedSet.has(value) || selectedSet.has(label)
+                        return (
+                          <div
+                            key={idx}
+                            className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer flex items-center gap-2"
+                          >
+                            <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>
+                              {label}
+                            </span>
+                            {isSelected && <span className="ml-auto text-xs">✓</span>}
+                          </div>
+                        )
+                      })
+                    ) : (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">No options</div>
+                    )}
+                  </div>
+                  <div className="border-t my-1"></div>
+                  <div
+                    onClick={() => openNestedModal(JSON.stringify(rawValue), column, record?.record_id)}
+                    className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer text-primary font-medium"
+                  >
+                    View nested details
+                  </div>
+                </div>
+              </div>
+            </div>
+          )
+        }
+
+        // No nested values, just show the value
+        // For select/radio/checkbox, always wrap in dropdown even without nested values
+        if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
+          const displayNode = (
+            <span className="truncate max-w-[200px]">{simpleValue}</span>
+          )
+          return renderOptionsDropdown(displayNode, column, simpleValue, undefined)
+        }
+        
+        switch (fieldType) {
+          case 'email':
+            return (
+              <a href={`mailto:${simpleValue}`} className="text-blue-600 hover:underline">
+                {simpleValue}
+              </a>
+            )
+          case 'phone':
+            return formatPhoneDisplay(rawValue)
+          case 'location':
+            return formatLocationDisplay(rawValue)
+          case 'date':
+          case 'datetime': {
+            const formatted = formatDateOnly(simpleValue)
+            if (formatted) {
+              return <span>{formatted}</span>
+            }
+            return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
+          }
+          case 'file':
+            // Handle file with base64 data (string format)
+            if (typeof simpleValue === 'string' && simpleValue.startsWith('data:')) {
+              const fileName = inferFilenameFromDataUrl(simpleValue, column)
+              return (
+                <button
+                  onClick={() => openFileModal(simpleValue, column)}
+                  className="text-blue-600 hover:underline text-sm"
+                  title="Click to preview/download"
+                >
+                  {fileName}
+                </button>
+              )
+            }
+            return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
+          default:
+            return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
+        }
+      }
+
+      // Handle location object (country, state, city)
+      if (rawValue.country || rawValue.state || rawValue.city) {
+        return formatLocationDisplay(rawValue)
+      }
+      
+      // Handle phone object (countryCode, number)
+      if (rawValue.countryCode || rawValue.number) {
+        return formatPhoneDisplay(rawValue)
       }
     }
-
-    const renderJsonAsText = (jsonValue) => {
-      if (typeof jsonValue === 'string') {
-        return jsonValue
-      }
-      try {
-        return JSON.stringify(jsonValue)
-      } catch {
-        return rawString
-      }
+    
+    // Handle string values (fallback)
+    const rawString = String(rawValue)
+    
+    // For select/radio/checkbox types, wrap in bordered box even if plain string
+    if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
+      const displayNode = (
+        <span className="truncate max-w-[200px]">{rawString}</span>
+      )
+      return renderOptionsDropdown(displayNode, column, rawString, undefined)
     }
-
-    switch (effectiveType) {
+    
+    switch (fieldType) {
       case 'email':
         return (
-          <a href={`mailto:${rawValue}`} className="text-blue-600 hover:underline">
-            {rawValue}
+          <a href={`mailto:${rawString}`} className="text-blue-600 hover:underline">
+            {rawString}
           </a>
         )
       case 'phone': {
-        let phoneData = (!isArrayStructure && parseJsonSafely(rawString) && typeof parseJsonSafely(rawString) === 'object') ? parseJsonSafely(rawString) : null
-        if (!phoneData) {
-          try {
-            phoneData = JSON.parse(rawString)
-          } catch {
-            phoneData = null
-          }
-        }
-
+        let phoneData = parseJsonSafely(rawString)
         if (phoneData && typeof phoneData === 'object') {
-          const countryCode = phoneData.countryCode || phoneData.code || ''
-          const number = phoneData.number || phoneData.value || ''
-          if (countryCode || number) {
-            return formatPhoneDisplay(phoneData)
-          }
+          return formatPhoneDisplay(phoneData)
         }
-
         return (
-          <a href={`tel:${rawValue}`} className="text-blue-600 hover:underline">
-            {rawValue}
+          <a href={`tel:${rawString}`} className="text-blue-600 hover:underline">
+            {rawString}
           </a>
         )
       }
       case 'location': {
-        let locationData = (!isArrayStructure && parseJsonSafely(rawString) && typeof parseJsonSafely(rawString) === 'object') ? parseJsonSafely(rawString) : null
-        if (!locationData) {
-          try {
-            locationData = JSON.parse(rawString)
-          } catch {
-            locationData = null
-          }
-        }
-
+        let locationData = parseJsonSafely(rawString)
         if (locationData && typeof locationData === 'object') {
-          const title = locationData.address || locationData.name
-          const subtitle = [locationData.city, locationData.state, locationData.country].filter(Boolean).join(', ')
-
-          if (title || subtitle) {
-            return formatLocationDisplay(locationData)
-          }
+          return formatLocationDisplay(locationData)
         }
-
-        return <span className="truncate max-w-[200px]">{renderJsonAsText(locationData || rawValue)}</span>
+        return <span className="truncate max-w-[200px]">{rawString}</span>
       }
       case 'boolean':
         return (
-          <Badge variant={rawValue === 'true' || rawValue === true ? 'default' : 'secondary'}>
-            {rawValue === 'true' || rawValue === true ? 'Yes' : 'No'}
+          <Badge variant={rawString === 'true' || rawValue === true ? 'default' : 'secondary'}>
+            {rawString === 'true' || rawValue === true ? 'Yes' : 'No'}
           </Badge>
         )
       case 'date':
-        {
-          const formatted = formatDateOnly(rawValue)
-          if (formatted) {
-            return <span>{formatted}</span>
-          }
-          return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
+      case 'datetime': {
+        const formatted = formatDateOnly(rawString)
+        if (formatted) {
+          return <span>{formatted}</span>
         }
-      case 'datetime':
-        {
-          const formatted = formatDateOnly(rawValue)
-          if (formatted) {
-            return <span>{formatted}</span>
-          }
-          return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
-        }
+        return <span className="truncate max-w-[200px]">{rawString}</span>
+      }
       case 'number':
+        return <span className="truncate max-w-[200px]">{rawString}</span>
       case 'textarea':
+        return <span className="truncate max-w-[200px] whitespace-pre-wrap">{rawString}</span>
       case 'text':
-      case 'select':
-      case 'radio':
-      case 'checkbox':
-        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
       default:
-        if (parseJsonSafely(rawString)) {
-          return <span className="truncate max-w-[200px]">{renderJsonAsText(parseJsonSafely(rawString))}</span>
-        }
-        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
+        return <span className="truncate max-w-[200px]">{rawString}</span>
     }
   }
 
@@ -1101,7 +1936,106 @@ export default function TableDataView({ table, onBack }) {
     })
   }
 
-  // Recursive component to render nested form fields
+  // Recursive component to render nested fields in VIEW-ONLY mode (matching form-submissions style)
+  const renderNestedFieldsViewOnly = (formData, level = 0) => {
+    if (!formData || Object.keys(formData).length === 0) return null
+
+    return (
+      <div className={`space-y-4 ${level > 0 ? 'ml-6 pl-4 border-l-2 border-primary/20' : ''}`}>
+        {Object.entries(formData).map(([fieldId, fieldInfo]) => {
+          const { fieldDef, value, nestedData } = fieldInfo
+          
+          // Format value display based on field type
+          const renderValue = () => {
+            if (!value && value !== 0) {
+              return <span className="text-muted-foreground italic">-</span>
+            }
+
+            // Handle file objects
+            if (isFileObject(value)) {
+              const dataUrl = value.base64 || value.previewUrl
+              return (
+                <button
+                  onClick={() => dataUrl && openFileModal(dataUrl, fieldDef)}
+                  className="text-blue-600 hover:underline text-sm"
+                  title="Click to preview/download"
+                >
+                  {value.name || 'File'}
+                </button>
+              )
+            }
+
+            // Handle arrays (checkbox/multi-select values)
+            if (Array.isArray(value)) {
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {value.map((val, idx) => {
+                    // Check if array item is a file
+                    if (isFileObject(val)) {
+                      const dataUrl = val.base64 || val.previewUrl
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => dataUrl && openFileModal(dataUrl, fieldDef)}
+                          className="text-blue-600 hover:underline text-xs"
+                          title="Click to preview/download"
+                        >
+                          {val.name || 'File'}
+                        </button>
+                      )
+                    }
+                    return (
+                      <Badge key={idx} variant="secondary" className="text-xs">
+                        {String(val)}
+                      </Badge>
+                    )
+                  })}
+                </div>
+              )
+            }
+
+            // Handle regular values
+            return <span className="text-foreground">{String(value)}</span>
+          }
+          
+          return (
+            <div key={fieldId} className="space-y-2">
+              {/* Field Label */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-foreground">
+                  {fieldDef.name || fieldDef.label || fieldDef.id || fieldId}
+                </label>
+                <Badge variant="outline" className="text-xs">
+                  {fieldDef.type || 'text'}
+                </Badge>
+              </div>
+
+              {/* Field Value */}
+              <div className="text-sm">
+                {renderValue()}
+              </div>
+
+              {/* Render nested fields recursively */}
+              {nestedData && Object.keys(nestedData).length > 0 && (
+                <Card className="mt-3 bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+                  <CardHeader className="pb-3 px-4 pt-3">
+                    <CardTitle className="text-sm font-semibold text-primary">
+                      Nested Fields
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4">
+                    {renderNestedFieldsViewOnly(nestedData, level + 1)}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  // Recursive component to render nested form fields in EDIT mode
   const renderNestedFormFields = (formData, level = 0, path = []) => {
     if (!formData || Object.keys(formData).length === 0) return null
 
@@ -1329,13 +2263,111 @@ export default function TableDataView({ table, onBack }) {
                   return null
                 }
 
-                const enhancedTypes = ['email', 'number', 'date', 'datetime', 'textarea', 'phone', 'location']
+                const enhancedTypes = ['email', 'number', 'date', 'datetime', 'textarea', 'phone', 'location', 'file']
                 if (!enhancedTypes.includes(fieldDef.type)) {
                   return (
                     <span className="text-sm text-muted-foreground italic">
                       Unsupported field type: {fieldDef.type}
                     </span>
                   )
+                }
+
+                // Handle file objects first (before parsing)
+                if (fieldDef.type === 'file') {
+                  // Check if value is a file object
+                  if (isFileObject(value)) {
+                    const fileObj = value
+                    const dataUrl = fileObj.base64 || fileObj.previewUrl
+                    return (
+                      <div className="space-y-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (dataUrl) openFileModal(dataUrl, fieldDef)
+                          }}
+                          className="text-blue-600 hover:underline text-sm"
+                          title="Click to preview/download"
+                        >
+                          {fileObj.name || 'File'}
+                        </button>
+                        {!isEditMode && fileObj.size && (
+                          <span className="text-xs text-muted-foreground">
+                            {(fileObj.size / 1024).toFixed(2)} KB
+                          </span>
+                        )}
+                      </div>
+                    )
+                  }
+                  
+                  // Check if value is a base64 string directly
+                  if (typeof value === 'string' && isBase64File(value)) {
+                    const fileName = inferFilenameFromDataUrl(value, fieldDef)
+                    return (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openFileModal(value, fieldDef)
+                        }}
+                        className="text-blue-600 hover:underline text-sm"
+                        title="Click to preview/download"
+                      >
+                        {fileName}
+                      </button>
+                    )
+                  }
+                  
+                  // Parse value to check if it's wrapped in an object
+                  const parsedValue = parseJsonSafely(value)
+                  const primitiveValue = (
+                    parsedValue && typeof parsedValue === 'object' && !Array.isArray(parsedValue) && parsedValue.value !== undefined
+                      ? parsedValue.value
+                      : parsedValue
+                  )
+                  
+                  // Check if primitiveValue is a base64 string
+                  if (typeof primitiveValue === 'string' && isBase64File(primitiveValue)) {
+                    const fileName = inferFilenameFromDataUrl(primitiveValue, fieldDef)
+                    return (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openFileModal(primitiveValue, fieldDef)
+                        }}
+                        className="text-blue-600 hover:underline text-sm"
+                        title="Click to preview/download"
+                      >
+                        {fileName}
+                      </button>
+                    )
+                  }
+                  
+                  // Check if primitiveValue is a file object
+                  if (isFileObject(primitiveValue)) {
+                    const fileObj = primitiveValue
+                    const dataUrl = fileObj.base64 || fileObj.previewUrl
+                    return (
+                      <div className="space-y-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (dataUrl) openFileModal(dataUrl, fieldDef)
+                          }}
+                          className="text-blue-600 hover:underline text-sm"
+                          title="Click to preview/download"
+                        >
+                          {fileObj.name || 'File'}
+                        </button>
+                        {!isEditMode && fileObj.size && (
+                          <span className="text-xs text-muted-foreground">
+                            {(fileObj.size / 1024).toFixed(2)} KB
+                          </span>
+                        )}
+                      </div>
+                    )
+                  }
+                  
+                  // Fallback
+                  return <span className="text-sm text-muted-foreground">{value ? 'File' : '-'}</span>
                 }
 
                 const parsedValue = parseJsonSafely(value)
@@ -1380,6 +2412,41 @@ export default function TableDataView({ table, onBack }) {
                 const baseInputClass = 'w-full px-3 py-2 border rounded-md text-sm bg-background border-input focus:border-primary focus:ring-1 focus:ring-primary'
 
                 switch (fieldDef.type) {
+                  case 'file':
+                    // File fields are read-only in nested forms (view only)
+                    if (isFileObject(value)) {
+                      const fileObj = value
+                      const dataUrl = fileObj.base64 || fileObj.previewUrl
+                      return (
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => dataUrl && openFileModal(dataUrl, column)}
+                            className="text-blue-600 hover:underline text-sm"
+                            title="Click to preview/download"
+                          >
+                            {fileObj.name || 'File'}
+                          </button>
+                          {fileObj.size && (
+                            <span className="text-xs text-muted-foreground">
+                              {(fileObj.size / 1024).toFixed(2)} KB
+                            </span>
+                          )}
+                        </div>
+                      )
+                    }
+                    if (typeof primitiveValue === 'string' && isBase64File(primitiveValue)) {
+                      const fileName = inferFilenameFromDataUrl(primitiveValue, fieldDef)
+                      return (
+                        <button
+                          onClick={() => openFileModal(primitiveValue, column)}
+                          className="text-blue-600 hover:underline text-sm"
+                          title="Click to preview/download"
+                        >
+                          {fileName}
+                        </button>
+                      )
+                    }
+                    return <span className="text-sm text-muted-foreground">No file</span>
                   case 'email':
                     return (
                       <Input
@@ -1462,8 +2529,11 @@ export default function TableDataView({ table, onBack }) {
     )
   }
 
+  // Ensure records is always an array
+  const safeRecords = Array.isArray(records) ? records : []
+
   // Filter records based on search term
-  const filteredRecords = records.filter(record => {
+  const filteredRecords = safeRecords.filter(record => {
     if (!searchTerm) return true
     
     const searchLower = searchTerm.toLowerCase()
@@ -1496,7 +2566,7 @@ export default function TableDataView({ table, onBack }) {
       cell: ({ row }) => {
         const record = row.original
         // Get field value using helper function
-        const fieldValue = getFieldValue(record, column.column_id)
+        const fieldValue = getFieldValue(record, column.column_id, column)
         
         // Format field value using helper function
         const displayDataType = column.parent_datatype || column.data_type
@@ -1628,7 +2698,7 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  if (loading && records.length === 0) {
+  if (loading && safeRecords.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -1698,7 +2768,7 @@ export default function TableDataView({ table, onBack }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Records</p>
-                <p className="text-2xl font-bold">{records.length}</p>
+                <p className="text-2xl font-bold">{safeRecords.length}</p>
               </div>
               <Database className="h-8 w-8 text-blue-500" />
             </div>
@@ -1723,7 +2793,7 @@ export default function TableDataView({ table, onBack }) {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">With Data</p>
                 <p className="text-2xl font-bold">
-                  {records.filter(r => r.field_values && Object.keys(r.field_values).length > 0).length}
+                  {safeRecords.filter(r => r.field_values && Object.keys(r.field_values).length > 0).length}
                 </p>
               </div>
               <AlertCircle className="h-8 w-8 text-orange-500" />
@@ -1737,7 +2807,7 @@ export default function TableDataView({ table, onBack }) {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Empty Records</p>
                 <p className="text-2xl font-bold">
-                  {records.filter(r => !r.field_values || Object.keys(r.field_values).length === 0).length}
+                  {safeRecords.filter(r => !r.field_values || Object.keys(r.field_values).length === 0).length}
                 </p>
               </div>
               <Database className="h-8 w-8 text-purple-500" />
@@ -1753,11 +2823,11 @@ export default function TableDataView({ table, onBack }) {
             <div>
               <CardTitle className="text-lg">Table Records</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {records.length} record{records.length !== 1 ? 's' : ''} found
+                {safeRecords.length} record{safeRecords.length !== 1 ? 's' : ''} found
               </p>
             </div>
             <Badge variant="outline" className="text-xs">
-              {records.length}
+              {safeRecords.length}
             </Badge>
           </div>
         </CardHeader>
@@ -1966,7 +3036,9 @@ export default function TableDataView({ table, onBack }) {
                                     No nested fields for this selection
                                   </div>
                                 ) : (
-                                  renderNestedFormFields(groupedBySelection[index].fields)
+                                  isEditMode 
+                                    ? renderNestedFormFields(groupedBySelection[index].fields)
+                                    : renderNestedFieldsViewOnly(groupedBySelection[index].fields)
                                 )}
                               </CardContent>
                             </Card>
@@ -1974,7 +3046,9 @@ export default function TableDataView({ table, onBack }) {
                         })()
                       ) : (
                         // Single selection - render normally
-                        renderNestedFormFields(editableFormData)
+                        isEditMode 
+                          ? renderNestedFormFields(editableFormData)
+                          : renderNestedFieldsViewOnly(editableFormData)
                       )}
                     </div>
                   </div>
@@ -2051,6 +3125,48 @@ export default function TableDataView({ table, onBack }) {
                 </>
               )}
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* File Preview Modal */}
+      <Dialog open={isFileModalOpen} onOpenChange={setIsFileModalOpen}>
+        <DialogContent className="w-[80vw] sm:w-[70vw] max-w-[900px] max-h-[95vh] p-0 gap-0 flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+            <DialogTitle>File Preview</DialogTitle>
+            <DialogDescription className="truncate">
+              {filePreview?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto px-6 py-4">
+            {filePreview?.dataUrl ? (
+              (() => {
+                const isImage = filePreview.mime?.startsWith('image/')
+                const isPdf = filePreview.mime === 'application/pdf'
+                if (isImage) {
+                  return (
+                    <div className="flex items-center justify-center">
+                      <img src={filePreview.dataUrl} alt={filePreview.name} className="max-h-[70vh] object-contain" />
+                    </div>
+                  )
+                }
+                if (isPdf) {
+                  return (
+                    <iframe src={filePreview.dataUrl} title={filePreview.name} className="w-full h-[70vh] border" />
+                  )
+                }
+                return (
+                  <div className="text-sm text-muted-foreground">
+                    Preview not available for this file type.
+                  </div>
+                )
+              })()
+            ) : (
+              <div className="text-sm text-muted-foreground">No file</div>
+            )}
+          </div>
+          <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex flex-row items-center justify-end gap-3">
+            <Button onClick={() => filePreview && downloadDataUrl(filePreview.dataUrl, filePreview.name)}>Download</Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -235,24 +235,24 @@ export default function FormSubmissionsPage() {
   }
 
   // Check if field has nested data
-  const hasNestedData = (field, value) => {
-    if (!value) return false
+  // const hasNestedData = (field, value) => {
+  //   if (!value) return false
     
-    const parsed = parseJsonSafely(value)
-    if (!parsed || typeof parsed !== 'object') return false
+  //   const parsed = parseJsonSafely(value)
+  //   if (!parsed || typeof parsed !== 'object') return false
     
-    // Check if it has nestedValues structure
-    if (parsed.nestedValues && typeof parsed.nestedValues === 'object' && Object.keys(parsed.nestedValues).length > 0) {
-      return true
-    }
+  //   // Check if it has nestedValues structure
+  //   if (parsed.nestedValues && typeof parsed.nestedValues === 'object' && Object.keys(parsed.nestedValues).length > 0) {
+  //     return true
+  //   }
     
-    // Check if it's an array with nested values
-    if (Array.isArray(parsed)) {
-      return parsed.some(item => item && typeof item === 'object' && item.nestedValues && Object.keys(item.nestedValues).length > 0)
-    }
+  //   // Check if it's an array with nested values
+  //   if (Array.isArray(parsed)) {
+  //     return parsed.some(item => item && typeof item === 'object' && item.nestedValues && Object.keys(item.nestedValues).length > 0)
+  //   }
     
-    return false
-  }
+  //   return false
+  // }
 
   // Helper function to normalize nested fields structure
   const normalizeNestedFields = (nestedFields) => {
@@ -922,6 +922,14 @@ export default function FormSubmissionsPage() {
     return [...dynamicColumns, ...metadataColumns]
   }
 
+  // Helper to check if a value is a file-like object or base64 string
+  const isFileValue = (val) => {
+    if (typeof val === 'string' && val.startsWith('data:') && val.includes('base64,')) {
+      return true
+    }
+    return false
+  }
+
   // Recursive component to render nested form fields
   const renderNestedFormFields = (formData, level = 0) => {
     if (!formData || Object.keys(formData).length === 0) return null
@@ -930,6 +938,62 @@ export default function FormSubmissionsPage() {
       <div className={`space-y-4 ${level > 0 ? 'ml-6 pl-4 border-l-2 border-primary/20' : ''}`}>
         {Object.entries(formData).map(([fieldId, fieldInfo]) => {
           const { fieldDef, value, nestedData } = fieldInfo
+          
+          // Format value display based on field type
+          const renderValue = () => {
+            if (!value && value !== 0) {
+              return <span className="text-muted-foreground italic">-</span>
+            }
+
+            // Handle file fields - check if value is a base64 string
+            if (fieldDef.type === 'file' || isFileValue(value)) {
+              const dataUrl = typeof value === 'string' ? value : null
+              if (dataUrl && dataUrl.startsWith('data:')) {
+                const fileName = inferFilenameFromDataUrl(dataUrl, fieldDef)
+                return (
+                  <button
+                    onClick={() => openFileModal(dataUrl, fieldDef)}
+                    className="text-blue-600 hover:underline text-sm"
+                    title="Click to preview/download"
+                  >
+                    {fileName}
+                  </button>
+                )
+              }
+            }
+
+            // Handle arrays (checkbox/multi-select values)
+            if (Array.isArray(value)) {
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {value.map((val, idx) => {
+                    // Check if array item is a file
+                    if (isFileValue(val)) {
+                      const fileName = inferFilenameFromDataUrl(val, fieldDef)
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => openFileModal(val, fieldDef)}
+                          className="text-blue-600 hover:underline text-xs"
+                          title="Click to preview/download"
+                        >
+                          {fileName}
+                        </button>
+                      )
+                    }
+                    return (
+                      <Badge key={idx} variant="secondary" className="text-xs">
+                        {String(val)}
+                      </Badge>
+                    )
+                  })}
+                </div>
+              )
+            }
+
+            // Handle regular values
+            return <span className="text-foreground">{String(value)}</span>
+          }
           
           return (
             <div key={fieldId} className="space-y-2">
@@ -945,11 +1009,7 @@ export default function FormSubmissionsPage() {
 
               {/* Field Value */}
               <div className="text-sm">
-                {value ? (
-                  <span className="text-foreground">{String(value)}</span>
-                ) : (
-                  <span className="text-muted-foreground italic">-</span>
-                )}
+                {renderValue()}
               </div>
 
               {/* Render nested fields recursively */}
