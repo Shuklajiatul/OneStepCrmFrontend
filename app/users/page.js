@@ -124,10 +124,13 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (isCreateDialogOpen || isEditDialogOpen) {
-      fetchGenes()
+      // Fetch genes only after users are loaded (for filtering mapped genes)
+      if (!loading) {
+        fetchGenes()
+      }
       fetchPolicies()
     }
-  }, [isCreateDialogOpen, isEditDialogOpen])
+  }, [isCreateDialogOpen, isEditDialogOpen, loading])
 
   useEffect(() => {
     if (darkMode) {
@@ -227,10 +230,31 @@ export default function UsersPage() {
       })
 
       if (response.data) {
-        const geneData = Array.isArray(response.data)
+        const allGenes = Array.isArray(response.data)
           ? response.data
           : response.data.data || response.data.genes || []
-        setAvailableGenes(geneData)
+        
+        // Extract all unique gene IDs that are mapped to users
+        const mappedGeneIds = new Set()
+        users.forEach((user) => {
+          if (user["g_ids"]) {
+            if (Array.isArray(user["g_ids"])) {
+              user["g_ids"].forEach((gId) => {
+                if (gId) mappedGeneIds.add(String(gId))
+              })
+            } else if (user["g_ids"]) {
+              mappedGeneIds.add(String(user["g_ids"]))
+            }
+          }
+        })
+        
+        // Filter genes to only include those mapped to users
+        const mappedGenes = allGenes.filter((gene) => {
+          const geneId = String(gene.g_id || gene.id || "")
+          return mappedGeneIds.has(geneId)
+        })
+        
+        setAvailableGenes(mappedGenes)
       }
     } catch (error) {
       console.error("Error fetching genes:", error)
@@ -315,6 +339,7 @@ export default function UsersPage() {
 
     try {
       setSubmitting(true)
+      const selectedRolePriority = getSelectedRolePriority(formData.role_id)
       const payload = {
         email: formData.email,
         first_name: formData.first_name,
@@ -324,7 +349,8 @@ export default function UsersPage() {
         role_id: formData.role_id,
         "g_ids": formData["g_ids"] || "",
         "p_id": formData["p_id"] || "",
-        reporting_id: formData.reporting_id || "",
+        // For priority 1, don't send reporting_id (send empty/null)
+        reporting_id: selectedRolePriority === 1 ? "" : (formData.reporting_id || ""),
       }
 
       const response = await axios.post(`${API_BASE_URL}/api/users`, payload, {
@@ -370,9 +396,17 @@ export default function UsersPage() {
       if (formData["g_ids"] !== selectedUser["g_ids"]) payload["g_ids"] = formData["g_ids"]
       if (formData["p_id"] !== selectedUser["p_id"]) payload["p_id"] = formData["p_id"]
       
-      // Add reporting_id field
+      // Add reporting_id field - but not for priority 1
+      const selectedRolePriority = getSelectedRolePriority(formData.role_id)
       const currentReportingId = selectedUser.reporting_id || selectedUser.reports_to || selectedUser.reporting_to || ""
-      if (formData.reporting_id !== currentReportingId) payload.reporting_id = formData.reporting_id || ""
+      // For priority 1, always set reporting_id to empty
+      if (selectedRolePriority === 1) {
+        if (currentReportingId) {
+          payload.reporting_id = ""
+        }
+      } else if (formData.reporting_id !== currentReportingId) {
+        payload.reporting_id = formData.reporting_id || ""
+      }
 
       if (Object.keys(payload).length === 0) {
         toast.info("No changes to update")
@@ -654,6 +688,72 @@ export default function UsersPage() {
     return `User ID: ${reportingId}`
   }
 
+  // Helper function to get a user's role priority
+  const getUserRolePriority = (user) => {
+    if (!user) return 999 // Default to lowest priority
+    
+    // Try to find role by role_id
+    const roleId = user.role_id || user.roles?.id || user.roles?.role_id
+    if (roleId) {
+      const role = availableRoles.find(r => (r.role_id || r.id) === roleId)
+      if (role && role.priority !== undefined) {
+        return role.priority
+      }
+    }
+    
+    // Try to find role by role name (string)
+    if (user.roles && typeof user.roles === 'string') {
+      const role = availableRoles.find(r => 
+        (r.role_name || r.name || '').toLowerCase() === user.roles.toLowerCase()
+      )
+      if (role && role.priority !== undefined) {
+        return role.priority
+      }
+    }
+    
+    if (user.role && typeof user.role === 'string') {
+      const role = availableRoles.find(r => 
+        (r.role_name || r.name || '').toLowerCase() === user.role.toLowerCase()
+      )
+      if (role && role.priority !== undefined) {
+        return role.priority
+      }
+    }
+    
+    return 999 // Default to lowest priority if not found
+  }
+
+  // Helper function to get selected role's priority
+  const getSelectedRolePriority = (roleId) => {
+    if (!roleId) return 999
+    
+    const role = availableRoles.find(r => (r.role_id || r.id) === roleId)
+    if (role && role.priority !== undefined) {
+      return role.priority
+    }
+    
+    return 999 // Default to lowest priority if not found
+  }
+
+  // Helper function to filter users for reporting dropdown based on role priority
+  const getFilteredReportingUsers = (excludeUserId = null) => {
+    const selectedRolePriority = getSelectedRolePriority(formData.role_id)
+    
+    return users.filter((user) => {
+      // Exclude current user if editing
+      if (excludeUserId && (user.user_id || user.id) === excludeUserId) {
+        return false
+      }
+      
+      // Get user's role priority
+      const userRolePriority = getUserRolePriority(user)
+      
+      // Only show users whose role priority is less than selected role priority
+      // (lower priority number = higher in hierarchy)
+      return userRolePriority < selectedRolePriority
+    })
+  }
+
   const filteredUsers = users.filter((user) => {
     // Search filter
     const matchesSearch =
@@ -817,51 +917,6 @@ export default function UsersPage() {
 
                               <Separator />
 
-                              {/* Reporting Section */}
-                              <div className="space-y-4">
-                                <div>
-                                  <h4 className="text-sm font-semibold mb-3 text-foreground">Reporting Structure</h4>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor="create-reports-to">Reporting to</Label>
-                                  <Select
-                                    value={formData.reporting_id || undefined}
-                                    onValueChange={(value) =>
-                                      setFormData({ ...formData, reporting_id: value === "__clear__" ? "" : value })
-                                    }
-                                    disabled={loading}
-                                  >
-                                    <SelectTrigger id="create-reports-to">
-                                      <SelectValue placeholder={loading ? "Loading users..." : "Select user (optional)"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {users.length === 0 && !loading ? (
-                                        <div className="px-2 py-1.5 text-sm text-muted-foreground">No users available</div>
-                                      ) : (
-                                        <>
-                                          {formData.reporting_id && (
-                                            <SelectItem value="__clear__">Clear selection</SelectItem>
-                                          )}
-                                          {users.map((user) => {
-                                            const userId = user.user_id || user.id
-                                            const userName = user.first_name || user.last_name
-                                              ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
-                                              : user.email || `User ${userId}`
-                                            return (
-                                              <SelectItem key={userId} value={userId}>
-                                                {userName} {user.email ? `(${user.email})` : ""}
-                                              </SelectItem>
-                                            )
-                                          })}
-                                        </>
-                                      )}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-
-                              <Separator />
-
                               {/* Role & Permissions Section */}
                               <div className="space-y-4">
                                 <div>
@@ -871,9 +926,26 @@ export default function UsersPage() {
                                   <Label htmlFor="create-role">Role <span className="text-destructive">*</span></Label>
                                   <Select
                                     value={formData.role_id}
-                                    onValueChange={(value) =>
-                                      setFormData({ ...formData, role_id: value })
-                                    }
+                                    onValueChange={(value) => {
+                                      const newRolePriority = getSelectedRolePriority(value)
+                                      // If priority is 1, clear reporting_id (highest priority doesn't report to anyone)
+                                      let validReportingId = ""
+                                      if (newRolePriority === 1) {
+                                        validReportingId = ""
+                                      } else if (formData.reporting_id) {
+                                        // Check if current reporting_id is still valid
+                                        validReportingId = formData.reporting_id
+                                        const reportingUser = users.find(u => (u.user_id || u.id) === formData.reporting_id)
+                                        if (reportingUser) {
+                                          const reportingUserPriority = getUserRolePriority(reportingUser)
+                                          // If reporting user's priority is not less than new role priority, clear it
+                                          if (reportingUserPriority >= newRolePriority) {
+                                            validReportingId = ""
+                                          }
+                                        }
+                                      }
+                                      setFormData({ ...formData, role_id: value, reporting_id: validReportingId })
+                                    }}
                                     disabled={rolesLoading}
                                   >
                                     <SelectTrigger id="create-role">
@@ -965,6 +1037,62 @@ export default function UsersPage() {
                                       </SelectContent>
                                     </Select>
                                   </div>
+                                </div>
+                              </div>
+
+                              <Separator />
+
+                              {/* Reporting Section */}
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="text-sm font-semibold mb-3 text-foreground">Reporting Structure</h4>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor="create-reports-to">Reporting to</Label>
+                                  <Select
+                                    value={formData.reporting_id || undefined}
+                                    onValueChange={(value) =>
+                                      setFormData({ ...formData, reporting_id: value === "__clear__" ? "" : value })
+                                    }
+                                    disabled={loading || !formData.role_id}
+                                  >
+                                    <SelectTrigger id="create-reports-to">
+                                      <SelectValue placeholder={
+                                        !formData.role_id 
+                                          ? "Select role first" 
+                                          : loading 
+                                            ? "Loading users..." 
+                                            : "Select user (optional)"
+                                      } />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {!formData.role_id ? (
+                                        <div className="px-2 py-1.5 text-sm text-muted-foreground">Please select a role first</div>
+                                      ) : (() => {
+                                        const filteredUsers = getFilteredReportingUsers()
+                                        return filteredUsers.length === 0 ? (
+                                          <div className="px-2 py-1.5 text-sm text-muted-foreground">No users available with higher priority</div>
+                                        ) : (
+                                          <>
+                                            {formData.reporting_id && (
+                                              <SelectItem value="__clear__">Clear selection</SelectItem>
+                                            )}
+                                            {filteredUsers.map((user) => {
+                                              const userId = user.user_id || user.id
+                                              const userName = user.first_name || user.last_name
+                                                ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+                                                : user.email || `User ${userId}`
+                                              return (
+                                                <SelectItem key={userId} value={userId}>
+                                                  {userName} {user.email ? `(${user.email})` : ""}
+                                                </SelectItem>
+                                              )
+                                            })}
+                                          </>
+                                        )
+                                      })()}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
                               </div>
 
@@ -1437,53 +1565,6 @@ export default function UsersPage() {
 
                       <Separator />
 
-                      {/* Reporting Section */}
-                      <div className="space-y-4">
-                        <div>
-                          <h4 className="text-sm font-semibold mb-3 text-foreground">Reporting Structure</h4>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="edit-reports-to">Reporting to</Label>
-                          <Select
-                            value={formData.reporting_id || undefined}
-                            onValueChange={(value) =>
-                              setFormData({ ...formData, reporting_id: value === "__clear__" ? "" : value })
-                            }
-                            disabled={loading}
-                          >
-                            <SelectTrigger id="edit-reports-to">
-                              <SelectValue placeholder={loading ? "Loading users..." : "Select user (optional)"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {users.length === 0 && !loading ? (
-                                <div className="px-2 py-1.5 text-sm text-muted-foreground">No users available</div>
-                              ) : (
-                                <>
-                                  {formData.reporting_id && (
-                                    <SelectItem value="__clear__">Clear selection</SelectItem>
-                                  )}
-                                  {users
-                                    .filter((user) => user.user_id !== selectedUser?.user_id) // Exclude current user
-                                    .map((user) => {
-                                      const userId = user.user_id || user.id
-                                      const userName = user.first_name || user.last_name
-                                        ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
-                                        : user.email || `User ${userId}`
-                                      return (
-                                        <SelectItem key={userId} value={userId}>
-                                          {userName} {user.email ? `(${user.email})` : ""}
-                                        </SelectItem>
-                                      )
-                                    })}
-                                </>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <Separator />
-
                       {/* Role & Permissions Section */}
                       <div className="space-y-4">
                         <div>
@@ -1493,7 +1574,26 @@ export default function UsersPage() {
                           <Label htmlFor="edit-role">Role</Label>
                           <Select
                             value={formData.role_id}
-                            onValueChange={(value) => setFormData({ ...formData, role_id: value })}
+                            onValueChange={(value) => {
+                              const newRolePriority = getSelectedRolePriority(value)
+                              // If priority is 1, clear reporting_id (highest priority doesn't report to anyone)
+                              let validReportingId = ""
+                              if (newRolePriority === 1) {
+                                validReportingId = ""
+                              } else if (formData.reporting_id) {
+                                // Check if current reporting_id is still valid
+                                validReportingId = formData.reporting_id
+                                const reportingUser = users.find(u => (u.user_id || u.id) === formData.reporting_id)
+                                if (reportingUser) {
+                                  const reportingUserPriority = getUserRolePriority(reportingUser)
+                                  // If reporting user's priority is not less than new role priority, clear it
+                                  if (reportingUserPriority >= newRolePriority) {
+                                    validReportingId = ""
+                                  }
+                                }
+                              }
+                              setFormData({ ...formData, role_id: value, reporting_id: validReportingId })
+                            }}
                             disabled={rolesLoading}
                           >
                             <SelectTrigger id="edit-role">
@@ -1585,6 +1685,62 @@ export default function UsersPage() {
                               </SelectContent>
                             </Select>
                           </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Reporting Section */}
+                      <div className="space-y-4">
+                        <div>
+                          <h4 className="text-sm font-semibold mb-3 text-foreground">Reporting Structure</h4>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-reports-to">Reporting to</Label>
+                          <Select
+                            value={formData.reporting_id || undefined}
+                            onValueChange={(value) =>
+                              setFormData({ ...formData, reporting_id: value === "__clear__" ? "" : value })
+                            }
+                            disabled={loading || !formData.role_id}
+                          >
+                            <SelectTrigger id="edit-reports-to">
+                              <SelectValue placeholder={
+                                !formData.role_id 
+                                  ? "Select role first" 
+                                  : loading 
+                                    ? "Loading users..." 
+                                    : "Select user (optional)"
+                              } />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {!formData.role_id ? (
+                                <div className="px-2 py-1.5 text-sm text-muted-foreground">Please select a role first</div>
+                              ) : (() => {
+                                const filteredUsers = getFilteredReportingUsers(selectedUser?.user_id)
+                                return filteredUsers.length === 0 ? (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No users available with higher priority</div>
+                                ) : (
+                                  <>
+                                    {formData.reporting_id && (
+                                      <SelectItem value="__clear__">Clear selection</SelectItem>
+                                    )}
+                                    {filteredUsers.map((user) => {
+                                      const userId = user.user_id || user.id
+                                      const userName = user.first_name || user.last_name
+                                        ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+                                        : user.email || `User ${userId}`
+                                      return (
+                                        <SelectItem key={userId} value={userId}>
+                                          {userName} {user.email ? `(${user.email})` : ""}
+                                        </SelectItem>
+                                      )
+                                    })}
+                                  </>
+                                )
+                              })()}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
 
