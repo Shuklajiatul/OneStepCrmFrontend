@@ -5,7 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { DataTable } from "@/components/ui/data-table"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { 
   ArrowLeft, 
   Database, 
@@ -49,6 +52,17 @@ export default function TableDataView({ table, onBack }) {
   // File preview modal state
   const [isFileModalOpen, setIsFileModalOpen] = useState(false)
   const [filePreview, setFilePreview] = useState(null) // { name, mime, dataUrl }
+  
+  // Add/Edit record dialog state
+  const [isAddRecordDialogOpen, setIsAddRecordDialogOpen] = useState(false)
+  const [isEditRecordDialogOpen, setIsEditRecordDialogOpen] = useState(false)
+  const [recordFormData, setRecordFormData] = useState({})
+  const [recordToEdit, setRecordToEdit] = useState(null)
+  const [isSubmittingRecord, setIsSubmittingRecord] = useState(false)
+  const [users, setUsers] = useState([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [isViewRecordDialogOpen, setIsViewRecordDialogOpen] = useState(false)
+  const [recordToView, setRecordToView] = useState(null)
 
   // Fetch columns and records on component mount
   useEffect(() => {
@@ -56,6 +70,40 @@ export default function TableDataView({ table, onBack }) {
       fetchTableData()
     }
   }, [table?.table_id])
+
+  // Fetch users when component mounts
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  const fetchUsers = async () => {
+    try {
+      setLoadingUsers(true)
+      const response = await axios.get(`${API_BASE_URL}/api/users`, {
+        headers: {
+          'Authorization': authUtils.getAuthHeader(),
+          'Content-Type': 'application/json',
+        }
+      })
+
+      // Handle different response formats
+      let usersData = []
+      if (Array.isArray(response.data)) {
+        usersData = response.data
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        usersData = response.data.data
+      } else if (response.data?.users && Array.isArray(response.data.users)) {
+        usersData = response.data.users
+      }
+
+      setUsers(usersData)
+    } catch (err) {
+      console.error("Error fetching users:", err)
+      setUsers([])
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
 
   const fetchTableData = async () => {
     setLoading(true)
@@ -146,6 +194,180 @@ export default function TableDataView({ table, onBack }) {
       console.error("Error deleting record:", err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const openAddRecordDialog = () => {
+    setRecordFormData({
+      assigned_to: null // Initialize as null
+    })
+    setIsAddRecordDialogOpen(true)
+  }
+
+  const openEditRecordDialog = (record) => {
+    setRecordToEdit(record)
+    // Initialize form data with current record values
+    const formData = {
+      assigned_to: record.assigned_to === "NA" || !record.assigned_to ? null : record.assigned_to
+    }
+    columns.forEach(column => {
+      const value = getFieldValue(record, column.column_id, column)
+      // Convert complex values to strings for form inputs
+      if (value !== null && value !== undefined) {
+        if (typeof value === 'object') {
+          formData[column.column_id] = JSON.stringify(value)
+        } else {
+          formData[column.column_id] = String(value)
+        }
+      }
+    })
+    setRecordFormData(formData)
+    setIsEditRecordDialogOpen(true)
+  }
+
+  const openViewRecordDialog = (record) => {
+    setRecordToView(record)
+    setIsViewRecordDialogOpen(true)
+  }
+
+  const handleAddRecord = async () => {
+    setIsSubmittingRecord(true)
+    
+    try {
+      // Get logged in user's g_id
+      const tokens = authUtils.getTokens()
+      const user = tokens?.user
+      let gId = null
+      
+      if (user?.g_ids) {
+        // Handle g_ids as array or single value
+        if (Array.isArray(user.g_ids)) {
+          gId = user.g_ids.length > 0 ? user.g_ids[0] : null
+        } else {
+          gId = user.g_ids
+        }
+      }
+      
+      if (!gId) {
+        toast.error("User g_id not found. Please ensure you are properly logged in.")
+        setIsSubmittingRecord(false)
+        return
+      }
+
+      // Prepare field_values payload
+      const fieldValues = {}
+      columns.forEach(column => {
+        const value = recordFormData[column.column_id]
+        if (value !== undefined && value !== null && value !== '') {
+          fieldValues[column.column_id] = value
+        }
+      })
+
+      // Prepare assigned_to - convert "none" to null, otherwise use the user ID
+      const assignedToValue = recordFormData.assigned_to
+      const finalAssignedTo = assignedToValue === "none" || !assignedToValue ? null : assignedToValue
+
+      const payload = {
+        g_id: gId,
+        assigned_to: finalAssignedTo, // Add assigned_to to payload
+        field_values: fieldValues
+      }
+
+      console.log('Create record payload:', payload) // Debug log
+
+      const response = await axios.post(
+        `${API_BASE_URL}/api/records/${table.table_id}`,
+        payload,
+        {
+          headers: {
+            'Authorization': authUtils.getAuthHeader(),
+            'Content-Type': 'application/json',
+          }
+        }
+      )
+
+      toast.success("Record added successfully!")
+      setIsAddRecordDialogOpen(false)
+      setRecordFormData({})
+      fetchTableData()
+      
+    } catch (err) {
+      toast.error(`Failed to add record: ${err.response?.data?.message || err.message}`)
+      console.error("Error adding record:", err)
+    } finally {
+      setIsSubmittingRecord(false)
+    }
+  }
+
+  const handleUpdateRecord = async () => {
+    if (!recordToEdit) return
+    
+    setIsSubmittingRecord(true)
+    
+    try {
+      // Get logged in user's g_id
+      const tokens = authUtils.getTokens()
+      const user = tokens?.user
+      let gId = null
+      
+      if (user?.g_ids) {
+        // Handle g_ids as array or single value
+        if (Array.isArray(user.g_ids)) {
+          gId = user.g_ids.length > 0 ? user.g_ids[0] : null
+        } else {
+          gId = user.g_ids
+        }
+      }
+      
+      if (!gId) {
+        toast.error("User g_id not found. Please ensure you are properly logged in.")
+        setIsSubmittingRecord(false)
+        return
+      }
+  
+      // Prepare field_values payload (only include changed fields)
+      const fieldValues = {}
+      columns.forEach(column => {
+        const value = recordFormData[column.column_id]
+        if (value !== undefined && value !== null && value !== '') {
+          fieldValues[column.column_id] = value
+        }
+      })
+  
+      // Prepare assigned_to - convert "none" to null, otherwise use the user ID
+      const assignedToValue = recordFormData.assigned_to
+      const finalAssignedTo = assignedToValue === "none" || !assignedToValue ? null : assignedToValue
+  
+      const payload = {
+        g_id: gId,
+        assigned_to: finalAssignedTo, // This should be null or the user ID, never "NA"
+        field_values: fieldValues
+      }
+  
+      console.log('Update record payload:', payload) // Debug log
+  
+      const response = await axios.put(
+        `${API_BASE_URL}/api/records/${table.table_id}/${recordToEdit.record_id}`,
+        payload,
+        {
+          headers: {
+            'Authorization': authUtils.getAuthHeader(),
+            'Content-Type': 'application/json',
+          }
+        }
+      )
+  
+      toast.success("Record updated successfully!")
+      setIsEditRecordDialogOpen(false)
+      setRecordToEdit(null)
+      setRecordFormData({})
+      fetchTableData()
+      
+    } catch (err) {
+      toast.error(`Failed to update record: ${err.response?.data?.message || err.message}`)
+      console.error("Error updating record:", err)
+    } finally {
+      setIsSubmittingRecord(false)
     }
   }
 
@@ -408,7 +630,9 @@ export default function TableDataView({ table, onBack }) {
   }
 
   const getFieldValue = (record, columnId, column = null) => {
-    if (!record.field_values || !record.field_values[columnId]) return null
+    if (!record || !record.field_values) return null
+  
+    if (!record.field_values[columnId]) return null
     
     const rawValue = record.field_values[columnId]
     
@@ -2559,7 +2783,7 @@ export default function TableDataView({ table, onBack }) {
   // Create dynamic columns based on API response
   const createDynamicColumns = () => {
     if (!columns.length) return []
-  
+
     const dynamicColumns = columns.map((column) => ({
       accessorKey: column.column_id,
       header: column.column_name,
@@ -2576,7 +2800,47 @@ export default function TableDataView({ table, onBack }) {
 
     // Add metadata columns
     const metadataColumns = [
-      // Record ID column removed - not shown to users
+      // Assigned To column
+      {
+        accessorKey: "assigned_to",
+        header: "Assigned To",
+        cell: ({ row }) => {
+          const assignedTo = row.original.assigned_to
+          if (!assignedTo || assignedTo === 'NA') {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+          // Find user by user_id
+          const user = users.find(u => (u.user_id || u.id) === assignedTo)
+          if (user) {
+            const userName = user.first_name && user.last_name
+              ? `${user.first_name} ${user.last_name}`
+              : user.name || user.email || assignedTo
+            return <span className="text-sm">{userName}</span>
+          }
+          return <span className="text-sm">{assignedTo}</span>
+        },
+      },
+      // Updated By column
+      {
+        accessorKey: "updated_by",
+        header: "Updated By",
+        cell: ({ row }) => {
+          const updatedBy = row.original.updated_by
+          if (!updatedBy) {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+          // Find user by user_id
+          const user = users.find(u => (u.user_id || u.id) === updatedBy)
+          if (user) {
+            const userName = user.first_name && user.last_name
+              ? `${user.first_name} ${user.last_name}`
+              : user.name || user.email || updatedBy
+            return <span className="text-sm">{userName}</span>
+          }
+          return <span className="text-sm">{updatedBy}</span>
+        },
+      },
+      // Created At column
       {
         accessorKey: "created_at",
         header: "Created At",
@@ -2601,18 +2865,48 @@ export default function TableDataView({ table, onBack }) {
           )
         },
       },
+      // Updated At column
+      {
+        accessorKey: "updated_at",
+        header: "Updated At",
+        cell: ({ row }) => {
+          const date = row.getValue("updated_at")
+          if (!date) {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+          const dateObj = new Date(date)
+          return (
+            <div className="text-sm">
+              <div className="font-medium text-foreground">
+                {dateObj.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric'
+                })}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {dateObj.toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </div>
+            </div>
+          )
+        },
+      },
       {
         id: "actions",
         header: "Actions",
         cell: ({ row }) => {
           const record = row.original
           return (
-            <div className="flex items-center justify-end gap-1">
+            <div className="flex items-center justify-center gap-1">
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0 hover:bg-primary/10"
-                title="View record"
+                title="View record details"
+                onClick={() => openViewRecordDialog(record)}
               >
                 <Eye className="h-4 w-4" />
               </Button>
@@ -2621,6 +2915,7 @@ export default function TableDataView({ table, onBack }) {
                 size="sm"
                 className="h-8 w-8 p-0 hover:bg-primary/10"
                 title="Edit record"
+                onClick={() => openEditRecordDialog(record)}
               >
                 <Edit className="h-4 w-4" />
               </Button>
@@ -2636,17 +2931,23 @@ export default function TableDataView({ table, onBack }) {
                     <span className="sr-only">Open menu</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[180px]">
-                  <DropdownMenuItem className="cursor-pointer">
-                    <Eye className="h-4 w-4 mr-2" />
+                <DropdownMenuContent align="center" className="w-[160px]">
+                  <DropdownMenuItem 
+                    className="cursor-pointer text-xs"
+                    onClick={() => openViewRecordDialog(record)}
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-2" />
                     View Details
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer">
-                    <Edit className="h-4 w-4 mr-2" />
+                  <DropdownMenuItem 
+                    className="cursor-pointer text-xs"
+                    onClick={() => openEditRecordDialog(record)}
+                  >
+                    <Edit className="h-3.5 w-3.5 mr-2" />
                     Edit Record
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer">
-                    <Settings className="h-4 w-4 mr-2" />
+                  <DropdownMenuItem className="cursor-pointer text-xs">
+                    <Settings className="h-3.5 w-3.5 mr-2" />
                     Record Settings
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -2655,9 +2956,9 @@ export default function TableDataView({ table, onBack }) {
                       setRecordToDelete(record)
                       setIsDeleteDialogOpen(true)
                     }}
-                    className="text-destructive cursor-pointer focus:text-destructive"
+                    className="text-destructive cursor-pointer text-xs focus:text-destructive"
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
+                    <Trash2 className="h-3.5 w-3.5 mr-2" />
                     Delete Record
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -2739,7 +3040,7 @@ export default function TableDataView({ table, onBack }) {
             Refresh
           </Button>
           
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={openAddRecordDialog}>
             <Plus className="h-4 w-4" />
             Add Record
           </Button>
@@ -2845,41 +3146,158 @@ export default function TableDataView({ table, onBack }) {
             </div>
           </div>
           
-          {/* Table with negative margins to counteract CardContent padding for horizontal scroll */}
-          <div className="-mx-6 px-6 overflow-x-auto">
-            <div style={{ minWidth: 'max-content' }}>
-              <DataTable 
-                columns={createDynamicColumns()} 
-                data={filteredRecords} 
-                searchKey=""
-                searchPlaceholder=""
-                showColumnsDropdown={false}
-              />
+        {/* Table with same styling as organizations page */}
+        {(() => {
+          const tableColumns = createDynamicColumns()
+          return filteredRecords.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No records found</p>
+              {safeRecords.length === 0 && (
+                <p className="text-sm mt-2">No records available for this table</p>
+              )}
             </div>
-          </div>
+          ) : (
+            <div className="rounded-md border overflow-hidden w-full">
+              <div className="overflow-x-auto w-full">
+                <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
+                  <Table className="w-full table-auto">
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        {tableColumns.map((column) => (
+                          <TableHead 
+                            key={column.accessorKey || column.id} 
+                            className={`font-semibold text-foreground ${
+                              column.id === "actions" ? "w-[140px] text-center" : ""
+                            }`}
+                          >
+                            {column.header}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredRecords.map((record) => (
+                        <TableRow 
+                          key={record.record_id || record.id}
+                          className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                        >
+                          {tableColumns.map((column) => {
+                            // Create a mock row object that matches DataTable's structure
+                            const mockRow = {
+                              original: record,
+                              getValue: (key) => {
+                                if (key === 'created_at') return record.created_at
+                                return record.field_values?.[key] ?? record[key]
+                              }
+                            }
+                            return (
+                              <TableCell 
+                                key={column.accessorKey || column.id} 
+                                className={`py-3 ${
+                                  column.id === "actions" ? "w-[140px] text-center" : ""
+                                }`}
+                              >
+                                {column.cell ? column.cell({ row: mockRow }) : '-'}
+                              </TableCell>
+                            )
+                          })}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </div>
+          )
+        })()}
         </CardContent>
       </Card>
 
+      
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete Record</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this record? 
-              This action cannot be undone and will permanently remove the record data.
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Delete Record
+            </DialogTitle>
+            <DialogDescription className="space-y-3 pt-2">
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+                <p className="text-sm font-medium text-destructive">
+                  ⚠️ This action cannot be undone!
+                </p>
+              </div>
+              
+              <p>Are you sure you want to delete this record?</p>
+              
+              {/* Show email warning if record has email field */}
+              {recordToDelete && (() => {
+                // Find email column
+                const emailColumn = columns.find(col => 
+                  col.parent_datatype === 'email' || 
+                  col.data_type === 'email' ||
+                  col.column_name.toLowerCase().includes('email')
+                )
+                
+                if (emailColumn) {
+                  const emailValue = getFieldValue(recordToDelete, emailColumn.column_id, emailColumn)
+                  if (emailValue && typeof emailValue === 'string' && emailValue.includes('@')) {
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-sm font-medium text-amber-800 flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4" />
+                          Warning: This record contains email
+                        </p>
+                        <p className="text-xs text-amber-700 mt-1">
+                          Email: <span className="font-mono">{emailValue}</span>
+                        </p>
+                      </div>
+                    )
+                  }
+                }
+                return null
+              })()}
+              
+              <div className="bg-muted/50 rounded-lg p-3 mt-2">
+                <p className="text-xs text-muted-foreground">
+                  <strong>Record ID:</strong> {recordToDelete?.record_id}
+                </p>
+                {recordToDelete?.created_at && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    <strong>Created:</strong> {new Date(recordToDelete.created_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteDialogOpen(false)}
+              className="flex-1"
+            >
               Cancel
             </Button>
             <Button 
               variant="destructive" 
               onClick={() => handleDeleteRecord(recordToDelete?.record_id)}
               disabled={loading}
+              className="flex-1 gap-2"
             >
-              {loading ? "Deleting..." : "Delete Record"}
+              {loading ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Delete Record
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3168,6 +3586,387 @@ export default function TableDataView({ table, onBack }) {
           <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex flex-row items-center justify-end gap-3">
             <Button onClick={() => filePreview && downloadDataUrl(filePreview.dataUrl, filePreview.name)}>Download</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Record Dialog */}
+      <Dialog open={isAddRecordDialogOpen} onOpenChange={setIsAddRecordDialogOpen}>
+        <DialogContent className="w-[90vw] sm:w-[80vw] max-w-[1000px] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Add New Record</DialogTitle>
+            <DialogDescription>
+              Fill in the fields below to create a new record
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-4 py-4">
+              {/* ASSIGNED TO FIELD - Add this section */}
+              <div className="space-y-2">
+                <Label htmlFor="add-assigned_to">
+                  Assigned To
+                </Label>
+                <Select
+                  value={recordFormData.assigned_to || "none"}
+                  onValueChange={(value) => setRecordFormData(prev => ({ 
+                    ...prev, 
+                    assigned_to: value === "none" ? null : value
+                  }))}
+                >
+                  <SelectTrigger id="add-assigned_to">
+                    <SelectValue placeholder="Select user" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {loadingUsers ? (
+                      <SelectItem value="loading" disabled>Loading users...</SelectItem>
+                    ) : (
+                      users.map((user) => {
+                        const userId = user.user_id || user.id
+                        const userName = user.first_name && user.last_name
+                          ? `${user.first_name} ${user.last_name}`
+                          : user.name || user.email || userId
+                        return (
+                          <SelectItem key={userId} value={userId}>
+                            {userName}
+                          </SelectItem>
+                        )
+                      })
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* REST OF THE COLUMNS */}
+              {columns.map((column) => {
+                const fieldType = column.parent_datatype || column.data_type || 'text'
+                const value = recordFormData[column.column_id] || ''
+                
+                return (
+                  <div key={column.column_id} className="space-y-2">
+                    <Label htmlFor={column.column_id}>
+                      {column.column_name}
+                    </Label>
+                    {fieldType === 'textarea' ? (
+                      <Textarea
+                        id={column.column_id}
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                        className="min-h-[100px]"
+                      />
+                    ) : fieldType === 'number' ? (
+                      <Input
+                        id={column.column_id}
+                        type="number"
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                      />
+                    ) : fieldType === 'email' ? (
+                      <Input
+                        id={column.column_id}
+                        type="email"
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                      />
+                    ) : fieldType === 'date' || fieldType === 'datetime' ? (
+                      <Input
+                        id={column.column_id}
+                        type={fieldType === 'date' ? 'date' : 'datetime-local'}
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                      />
+                    ) : (
+                      <Input
+                        id={column.column_id}
+                        type="text"
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddRecordDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddRecord} disabled={isSubmittingRecord}>
+              {isSubmittingRecord ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                'Add Record'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Record Dialog */}
+      <Dialog open={isEditRecordDialogOpen} onOpenChange={setIsEditRecordDialogOpen}>
+        <DialogContent className="w-[90vw] sm:w-[80vw] max-w-[1000px] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Edit Record</DialogTitle>
+            <DialogDescription>
+              Update the fields below to modify this record
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-4 py-4">
+              {/* ASSIGNED TO FIELD */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-assigned_to">
+                  Assigned To
+                </Label>
+                <Select
+                  value={recordFormData.assigned_to || "none"}
+                  onValueChange={(value) => {
+                    console.log('Assigned to changed:', value)
+                    setRecordFormData(prev => ({ 
+                      ...prev, 
+                      assigned_to: value === "none" ? null : value
+                    }))
+                  }}
+                >
+                  <SelectTrigger id="edit-assigned_to">
+                    <SelectValue placeholder="Select user" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {loadingUsers ? (
+                      <SelectItem value="loading" disabled>Loading users...</SelectItem>
+                    ) : (
+                      users.map((user) => {
+                        const userId = user.user_id || user.id
+                        const userName = user.first_name && user.last_name
+                          ? `${user.first_name} ${user.last_name}`
+                          : user.name || user.email || userId
+                        return (
+                          <SelectItem key={userId} value={userId}>
+                            {userName}
+                          </SelectItem>
+                        )
+                      })
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* REST OF THE COLUMNS */}
+              {columns.map((column) => {
+                const fieldType = column.parent_datatype || column.data_type || 'text'
+                const value = recordFormData[column.column_id] || ''
+                
+                return (
+                  <div key={column.column_id} className="space-y-2">
+                    <Label htmlFor={`edit-${column.column_id}`}>
+                      {column.column_name}
+                    </Label>
+                    {fieldType === 'textarea' ? (
+                      <Textarea
+                        id={`edit-${column.column_id}`}
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                        className="min-h-[100px]"
+                      />
+                    ) : fieldType === 'number' ? (
+                      <Input
+                        id={`edit-${column.column_id}`}
+                        type="number"
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                      />
+                    ) : fieldType === 'email' ? (
+                      <Input
+                        id={`edit-${column.column_id}`}
+                        type="email"
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                      />
+                    ) : fieldType === 'date' || fieldType === 'datetime' ? (
+                      <Input
+                        id={`edit-${column.column_id}`}
+                        type={fieldType === 'date' ? 'date' : 'datetime-local'}
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                      />
+                    ) : (
+                      <Input
+                        id={`edit-${column.column_id}`}
+                        type="text"
+                        value={value}
+                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                        placeholder={`Enter ${column.column_name}`}
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsEditRecordDialogOpen(false)
+              setRecordToEdit(null)
+              setRecordFormData({})
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateRecord} disabled={isSubmittingRecord}>
+              {isSubmittingRecord ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update Record'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Record Dialog */}
+      <Dialog open={isViewRecordDialogOpen} onOpenChange={setIsViewRecordDialogOpen}>
+        <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Eye className="h-5 w-5 text-primary" />
+              Record Details
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              Complete information for this record
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Scrollable Content Area */}
+          <div className="flex-1 min-h-0 overflow-auto">
+            <div className="p-6 space-y-6">
+              {/* Record Metadata */}
+              <Card className="border-l-4 border-l-primary">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Database className="h-5 w-5 text-primary" />
+                    Record Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                      <Label className="text-sm font-semibold text-muted-foreground">Record ID</Label>
+                      <p className="text-sm font-mono bg-background p-2 rounded border break-all">{recordToView?.record_id || '-'}</p>
+                    </div>
+                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                      <Label className="text-sm font-semibold text-muted-foreground">Created At</Label>
+                      <p className="text-sm bg-background p-2 rounded border">
+                        {recordToView?.created_at ? new Date(recordToView.created_at).toLocaleString() : '-'}
+                      </p>
+                    </div>
+                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                      <Label className="text-sm font-semibold text-muted-foreground">Created By</Label>
+                      <p className="text-sm bg-background p-2 rounded border">
+                        {(() => {
+                          const createdBy = recordToView?.created_by
+                          if (!createdBy) return '-'
+                          const user = users.find(u => (u.user_id || u.id) === createdBy)
+                          return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : createdBy
+                        })()}
+                      </p>
+                    </div>
+                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                      <Label className="text-sm font-semibold text-muted-foreground">Updated At</Label>
+                      <p className="text-sm bg-background p-2 rounded border">
+                        {recordToView?.updated_at ? new Date(recordToView.updated_at).toLocaleString() : '-'}
+                      </p>
+                    </div>
+                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                      <Label className="text-sm font-semibold text-muted-foreground">Updated By</Label>
+                      <p className="text-sm bg-background p-2 rounded border">
+                        {(() => {
+                          const updatedBy = recordToView?.updated_by
+                          if (!updatedBy) return '-'
+                          const user = users.find(u => (u.user_id || u.id) === updatedBy)
+                          return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : updatedBy
+                        })()}
+                      </p>
+                    </div>
+                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                      <Label className="text-sm font-semibold text-muted-foreground">Assigned To</Label>
+                      <p className="text-sm bg-background p-2 rounded border">
+                        {(() => {
+                          const assignedTo = recordToView?.assigned_to
+                          if (!assignedTo || assignedTo === 'NA') return 'Not assigned'
+                          const user = users.find(u => (u.user_id || u.id) === assignedTo)
+                          return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : assignedTo
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Field Values - Only render if recordToView exists */}
+              {recordToView && (
+                <Card className="border-l-4 border-l-blue-500">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Settings className="h-5 w-5 text-blue-500" />
+                      Field Values
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {columns.map((column) => {
+                      const fieldValue = getFieldValue(recordToView, column.column_id, column)
+                      const displayDataType = column.parent_datatype || column.data_type
+                      const formattedValue = formatFieldValue(fieldValue, displayDataType, column, recordToView)
+                      
+                      return (
+                        <div key={column.column_id} className="space-y-2 p-4 bg-muted/20 rounded-lg border">
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm font-semibold text-foreground">{column.column_name}</Label>
+                            <Badge variant="outline" className="text-xs">
+                              {displayDataType || 'text'}
+                            </Badge>
+                          </div>
+                          <div className="text-sm bg-background p-3 rounded border min-h-[44px] break-words">
+                            {formattedValue || <span className="text-muted-foreground italic">No value</span>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+          
+          <DialogFooter className="px-6 py-4 border-t shrink-0 gap-3">
+            <Button variant="outline" onClick={() => setIsViewRecordDialogOpen(false)} className="gap-2">
+              <Eye className="h-4 w-4" />
+              Close View
+            </Button>
+            {recordToView && (
+              <Button onClick={() => {
+                setIsViewRecordDialogOpen(false)
+                openEditRecordDialog(recordToView)
+              }} className="gap-2">
+                <Edit className="h-4 w-4" />
+                Edit Record
+              </Button>
+            )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
