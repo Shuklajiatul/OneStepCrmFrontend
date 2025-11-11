@@ -4,7 +4,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     
-    // Forward the request to your backend
+    // Forward the request to your backend for initial login/OTP generation
     const response = await fetch(`${process.env.BACKEND_URL || 'http://10.10.15.194:3001'}/api/auth/login`, {
       method: 'POST',
       headers: {
