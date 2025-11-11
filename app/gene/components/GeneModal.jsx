@@ -63,32 +63,74 @@ export default function GeneModal({
   const [touchedFields, setTouchedFields] = useState({ name: false, levels: false });
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // Fetch users when modal opens (both create and edit mode)
+  // Fetch users based on mode (create vs edit)
   useEffect(() => {
     if (showModal) {
-      fetchUsers();
+      if (editingGene) {
+        // In edit mode, fetch users assigned to this specific gene
+        fetchGeneUsers();
+      } else {
+        // In create mode, fetch all users
+        fetchAllUsers();
+      }
     }
-  }, [showModal]);
+  }, [showModal, editingGene]);
 
   // Initialize selected users when geneData changes
   useEffect(() => {
     if (editingGene && geneData.users) {
       const userIds = geneData.users.split(',').filter(id => id.trim() !== '').map(id => id.trim());
-     
+      
+      console.log('Initializing selected users with IDs:', userIds);
+      console.log('Available users:', users);
+      
       if (users.length > 0 && userIds.length > 0) {
-        // Match users by comparing both string and number representations
+        // Improved user matching - handle different ID formats and cases
         const userObjects = users.filter(user => {
           const userId = user.id || user.user_id;
-          return userIds.some(id => 
-            userId.toString() === id || 
-            userId.toString() === id.toString() ||
-            String(userId) === String(id)
-          );
+          
+          // Try multiple matching strategies
+          return userIds.some(id => {
+            // Direct string comparison
+            if (String(userId) === String(id)) return true;
+            
+            // Case-insensitive comparison
+            if (String(userId).toLowerCase() === String(id).toLowerCase()) return true;
+            
+            // Handle UUID variations
+            if (String(userId).replace(/-/g, '') === String(id).replace(/-/g, '')) return true;
+            
+            return false;
+          });
         });
+        
+        console.log('Matched user objects:', userObjects);
         setSelectedUsers(userObjects);
       } else if (userIds.length > 0) {
-        // If users haven't loaded yet, store the IDs temporarily
-        setSelectedUsers(userIds.map(id => ({ id: id.toString() })));
+        console.log('Users not loaded yet, storing IDs temporarily');
+        // Create temporary user objects with proper display names if possible
+        const tempUsers = userIds.map(id => {
+          // Try to find user in the users array even if not fully loaded
+          const foundUser = users.find(user => {
+            const userId = user.id || user.user_id;
+            return String(userId) === String(id) || 
+                  String(userId).toLowerCase() === String(id).toLowerCase();
+          });
+          
+          if (foundUser) {
+            return foundUser;
+          }
+          
+          // Fallback: create minimal user object
+          return { 
+            id: id.toString(),
+            user_id: id.toString(),
+            // Add placeholder name that will be updated when users load
+            name: `User ${id.substring(0, 8)}...`,
+            username: `User ${id.substring(0, 8)}...`
+          };
+        });
+        setSelectedUsers(tempUsers);
       } else {
         setSelectedUsers([]);
       }
@@ -142,11 +184,12 @@ export default function GeneModal({
     }));
   };
 
-  const fetchUsers = async () => {
+  // Fetch all users for create mode
+  const fetchAllUsers = async () => {
     try {
       setLoadingUsers(true);
       setError(null);
-      // Try to get token from auth utils, localStorage, or sessionStorage
+      
       const tokens = authUtils.getTokens();
       const token = tokens?.accessToken || 
                    localStorage.getItem('token') || 
@@ -172,7 +215,7 @@ export default function GeneModal({
         }
       );
 
-      console.log('Users Response:', response.data);
+      console.log('All Users Response:', response.data);
       
       // Handle different response formats
       let usersData = [];
@@ -188,10 +231,10 @@ export default function GeneModal({
         usersData = response.data.users;
       }
       
-      // Normalize user objects - map user_id to id if needed
+      // Normalize user objects
       const normalizedUsers = usersData.map(user => ({
         ...user,
-        id: user.id || user.user_id, // Use id if exists, otherwise use user_id
+        id: user.id || user.user_id,
         username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
         name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
       }));
@@ -205,16 +248,162 @@ export default function GeneModal({
         setSelectedUsers(updatedSelectedUsers);
       }
     } catch (err) {
-      console.error('Fetch error:', err);
+      console.error('Fetch all users error:', err);
       if (err.response?.status === 401) {
-        // Clear tokens from all storage
         localStorage.removeItem('token');
         localStorage.removeItem('accessToken');
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('accessToken');
         authUtils.clearTokens();
         setError('Session expired. Please login again.');
-        // Don't redirect automatically - let user continue working if they don't need users
+      } else {
+        setError(err.message || 'Failed to fetch users');
+      }
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Fetch users assigned to specific gene for edit mode
+  const fetchGeneUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      setError(null);
+      
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        setError('Authentication token not found. Please ensure you are logged in.');
+        setLoadingUsers(false);
+        return;
+      }
+
+      if (!editingGene || !editingGene.g_id) {
+        setError('Gene ID not found for fetching users');
+        setLoadingUsers(false);
+        return;
+      }
+
+      const baseUrl = API_CONSTANTS.BASE_URL;
+      const response = await axios.get(
+        `${baseUrl}/api/genes/by-geneId/${editingGene.g_id}`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      console.log('Gene Users Response:', response.data);
+      
+      // Handle different response formats for gene users
+      let geneUsersData = [];
+      if (response.data.success && response.data.data) {
+        const geneData = response.data.data;
+        if (geneData.users && Array.isArray(geneData.users)) {
+          geneUsersData = geneData.users;
+        }
+      } else if (Array.isArray(response.data)) {
+        geneUsersData = response.data;
+      } else if (response.data.users && Array.isArray(response.data.users)) {
+        geneUsersData = response.data.users;
+      }
+
+      // Normalize user objects from gene response
+      const normalizedGeneUsers = geneUsersData.map(user => ({
+        ...user,
+        id: user.id || user.user_id,
+        username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+        name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
+      }));
+
+      setUsers(normalizedGeneUsers);
+      setSelectedUsers(normalizedGeneUsers);
+
+    } catch (err) {
+      console.error('Fetch gene users error:', err);
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('accessToken');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('accessToken');
+        authUtils.clearTokens();
+        setError('Session expired. Please login again.');
+      } else {
+        setError(err.message || 'Failed to fetch gene users');
+        // Fallback to fetching all users if gene-specific endpoint fails
+        await fetchAllUsers();
+      }
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Fetch all users for selection (when popover opens in edit mode)
+  const fetchUsersForSelection = async () => {
+    try {
+      setLoadingUsers(true);
+      
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken') ||
+                   sessionStorage.getItem('token') ||
+                   sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        setError('Authentication token not found.');
+        setLoadingUsers(false);
+        return;
+      }
+
+      const baseUrl = API_CONSTANTS.BASE_URL;
+      const response = await axios.get(
+        `${baseUrl}/api/users`,
+        {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      console.log('Users for Selection Response:', response.data);
+      
+      // Handle different response formats
+      let usersData = [];
+      if (Array.isArray(response.data)) {
+        usersData = response.data;
+      } else if (response.data.success && response.data.data) {
+        usersData = response.data.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        usersData = response.data.data;
+      } else if (response.data.users && Array.isArray(response.data.users)) {
+        usersData = response.data.users;
+      }
+      
+      // Normalize user objects
+      const normalizedUsers = usersData.map(user => ({
+        ...user,
+        id: user.id || user.user_id,
+        username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+        name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
+      }));
+      
+      setUsers(normalizedUsers);
+      
+    } catch (err) {
+      console.error('Fetch users for selection error:', err);
+      if (err.response?.status === 401) {
+        setError('Session expired. Please login again.');
       } else {
         setError(err.message || 'Failed to fetch users');
       }
@@ -237,6 +426,15 @@ export default function GeneModal({
 
   const clearAllUsers = () => {
     setSelectedUsers([]);
+  };
+
+  // Handle popover open to fetch users for selection
+  const handlePopoverOpen = (open) => {
+    setOpenUserPopover(open);
+    if (open && editingGene) {
+      // When opening popover in edit mode, fetch all users for selection
+      fetchUsersForSelection();
+    }
   };
 
   const filteredUsers = users.filter(user => {
@@ -315,7 +513,7 @@ export default function GeneModal({
               )}
             </div>
 
-            {/* Users Multi-Select Dropdown - Show in both create and edit mode */}
+            {/* Users Multi-Select Dropdown */}
             <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-semibold">Assign Users</Label>
@@ -332,7 +530,7 @@ export default function GeneModal({
                 </div>
                
                 {/* Selected Users Display */}
-                <Popover open={openUserPopover} onOpenChange={setOpenUserPopover}>
+                <Popover open={openUserPopover} onOpenChange={handlePopoverOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -346,7 +544,29 @@ export default function GeneModal({
                           <div className="flex flex-wrap gap-1.5 w-full">
                             {selectedUsers.map((user) => {
                               const userId = user.id || user.user_id;
-                              const displayName = user.username || user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || `User ${userId}`;
+                              
+                              // Improved display name logic that handles temporary user objects
+                              let displayName = 'Unknown User';
+                              
+                              if (user.username && user.username.trim() && !user.username.startsWith('User ')) {
+                                displayName = user.username;
+                              } else if (user.name && user.name.trim() && !user.name.startsWith('User ')) {
+                                displayName = user.name;
+                              } else if (user.first_name || user.last_name) {
+                                const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+                                if (fullName) displayName = fullName;
+                              } else if (user.email && user.email.trim()) {
+                                displayName = user.email;
+                              } else {
+                                // Check if this is a temporary placeholder name
+                                const tempName = user.username || user.name;
+                                if (tempName && tempName.startsWith('User ')) {
+                                  displayName = tempName;
+                                } else {
+                                  displayName = `User ${userId.substring(0, 8)}...`;
+                                }
+                              }
+                              
                               return (
                                 <Badge
                                   key={userId}
@@ -381,7 +601,6 @@ export default function GeneModal({
                     <div 
                       className="max-h-[300px] overflow-y-auto cursor-pointer scrollbar-area"
                       onClick={(e) => {
-                        // Force focus on the scrollable area when clicked
                         e.currentTarget.focus();
                         e.stopPropagation();
                       }}
@@ -416,7 +635,7 @@ export default function GeneModal({
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={fetchUsers}
+                                onClick={editingGene ? fetchUsersForSelection : fetchAllUsers}
                                 className="mt-2"
                               >
                                 Retry
@@ -432,8 +651,6 @@ export default function GeneModal({
                             <CommandGroup>
                               {filteredUsers.map((user) => {
                                 const userId = user.id || user.user_id;
-                                // Use same logic as eye modal: name -> username -> first_name+last_name -> email -> fallback
-                                // Handle empty strings by checking if value exists and is not empty
                                 const fullName = user.first_name && user.last_name 
                                   ? `${user.first_name} ${user.last_name}`.trim()
                                   : null;
@@ -442,7 +659,6 @@ export default function GeneModal({
                                                   fullName ||
                                                   (user.email && user.email.trim()) ||
                                                   `User ${userId}`;
-                                // Show email if it exists and is different from displayName
                                 const showEmail = user.email && user.email.trim() && user.email !== displayName;
                                 return (
                                   <CommandItem
@@ -450,7 +666,6 @@ export default function GeneModal({
                                     value={`${displayName} ${user.email || ''}`}
                                     onSelect={() => {
                                       handleUserSelect(user);
-                                      // Keep dropdown open for multi-select
                                     }}
                                     className="cursor-pointer py-2 px-3 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
                                   >
@@ -659,4 +874,3 @@ export default function GeneModal({
     </Dialog>
   );
 }
-

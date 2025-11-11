@@ -553,35 +553,83 @@ export default function GeneDashboard() {
     setShowModal(true);
   };
 
-  const openEditModal = (gene) => {
+  const openEditModal = async (gene) => {
     setEditingGene(gene);
     
-    // Extract user IDs from gene.usersArray (preserved original array) or gene.users
-    let usersString = '';
-    const usersArray = gene.usersArray || gene.users;
-    
-    if (usersArray && Array.isArray(usersArray)) {
-      // If users is an array of objects with id/user_id, extract the IDs
-      const userIds = usersArray.map(user => {
-        if (typeof user === 'object' && user !== null) {
-          return user.id || user.user_id || user;
+    try {
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                   localStorage.getItem('token') || 
+                   localStorage.getItem('accessToken');
+      
+      if (!token) {
+        toast.error('Authentication required. Please login again.');
+        router.push('/login');
+        return;
+      }
+  
+      // Fetch the specific gene details to get the users
+      const response = await axios.get(
+        `${API_CONSTANTS.BASE_URL}/api/genes/by-geneId/${gene.g_id || gene.id}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
         }
-        return user;
-      }).filter(Boolean); // Remove any null/undefined values
-      usersString = userIds.join(',');
-    } else if (usersArray && typeof usersArray === 'string') {
-      // If users is already a string (comma-separated)
-      usersString = usersArray;
+      );
+  
+      if (response.data.success && response.data.data) {
+        const geneDetails = response.data.data;
+        
+        // Extract user IDs from the API response
+        let usersString = '';
+        if (Array.isArray(geneDetails)) {
+          // This is the structure from your API response
+          const userIds = geneDetails.map(user => user.user_id).filter(Boolean);
+          usersString = userIds.join(',');
+        }
+        
+        setGeneData({
+          name: gene.g_name || gene.name,
+          levels: gene.levels || [],
+          g_id: gene.g_id,
+          is_active: gene.is_active,
+          users: usersString
+        });
+        setShowModal(true);
+      } else {
+        throw new Error('Failed to fetch gene details');
+      }
+    } catch (error) {
+      console.error('Error fetching gene details:', error);
+      // Fallback to existing logic if API call fails
+      let usersString = '';
+      const usersArray = gene.usersArray || gene.users;
+      
+      if (usersArray && Array.isArray(usersArray)) {
+        const userIds = usersArray.map(user => {
+          if (typeof user === 'object' && user !== null) {
+            return user.id || user.user_id || user;
+          }
+          return user;
+        }).filter(Boolean);
+        usersString = userIds.join(',');
+      } else if (usersArray && typeof usersArray === 'string') {
+        usersString = usersArray;
+      }
+      
+      setGeneData({
+        name: gene.g_name || gene.name,
+        levels: gene.levels || [],
+        g_id: gene.g_id,
+        is_active: gene.is_active,
+        users: usersString
+      });
+      setShowModal(true);
     }
-    
-    setGeneData({
-      name: gene.g_name || gene.name,
-      levels: gene.levels || [],
-      g_id: gene.g_id,
-      is_active: gene.is_active,
-      users: usersString
-    });
-    setShowModal(true);
   };
 
   const closeModal = () => {
@@ -601,20 +649,20 @@ export default function GeneDashboard() {
 
   const handleSubmit = async (modalData) => {
     const { geneData, selectedUsers } = modalData;
- 
+  
     if (!geneData.name || geneData.levels.length === 0) {
       toast.error('Please fill all required fields and add at least one level');
       return;
     }
-
+  
     const hasEmptyTitle = geneData.levels.some(level => !level.title.trim());
     if (hasEmptyTitle) {
       toast.error('Please fill level names for all levels');
       return;
     }
-
+  
     const loadingToast = toast.loading(editingGene ? 'Updating gene...' : 'Creating gene...');
-
+  
     try {
       // Get token from auth utils, localStorage, or sessionStorage
       const tokens = authUtils.getTokens();
@@ -629,23 +677,48 @@ export default function GeneDashboard() {
         router.push('/login');
         return;
       }
-
+  
+      // Get organization_id from localStorage user data
+      let organization_id = null;
+      try {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          const user = JSON.parse(userData);
+          organization_id = user.organization_id;
+        }
+      } catch (parseError) {
+        console.warn('Could not parse user data from localStorage:', parseError);
+      }
+  
+      // If organization_id is still null, try to get it from other sources
+      if (!organization_id) {
+        // You might need to adjust this based on where your organization_id is stored
+        organization_id = localStorage.getItem('organization_id') || 
+                         sessionStorage.getItem('organization_id');
+      }
+  
+      if (!organization_id) {
+        toast.error('Organization ID not found. Please login again.', { id: loadingToast });
+        return;
+      }
+  
       const hierarchy_level = convertLevelsToHierarchy(geneData.levels);
       const level_depth = geneData.levels.length;
      
       if (editingGene) {
-        // Build payload for updating gene - only include fields that can be updated
+        // Build payload for updating gene - include organization_id
         const payload = {
           g_name: geneData.name,
           is_active: geneData.is_active,
-          level_depth: level_depth
+          level_depth: level_depth,
+          organization_id: organization_id // Add organization_id here
         };
-
+  
         // Add hierarchy_level if provided
         if (hierarchy_level && Object.keys(hierarchy_level).length > 0) {
           payload.hierarchy_level = hierarchy_level;
         }
-
+  
         // Add users if selected
         if (selectedUsers && Array.isArray(selectedUsers) && selectedUsers.length > 0) {
           payload.users = selectedUsers.map(user => {
@@ -653,14 +726,14 @@ export default function GeneDashboard() {
             return user.id || user.user_id || user;
           });
         }
-
-        // Add organizations if provided
+  
+        // Add organizations if provided (though organization_id should be sufficient)
         if (geneData.organizations && Array.isArray(geneData.organizations) && geneData.organizations.length > 0) {
           payload.organizations = geneData.organizations;
         }
-
+  
         console.log('Update Gene Payload:', payload);
-
+  
         // Update endpoint uses PUT with g_id in the URL path
         const response = await axios.put(
           `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneUpdate}/${geneData.g_id}`,
@@ -672,7 +745,7 @@ export default function GeneDashboard() {
             }
           }
         );
-
+  
         if (response.data.success) {
           toast.success(response.data.message || `Gene "${geneData.name}" updated successfully!`, {
             id: loadingToast,
@@ -683,19 +756,20 @@ export default function GeneDashboard() {
           throw new Error(response.data.message || 'Failed to update gene');
         }
       } else {
-        // Build payload for creating new gene
+        // Build payload for creating new gene - include organization_id
         const payload = {
           g_name: geneData.name,
           hierarchy_level: hierarchy_level,
           is_active: geneData.is_active,
-          level_depth: level_depth
+          level_depth: level_depth,
+          organization_id: organization_id // Add organization_id here for creation too
         };
-
+  
         // Add organizations if provided
         if (geneData.organizations && Array.isArray(geneData.organizations) && geneData.organizations.length > 0) {
           payload.organizations = geneData.organizations;
         }
-
+  
         // Add users if selected
         if (selectedUsers && Array.isArray(selectedUsers) && selectedUsers.length > 0) {
           payload.users = selectedUsers.map(user => {
@@ -703,9 +777,9 @@ export default function GeneDashboard() {
             return user.id || user.user_id || user;
           });
         }
-
+  
         console.log('Create Gene Payload:', payload);
-
+  
         const response = await axios.post(
           `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneCreate}`,
           payload,
@@ -716,7 +790,7 @@ export default function GeneDashboard() {
             }
           }
         );
-
+  
         if (response.data.success) {
           toast.success(response.data.message || `Gene "${geneData.name}" created successfully with ${level_depth} levels!`, {
             id: loadingToast,
@@ -736,9 +810,80 @@ export default function GeneDashboard() {
     }
   };
 
-  const openViewModal = (gene) => {
+  // const openViewModal = (gene) => {
+  //   setSelectedGene(gene);
+  //   setShowViewModal(true);
+  // };
+
+  const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
+
+  const openViewModal = async (gene) => {
     setSelectedGene(gene);
     setShowViewModal(true);
+    setLoadingGeneDetails(true);
+    
+    try {
+      // Get token from auth utils, localStorage, or sessionStorage
+      const tokens = authUtils.getTokens();
+      const token = tokens?.accessToken || 
+                  localStorage.getItem('token') || 
+                  localStorage.getItem('accessToken') ||
+                  sessionStorage.getItem('token') ||
+                  sessionStorage.getItem('accessToken');
+      
+      if (!token) {
+        console.warn('No token available for fetching gene details');
+        setLoadingGeneDetails(false);
+        return;
+      }
+
+      // Fetch detailed gene information with users and organizations
+      const response = await axios.get(
+        `${API_CONSTANTS.BASE_URL}/api/genes/by-geneId/${gene.g_id || gene.id}`,
+        {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (response.data.success && response.data.data) {
+        // Transform the API response to match your expected structure
+        const detailedGene = {
+          ...gene,
+          // Extract users from the API response
+          usersArray: response.data.data.map(user => ({
+            user_id: user.user_id,
+            id: user.user_id,
+            email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            username: user.email, // Using email as username fallback
+            name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+            is_active: user.is_active
+          })),
+          // Update users count
+          users: response.data.data.length,
+          // Extract organizations (unique organization_ids from the response)
+          organizations: [...new Set(response.data.data.map(user => user.organization_id))].map(orgId => ({
+            organization_id: orgId,
+            id: orgId
+          })),
+          // Update organizations count
+          totalMembers: [...new Set(response.data.data.map(user => user.organization_id))].length
+        };
+
+        setSelectedGene(detailedGene);
+      }
+    } catch (error) {
+      console.error('Error fetching gene details:', error);
+      // Keep the original gene data if detailed fetch fails
+      toast.error('Failed to load gene details');
+    } finally {
+      setLoadingGeneDetails(false);
+    }
   };
 
   const closeViewModal = () => {
@@ -1675,260 +1820,204 @@ export default function GeneDashboard() {
             </div>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh] pr-4">
-            <div className="space-y-6">
-              {/* Stats Cards */}
-              <div className="grid grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center space-x-2">
-                      <Layers className="h-5 w-5 text-primary" />
-                      <div>
-                        <div className="text-xs text-muted-foreground font-medium">Total Levels</div>
-                        <div className="text-lg font-bold">{selectedGene?.hierarchyLevels}</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-               
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center space-x-2">
-                      <UsersIcon className="h-5 w-5 text-primary" />
-                      <div>
-                        <div className="text-xs text-muted-foreground font-medium">Users</div>
-                        <div className="text-lg font-bold">{selectedGene?.users}</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle2 className={`h-5 w-5 ${selectedGene?.is_active ? 'text-green-600' : 'text-gray-400'}`} />
-                      <div>
-                        <div className="text-xs text-muted-foreground font-medium">Status</div>
-                        <div className="text-lg font-bold">
-                          {selectedGene?.is_active ? 'Active' : 'Inactive'}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            {loadingGeneDetails ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
+                <span className="text-sm text-muted-foreground">Loading gene details...</span>
               </div>
-
-              {/* Gene Structure */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Gene Structure</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {selectedGene?.levels && selectedGene.levels.length > 0 ? (
-                    <div className="space-y-4">
-                      {selectedGene.levels.map((level, index) => (
-                        <div key={level.id || index} className="relative">
-                          {index > 0 && (
-                            <div className="flex justify-center mb-3">
-                              <div className="w-0.5 h-6 bg-primary/20 rounded-full"></div>
-                            </div>
-                          )}
-                         
-                          <Card>
-                            <CardContent className="pt-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                                  {index + 1}
-                                </div>
-                                <div className="flex-1">
-                                  <h4 className="font-bold">{level.title}</h4>
-                                  <p className="text-xs text-muted-foreground">Level {index + 1}</p>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
+            ) : (
+              <div className="space-y-6">
+                {/* Stats Cards */}
+                <div className="grid grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center space-x-2">
+                        <Layers className="h-5 w-5 text-primary" />
+                        <div>
+                          <div className="text-xs text-muted-foreground font-medium">Total Levels</div>
+                          <div className="text-lg font-bold">{selectedGene?.hierarchyLevels}</div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Layers className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p className="text-sm font-medium">No gene structure available</p>
-                      <p className="text-xs mt-1">The gene structure hasn't been configured yet</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                      </div>
+                    </CardContent>
+                  </Card>
+                
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center space-x-2">
+                        <UsersIcon className="h-5 w-5 text-primary" />
+                        <div>
+                          <div className="text-xs text-muted-foreground font-medium">Users</div>
+                          <div className="text-lg font-bold">{selectedGene?.users}</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              {/* Mapped Users */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <UsersIcon className="h-5 w-5" />
-                      Mapped Users
-                    </CardTitle>
-                    <Badge variant="secondary">
-                      {selectedGene?.usersArray?.length || selectedGene?.users || 0}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {loadingUsers ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
-                      <span className="text-sm text-muted-foreground">Loading users...</span>
-                    </div>
-                  ) : (selectedGene?.usersArray || (selectedGene?.users && Array.isArray(selectedGene.users))) ? (
-                    (() => {
-                      const usersArray = selectedGene?.usersArray || selectedGene?.users || [];
-                      return usersArray.length > 0 ? (
-                        <div className="space-y-3">
-                          {usersArray.map((userIdOrObj, index) => {
-                            // Extract user ID - handle both string IDs and objects
-                            const userId = typeof userIdOrObj === 'string' 
-                              ? userIdOrObj 
-                              : (userIdOrObj.user_id || userIdOrObj.id || userIdOrObj);
-                            
-                            // Find the matching user from fetched users
-                            const matchedUser = users.find(user => 
-                              user.id === userId || 
-                              user.user_id === userId ||
-                              String(user.id) === String(userId) ||
-                              String(user.user_id) === String(userId)
-                            );
-                            
-                            // Use matched user name if found, otherwise fallback
-                            const displayName = matchedUser?.name || 
-                                              matchedUser?.username ||
-                                              (matchedUser?.first_name && matchedUser?.last_name 
-                                                ? `${matchedUser.first_name} ${matchedUser.last_name}`.trim()
-                                                : null) ||
-                                              matchedUser?.email ||
-                                              userIdOrObj?.name ||
-                                              userIdOrObj?.username ||
-                                              (userIdOrObj?.first_name && userIdOrObj?.last_name
-                                                ? `${userIdOrObj.first_name} ${userIdOrObj.last_name}`.trim()
-                                                : null) ||
-                                              (typeof userIdOrObj === 'string' ? `User ${userId.substring(0, 8)}...` : `User ${index + 1}`);
-                            
-                            const userEmail = matchedUser?.email || userIdOrObj?.email;
-                            const displayUserId = matchedUser?.id || matchedUser?.user_id || userId;
-                            
-                            return (
-                              <div key={displayUserId || index} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                                <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <UsersIcon className="h-5 w-5 text-primary" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <p className="font-medium text-sm truncate flex-1" title={displayName}>{displayName}</p>
-                                    <div className={cn(
-                                      "w-2 h-2 rounded-full shrink-0",
-                                      matchedUser?.is_active !== false ? 'bg-green-500' : 'bg-gray-300'
-                                    )} />
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle2 className={`h-5 w-5 ${selectedGene?.is_active ? 'text-green-600' : 'text-gray-400'}`} />
+                        <div>
+                          <div className="text-xs text-muted-foreground font-medium">Status</div>
+                          <div className="text-lg font-bold">
+                            {selectedGene?.is_active ? 'Active' : 'Inactive'}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Gene Structure */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Gene Structure</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedGene?.levels && selectedGene.levels.length > 0 ? (
+                      <div className="space-y-4">
+                        {selectedGene.levels.map((level, index) => (
+                          <div key={level.id || index} className="relative">
+                            {index > 0 && (
+                              <div className="flex justify-center mb-3">
+                                <div className="w-0.5 h-6 bg-primary/20 rounded-full"></div>
+                              </div>
+                            )}
+                          
+                            <Card>
+                              <CardContent className="pt-4">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                                    {index + 1}
                                   </div>
-                                  {userEmail && (
-                                    <p className="text-xs text-muted-foreground truncate">{userEmail}</p>
-                                  )}
-                                  {matchedUser?.is_active === false && (
-                                    <p className="text-xs text-muted-foreground mt-1">Inactive</p>
-                                  )}
+                                  <div className="flex-1">
+                                    <h4 className="font-bold">{level.title}</h4>
+                                    <p className="text-xs text-muted-foreground">Level {index + 1}</p>
+                                  </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <UsersIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                          <p className="text-sm font-medium">No users mapped</p>
-                          <p className="text-xs mt-1">This gene doesn't have any users assigned yet</p>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <UsersIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p className="text-sm font-medium">No users mapped</p>
-                      <p className="text-xs mt-1">This gene doesn't have any users assigned yet</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Layers className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-sm font-medium">No gene structure available</p>
+                        <p className="text-xs mt-1">The gene structure hasn't been configured yet</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-              {/* Mapped Organizations */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <Building className="h-5 w-5" />
-                      Mapped Organizations
-                    </CardTitle>
-                    <Badge variant="secondary">
-                      {selectedGene?.organizations?.length || selectedGene?.totalMembers || 0}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {loadingOrganizations ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
-                      <span className="text-sm text-muted-foreground">Loading organizations...</span>
+                {/* Mapped Users */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <UsersIcon className="h-5 w-5" />
+                        Mapped Users
+                      </CardTitle>
+                      <Badge variant="secondary">
+                        {selectedGene?.usersArray?.length || selectedGene?.users || 0}
+                      </Badge>
                     </div>
-                  ) : selectedGene?.organizations && Array.isArray(selectedGene.organizations) && selectedGene.organizations.length > 0 ? (
-                    <div className="space-y-3">
-                      {selectedGene.organizations.map((orgIdOrObj, index) => {
-                        // Extract organization ID - handle both string IDs and objects
-                        const orgId = typeof orgIdOrObj === 'string' 
-                          ? orgIdOrObj 
-                          : (orgIdOrObj.organization_id || orgIdOrObj.id || orgIdOrObj.org_id || orgIdOrObj);
-                        
-                        // Find the matching organization from fetched organizations
-                        const matchedOrg = organizations.find(org => 
-                          org.organization_id === orgId || 
-                          org.id === orgId ||
-                          String(org.organization_id) === String(orgId) ||
-                          String(org.id) === String(orgId)
-                        );
-                        
-                        // Use matched organization name if found, otherwise fallback
-                        const orgName = matchedOrg?.name || 
-                                      orgIdOrObj?.name || 
-                                      orgIdOrObj?.organization_name || 
-                                      orgIdOrObj?.org_name || 
-                                      (typeof orgIdOrObj === 'string' ? `Organization ${orgId.substring(0, 8)}...` : `Organization ${index + 1}`);
-                        
-                        const displayOrgId = matchedOrg?.organization_id || orgId;
-                        
-                        return (
-                          <div key={displayOrgId || index} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
-                            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <Building className="h-5 w-5 text-primary" />
+                  </CardHeader>
+                  <CardContent>
+                    {selectedGene?.usersArray && selectedGene.usersArray.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedGene.usersArray.map((user, index) => (
+                          <div key={user.user_id || user.id || index} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                              <UsersIcon className="h-5 w-5 text-primary" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate" title={orgName}>{orgName}</p>
-                              {matchedOrg?.subscription_tier && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  <Badge variant="outline" className="text-xs">
-                                    {matchedOrg.subscription_tier}
-                                  </Badge>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-sm truncate flex-1">
+                                  {user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || `User ${index + 1}`}
                                 </p>
+                                <div className={cn(
+                                  "w-2 h-2 rounded-full shrink-0",
+                                  user.is_active !== false ? 'bg-green-500' : 'bg-gray-300'
+                                )} />
+                              </div>
+                              {user.email && (
+                                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                              )}
+                              {user.is_active === false && (
+                                <p className="text-xs text-muted-foreground mt-1">Inactive</p>
                               )}
                             </div>
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <UsersIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-sm font-medium">No users mapped</p>
+                        <p className="text-xs mt-1">This gene doesn't have any users assigned yet</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Mapped Organizations */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Building className="h-5 w-5" />
+                        Mapped Organizations
+                      </CardTitle>
+                      <Badge variant="secondary">
+                        {selectedGene?.organizations?.length || selectedGene?.totalMembers || 0}
+                      </Badge>
                     </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Building className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p className="text-sm font-medium">No organizations mapped</p>
-                      <p className="text-xs mt-1">This gene doesn't have any organizations assigned yet</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedGene?.organizations && selectedGene.organizations.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedGene.organizations.map((org, index) => {
+                          // Find the matching organization from fetched organizations
+                          const matchedOrg = organizations.find(o => 
+                            o.organization_id === org.organization_id || 
+                            o.id === org.organization_id ||
+                            String(o.organization_id) === String(org.organization_id) ||
+                            String(o.id) === String(org.organization_id)
+                          );
+                          
+                          const orgName = matchedOrg?.name || `Organization ${org.organization_id?.substring(0, 8)}...`;
+                          
+                          return (
+                            <div key={org.organization_id || index} className="flex items-center gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors">
+                              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <Building className="h-5 w-5 text-primary" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-sm truncate" title={orgName}>{orgName}</p>
+                                {matchedOrg?.subscription_tier && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {matchedOrg.subscription_tier}
+                                    </Badge>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Building className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p className="text-sm font-medium">No organizations mapped</p>
+                        <p className="text-xs mt-1">This gene doesn't have any organizations assigned yet</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </ScrollArea>
           <DialogFooter>
             <Button variant="outline" onClick={closeViewModal}>
