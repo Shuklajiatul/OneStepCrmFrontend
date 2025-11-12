@@ -158,7 +158,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
 
             <Card className={cn(
                 "h-[calc(100vh-1.5rem)] flex flex-col bg-sidebar border-0 shadow-none overflow-hidden",
-                isCollapsed ? "m-2 p-2" : "m-3 p-3"
+                isCollapsed ? "m-2 p-2" : "m-2 p-3"
             )}>
                 {/* Header Section - Single row layout */}
                 <div className="flex items-center justify-between gap-2">
@@ -195,7 +195,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                     </Button>
                 </div>
 
-                <nav className="flex-1 mt-4 overflow-y-auto overflow-x-hidden">
+                <nav className="flex-1 mt-4 overflow-y-auto overflow-x-hidden pr-0 -mr-3">
                     {!isCollapsed && (
                         <div className="text-xs uppercase text-sidebar-foreground/70 px-2 mb-3 font-semibold tracking-wider">
                             General
