@@ -529,8 +529,8 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         form_name: formName,
         description: formDescription,
         created_by: USER_ID,
-        fields: regularFields.map(processFieldData),
-        extraFields: leadDatabaseFields.map(processFieldData),
+        extraFields: regularFields.map(processFieldData),
+        fields: leadDatabaseFields.map(processFieldData),
         published: true,
         retry_count: retryCount
       }
