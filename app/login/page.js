@@ -182,8 +182,8 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-purple-400 to-purple-600 items-center justify-center p-12">
         <div className="relative w-full max-w-md aspect-square">
           <Image
-            src="/colorful-pink-frosted-donut-with-blueberries-on-tu.jpg"
-            alt="Welcome illustration"
+            src="/SlashLogo.png"
+            alt="Slash CRM Logo"
             fill
             className="object-contain drop-shadow-2xl"
             priority
