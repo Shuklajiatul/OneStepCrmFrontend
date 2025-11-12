@@ -219,7 +219,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
         // Use the actual column data from API response
         const columnName = column.column_name || 'Unnamed Column'
         const formattedLabel = columnName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-        const fieldType = mapDataTypeToFieldType(column.data_type, column.optional_values)
+        const fieldType = mapDataTypeToFieldType(column.parent_datatype, column.optional_values)
 
         // Generate unique field ID
         const generateUniqueFieldId = (prefix = 'field') => {
@@ -243,7 +243,8 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
           source: 'table',
           tableColumnId: column.column_id,
           tableColumnName: columnName,
-          originalDataType: column.data_type // Keep original for debugging
+          originalDataType: column.parent_datatype, // Keep original for debugging
+          isLeadColumn: true // Set isLeadColumn to true for table columns
         }
         
         return fieldData
@@ -260,7 +261,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
   // Filter columns based on search (only from available columns)
   const filteredColumns = getAvailableColumns().filter(column => {
     const columnName = column.column_name || ''
-    const dataType = column.data_type || ''
+    const dataType = column.parent_datatype || ''
     return columnName.toLowerCase().includes(searchTerm.toLowerCase()) ||
            dataType.toLowerCase().includes(searchTerm.toLowerCase())
   })
@@ -281,42 +282,42 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-           {/* Button Container */}
-           <div className="flex justify-between items-center">
-             {selectedColumns.length > 0 && (
-               <Button 
-                 onClick={addColumnsAsFields}
-                 variant="default"
-                 size="sm"
-                 className="gap-2"
-               >
-                 Add {selectedColumns.length} {selectedColumns.length === 1 ? 'Column' : 'Columns'}
-               </Button>
-             )}
-             
-             <Button 
-               onClick={() => {
-                 fetchTableColumns()
-                 setSelectedColumns([])
-               }} 
-               disabled={loading}
-               size="sm"
-               variant="outline"
-               className="gap-2"
-             >
-               {loading ? (
-                 <>
-                   <Loader2 className="h-3 w-3 animate-spin" />
-                   Loading...
-                 </>
-               ) : (
-                 <>
-                   <RefreshCw className="h-3 w-3" />
-                   Refresh Columns
-                 </>
-               )}
-             </Button>
-           </div>
+          {/* Button Container */}
+          <div className="flex justify-between items-center">
+            {selectedColumns.length > 0 && (
+              <Button 
+                onClick={addColumnsAsFields}
+                variant="default"
+                size="sm"
+                className="gap-2"
+              >
+                Add {selectedColumns.length} {selectedColumns.length === 1 ? 'Column' : 'Columns'}
+              </Button>
+            )}
+            
+            <Button 
+              onClick={() => {
+                fetchTableColumns()
+                setSelectedColumns([])
+              }} 
+              disabled={loading}
+              size="sm"
+              variant="outline"
+              className="gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-3 w-3" />
+                  Refresh Columns
+                </>
+              )}
+            </Button>
+          </div>
 
           {tableColumns.length > 0 && (
             <>
@@ -367,7 +368,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">
-                              {column.data_type || 'text'}
+                              {column.parent_datatype || 'text'}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -405,14 +406,14 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
             </>
           )}
 
-           {tableColumns.length === 0 && !loading && (
-             <div className="text-center py-8 text-muted-foreground">
-               <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-               <p>Click "Refresh Columns" to load columns from your table</p>
-               <p className="text-sm mt-2">Columns will be converted to appropriate form field types</p>
-               <p className="text-xs mt-1 text-muted-foreground/70">Refresh also clears all selected columns</p>
-             </div>
-           )}
+          {tableColumns.length === 0 && !loading && (
+            <div className="text-center py-8 text-muted-foreground">
+              <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+              <p>Click "Refresh Columns" to load columns from your table</p>
+              <p className="text-sm mt-2">Columns will be converted to appropriate form field types</p>
+              <p className="text-xs mt-1 text-muted-foreground/70">Refresh also clears all selected columns</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -451,18 +452,13 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
               {selectedColumns.map(column => (
                 <Badge key={column.column_id} variant="default" className="flex items-center gap-1">
                   {column.column_name || 'Unnamed'}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleColumnSelection(column)
-                    }}
-                    className="ml-1 hover:bg-primary-foreground/20 rounded-full w-4 h-4 flex items-center justify-center text-xs"
-                  >
-                    ×
-                  </button>
+                  <Check className="w-3 h-3" />
                 </Badge>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              These columns will be added to the form with "Add to Lead Database" enabled by default.
+            </p>
           </CardContent>
         </Card>
       )}
