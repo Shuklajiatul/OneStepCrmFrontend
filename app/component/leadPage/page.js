@@ -45,12 +45,14 @@ export default function LeadsPage() {
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [displayMode, setDisplayMode] = useState("card")
-  const [statusFilter, setStatusFilter] = useState("all")
   const [groupBy, setGroupBy] = useState("status")
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [tableToDelete, setTableToDelete] = useState(null)
   const [selectedTable, setSelectedTable] = useState(null)
   const [currentView, setCurrentView] = useState("tables")
+  const [activeTab, setActiveTab] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(9) // 9 items per page for card view (3x3 grid)
 
   // Define columns for TanStack Table
   const columns = [
@@ -67,7 +69,13 @@ export default function LeadsPage() {
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <div className="font-semibold text-foreground truncate">
+              <div 
+                className="font-semibold text-foreground truncate cursor-pointer hover:text-primary hover:underline"
+                onClick={() => {
+                  setSelectedTable(table)
+                  setCurrentView("data")
+                }}
+              >
                 {table.table_name}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -279,28 +287,39 @@ export default function LeadsPage() {
     }
   }
 
-  // Filter tables based on search and status
+  // Filter tables based on search and active tab
   const filteredTables = tables.filter(table => {
     const matchesSearch = !searchTerm || 
       table.table_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (table.description && table.description.toLowerCase().includes(searchTerm.toLowerCase()))
     
-    const matchesStatus = statusFilter === "all" || 
-      (statusFilter === "active" && table.is_active) ||
-      (statusFilter === "inactive" && !table.is_active)
+    const matchesTab = activeTab === "all" || 
+      (activeTab === "active" && table.is_active) ||
+      (activeTab === "inactive" && !table.is_active)
     
-    return matchesSearch && matchesStatus
+    return matchesSearch && matchesTab
   })
+
+  // Pagination
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = startIndex + pageSize
+  const paginatedTables = filteredTables.slice(startIndex, endIndex)
+  const totalPages = Math.ceil(filteredTables.length / pageSize)
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, activeTab])
 
   // Group tables based on selected grouping
   const groupedTables = () => {
     if (groupBy === "none") {
-      return { "All Tables": filteredTables }
+      return { "All Tables": paginatedTables }
     }
     
     if (groupBy === "status") {
-      const active = filteredTables.filter(table => table.is_active)
-      const inactive = filteredTables.filter(table => !table.is_active)
+      const active = paginatedTables.filter(table => table.is_active)
+      const inactive = paginatedTables.filter(table => !table.is_active)
       return {
         "Active Tables": active,
         "Inactive Tables": inactive
@@ -314,22 +333,22 @@ export default function LeadsPage() {
       const weekAgo = new Date(today)
       weekAgo.setDate(weekAgo.getDate() - 7)
       
-      const todayTables = filteredTables.filter(table => {
+      const todayTables = paginatedTables.filter(table => {
         const createdDate = new Date(table.created_at)
         return createdDate.toDateString() === today.toDateString()
       })
       
-      const yesterdayTables = filteredTables.filter(table => {
+      const yesterdayTables = paginatedTables.filter(table => {
         const createdDate = new Date(table.created_at)
         return createdDate.toDateString() === yesterday.toDateString()
       })
       
-      const weekTables = filteredTables.filter(table => {
+      const weekTables = paginatedTables.filter(table => {
         const createdDate = new Date(table.created_at)
         return createdDate >= weekAgo && createdDate < yesterday
       })
       
-      const olderTables = filteredTables.filter(table => {
+      const olderTables = paginatedTables.filter(table => {
         const createdDate = new Date(table.created_at)
         return createdDate < weekAgo
       })
@@ -342,7 +361,7 @@ export default function LeadsPage() {
       }
     }
     
-    return { "All Tables": filteredTables }
+    return { "All Tables": paginatedTables }
   }
 
   const formatDate = (dateString) => {
@@ -357,11 +376,11 @@ export default function LeadsPage() {
 
   const getStatusBadge = (isActive) => {
     return isActive ? (
-      <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200">
+      <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200 border-green-200">
         Active
       </Badge>
     ) : (
-      <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200">
+      <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200">
         Inactive
       </Badge>
     )
@@ -413,10 +432,10 @@ export default function LeadsPage() {
             Refresh
           </Button>
           
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
+          <Button className="gap-2">
+            <Plus className="h-4 w-4" />
             Create Table
-                </Button>
+          </Button>
         </div>
       </div>
 
@@ -497,67 +516,85 @@ export default function LeadsPage() {
         </Card>
       </div>
 
-      {/* Controls */}
-      <Card>
-        <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                  placeholder="Search tables..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 w-64"
-                  />
-                </div>
-                
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-              <Select value={groupBy} onValueChange={setGroupBy}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Group by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No Grouping</SelectItem>
-                  <SelectItem value="status">Group by Status</SelectItem>
-                  <SelectItem value="date">Group by Date</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-                                    <div className="flex items-center gap-2">
-                                      <Button
-                variant={displayMode === "card" ? "default" : "outline"}
-                                        size="sm"
-                onClick={() => setDisplayMode("card")}
-                className="gap-2"
-                                      >
-                <Grid3X3 className="h-4 w-4" />
-                Card View
-                                      </Button>
-                                      <Button
-                variant={displayMode === "table" ? "default" : "outline"}
-                                        size="sm"
-                onClick={() => setDisplayMode("table")}
-                className="gap-2"
-                                      >
-                <List className="h-4 w-4" />
-                Table View
-                                      </Button>
-                                    </div>
+      {/* Controls - Search on left, Group By and View Tabs on right */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        {/* Search on left */}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search tables..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8 w-64"
+            />
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        
+        {/* Group By and View Tabs on right */}
+        <div className="flex items-center gap-4">
+          {/* Group By Select */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Group by:</span>
+            <Select value={groupBy} onValueChange={setGroupBy}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Group by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No Grouping</SelectItem>
+                <SelectItem value="status">Status</SelectItem>
+                <SelectItem value="date">Date</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* View Mode Buttons */}
+          <div className="flex items-center gap-1 border rounded-lg p-1">
+            <Button
+              variant={displayMode === "card" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setDisplayMode("card")}
+              className="h-8 w-8 p-0"
+              title="Card View"
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={displayMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setDisplayMode("table")}
+              className="h-8 w-8 p-0"
+              title="Table View"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs for Active/Inactive Tables */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsTrigger value="all">
+            All Tables
+            <Badge variant="secondary" className="ml-2 text-xs">
+              {tables.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="active">
+            Active
+            <Badge variant="secondary" className="ml-2 text-xs">
+              {tables.filter(t => t.is_active).length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="inactive">
+            Inactive
+            <Badge variant="secondary" className="ml-2 text-xs">
+              {tables.filter(t => !t.is_active).length}
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       {/* Tables Display */}
       <div className="space-y-6">
@@ -574,84 +611,84 @@ export default function LeadsPage() {
               {displayMode === "card" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {groupTables.map((table) => (
-                    <Card key={table.table_id} className="hover:shadow-md transition-shadow">
+                    <Card key={table.table_id} className="hover:shadow-md transition-shadow flex flex-col">
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg font-semibold truncate">
-                              {table.table_name}
-                            </CardTitle>
-                            {table.description && (
-                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                                {table.description}
-                              </p>
-                                      )}
-                                    </div>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                    <Eye className="h-4 w-4 mr-2" />
-                                View Data
-                                  </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit Table
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem 
-                                onClick={() => {
-                                  setTableToDelete(table)
-                                  setIsDeleteDialogOpen(true)
-                                }}
-                                    className="text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            {getStatusBadge(table.is_active)}
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(table.created_at)}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              <span>ID: {table.table_id.slice(0, 8)}...</span>
-                            </div>
-                </div>
-                          
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="flex-1"
+                          <div className="flex-1 mr-2">
+                            <CardTitle 
+                              className="text-lg font-semibold truncate text-primary hover:underline cursor-pointer"
                               onClick={() => {
                                 setSelectedTable(table)
                                 setCurrentView("data")
                               }}
                             >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View
-                            </Button>
-                            <Button size="sm" variant="outline" className="flex-1">
-                              <Edit className="h-3 w-3 mr-1" />
-                              Edit
-                            </Button>
-                      </div>
-                    </div>
+                              {table.table_name}
+                            </CardTitle>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                className="cursor-pointer"
+                                onClick={() => {
+                                  setSelectedTable(table)
+                                  setCurrentView("data")
+                                }}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Data
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="cursor-pointer">
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit Table
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => {
+                                  setTableToDelete(table)
+                                  setIsDeleteDialogOpen(true)
+                                }}
+                                className="text-destructive cursor-pointer focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0 flex-1 flex flex-col justify-between">
+                        {/* Description */}
+                        <div className="flex-1">
+                          {table.description && (
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2 mb-3">
+                              {table.description}
+                            </p>
+                          )}
+                          {!table.description && (
+                            <p className="text-sm text-muted-foreground/70 italic mt-1 line-clamp-2 mb-3">
+                              No description
+                            </p>
+                          )}
+                        </div>
+                        
+                        {/* Footer Info */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between pt-3 border-t">
+                            {getStatusBadge(table.is_active)}
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(table.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -681,11 +718,38 @@ export default function LeadsPage() {
                   </CardContent>
                 </Card>
               )}
-                </div>
+            </div>
           )
         })}
-              </div>
-              
+
+        {/* Pagination */}
+        {filteredTables.length > 0 && (
+          <div className="flex items-center justify-between mt-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredTables.length)} of {filteredTables.length} results
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+      
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
@@ -699,14 +763,14 @@ export default function LeadsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
-                </Button>
-                <Button 
+            </Button>
+            <Button 
               variant="destructive" 
               onClick={() => handleDeleteTable(tableToDelete?.table_id)}
               disabled={loading}
-                >
+            >
               {loading ? "Deleting..." : "Delete Table"}
-                </Button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
