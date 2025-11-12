@@ -68,7 +68,7 @@ export default function RegisterPage() {
 
     try {
       const { confirmPassword, ...submitData } = formData;
-      
+
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: {
