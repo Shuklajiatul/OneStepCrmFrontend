@@ -234,26 +234,6 @@ export default function FormSubmissionsPage() {
     return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
   }
 
-  // Check if field has nested data
-  // const hasNestedData = (field, value) => {
-  //   if (!value) return false
-    
-  //   const parsed = parseJsonSafely(value)
-  //   if (!parsed || typeof parsed !== 'object') return false
-    
-  //   // Check if it has nestedValues structure
-  //   if (parsed.nestedValues && typeof parsed.nestedValues === 'object' && Object.keys(parsed.nestedValues).length > 0) {
-  //     return true
-  //   }
-    
-  //   // Check if it's an array with nested values
-  //   if (Array.isArray(parsed)) {
-  //     return parsed.some(item => item && typeof item === 'object' && item.nestedValues && Object.keys(item.nestedValues).length > 0)
-  //   }
-    
-  //   return false
-  // }
-
   // Helper function to normalize nested fields structure
   const normalizeNestedFields = (nestedFields) => {
     if (!nestedFields || !Array.isArray(nestedFields)) return []
@@ -1034,40 +1014,40 @@ export default function FormSubmissionsPage() {
 
   // Main content
   const mainContent = (
-            <div className="space-y-6 w-full">
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => router.push('/my-forms')} 
-                    className="h-8 w-8 p-0"
-                    title="Back to Forms"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
-                  <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                      <Database className="h-6 w-6" />
-                      {formDetails?.form_name || 'Form Submissions'}
-                    </h1>
-                    <p className="text-muted-foreground">
-                      {formDetails?.description || "View all submitted data for this form"}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={fetchSubmissions}
-                    disabled={loading}
-                  >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                    Refresh
-                  </Button>
-                </div>
-              </div>
+    <div className="space-y-6 w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            onClick={() => router.push('/my-forms')} 
+            className="h-8 w-8 p-0"
+            title="Back to Forms"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Database className="h-6 w-6" />
+              {formDetails?.form_name || 'Form Submissions'}
+            </h1>
+            <p className="text-muted-foreground">
+              {formDetails?.description || "View all submitted data for this form"}
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={fetchSubmissions}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
 
       {/* Error Display */}
       {error && (
@@ -1171,9 +1151,9 @@ export default function FormSubmissionsPage() {
             </div>
           </div>
           
-          {/* Table with negative margins to counteract CardContent padding for horizontal scroll */}
-          <div className="-mx-6 px-6 overflow-x-auto">
-            <div style={{ minWidth: 'max-content' }}>
+          {/* Table with proper horizontal scrolling */}
+          <div className="w-full overflow-x-auto">
+            <div className="min-w-full">
               <DataTable 
                 columns={createDynamicColumns()} 
                 data={filteredSubmissions} 
@@ -1188,7 +1168,7 @@ export default function FormSubmissionsPage() {
 
       {/* Nested Data Modal */}
       <Dialog open={isNestedModalOpen} onOpenChange={setIsNestedModalOpen}>
-        <DialogContent className="w-[80vw] sm:w-[75vw] max-w-[1000px] sm:max-w-none max-h-[95vh] p-0 gap-0 flex flex-col">
+        <DialogContent className="w-[95vw] max-w-[1200px] max-h-[90vh] p-0 gap-0 flex flex-col">
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>Nested Data - {nestedData?.fieldName}</DialogTitle>
             <DialogDescription>
@@ -1196,9 +1176,9 @@ export default function FormSubmissionsPage() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+          <ScrollArea className="flex-1 px-6 py-4">
             {nestedData && (
-              <div className="space-y-6">
+              <div className="space-y-6 pr-4">
                 {/* Root Selected Value */}
                 <div className="bg-gradient-to-r from-primary/10 to-primary/5 p-4 rounded-lg border-l-4 border-primary">
                   <div className="space-y-3">
@@ -1295,7 +1275,7 @@ export default function FormSubmissionsPage() {
                 )}
               </div>
             )}
-          </div>
+          </ScrollArea>
           
           <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex flex-row items-center justify-end gap-4">
             <Button variant="outline" onClick={() => setIsNestedModalOpen(false)}>
@@ -1307,42 +1287,60 @@ export default function FormSubmissionsPage() {
 
       {/* File Preview Modal */}
       <Dialog open={isFileModalOpen} onOpenChange={setIsFileModalOpen}>
-        <DialogContent className="w-[80vw] sm:w-[70vw] max-w-[900px] max-h-[95vh] p-0 gap-0 flex flex-col">
+        <DialogContent className="w-[95vw] max-w-[900px] max-h-[90vh] p-0 gap-0 flex flex-col">
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
             <DialogTitle>File Preview</DialogTitle>
             <DialogDescription className="truncate">
               {filePreview?.name}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-auto px-6 py-4">
+          <ScrollArea className="flex-1 px-6 py-4">
             {filePreview?.dataUrl ? (
               (() => {
                 const isImage = filePreview.mime?.startsWith('image/')
                 const isPdf = filePreview.mime === 'application/pdf'
                 if (isImage) {
                   return (
-                    <div className="flex items-center justify-center">
-                      <img src={filePreview.dataUrl} alt={filePreview.name} className="max-h-[70vh] object-contain" />
-            </div>
+                    <div className="flex items-center justify-center p-4">
+                      <img 
+                        src={filePreview.dataUrl} 
+                        alt={filePreview.name} 
+                        className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-md" 
+                      />
+                    </div>
                   )
                 }
                 if (isPdf) {
                   return (
-                    <iframe src={filePreview.dataUrl} title={filePreview.name} className="w-full h-[70vh] border" />
+                    <div className="w-full h-[70vh] border rounded-lg overflow-hidden">
+                      <iframe 
+                        src={filePreview.dataUrl} 
+                        title={filePreview.name} 
+                        className="w-full h-full border-0" 
+                      />
+                    </div>
                   )
                 }
                 return (
-                  <div className="text-sm text-muted-foreground">
-                    Preview not available for this file type.
+                  <div className="text-center py-8 text-muted-foreground">
+                    <AlertCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p className="text-sm">Preview not available for this file type.</p>
                   </div>
                 )
               })()
             ) : (
-              <div className="text-sm text-muted-foreground">No file</div>
+              <div className="text-center py-8 text-muted-foreground">
+                <AlertCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <p className="text-sm">No file available</p>
+              </div>
             )}
-          </div>
+          </ScrollArea>
           <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex flex-row items-center justify-end gap-3">
-            <Button onClick={() => filePreview && downloadDataUrl(filePreview.dataUrl, filePreview.name)}>Download</Button>
+            {filePreview?.dataUrl && (
+              <Button onClick={() => filePreview && downloadDataUrl(filePreview.dataUrl, filePreview.name)}>
+                Download
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1433,7 +1431,7 @@ export default function FormSubmissionsPage() {
               toggleSidebar={toggleSidebar}
             />
           </div>
-          <div className="flex-1 p-4 md:p-6 bg-background overflow-x-hidden">
+          <div className="flex-1 p-4 md:p-6 bg-background overflow-x-auto">
             {mainContent}
           </div>
         </section>
@@ -1441,4 +1439,3 @@ export default function FormSubmissionsPage() {
     </main>
   )
 }
-
