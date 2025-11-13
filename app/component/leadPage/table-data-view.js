@@ -20,7 +20,11 @@ import {
   Trash2,
   MoreHorizontal,
   Settings,
-  Search
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -64,6 +68,11 @@ export default function TableDataView({ table, onBack }) {
   const [isViewRecordDialogOpen, setIsViewRecordDialogOpen] = useState(false)
   const [recordToView, setRecordToView] = useState(null)
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [totalPages, setTotalPages] = useState(1)
+
   // Fetch columns and records on component mount
   useEffect(() => {
     if (table?.table_id) {
@@ -75,6 +84,11 @@ export default function TableDataView({ table, onBack }) {
   useEffect(() => {
     fetchUsers()
   }, [])
+
+  // Reset pagination when search term changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
 
   const fetchUsers = async () => {
     try {
@@ -206,21 +220,42 @@ export default function TableDataView({ table, onBack }) {
 
   const openEditRecordDialog = (record) => {
     setRecordToEdit(record)
+    
     // Initialize form data with current record values
     const formData = {
       assigned_to: record.assigned_to === "NA" || !record.assigned_to ? null : record.assigned_to
     }
+    
     columns.forEach(column => {
-      const value = getFieldValue(record, column.column_id, column)
-      // Convert complex values to strings for form inputs
+      const rawValue = getFieldValue(record, column.column_id, column)
+      
+      // Extract the actual value from nested structure
+      let value = rawValue
+      
+      // Handle the nested object structure: {"value":"Option 1","nestedValues":{}}
+      if (typeof rawValue === 'object' && rawValue !== null && rawValue.value !== undefined) {
+        value = rawValue.value
+      }
+      
+      // Handle phone number objects
+      if (column.parent_datatype === 'phone' && typeof rawValue === 'object' && rawValue !== null) {
+        // Convert phone object to string for the input
+        value = JSON.stringify(rawValue)
+      }
+      
+      // Convert to string for form inputs
       if (value !== null && value !== undefined) {
         if (typeof value === 'object') {
           formData[column.column_id] = JSON.stringify(value)
         } else {
           formData[column.column_id] = String(value)
         }
+      } else {
+        formData[column.column_id] = ''
       }
     })
+    
+    console.log('Edit form data:', formData)
     setRecordFormData(formData)
     setIsEditRecordDialogOpen(true)
   }
@@ -598,11 +633,11 @@ export default function TableDataView({ table, onBack }) {
   }
 
   const formatPhoneDisplay = (value) => {
-    const parsed = parseJsonSafely(value)
-    if (parsed && typeof parsed === 'object') {
-      const countryCode = parsed.countryCode || parsed.code || ''
-      const number = parsed.number || parsed.value || ''
-      const country = parsed.country || ''
+    // If value is already an object with phone properties
+    if (value && typeof value === 'object') {
+      const countryCode = value.countryCode || value.code || ''
+      const number = value.number || value.value || ''
+      const country = value.country || ''
       const line = [countryCode, number].filter(Boolean).join(' ').trim()
       return (
         <div className="text-sm">
@@ -611,6 +646,34 @@ export default function TableDataView({ table, onBack }) {
         </div>
       )
     }
+    
+    // If value is a string, try to parse it as JSON
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value)
+        if (parsed && typeof parsed === 'object') {
+          const countryCode = parsed.countryCode || parsed.code || ''
+          const number = parsed.number || parsed.value || ''
+          const country = parsed.country || ''
+          const line = [countryCode, number].filter(Boolean).join(' ').trim()
+          return (
+            <div className="text-sm">
+              {line && <div className="font-medium">{line}</div>}
+              {country && <div className="text-xs text-muted-foreground">{country}</div>}
+            </div>
+          )
+        }
+      } catch (e) {
+        // If parsing fails, treat as plain phone number string
+        return (
+          <a href={`tel:${value}`} className="text-blue-600 hover:underline">
+            {String(value)}
+          </a>
+        )
+      }
+    }
+    
+    // Fallback for any other cases
     return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
   }
 
@@ -631,7 +694,6 @@ export default function TableDataView({ table, onBack }) {
 
   const getFieldValue = (record, columnId, column = null) => {
     if (!record || !record.field_values) return null
-  
     if (!record.field_values[columnId]) return null
     
     const rawValue = record.field_values[columnId]
@@ -640,86 +702,26 @@ export default function TableDataView({ table, onBack }) {
     if (typeof rawValue === 'string') {
       const trimmed = rawValue.trim()
       
-      // Check if it's a direct base64 file string
-      if (isBase64File(trimmed)) {
-        const fileObject = createFileFromBase64(trimmed, column?.column_name || 'file')
-        return fileObject || rawValue
-      }
-      
       // Check if it's a JSON string (starts with { or [)
       if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
           (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
         try {
           const parsed = JSON.parse(trimmed)
           
-          // Recursively process nested values to convert base64 files
-          if (typeof parsed === 'object' && parsed !== null) {
-            // Check if it's an object with value property
+          // Handle the specific structure from your API: {"value":"male","nestedValues":{}}
+          if (parsed && typeof parsed === 'object') {
+            // If it has a value property, return the structured object
             if (parsed.value !== undefined) {
-              // Check if value itself is a base64 file
-              if (typeof parsed.value === 'string' && isBase64File(parsed.value)) {
-                const fileObject = createFileFromBase64(
-                  parsed.value,
-                  parsed.name || column?.column_name || 'file',
-                  parsed.type,
-                  parsed.size,
-                  parsed.lastModified
-                )
-                if (fileObject) {
-                  parsed.value = fileObject
-                  parsed.isFile = true
-                }
-              }
-              
-              // Process nestedValues recursively
-              if (parsed.nestedValues && typeof parsed.nestedValues === 'object') {
-                parsed.nestedValues = processNestedValuesForFiles(parsed.nestedValues, column)
-              }
+              return parsed
             }
-            // Check if it's an array (multi-select/checkbox)
-            else if (Array.isArray(parsed)) {
-              return parsed.map(item => {
-                if (typeof item === 'object' && item !== null) {
-                  if (item.value !== undefined) {
-                    // Check if value is a base64 file
-                    if (typeof item.value === 'string' && isBase64File(item.value)) {
-                      const fileObject = createFileFromBase64(
-                        item.value,
-                        item.name || column?.column_name || 'file',
-                        item.type,
-                        item.size,
-                        item.lastModified
-                      )
-                      if (fileObject) {
-                        item.value = fileObject
-                        item.isFile = true
-                      }
-                    }
-                    
-                    // Process nestedValues
-                    if (item.nestedValues && typeof item.nestedValues === 'object') {
-                      item.nestedValues = processNestedValuesForFiles(item.nestedValues, column)
-                    }
-                  }
-                  return item
-                }
-                // Check if item itself is a base64 string
-                if (typeof item === 'string' && isBase64File(item)) {
-                  const fileObject = createFileFromBase64(item, column?.column_name || 'file')
-                  return fileObject || item
-                }
-                return item
-              })
+            // Handle phone number objects
+            if (parsed.countryCode || parsed.number) {
+              return parsed
             }
           }
           
           return parsed
         } catch (e) {
-          // If parsing fails, check if it's a base64 file
-          if (isBase64File(trimmed)) {
-            const fileObject = createFileFromBase64(trimmed, column?.column_name || 'file')
-            return fileObject || rawValue
-          }
           // If parsing fails, return the original string
           return rawValue
         }
@@ -960,72 +962,133 @@ export default function TableDataView({ table, onBack }) {
     )
   }
 
-  // Helper to render an options dropdown for select/checkbox fields (shows on hover)
-  const renderOptionsDropdown = (displayNode, column, selectedValues, onOpenNested) => {
-    // Parse options from column.optional_values if available
-    let options = []
-    try {
-      if (column?.optional_values && column.optional_values.length > 0) {
-        options = JSON.parse(column.optional_values[0])
-      }
-    } catch (e) {
-      console.warn('Failed to parse options:', e)
-    }
-
+  const renderOptionsDropdown = (displayNode, column, selectedValues, onOpenNested, record, fieldValue) => {
+    const options = getColumnOptions(column)
+    
     const selectedSet = new Set(
       (Array.isArray(selectedValues) ? selectedValues : [selectedValues])
         .filter(Boolean)
         .map(v => String(v))
     )
-
+  
+    // Check if this field has nested data in the current record
+    const hasNestedDataInRecord = fieldValue && 
+      typeof fieldValue === 'object' && 
+      fieldValue.nestedValues && 
+      Object.keys(fieldValue.nestedValues).length > 0
+  
     return (
-      <div className="group relative inline-block">
-        {/* Display the selected value */}
-        <div className="px-2 py-1 rounded border border-border hover:bg-muted/50 cursor-pointer">
-            {displayNode}
+      <div className="relative inline-block">
+        {/* Trigger */}
+        <div
+          tabIndex={0}
+          className="peer px-2 py-1 rounded border border-border hover:bg-muted/50 cursor-pointer"
+        >
+          {displayNode}
         </div>
-        
-        {/* Dropdown that appears on hover */}
-        <div className="absolute left-0 top-full mt-1 w-56 bg-popover border border-border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-          <div className="p-1">
-            <div className="px-2 py-1.5 text-xs text-muted-foreground border-b">Options</div>
-            <div className="max-h-60 overflow-y-auto">
-          {options.length > 0 ? (
-            options.map((opt, idx) => {
-              const label = String(opt?.label ?? opt?.value ?? '')
-              const value = String(opt?.value ?? label)
-              const isSelected = selectedSet.has(value) || selectedSet.has(label)
-              return (
+    
+        {/* Dropdown - positioned upwards for last records */}
+        <div className="absolute left-0 bottom-full mb-1 w-64 bg-popover border border-border rounded-md shadow-lg 
+                        opacity-0 invisible peer-hover:opacity-100 peer-hover:visible peer-focus:opacity-100 peer-focus:visible 
+                        hover:opacity-100 hover:visible transition-all duration-200 z-50 max-h-80 overflow-hidden">
+          <div className="p-1 flex flex-col h-full">
+            
+            {/* Sticky header */}
+            <div className="px-2 py-1.5 text-xs text-muted-foreground border-b sticky top-0 bg-popover z-10">
+              Options for {column.column_name}
+            </div>
+    
+            {/* Scrollable options */}
+            <div className="flex-1 overflow-y-auto">
+              {options.length > 0 ? (
+                options.map((opt, idx) => {
+                  const label = String(opt?.label ?? opt?.value ?? '')
+                  const value = String(opt?.value ?? label)
+                  const isSelected = selectedSet.has(value) || selectedSet.has(label)
+                  const hasNestedFields = opt.nestedFields && opt.nestedFields.length > 0
+  
+                  return (
                     <div
                       key={idx}
-                      className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer flex items-center gap-2"
+                      className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer flex items-center justify-between"
                     >
-                  <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>
-                    {label}
-                  </span>
-                  {isSelected && <span className="ml-auto text-xs">✓</span>}
+                      <div className="flex items-center gap-2">
+                        <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>
+                          {label}
+                        </span>
+                        {hasNestedFields && (
+                          <Badge variant="outline" className="text-xs h-4">
+                            Nested
+                          </Badge>
+                        )}
+                      </div>
+                      {isSelected && <span className="text-xs text-green-600">✓</span>}
                     </div>
-              )
-            })
-          ) : (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">No options</div>
-          )}
+                  )
+                })
+              ) : (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">No options defined</div>
+              )}
             </div>
-          {onOpenNested && (
-            <>
+    
+            {/* Show nested data from current record */}
+            {hasNestedDataInRecord && (
+              <>
+                <div className="border-t my-1"></div>
+                <div className="px-2 py-1.5">
+                  <div className="text-xs font-medium text-muted-foreground mb-1">Current Nested Data:</div>
+                  <div className="space-y-1 max-h-20 overflow-y-auto">
+                    {Object.entries(fieldValue.nestedValues).map(([fieldId, nestedValue]) => {
+                      const nestedFieldDef = findNestedFieldDefinition(fieldId, options)
+                      const fieldLabel = nestedFieldDef?.label || nestedFieldDef?.name || fieldId
+                      const value = nestedValue.value || nestedValue
+  
+                      return (
+                        <div key={fieldId} className="flex justify-between items-center text-xs bg-muted/30 p-1 rounded">
+                          <span className="font-medium">{fieldLabel}:</span>
+                          <span className="truncate ml-2">{String(value)}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+    
+            {/* Sticky footer */}
+            {hasNestedData(column) && (
+              <>
                 <div className="border-t my-1"></div>
                 <div
-                  onClick={onOpenNested}
-                  className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer text-primary font-medium"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (onOpenNested) onOpenNested()
+                  }}
+                  className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer text-primary font-medium flex items-center gap-2 sticky bottom-0 bg-popover z-10"
                 >
-                  View nested details
+                  <Edit className="h-3.5 w-3.5" />
+                  {hasNestedDataInRecord ? 'Edit nested details' : 'Add nested details'}
                 </div>
-            </>
-          )}
+              </>
+            )}
           </div>
         </div>
       </div>
     )
+  }
+
+  const findNestedFieldDefinition = (fieldId, options) => {
+    if (!options || !Array.isArray(options)) return null
+    
+    for (const option of options) {
+      if (option.nestedFields && Array.isArray(option.nestedFields)) {
+        const found = option.nestedFields.find(field => 
+          field.id === fieldId || field.name === fieldId
+        )
+        if (found) return found
+      }
+    }
+    return null
   }
 
   // Helper function to check if column has nested data or is a modal-editable type
@@ -1035,24 +1098,40 @@ export default function TableDataView({ table, onBack }) {
     const parentDatatype = column.parent_datatype
     
     if (parentDatatype && !modalEditableTypes.includes(parentDatatype)) {
-      console.log(`Column ${column.column_name}: parent_datatype "${parentDatatype}" is not modal-editable (use Actions Edit instead)`)
       return false
     }
     
     if (!column.optional_values || column.optional_values.length === 0) {
-      console.log(`Column ${column.column_name}: No optional_values`)
       return false
     }
     
-    // For select, radio, checkbox: return true if it has options (even if no nested fields)
     try {
       const options = JSON.parse(column.optional_values[0])
       const hasOptions = Array.isArray(options) && options.length > 0
-      console.log(`Column ${column.column_name}: parent_datatype="${parentDatatype}", hasOptions=${hasOptions}`)
-      return hasOptions
+      
+      // Check if any option has nested fields
+      const hasNestedFields = options.some(option => 
+        option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0
+      )
+      
+      return hasOptions || hasNestedFields
     } catch (error) {
       console.log(`Column ${column.column_name}: Error parsing optional_values:`, error)
       return false
+    }
+  }
+
+  const getColumnOptions = (column) => {
+    if (!column?.optional_values || column.optional_values.length === 0) {
+      return []
+    }
+    
+    try {
+      const options = JSON.parse(column.optional_values[0])
+      return Array.isArray(options) ? options : []
+    } catch (error) {
+      console.error('Error parsing column options:', error)
+      return []
     }
   }
 
@@ -1326,7 +1405,7 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  // Helper function to format field value based on data type
+  //  formatFieldValue FUNCTION:
   const formatFieldValue = (rawValue, dataType, column = null, record = null) => {
     if (rawValue === null || rawValue === undefined || rawValue === "") {
       return <span className="text-muted-foreground italic">-</span>
@@ -1334,406 +1413,167 @@ export default function TableDataView({ table, onBack }) {
 
     const fieldType = column?.parent_datatype || dataType || 'text'
     
-    // rawValue is already parsed by getFieldValue, so it could be:
-    // - An array: [{"value":"Iphone "},{"value":"Samsung"}]
-    // - An object: {"value":"Male","nestedValues":{}} or file object
-    // - A string: (fallback case)
-    
-    // Handle arrays (multi-select, checkbox)
-    if (Array.isArray(rawValue)) {
-      const values = rawValue
-        .map(item => {
-          if (item && typeof item === 'object') {
-            // Handle file objects in array
-            if (isFileObject(item)) {
-              return item.name || 'File'
-            }
-            // Handle objects with value property
-            if (item.value !== undefined) {
-              // Check if value is a file object
-              if (isFileObject(item.value)) {
-                return item.value.name || 'File'
-              }
-            return String(item.value)
-            }
-            // Handle direct file object
-            if (isFileObject(item)) {
-              return item.name || 'File'
-            }
-          }
-          return String(item)
-        })
-        .filter(Boolean)
-      
-      if (values.length === 0) {
-        return <span className="text-muted-foreground italic">-</span>
-      }
-      
-      // Check if any item has nested data or files
-      const hasNested = rawValue.some(item => {
-        if (item && typeof item === 'object') {
-          // Check for nested values
-          if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
-            return true
-          }
-          // Check if value is a file object
-          if (item.value && isFileObject(item.value)) {
-            return true
-          }
-          // Check if item itself is a file
-          if (isFileObject(item)) {
-            return true
-          }
-        }
-        return false
-      })
-      
-      // Render file buttons and badges
-      const displayItems = rawValue.map((item, idx) => {
-        if (item && typeof item === 'object') {
-          // Check if item.value is a file object
-          if (item.value !== undefined && isFileObject(item.value)) {
-            const fileObj = item.value
-            const dataUrl = fileObj.base64 || fileObj.previewUrl
-            return (
-              <button
-                key={idx}
-                onClick={() => dataUrl && openFileModal(dataUrl, column)}
-                className="text-blue-600 hover:underline text-xs"
-                title="Click to preview/download"
-              >
-                {fileObj.name || 'File'}
-              </button>
-            )
-          }
-          // Check if item itself is a file object
-          if (isFileObject(item)) {
-            const dataUrl = item.base64 || item.previewUrl
-            return (
-              <button
-                key={idx}
-                onClick={() => dataUrl && openFileModal(dataUrl, column)}
-                className="text-blue-600 hover:underline text-xs"
-                title="Click to preview/download"
-              >
-                {item.name || 'File'}
-              </button>
-            )
-          }
-          // Regular value
-          return (
-            <Badge key={idx} variant="secondary" className="text-xs">
-              {item.value !== undefined ? String(item.value) : String(item)}
-            </Badge>
-          )
-        }
-        return (
-          <Badge key={idx} variant="secondary" className="text-xs">
-            {String(item)}
-          </Badge>
-        )
-      })
-      
-      const badgesNode = (
-        <div className="flex flex-wrap gap-1">
-          {displayItems}
-        </div>
-      )
-
-      // Collect nested fields from all items in the array
-      const allNestedFields = {}
-      rawValue.forEach((item, idx) => {
-        if (item && typeof item === 'object' && item.nestedValues && Object.keys(item.nestedValues).length > 0) {
-          // Merge nested values with index prefix to avoid conflicts
-          Object.entries(item.nestedValues).forEach(([fieldId, fieldData]) => {
-            const prefixedId = `${idx}_${fieldId}`
-            allNestedFields[prefixedId] = {
-              ...fieldData,
-              _itemIndex: idx,
-              _itemValue: item.value,
-              _originalFieldId: fieldId
-            }
-          })
-        }
-      })
-
-      const onOpenNested = hasNested && Object.keys(allNestedFields).length > 0
-        ? () => openNestedModal(JSON.stringify(rawValue), column, record?.record_id)
-        : undefined
-
-      return renderOptionsDropdown(badgesNode, column, values, onOpenNested)
-    }
-    
-    // Handle objects with value property
-    if (typeof rawValue === 'object' && rawValue !== null) {
-      // Check if it's a file object
-      if (isFileObject(rawValue)) {
-        const dataUrl = rawValue.base64 || rawValue.previewUrl
-        return (
-          <button
-            onClick={() => dataUrl && openFileModal(dataUrl, column)}
-            className="text-blue-600 hover:underline text-sm"
-            title="Click to preview/download"
-          >
-            {rawValue.name || 'File'}
-          </button>
-        )
-      }
-      
-      // Check if it has nested values
+    // Handle the nested object structure: {"value":"male","nestedValues":{}}
+    if (typeof rawValue === 'object' && rawValue !== null && rawValue.value !== undefined) {
+      const simpleValue = String(rawValue.value)
       const hasNested = rawValue.nestedValues && 
         typeof rawValue.nestedValues === 'object' && 
         Object.keys(rawValue.nestedValues).length > 0
-      
-      // Handle object with value property
-      if (rawValue.value !== undefined) {
-        // Check if value is a file object
-        if (isFileObject(rawValue.value)) {
-          const fileObj = rawValue.value
-          const dataUrl = fileObj.base64 || fileObj.previewUrl
-          return (
-            <button
-              onClick={() => dataUrl && openFileModal(dataUrl, column)}
-              className="text-blue-600 hover:underline text-sm"
-              title="Click to preview/download"
-            >
-              {fileObj.name || 'File'}
-            </button>
-          )
-        }
-        
-        const simpleValue = String(rawValue.value)
 
+      // For select/radio types, show dropdown with nested option
+      if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
         const displayNode = (
-          <span className="truncate max-w-[200px]">{simpleValue}</span>
-        )
-
-        // For select/radio types, show dropdown of all options with "View nested" option
-        if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
-          return renderOptionsDropdown(
-            displayNode, 
-            column, 
-            simpleValue, 
-            hasNested ? () => openNestedModal(JSON.stringify(rawValue), column, record?.record_id) : undefined
-          )
-        }
-      
-        // For other field types, if they have nested values, show a hover dropdown with all options and "View nested" option
-        if (hasNested) {
-          // Parse options from column.optional_values if available
-          let options = []
-          try {
-            if (column?.optional_values && column.optional_values.length > 0) {
-              options = JSON.parse(column.optional_values[0])
-            }
-          } catch (e) {
-            console.warn('Failed to parse options:', e)
-          }
-
-          const selectedValue = simpleValue
-          const selectedSet = new Set([String(selectedValue)])
-
-          const displayValue = (() => {
-        switch (fieldType) {
-          case 'email':
-            return (
-              <a href={`mailto:${simpleValue}`} className="text-blue-600 hover:underline">
-                {simpleValue}
-              </a>
-            )
-          case 'phone':
-            return formatPhoneDisplay(rawValue)
-          case 'location':
-            return formatLocationDisplay(rawValue)
-          case 'date':
-          case 'datetime': {
-            const formatted = formatDateOnly(simpleValue)
-            if (formatted) {
-              return <span>{formatted}</span>
-            }
-            return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
-          }
-          case 'file':
-                if (typeof simpleValue === 'string' && simpleValue.startsWith('data:')) {
-                  const fileName = inferFilenameFromDataUrl(simpleValue, column)
-                  return (
-                    <button
-                      onClick={() => openFileModal(simpleValue, column)}
-                      className="text-blue-600 hover:underline text-sm"
-                      title="Click to preview/download"
-                    >
-                      {fileName}
-                    </button>
-                  )
-                }
-                return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
-              default:
-                return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
-            }
-          })()
-
-          return (
-            <div className="group relative inline-block">
-              {/* Display the selected value */}
-              <div className="px-2 py-1 rounded border border-border hover:bg-muted/50 cursor-pointer">
-                {displayValue}
-              </div>
-              
-              {/* Dropdown that appears on hover - same style as select/radio/checkbox */}
-              <div className="absolute left-0 top-full mt-1 w-56 bg-popover border border-border rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                <div className="p-1">
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground border-b">Options</div>
-                  <div className="max-h-60 overflow-y-auto">
-                    {options.length > 0 ? (
-                      options.map((opt, idx) => {
-                        const label = String(opt?.label ?? opt?.value ?? '')
-                        const value = String(opt?.value ?? label)
-                        const isSelected = selectedSet.has(value) || selectedSet.has(label)
-                        return (
-                          <div
-                            key={idx}
-                            className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer flex items-center gap-2"
-                          >
-                            <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>
-                              {label}
-                            </span>
-                            {isSelected && <span className="ml-auto text-xs">✓</span>}
-                          </div>
-                        )
-                      })
-                    ) : (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">No options</div>
-                    )}
-                  </div>
-                  <div className="border-t my-1"></div>
-                  <div
-                    onClick={() => openNestedModal(JSON.stringify(rawValue), column, record?.record_id)}
-                    className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer text-primary font-medium"
-                  >
-                    View nested details
-                  </div>
-                </div>
-              </div>
-            </div>
-          )
-        }
-
-        // No nested values, just show the value
-        // For select/radio/checkbox, always wrap in dropdown even without nested values
-        if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
-          const displayNode = (
+          <div className="flex items-center gap-2">
             <span className="truncate max-w-[200px]">{simpleValue}</span>
-          )
-          return renderOptionsDropdown(displayNode, column, simpleValue, undefined)
-        }
+            {hasNested && (
+              <Badge variant="secondary" className="text-xs">
+                +Nested
+              </Badge>
+            )}
+          </div>
+        )
         
-        switch (fieldType) {
-          case 'email':
-            return (
-              <a href={`mailto:${simpleValue}`} className="text-blue-600 hover:underline">
-                {simpleValue}
-              </a>
-            )
-          case 'phone':
-            return formatPhoneDisplay(rawValue)
-          case 'location':
-            return formatLocationDisplay(rawValue)
-          case 'date':
-          case 'datetime': {
-            const formatted = formatDateOnly(simpleValue)
-            if (formatted) {
-              return <span>{formatted}</span>
-            }
-            return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
-          }
-          case 'file':
-            // Handle file with base64 data (string format)
-            if (typeof simpleValue === 'string' && simpleValue.startsWith('data:')) {
-              const fileName = inferFilenameFromDataUrl(simpleValue, column)
-              return (
-                <button
-                  onClick={() => openFileModal(simpleValue, column)}
-                  className="text-blue-600 hover:underline text-sm"
-                  title="Click to preview/download"
-                >
-                  {fileName}
-                </button>
-              )
-            }
-            return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
-          default:
-            return <span className="truncate max-w-[200px]">{String(simpleValue)}</span>
-        }
+        return renderOptionsDropdown(
+          displayNode, 
+          column, 
+          simpleValue, 
+          hasNested ? () => openNestedModal(JSON.stringify(rawValue), column, record?.record_id) : undefined,
+          record,
+          rawValue // Pass the actual field value object
+        )
       }
 
-      // Handle location object (country, state, city)
-      if (rawValue.country || rawValue.state || rawValue.city) {
-        return formatLocationDisplay(rawValue)
-      }
-      
-      // Handle phone object (countryCode, number)
-      if (rawValue.countryCode || rawValue.number) {
-        return formatPhoneDisplay(rawValue)
-      }
+      // Default display for other types
+      return (
+        <div className="flex items-center gap-2">
+          <span className="truncate max-w-[200px]">{simpleValue}</span>
+          {hasNested && (
+            <Badge variant="secondary" className="text-xs">
+              +Nested
+            </Badge>
+          )}
+        </div>
+      )
     }
     
-    // Handle string values (fallback)
-    const rawString = String(rawValue)
+    // Handle phone number objects specifically
+    if (fieldType === 'phone' && typeof rawValue === 'object' && rawValue !== null) {
+      return formatPhoneDisplay(rawValue)
+    }
+    
+    // Handle string values that might be JSON (like phone numbers)
+    if (typeof rawValue === 'string') {
+      // Check if it's a JSON string that represents a phone object
+      if (rawValue.trim().startsWith('{') && rawValue.trim().endsWith('}')) {
+        try {
+          const parsed = JSON.parse(rawValue)
+          // If it has phone number properties, treat it as a phone object
+          if (parsed && typeof parsed === 'object' && (parsed.countryCode || parsed.number)) {
+            return formatPhoneDisplay(parsed)
+          }
+          // If it has value property (like other nested objects)
+          if (parsed && typeof parsed === 'object' && parsed.value !== undefined) {
+            const simpleValue = String(parsed.value)
+            const hasNested = parsed.nestedValues && 
+              typeof parsed.nestedValues === 'object' && 
+              Object.keys(parsed.nestedValues).length > 0
+
+            if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
+              const displayNode = (
+                <div className="flex items-center gap-2">
+                  <span className="truncate max-w-[200px]">{simpleValue}</span>
+                  {hasNested && (
+                    <Badge variant="secondary" className="text-xs">
+                      +Nested
+                    </Badge>
+                  )}
+                </div>
+              )
+              
+              return renderOptionsDropdown(
+                displayNode, 
+                column, 
+                simpleValue, 
+                hasNested ? () => openNestedModal(rawValue, column, record?.record_id) : undefined,
+                record,
+                parsed // Pass the parsed object
+              )
+            }
+            return (
+              <div className="flex items-center gap-2">
+                <span className="truncate max-w-[200px]">{simpleValue}</span>
+                {hasNested && (
+                  <Badge variant="secondary" className="text-xs">
+                    +Nested
+                  </Badge>
+                )}
+              </div>
+            )
+          }
+        } catch (e) {
+          // If parsing fails, continue with normal string handling
+          console.warn('Failed to parse JSON value:', e)
+        }
+      }
+    }
     
     // For select/radio/checkbox types, wrap in bordered box even if plain string
     if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
       const displayNode = (
-        <span className="truncate max-w-[200px]">{rawString}</span>
+        <span className="truncate max-w-[200px]">{String(rawValue)}</span>
       )
-      return renderOptionsDropdown(displayNode, column, rawString, undefined)
+      return renderOptionsDropdown(
+        displayNode, 
+        column, 
+        String(rawValue), 
+        undefined,
+        record,
+        null
+      )
     }
     
+    // Handle other data types...
     switch (fieldType) {
       case 'email':
         return (
-          <a href={`mailto:${rawString}`} className="text-blue-600 hover:underline">
-            {rawString}
+          <a href={`mailto:${rawValue}`} className="text-blue-600 hover:underline">
+            {String(rawValue)}
           </a>
         )
       case 'phone': {
-        let phoneData = parseJsonSafely(rawString)
-        if (phoneData && typeof phoneData === 'object') {
-          return formatPhoneDisplay(phoneData)
+        // Try to parse as JSON if it's a string
+        let phoneData = rawValue
+        if (typeof rawValue === 'string') {
+          try {
+            phoneData = JSON.parse(rawValue)
+          } catch (e) {
+            // If parsing fails, use as plain string
+            phoneData = rawValue
+          }
         }
-        return (
-          <a href={`tel:${rawString}`} className="text-blue-600 hover:underline">
-            {rawString}
-          </a>
-        )
-      }
-      case 'location': {
-        let locationData = parseJsonSafely(rawString)
-        if (locationData && typeof locationData === 'object') {
-          return formatLocationDisplay(locationData)
-        }
-        return <span className="truncate max-w-[200px]">{rawString}</span>
+        return formatPhoneDisplay(phoneData)
       }
       case 'boolean':
         return (
-          <Badge variant={rawString === 'true' || rawValue === true ? 'default' : 'secondary'}>
-            {rawString === 'true' || rawValue === true ? 'Yes' : 'No'}
+          <Badge variant={String(rawValue) === 'true' || rawValue === true ? 'default' : 'secondary'}>
+            {String(rawValue) === 'true' || rawValue === true ? 'Yes' : 'No'}
           </Badge>
         )
       case 'date':
       case 'datetime': {
-        const formatted = formatDateOnly(rawString)
+        const formatted = formatDateOnly(rawValue)
         if (formatted) {
           return <span>{formatted}</span>
         }
-        return <span className="truncate max-w-[200px]">{rawString}</span>
+        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
       }
       case 'number':
-        return <span className="truncate max-w-[200px]">{rawString}</span>
+        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
       case 'textarea':
-        return <span className="truncate max-w-[200px] whitespace-pre-wrap">{rawString}</span>
+        return <span className="truncate max-w-[200px] whitespace-pre-wrap">{String(rawValue)}</span>
       case 'text':
       default:
-        return <span className="truncate max-w-[200px]">{rawString}</span>
+        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
     }
   }
 
@@ -2780,6 +2620,34 @@ export default function TableDataView({ table, onBack }) {
     return false
   })
 
+  // Pagination calculations
+  const totalRecords = filteredRecords.length
+  const totalFilteredPages = Math.ceil(totalRecords / pageSize)
+  
+  // Update total pages when filtered records change
+  useEffect(() => {
+    setTotalPages(totalFilteredPages)
+    // Reset to first page if current page exceeds total pages
+    if (currentPage > totalFilteredPages && totalFilteredPages > 0) {
+      setCurrentPage(1)
+    }
+  }, [totalFilteredPages, currentPage])
+
+  // Get current page records
+  const currentPageRecords = filteredRecords.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  )
+
+  // Pagination handlers
+  const goToFirstPage = () => setCurrentPage(1)
+  const goToPreviousPage = () => setCurrentPage(prev => Math.max(prev - 1, 1))
+  const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages))
+  const goToLastPage = () => setCurrentPage(totalPages)
+
+  // Page size options
+  const pageSizeOptions = [10, 25, 50, 100]
+
   // Create dynamic columns based on API response
   const createDynamicColumns = () => {
     if (!columns.length) return []
@@ -2787,185 +2655,29 @@ export default function TableDataView({ table, onBack }) {
     const dynamicColumns = columns.map((column) => ({
       accessorKey: column.column_id,
       header: column.column_name,
-      cell: ({ row }) => {
-        const record = row.original
-        // Get field value using helper function
-        const fieldValue = getFieldValue(record, column.column_id, column)
-        
-        // Format field value using helper function
-        const displayDataType = column.parent_datatype || column.data_type
-        return formatFieldValue(fieldValue, displayDataType, column, record)
-      },
     }))
 
-    // Add metadata columns
+    // Add fixed metadata columns
     const metadataColumns = [
-      // Assigned To column
       {
         accessorKey: "assigned_to",
         header: "Assigned To",
-        cell: ({ row }) => {
-          const assignedTo = row.original.assigned_to
-          if (!assignedTo || assignedTo === 'NA') {
-            return <span className="text-sm text-muted-foreground">-</span>
-          }
-          // Find user by user_id
-          const user = users.find(u => (u.user_id || u.id) === assignedTo)
-          if (user) {
-            const userName = user.first_name && user.last_name
-              ? `${user.first_name} ${user.last_name}`
-              : user.name || user.email || assignedTo
-            return <span className="text-sm">{userName}</span>
-          }
-          return <span className="text-sm">{assignedTo}</span>
-        },
       },
-      // Updated By column
       {
-        accessorKey: "updated_by",
+        accessorKey: "updated_by", 
         header: "Updated By",
-        cell: ({ row }) => {
-          const updatedBy = row.original.updated_by
-          if (!updatedBy) {
-            return <span className="text-sm text-muted-foreground">-</span>
-          }
-          // Find user by user_id
-          const user = users.find(u => (u.user_id || u.id) === updatedBy)
-          if (user) {
-            const userName = user.first_name && user.last_name
-              ? `${user.first_name} ${user.last_name}`
-              : user.name || user.email || updatedBy
-            return <span className="text-sm">{userName}</span>
-          }
-          return <span className="text-sm">{updatedBy}</span>
-        },
       },
-      // Created At column
       {
         accessorKey: "created_at",
         header: "Created At",
-        cell: ({ row }) => {
-          const date = new Date(row.getValue("created_at"))
-          return (
-            <div className="text-sm">
-              <div className="font-medium text-foreground">
-                {date.toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {date.toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </div>
-            </div>
-          )
-        },
       },
-      // Updated At column
       {
         accessorKey: "updated_at",
-        header: "Updated At",
-        cell: ({ row }) => {
-          const date = row.getValue("updated_at")
-          if (!date) {
-            return <span className="text-sm text-muted-foreground">-</span>
-          }
-          const dateObj = new Date(date)
-          return (
-            <div className="text-sm">
-              <div className="font-medium text-foreground">
-                {dateObj.toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {dateObj.toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </div>
-            </div>
-          )
-        },
+        header: "Updated At", 
       },
       {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) => {
-          const record = row.original
-          return (
-            <div className="flex items-center justify-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 hover:bg-primary/10"
-                title="View record details"
-                onClick={() => openViewRecordDialog(record)}
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 hover:bg-primary/10"
-                title="Edit record"
-                onClick={() => openEditRecordDialog(record)}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 w-8 p-0 hover:bg-destructive/10"
-                    title="More actions"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                    <span className="sr-only">Open menu</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" className="w-[160px]">
-                  <DropdownMenuItem 
-                    className="cursor-pointer text-xs"
-                    onClick={() => openViewRecordDialog(record)}
-                  >
-                    <Eye className="h-3.5 w-3.5 mr-2" />
-                    View Details
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    className="cursor-pointer text-xs"
-                    onClick={() => openEditRecordDialog(record)}
-                  >
-                    <Edit className="h-3.5 w-3.5 mr-2" />
-                    Edit Record
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer text-xs">
-                    <Settings className="h-3.5 w-3.5 mr-2" />
-                    Record Settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem 
-                    onClick={() => {
-                      setRecordToDelete(record)
-                      setIsDeleteDialogOpen(true)
-                    }}
-                    className="text-destructive cursor-pointer text-xs focus:text-destructive"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    Delete Record
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )
-        },
       },
     ]
 
@@ -3118,56 +2830,93 @@ export default function TableDataView({ table, onBack }) {
       </div>
 
       {/* Data Table */}
-      <Card>
+      <Card className="relative">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-lg">Table Records</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {safeRecords.length} record{safeRecords.length !== 1 ? 's' : ''} found
+                {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''} found
+                {searchTerm && ` (filtered from ${safeRecords.length} total)`}
               </p>
             </div>
             <Badge variant="outline" className="text-xs">
-              {safeRecords.length}
+              {filteredRecords.length}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="p-6">
-          {/* Custom Search Input */}
-          <div className="flex items-center py-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search records..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
+        <CardContent className="p-6 pt-1">
+          {/* Search and Controls */}
+          <div className="flex items-center justify-between pb-3">
+            {/* Search Input - Left Side */}
+            <div className="flex-1 max-w-sm">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search records..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+            </div>
+            
+            {/* Page Size Selector - Right Side */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor="page-size" className="text-sm whitespace-nowrap">
+                Rows per page:
+              </Label>
+              <Select
+                value={pageSize.toString()}
+                onValueChange={(value) => {
+                  setPageSize(Number(value))
+                  setCurrentPage(1) // Reset to first page when changing page size
+                }}
+              >
+                <SelectTrigger id="page-size" className="w-20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pageSizeOptions.map(size => (
+                    <SelectItem key={size} value={size.toString()}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           
-        {/* Table with same styling as organizations page */}
-        {(() => {
-          const tableColumns = createDynamicColumns()
-          return filteredRecords.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No records found</p>
-              {safeRecords.length === 0 && (
-                <p className="text-sm mt-2">No records available for this table</p>
-              )}
-            </div>
-          ) : (
-            <div className="rounded-md border overflow-hidden w-full">
-              <div className="overflow-x-auto w-full">
-                <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
-                  <Table className="w-full table-auto">
+          {/* Create table columns first */}
+          {(() => {
+            const tableColumns = createDynamicColumns()
+            
+            if (filteredRecords.length === 0) {
+              return (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No records found</p>
+                  {safeRecords.length === 0 && (
+                    <p className="text-sm mt-2">No records available for this table</p>
+                  )}
+                  {searchTerm && safeRecords.length > 0 && (
+                    <p className="text-sm mt-2">Try adjusting your search terms</p>
+                  )}
+                </div>
+              )
+            }
+            
+            return (
+              <>
+                {/* Horizontal Scroll Container */}
+                <div className="rounded-md border overflow-auto w-full relative mb-4">
+                  <Table className="w-full min-w-max">
                     <TableHeader>
-                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                      <TableRow className="bg-muted/50">
                         {tableColumns.map((column) => (
                           <TableHead 
                             key={column.accessorKey || column.id} 
-                            className={`font-semibold text-foreground ${
+                            className={`font-semibold text-foreground whitespace-nowrap ${
                               column.id === "actions" ? "w-[140px] text-center" : ""
                             }`}
                           >
@@ -3177,28 +2926,184 @@ export default function TableDataView({ table, onBack }) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRecords.map((record) => (
+                      {currentPageRecords.map((record, recordIndex) => (
                         <TableRow 
-                          key={record.record_id || record.id}
-                          className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                          key={record.record_id || record.id || recordIndex}
+                          className="border-b hover:bg-muted/30 transition-colors"
                         >
                           {tableColumns.map((column) => {
-                            // Create a mock row object that matches DataTable's structure
-                            const mockRow = {
-                              original: record,
-                              getValue: (key) => {
-                                if (key === 'created_at') return record.created_at
-                                return record.field_values?.[key] ?? record[key]
+                            // Get the cell value based on column type
+                            let cellContent = '-'
+                            
+                            if (column.id === "actions") {
+                              // Actions column
+                              cellContent = (
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:bg-primary/10"
+                                    title="View record details"
+                                    onClick={() => openViewRecordDialog(record)}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:bg-primary/10"
+                                    title="Edit record"
+                                    onClick={() => openEditRecordDialog(record)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-8 w-8 p-0 hover:bg-destructive/10"
+                                        title="More actions"
+                                      >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        <span className="sr-only">Open menu</span>
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent 
+                                      align="center" 
+                                      className="w-[160px] z-[9999]"
+                                      side="auto"
+                                      sideOffset={4}
+                                      collisionPadding={16}
+                                      avoidCollisions={true}
+                                      onCloseAutoFocus={(e) => e.preventDefault()}
+                                    >
+                                      <DropdownMenuItem 
+                                        className="cursor-pointer text-xs"
+                                        onClick={() => openViewRecordDialog(record)}
+                                      >
+                                        <Eye className="h-3.5 w-3.5 mr-2" />
+                                        View Details
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem 
+                                        className="cursor-pointer text-xs"
+                                        onClick={() => openEditRecordDialog(record)}
+                                      >
+                                        <Edit className="h-3.5 w-3.5 mr-2" />
+                                        Edit Record
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem 
+                                        onClick={() => {
+                                          setRecordToDelete(record)
+                                          setIsDeleteDialogOpen(true)
+                                        }}
+                                        className="text-destructive cursor-pointer text-xs focus:text-destructive"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                        Delete Record
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              )
+                            } else if (column.accessorKey === "assigned_to") {
+                              // Assigned To column
+                              const assignedTo = record.assigned_to
+                              if (!assignedTo || assignedTo === 'NA') {
+                                cellContent = <span className="text-sm text-muted-foreground">-</span>
+                              } else {
+                                const user = users.find(u => (u.user_id || u.id) === assignedTo)
+                                if (user) {
+                                  const userName = user.first_name && user.last_name
+                                    ? `${user.first_name} ${user.last_name}`
+                                    : user.name || user.email || assignedTo
+                                  cellContent = <span className="text-sm">{userName}</span>
+                                } else {
+                                  cellContent = <span className="text-sm">{assignedTo}</span>
+                                }
+                              }
+                            } else if (column.accessorKey === "updated_by") {
+                              // Updated By column
+                              const updatedBy = record.updated_by
+                              if (!updatedBy) {
+                                cellContent = <span className="text-sm text-muted-foreground">-</span>
+                              } else {
+                                const user = users.find(u => (u.user_id || u.id) === updatedBy)
+                                if (user) {
+                                  const userName = user.first_name && user.last_name
+                                    ? `${user.first_name} ${user.last_name}`
+                                    : user.name || user.email || updatedBy
+                                  cellContent = <span className="text-sm">{userName}</span>
+                                } else {
+                                  cellContent = <span className="text-sm">{updatedBy}</span>
+                                }
+                              }
+                            } else if (column.accessorKey === "created_at") {
+                              // Created At column
+                              const date = new Date(record.created_at)
+                              cellContent = (
+                                <div className="text-sm">
+                                  <div className="font-medium text-foreground">
+                                    {date.toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {date.toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            } else if (column.accessorKey === "updated_at") {
+                              // Updated At column
+                              const date = record.updated_at
+                              if (!date) {
+                                cellContent = <span className="text-sm text-muted-foreground">-</span>
+                              } else {
+                                const dateObj = new Date(date)
+                                cellContent = (
+                                  <div className="text-sm">
+                                    <div className="font-medium text-foreground">
+                                      {dateObj.toLocaleDateString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric'
+                                      })}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {dateObj.toLocaleTimeString('en-US', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </div>
+                                  </div>
+                                )
+                              }
+                            } else {
+                              // Dynamic data columns
+                              const columnData = columns.find(col => col.column_id === column.accessorKey)
+                              if (columnData) {
+                                const fieldValue = getFieldValue(record, column.accessorKey, columnData)
+                                const displayDataType = columnData.parent_datatype
+                                cellContent = formatFieldValue(fieldValue, displayDataType, columnData, record)
+                              } else {
+                                cellContent = <span className="text-muted-foreground">-</span>
                               }
                             }
+                            
                             return (
                               <TableCell 
                                 key={column.accessorKey || column.id} 
-                                className={`py-3 ${
+                                className={`py-3 whitespace-nowrap ${
                                   column.id === "actions" ? "w-[140px] text-center" : ""
                                 }`}
                               >
-                                {column.cell ? column.cell({ row: mockRow }) : '-'}
+                                {cellContent}
                               </TableCell>
                             )
                           })}
@@ -3207,14 +3112,77 @@ export default function TableDataView({ table, onBack }) {
                     </TableBody>
                   </Table>
                 </div>
-              </div>
-            </div>
-          )
-        })()}
+
+                {/* Pagination Controls */}
+                <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>
+                      Showing {((currentPage - 1) * pageSize) + 1} to{' '}
+                      {Math.min(currentPage * pageSize, filteredRecords.length)} of{' '}
+                      {filteredRecords.length} entries
+                      {searchTerm && ` (filtered from ${safeRecords.length} total)`}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {/* First Page Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToFirstPage}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronsLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    {/* Previous Page Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToPreviousPage}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    {/* Page Info */}
+                    <div className="flex items-center gap-1 text-sm">
+                      <span className="font-medium">Page</span>
+                      <span className="font-bold">{currentPage}</span>
+                      <span>of</span>
+                      <span className="font-medium">{totalPages}</span>
+                    </div>
+                    
+                    {/* Next Page Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToNextPage}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    
+                    {/* Last Page Button */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToLastPage}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ChevronsRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )
+          })()}
         </CardContent>
       </Card>
-
-      
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
@@ -3591,119 +3559,305 @@ export default function TableDataView({ table, onBack }) {
 
       {/* Add Record Dialog */}
       <Dialog open={isAddRecordDialogOpen} onOpenChange={setIsAddRecordDialogOpen}>
-        <DialogContent className="w-[90vw] sm:w-[80vw] max-w-[1000px] max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Add New Record</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
+            <DialogTitle className="text-xl font-bold">Add New Record</DialogTitle>
+            <DialogDescription className="text-base">
               Fill in the fields below to create a new record
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4 py-4">
-              {/* ASSIGNED TO FIELD - Add this section */}
-              <div className="space-y-2">
-                <Label htmlFor="add-assigned_to">
-                  Assigned To
-                </Label>
-                <Select
-                  value={recordFormData.assigned_to || "none"}
-                  onValueChange={(value) => setRecordFormData(prev => ({ 
-                    ...prev, 
-                    assigned_to: value === "none" ? null : value
-                  }))}
-                >
-                  <SelectTrigger id="add-assigned_to">
-                    <SelectValue placeholder="Select user" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {loadingUsers ? (
-                      <SelectItem value="loading" disabled>Loading users...</SelectItem>
-                    ) : (
-                      users.map((user) => {
-                        const userId = user.user_id || user.id
-                        const userName = user.first_name && user.last_name
-                          ? `${user.first_name} ${user.last_name}`
-                          : user.name || user.email || userId
-                        return (
-                          <SelectItem key={userId} value={userId}>
-                            {userName}
-                          </SelectItem>
-                        )
-                      })
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+          
+          {/* Scrollable Content Area */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <ScrollArea className="h-full w-full">
+              <div className="p-6 space-y-6">
+                {/* ASSIGNED TO FIELD */}
+                <div className="space-y-4 bg-muted/20 p-4 rounded-lg border">
+                  <Label htmlFor="add-assigned_to" className="text-base font-semibold">
+                    Assigned To
+                  </Label>
+                  <Select
+                    value={recordFormData.assigned_to || "none"}
+                    onValueChange={(value) => setRecordFormData(prev => ({ 
+                      ...prev, 
+                      assigned_to: value === "none" ? null : value
+                    }))}
+                  >
+                    <SelectTrigger id="add-assigned_to" className="h-12 text-base">
+                      <SelectValue placeholder="Select user" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none" className="text-base">None</SelectItem>
+                      {loadingUsers ? (
+                        <SelectItem value="loading" disabled className="text-base">Loading users...</SelectItem>
+                      ) : (
+                        users.map((user) => {
+                          const userId = user.user_id || user.id
+                          const userName = user.first_name && user.last_name
+                            ? `${user.first_name} ${user.last_name}`
+                            : user.name || user.email || userId
+                          return (
+                            <SelectItem key={userId} value={userId} className="text-base">
+                              {userName}
+                            </SelectItem>
+                          )
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* REST OF THE COLUMNS */}
-              {columns.map((column) => {
-                const fieldType = column.parent_datatype || column.data_type || 'text'
-                const value = recordFormData[column.column_id] || ''
-                
-                return (
-                  <div key={column.column_id} className="space-y-2">
-                    <Label htmlFor={column.column_id}>
-                      {column.column_name}
-                    </Label>
-                    {fieldType === 'textarea' ? (
-                      <Textarea
-                        id={column.column_id}
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                        className="min-h-[100px]"
-                      />
-                    ) : fieldType === 'number' ? (
-                      <Input
-                        id={column.column_id}
-                        type="number"
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                      />
-                    ) : fieldType === 'email' ? (
-                      <Input
-                        id={column.column_id}
-                        type="email"
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                      />
-                    ) : fieldType === 'date' || fieldType === 'datetime' ? (
-                      <Input
-                        id={column.column_id}
-                        type={fieldType === 'date' ? 'date' : 'datetime-local'}
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                      />
-                    ) : (
-                      <Input
-                        id={column.column_id}
-                        type="text"
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                      />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </ScrollArea>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddRecordDialogOpen(false)}>
+                {/* REST OF THE COLUMNS */}
+                <div className="space-y-6">
+                  {columns.map((column) => {
+                    const fieldType = column.parent_datatype || column.data_type || 'text'
+                    const value = recordFormData[column.column_id] || ''
+                    
+                    // Get column options if available
+                    const columnOptions = getColumnOptions(column)
+                    
+                    // Special handling for phone numbers
+                    if (fieldType === 'phone') {
+                      let phoneData = { countryCode: '', number: '' }
+                      
+                      // Parse the phone data from JSON string if it exists
+                      if (value) {
+                        try {
+                          const parsed = JSON.parse(value)
+                          phoneData = {
+                            countryCode: parsed.countryCode || '',
+                            number: parsed.number || ''
+                          }
+                        } catch (e) {
+                          console.warn('Failed to parse phone data:', e)
+                        }
+                      }
+
+                      return (
+                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
+                          <Label htmlFor={`add-${column.column_id}`} className="text-base font-semibold">
+                            {column.column_name}
+                          </Label>
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                            <div className="md:col-span-4 space-y-2">
+                              <Label htmlFor={`add-${column.column_id}-countryCode`} className="text-sm font-medium">
+                                Country Code
+                              </Label>
+                              <Input
+                                id={`add-${column.column_id}-countryCode`}
+                                type="text"
+                                value={phoneData.countryCode}
+                                onChange={(e) => {
+                                  const newCountryCode = e.target.value
+                                  const newPhoneData = {
+                                    ...phoneData,
+                                    countryCode: newCountryCode
+                                  }
+                                  setRecordFormData(prev => ({ 
+                                    ...prev, 
+                                    [column.column_id]: JSON.stringify(newPhoneData)
+                                  }))
+                                }}
+                                placeholder="+91"
+                                className="h-12 text-base"
+                              />
+                            </div>
+                            <div className="md:col-span-8 space-y-2">
+                              <Label htmlFor={`add-${column.column_id}-number`} className="text-sm font-medium">
+                                Phone Number
+                              </Label>
+                              <Input
+                                id={`add-${column.column_id}-number`}
+                                type="tel"
+                                value={phoneData.number}
+                                onChange={(e) => {
+                                  const newNumber = e.target.value
+                                  const newPhoneData = {
+                                    ...phoneData,
+                                    number: newNumber
+                                  }
+                                  setRecordFormData(prev => ({ 
+                                    ...prev, 
+                                    [column.column_id]: JSON.stringify(newPhoneData)
+                                  }))
+                                }}
+                                placeholder="1234567890"
+                                className="h-12 text-base"
+                              />
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground bg-blue-50 p-2 rounded">
+                            💡 Enter country code (e.g., +91) and phone number separately
+                          </p>
+                        </div>
+                      )
+                    }
+
+                    // Handle select fields with options
+                    if ((fieldType === 'select' || fieldType === 'radio') && columnOptions.length > 0) {
+                      return (
+                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
+                          <Label htmlFor={`add-${column.column_id}`} className="text-base font-semibold">
+                            {column.column_name}
+                          </Label>
+                          <Select
+                            value={value}
+                            onValueChange={(newValue) => setRecordFormData(prev => ({ 
+                              ...prev, 
+                              [column.column_id]: newValue 
+                            }))}
+                          >
+                            <SelectTrigger id={`add-${column.column_id}`} className="h-12 text-base">
+                              <SelectValue placeholder={`Select ${column.column_name}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {columnOptions.map((option, idx) => {
+                                const optionLabel = option.label || option.value || String(option)
+                                const optionValue = option.value || optionLabel
+                                return (
+                                  <SelectItem key={idx} value={optionValue} className="text-base">
+                                    {optionLabel}
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )
+                    }
+
+                    // Handle checkbox fields with options
+                    if (fieldType === 'checkbox' && columnOptions.length > 0) {
+                      const selectedValues = value ? (Array.isArray(value) ? value : [value]) : []
+                      
+                      return (
+                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
+                          <Label className="text-base font-semibold">
+                            {column.column_name}
+                          </Label>
+                          <div className="space-y-2">
+                            {columnOptions.map((option, idx) => {
+                              const optionLabel = option.label || option.value || String(option)
+                              const optionValue = option.value || optionLabel
+                              const isChecked = selectedValues.includes(optionValue)
+                              
+                              return (
+                                <div
+                                  key={idx}
+                                  onClick={() => {
+                                    let newValues
+                                    if (isChecked) {
+                                      newValues = selectedValues.filter(v => v !== optionValue)
+                                    } else {
+                                      newValues = [...selectedValues, optionValue]
+                                    }
+                                    setRecordFormData(prev => ({ 
+                                      ...prev, 
+                                      [column.column_id]: newValues
+                                    }))
+                                  }}
+                                  className="flex items-center gap-3 p-3 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
+                                    isChecked ? 'bg-primary border-primary' : 'border-muted-foreground'
+                                  }`}>
+                                    {isChecked && (
+                                      <svg className="w-3.5 h-3.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <span className="text-sm font-medium">{optionLabel}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    // Regular field types
+                    return (
+                      <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
+                        <Label htmlFor={`add-${column.column_id}`} className="text-base font-semibold">
+                          {column.column_name}
+                        </Label>
+                        {fieldType === 'textarea' ? (
+                          <Textarea
+                            id={`add-${column.column_id}`}
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="min-h-[120px] text-base resize-vertical"
+                          />
+                        ) : fieldType === 'number' ? (
+                          <Input
+                            id={`add-${column.column_id}`}
+                            type="number"
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="h-12 text-base"
+                          />
+                        ) : fieldType === 'email' ? (
+                          <Input
+                            id={`add-${column.column_id}`}
+                            type="email"
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="h-12 text-base"
+                          />
+                        ) : fieldType === 'date' || fieldType === 'datetime' ? (
+                          <Input
+                            id={`add-${column.column_id}`}
+                            type={fieldType === 'date' ? 'date' : 'datetime-local'}
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="h-12 text-base"
+                          />
+                        ) : (
+                          <Input
+                            id={`add-${column.column_id}`}
+                            type="text"
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="h-12 text-base"
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </ScrollArea>
+          </div>
+          
+          <DialogFooter className="px-6 py-4 border-t bg-muted/20 shrink-0 gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsAddRecordDialogOpen(false)}
+              className="h-12 text-base flex-1"
+            >
               Cancel
             </Button>
-            <Button onClick={handleAddRecord} disabled={isSubmittingRecord}>
+            <Button 
+              onClick={handleAddRecord} 
+              disabled={isSubmittingRecord}
+              className="h-12 text-base flex-1 gap-2"
+            >
               {isSubmittingRecord ? (
                 <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  <RefreshCw className="h-5 w-5 animate-spin" />
                   Adding...
                 </>
               ) : (
-                'Add Record'
+                <>
+                  <Plus className="h-5 w-5" />
+                  Add Record
+                </>
               )}
             </Button>
           </DialogFooter>
@@ -3712,126 +3866,335 @@ export default function TableDataView({ table, onBack }) {
 
       {/* Edit Record Dialog */}
       <Dialog open={isEditRecordDialogOpen} onOpenChange={setIsEditRecordDialogOpen}>
-        <DialogContent className="w-[90vw] sm:w-[80vw] max-w-[1000px] max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Edit Record</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 py-4 border-b shrink-0">
+            <DialogTitle className="text-xl font-bold">Edit Record</DialogTitle>
+            <DialogDescription className="text-base">
               Update the fields below to modify this record
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4 py-4">
-              {/* ASSIGNED TO FIELD */}
-              <div className="space-y-2">
-                <Label htmlFor="edit-assigned_to">
-                  Assigned To
-                </Label>
-                <Select
-                  value={recordFormData.assigned_to || "none"}
-                  onValueChange={(value) => {
-                    console.log('Assigned to changed:', value)
-                    setRecordFormData(prev => ({ 
-                      ...prev, 
-                      assigned_to: value === "none" ? null : value
-                    }))
-                  }}
-                >
-                  <SelectTrigger id="edit-assigned_to">
-                    <SelectValue placeholder="Select user" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {loadingUsers ? (
-                      <SelectItem value="loading" disabled>Loading users...</SelectItem>
-                    ) : (
-                      users.map((user) => {
-                        const userId = user.user_id || user.id
-                        const userName = user.first_name && user.last_name
-                          ? `${user.first_name} ${user.last_name}`
-                          : user.name || user.email || userId
-                        return (
-                          <SelectItem key={userId} value={userId}>
-                            {userName}
-                          </SelectItem>
-                        )
-                      })
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
+          
+          {/* Scrollable Content Area */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <ScrollArea className="h-full w-full">
+              <div className="p-6 space-y-6">
+                {/* ASSIGNED TO FIELD */}
+                <div className="space-y-4 bg-muted/20 p-4 rounded-lg border">
+                  <Label htmlFor="edit-assigned_to" className="text-base font-semibold">
+                    Assigned To
+                  </Label>
+                  <Select
+                    value={recordFormData.assigned_to || "none"}
+                    onValueChange={(value) => {
+                      setRecordFormData(prev => ({ 
+                        ...prev, 
+                        assigned_to: value === "none" ? null : value
+                      }))
+                    }}
+                  >
+                    <SelectTrigger id="edit-assigned_to" className="h-12 text-base">
+                      <SelectValue placeholder="Select user" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none" className="text-base">None</SelectItem>
+                      {loadingUsers ? (
+                        <SelectItem value="loading" disabled className="text-base">Loading users...</SelectItem>
+                      ) : (
+                        users.map((user) => {
+                          const userId = user.user_id || user.id
+                          const userName = user.first_name && user.last_name
+                            ? `${user.first_name} ${user.last_name}`
+                            : user.name || user.email || userId
+                          return (
+                            <SelectItem key={userId} value={userId} className="text-base">
+                              {userName}
+                            </SelectItem>
+                          )
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              {/* REST OF THE COLUMNS */}
-              {columns.map((column) => {
-                const fieldType = column.parent_datatype || column.data_type || 'text'
-                const value = recordFormData[column.column_id] || ''
-                
-                return (
-                  <div key={column.column_id} className="space-y-2">
-                    <Label htmlFor={`edit-${column.column_id}`}>
-                      {column.column_name}
-                    </Label>
-                    {fieldType === 'textarea' ? (
-                      <Textarea
-                        id={`edit-${column.column_id}`}
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                        className="min-h-[100px]"
-                      />
-                    ) : fieldType === 'number' ? (
-                      <Input
-                        id={`edit-${column.column_id}`}
-                        type="number"
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                      />
-                    ) : fieldType === 'email' ? (
-                      <Input
-                        id={`edit-${column.column_id}`}
-                        type="email"
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                      />
-                    ) : fieldType === 'date' || fieldType === 'datetime' ? (
-                      <Input
-                        id={`edit-${column.column_id}`}
-                        type={fieldType === 'date' ? 'date' : 'datetime-local'}
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                      />
-                    ) : (
-                      <Input
-                        id={`edit-${column.column_id}`}
-                        type="text"
-                        value={value}
-                        onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                        placeholder={`Enter ${column.column_name}`}
-                      />
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </ScrollArea>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setIsEditRecordDialogOpen(false)
-              setRecordToEdit(null)
-              setRecordFormData({})
-            }}>
+                {/* REST OF THE COLUMNS */}
+                <div className="space-y-6">
+                  {columns.map((column) => {
+                    const fieldType = column.parent_datatype || column.data_type || 'text'
+                    const value = recordFormData[column.column_id] || ''
+                    
+                    // Get column options if available
+                    const columnOptions = getColumnOptions(column)
+                    
+                    // Special handling for phone numbers
+                    if (fieldType === 'phone') {
+                      let phoneData = { countryCode: '', number: '' }
+                      
+                      // Parse the phone data from JSON string
+                      if (value) {
+                        try {
+                          const parsed = JSON.parse(value)
+                          phoneData = {
+                            countryCode: parsed.countryCode || '',
+                            number: parsed.number || ''
+                          }
+                        } catch (e) {
+                          console.warn('Failed to parse phone data:', e)
+                        }
+                      }
+
+                      return (
+                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
+                          <Label htmlFor={`edit-${column.column_id}`} className="text-base font-semibold">
+                            {column.column_name}
+                          </Label>
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                            <div className="md:col-span-4 space-y-2">
+                              <Label htmlFor={`edit-${column.column_id}-countryCode`} className="text-sm font-medium">
+                                Country Code
+                              </Label>
+                              <Input
+                                id={`edit-${column.column_id}-countryCode`}
+                                type="text"
+                                value={phoneData.countryCode}
+                                onChange={(e) => {
+                                  const newCountryCode = e.target.value
+                                  const newPhoneData = {
+                                    ...phoneData,
+                                    countryCode: newCountryCode
+                                  }
+                                  setRecordFormData(prev => ({ 
+                                    ...prev, 
+                                    [column.column_id]: JSON.stringify(newPhoneData)
+                                  }))
+                                }}
+                                placeholder="+91"
+                                className="h-12 text-base"
+                              />
+                            </div>
+                            <div className="md:col-span-8 space-y-2">
+                              <Label htmlFor={`edit-${column.column_id}-number`} className="text-sm font-medium">
+                                Phone Number
+                              </Label>
+                              <Input
+                                id={`edit-${column.column_id}-number`}
+                                type="tel"
+                                value={phoneData.number}
+                                onChange={(e) => {
+                                  const newNumber = e.target.value
+                                  const newPhoneData = {
+                                    ...phoneData,
+                                    number: newNumber
+                                  }
+                                  setRecordFormData(prev => ({ 
+                                    ...prev, 
+                                    [column.column_id]: JSON.stringify(newPhoneData)
+                                  }))
+                                }}
+                                placeholder="1234567890"
+                                className="h-12 text-base"
+                              />
+                            </div>
+                          </div>
+                          {phoneData.countryCode || phoneData.number ? (
+                            <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-2 rounded">
+                              <div className="flex items-center gap-1">
+                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                Current:
+                              </div>
+                              <span className="font-medium">
+                                {phoneData.countryCode} {phoneData.number}
+                              </span>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              Enter country code (e.g., +91) and phone number
+                            </p>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    // Handle select fields with options
+                    if ((fieldType === 'select' || fieldType === 'radio') && columnOptions.length > 0) {
+                      return (
+                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
+                          <Label htmlFor={`edit-${column.column_id}`} className="text-base font-semibold">
+                            {column.column_name}
+                          </Label>
+                          <Select
+                            value={value}
+                            onValueChange={(newValue) => setRecordFormData(prev => ({ 
+                              ...prev, 
+                              [column.column_id]: newValue 
+                            }))}
+                          >
+                            <SelectTrigger id={`edit-${column.column_id}`} className="h-12 text-base">
+                              <SelectValue placeholder={`Select ${column.column_name}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {columnOptions.map((option, idx) => {
+                                const optionLabel = option.label || option.value || String(option)
+                                const optionValue = option.value || optionLabel
+                                return (
+                                  <SelectItem key={idx} value={optionValue} className="text-base">
+                                    {optionLabel}
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectContent>
+                          </Select>
+                          {hasNestedData(column) && (
+                            <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                              💡 This field has nested options. Use the "View" action in the table to edit nested values.
+                            </p>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    // Handle checkbox fields with options
+                    if (fieldType === 'checkbox' && columnOptions.length > 0) {
+                      const selectedValues = value ? (Array.isArray(value) ? value : [value]) : []
+                      
+                      return (
+                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
+                          <Label className="text-base font-semibold">
+                            {column.column_name}
+                          </Label>
+                          <div className="space-y-2">
+                            {columnOptions.map((option, idx) => {
+                              const optionLabel = option.label || option.value || String(option)
+                              const optionValue = option.value || optionLabel
+                              const isChecked = selectedValues.includes(optionValue)
+                              
+                              return (
+                                <div
+                                  key={idx}
+                                  onClick={() => {
+                                    let newValues
+                                    if (isChecked) {
+                                      newValues = selectedValues.filter(v => v !== optionValue)
+                                    } else {
+                                      newValues = [...selectedValues, optionValue]
+                                    }
+                                    setRecordFormData(prev => ({ 
+                                      ...prev, 
+                                      [column.column_id]: newValues
+                                    }))
+                                  }}
+                                  className="flex items-center gap-3 p-3 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
+                                    isChecked ? 'bg-primary border-primary' : 'border-muted-foreground'
+                                  }`}>
+                                    {isChecked && (
+                                      <svg className="w-3.5 h-3.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  <span className="text-sm font-medium">{optionLabel}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {hasNestedData(column) && (
+                            <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                              💡 This field has nested options. Use the "View" action in the table to edit nested values.
+                            </p>
+                          )}
+                        </div>
+                      )
+                    }
+
+                    // Regular field types
+                    return (
+                      <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
+                        <Label htmlFor={`edit-${column.column_id}`} className="text-base font-semibold">
+                          {column.column_name}
+                        </Label>
+                        {fieldType === 'textarea' ? (
+                          <Textarea
+                            id={`edit-${column.column_id}`}
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="min-h-[120px] text-base resize-vertical"
+                          />
+                        ) : fieldType === 'number' ? (
+                          <Input
+                            id={`edit-${column.column_id}`}
+                            type="number"
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="h-12 text-base"
+                          />
+                        ) : fieldType === 'email' ? (
+                          <Input
+                            id={`edit-${column.column_id}`}
+                            type="email"
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="h-12 text-base"
+                          />
+                        ) : fieldType === 'date' || fieldType === 'datetime' ? (
+                          <Input
+                            id={`edit-${column.column_id}`}
+                            type={fieldType === 'date' ? 'date' : 'datetime-local'}
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="h-12 text-base"
+                          />
+                        ) : (
+                          <Input
+                            id={`edit-${column.column_id}`}
+                            type="text"
+                            value={value}
+                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
+                            placeholder={`Enter ${column.column_name}`}
+                            className="h-12 text-base"
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </ScrollArea>
+          </div>
+          
+          <DialogFooter className="px-6 py-4 border-t bg-muted/20 shrink-0 gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsEditRecordDialogOpen(false)
+                setRecordToEdit(null)
+                setRecordFormData({})
+              }}
+              className="h-12 text-base flex-1"
+            >
               Cancel
             </Button>
-            <Button onClick={handleUpdateRecord} disabled={isSubmittingRecord}>
+            <Button 
+              onClick={handleUpdateRecord} 
+              disabled={isSubmittingRecord}
+              className="h-12 text-base flex-1 gap-2"
+            >
               {isSubmittingRecord ? (
                 <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  <RefreshCw className="h-5 w-5 animate-spin" />
                   Updating...
                 </>
               ) : (
-                'Update Record'
+                <>
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Update Record
+                </>
               )}
             </Button>
           </DialogFooter>
