@@ -609,7 +609,7 @@ export default function LeadsPage() {
               </div>
               
               {displayMode === "card" ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {groupTables.map((table) => (
                     <Card key={table.table_id} className="hover:shadow-md transition-shadow flex flex-col">
                       <CardHeader className="pb-3">
@@ -695,7 +695,7 @@ export default function LeadsPage() {
                 </div>
               ) : (
                 <Card className="overflow-hidden">
-                  <CardHeader className="pb-3">
+                  <CardHeader className="pb-1">
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle className="text-lg">{groupName}</CardTitle>
@@ -708,13 +708,149 @@ export default function LeadsPage() {
                       </Badge>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-6">
-                    <DataTable 
-                      columns={columns} 
-                      data={groupTables} 
-                      searchKey="table_name"
-                      searchPlaceholder="Search tables..."
-                    />
+                  <CardContent className="p-6 py-1">
+                    <div className="rounded-md border">
+                      <Table className="caption-bottom text-sm w-full table-auto">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Table Name</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Created At</TableHead>
+                            <TableHead>Table ID</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {groupTables.map((table) => (
+                            <TableRow key={table.table_id}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-1">
+                                  <div className="flex-shrink-0">
+                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                      <Database className="h-4 w-4 text-primary" />
+                                    </div>
+                                  </div>
+                                  <div 
+                                    className="font-semibold text-foreground cursor-pointer hover:text-primary hover:underline"
+                                    onClick={() => {
+                                      setSelectedTable(table)
+                                      setCurrentView("data")
+                                    }}
+                                  >
+                                    {table.table_name}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="max-w-[260px]">
+                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                                    {table.description || (
+                                      <span className="italic text-muted-foreground/70">
+                                        No description provided
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {getStatusBadge(table.is_active)}
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">
+                                  <div className="font-medium text-foreground">
+                                    {new Date(table.created_at).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(table.created_at).toLocaleTimeString('en-US', {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-mono text-xs bg-muted/50 px-2 py-1 rounded-md border">
+                                  {String(table.table_id).slice(0, 8)}...
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:bg-primary/10"
+                                    title="View table data"
+                                    onClick={() => {
+                                      setSelectedTable(table)
+                                      setCurrentView("data")
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:bg-primary/10"
+                                    title="Edit table"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-8 w-8 p-0 hover:bg-destructive/10"
+                                        title="More actions"
+                                      >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                        <span className="sr-only">Open menu</span>
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-[180px]">
+                                      <DropdownMenuItem 
+                                        className="cursor-pointer"
+                                        onClick={() => {
+                                          setSelectedTable(table)
+                                          setCurrentView("data")
+                                        }}
+                                      >
+                                        <Eye className="h-4 w-4 mr-2" />
+                                        View Data
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem className="cursor-pointer">
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Edit Table
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem className="cursor-pointer">
+                                        <Settings className="h-4 w-4 mr-2" />
+                                        Table Settings
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem 
+                                        onClick={() => {
+                                          setTableToDelete(table)
+                                          setIsDeleteDialogOpen(true)
+                                        }}
+                                        className="text-destructive cursor-pointer focus:text-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete Table
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CardContent>
                 </Card>
               )}
