@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useCallback, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,8 +11,10 @@ import Link from "next/link"
 import Image from "next/image"
 import { authUtils } from "@/lib/auth-utils"
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.10.15.194:3001'
+
 export default function LoginPage() {
-  const [step, setStep] = useState(1) // 1: Social login, 2: Credentials, 3: OTP
+  const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
     organization_id: "",
     email: "",
@@ -25,7 +27,47 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const [loginData, setLoginData] = useState(null)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Check for OAuth errors in URL
+  useEffect(() => {
+    const errorParam = searchParams?.get('error')
+    if (errorParam) {
+      const errorMessages = {
+        oauth_cancelled: "Google sign-in was cancelled",
+        no_code: "Authorization failed. Please try again",
+        auth_failed: "Authentication failed. Please try again",
+        session_failed: "Session creation failed. Please try again"
+      }
+      setError(errorMessages[errorParam] || "An error occurred during sign-in")
+    }
+  }, [searchParams])
+
+  // Check if user is already logged in
+  useEffect(() => {
+    checkAuthStatus()
+  }, [])
+
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/check-session`, {
+        method: 'GET',
+        credentials: 'include'
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        if (data.authenticated) {
+          router.push('/dashboard')
+        }
+      }
+    } catch (error) {
+      console.error('Error checking auth status:', error)
+    }
+  }
 
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target
@@ -40,14 +82,25 @@ export default function LoginPage() {
     setShowPassword((prev) => !prev)
   }, [])
 
-  const handleSocialLogin = (provider) => {
-    // Implement social login logic here
-    console.log(`Logging in with ${provider}`)
-    // You can redirect to OAuth endpoints or use a library like next-auth
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true)
+    setError("")
+
+    try {
+      // Redirect to backend OAuth endpoint
+      window.location.href = `${API_URL}/api/ssoAuth/google`
+    } catch (err) {
+      setError(err.message || "Failed to initiate Google login")
+      setIsGoogleLoading(false)
+    }
+  }
+
+  const handleMicrosoftLogin = () => {
+    setError("Microsoft login coming soon")
   }
 
   const handleEmailLoginClick = () => {
-    setStep(2) // Move to credentials form
+    setStep(2)
   }
 
   const handleSubmitCredentials = async (e) => {
@@ -56,11 +109,12 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: 'include',
         body: JSON.stringify({
           organization_id: formData.organization_id,
           email: formData.email,
@@ -94,11 +148,12 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const response = await fetch("/api/auth/verify-otp", {
+      const response = await fetch(`${API_URL}/api/auth/verify-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: 'include',
         body: JSON.stringify({
           organization_id: formData.organization_id,
           email: formData.email,
@@ -114,7 +169,7 @@ export default function LoginPage() {
       }
 
       authUtils.setTokens(data)
-      router.push("/")
+      router.push("/dashboard")
     } catch (err) {
       setError(err.message)
     } finally {
@@ -144,11 +199,12 @@ export default function LoginPage() {
   const handleResendOTP = async () => {
     setError("")
     try {
-      const response = await fetch("/api/auth/resend-otp", {
+      const response = await fetch(`${API_URL}/api/auth/resend-otp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: 'include',
         body: JSON.stringify({
           organization_id: formData.organization_id,
           email: formData.email,
@@ -239,34 +295,39 @@ export default function LoginPage() {
                     type="button"
                     variant="outline"
                     className="w-full h-12 border-purple-200 bg-white hover:bg-purple-50 flex items-center justify-center gap-3"
-                    onClick={() => handleSocialLogin("google")}
+                    onClick={handleGoogleLogin}
+                    disabled={isGoogleLoading}
                   >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      />
-                    </svg>
-                    Continue with Google
+                    {isGoogleLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <svg className="w-5 h-5" viewBox="0 0 24 24">
+                        <path
+                          fill="#4285F4"
+                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        />
+                        <path
+                          fill="#34A853"
+                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        />
+                        <path
+                          fill="#FBBC05"
+                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                        />
+                        <path
+                          fill="#EA4335"
+                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                        />
+                      </svg>
+                    )}
+                    {isGoogleLoading ? "Redirecting..." : "Continue with Google"}
                   </Button>
 
                   <Button
                     type="button"
                     variant="outline"
                     className="w-full h-12 border-purple-200 bg-white hover:bg-purple-50 flex items-center justify-center gap-3"
-                    onClick={() => handleSocialLogin("microsoft")}
+                    onClick={handleMicrosoftLogin}
                   >
                     <svg className="w-5 h-5" viewBox="0 0 23 23">
                       <path fill="#f3f3f3" d="M0 0h23v23H0z"/>
@@ -308,6 +369,16 @@ export default function LoginPage() {
             ) : step === 2 ? (
               // Email Login Step
               <form onSubmit={handleSubmitCredentials} className="space-y-5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleBackToSocial}
+                  className="flex items-center gap-2 text-purple-600 hover:text-purple-700 p-0"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </Button>
+
                 {error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
@@ -315,97 +386,84 @@ export default function LoginPage() {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="organization_id" className="text-gray-700">
-                    Organization ID
-                  </Label>
+                  <Label htmlFor="organization_id">Organization ID</Label>
                   <Input
                     id="organization_id"
                     name="organization_id"
                     type="text"
-                    required
+                    placeholder="Enter your organization ID"
                     value={formData.organization_id}
                     onChange={handleInputChange}
-                    placeholder="Enter your organization ID"
-                    className="h-12 border-purple-200 focus:border-purple-400 focus:ring-purple-400"
+                    required
+                    className="h-11"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-gray-700">
-                    Email
-                  </Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     name="email"
                     type="email"
-                    required
+                    placeholder="Enter your email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    placeholder="Enter your email"
-                    className="h-12 border-purple-200 focus:border-purple-400 focus:ring-purple-400"
+                    required
+                    className="h-11"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-gray-700">
-                    Password
-                  </Label>
+                  <Label htmlFor="password">Password</Label>
                   <div className="relative">
                     <Input
                       id="password"
                       name="password"
                       type={showPassword ? "text" : "password"}
-                      required
+                      placeholder="Enter your password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      placeholder="Enter your password"
-                      className="h-12 border-purple-200 focus:border-purple-400 focus:ring-purple-400 pr-10"
+                      required
+                      className="h-11 pr-10"
                     />
-                    <Button
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent text-purple-500 hover:text-purple-600"
                       onClick={togglePassswordVisibility}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
+                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 h-12 border-purple-200 bg-white hover:bg-purple-50 text-gray-700"
-                    onClick={handleBackToSocial}
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 h-12 bg-purple-600 hover:bg-purple-700 text-white font-medium"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Signing in...
-                      </>
-                    ) : (
-                      "Sign in"
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  type="submit"
+                  className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    "Sign In"
+                  )}
+                </Button>
               </form>
             ) : (
               // OTP Verification Step
               <form onSubmit={handleVerifyOTP} className="space-y-5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={handleBackToCredentials}
+                  className="flex items-center gap-2 text-purple-600 hover:text-purple-700 p-0"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </Button>
+
                 {error && (
                   <Alert variant="destructive">
                     <AlertDescription>{error}</AlertDescription>
@@ -413,67 +471,50 @@ export default function LoginPage() {
                 )}
 
                 {success && (
-                  <Alert className="bg-green-50 text-green-800 border-green-200">
-                    <AlertDescription>{success}</AlertDescription>
+                  <Alert className="border-green-200 bg-green-50">
+                    <AlertDescription className="text-green-800">{success}</AlertDescription>
                   </Alert>
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="otp" className="text-gray-700">
-                    6-digit OTP
-                  </Label>
+                  <Label htmlFor="otp">Enter OTP</Label>
                   <Input
                     id="otp"
                     name="otp"
                     type="text"
                     inputMode="numeric"
-                    required
-                    maxLength={6}
-                    pattern="[0-9]{6}"
+                    placeholder="000000"
                     value={formData.otp}
                     onChange={handleOtpChange}
-                    placeholder="Enter 6-digit OTP"
-                    className="h-12 text-center text-lg tracking-widest border-purple-200 focus:border-purple-400 focus:ring-purple-400"
+                    maxLength={6}
+                    required
+                    className="h-11 text-center text-2xl tracking-widest"
                   />
-                  <p className="text-xs text-gray-500 text-center">
-                    Enter the 6-digit code sent to your email and phone
-                  </p>
                 </div>
 
-                <div className="flex gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1 h-12 border-purple-200 bg-white hover:bg-purple-50 text-gray-700"
-                    onClick={handleBackToCredentials}
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 h-12 bg-purple-600 hover:bg-purple-700 text-white"
-                    disabled={isVerifying || !isOtpValid}
-                  >
-                    {isVerifying ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Verifying...
-                      </>
-                    ) : (
-                      "Verify OTP"
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  type="submit"
+                  className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white"
+                  disabled={isVerifying || !isOtpValid}
+                >
+                  {isVerifying ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    "Verify OTP"
+                  )}
+                </Button>
 
                 <div className="text-center">
                   <Button
                     type="button"
                     variant="link"
                     onClick={handleResendOTP}
-                    className="text-sm text-purple-600 hover:text-purple-700 transition-colors"
+                    className="text-purple-600 hover:text-purple-700"
                   >
-                    Didn't receive OTP? Resend
+                    Resend OTP
                   </Button>
                 </div>
               </form>
