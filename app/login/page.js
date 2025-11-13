@@ -61,7 +61,7 @@ export default function LoginPage() {
       if (response.ok) {
         const data = await response.json()
         if (data.authenticated) {
-          router.push('/dashboard')
+          router.push('/')
         }
       }
     } catch (error) {
@@ -169,7 +169,7 @@ export default function LoginPage() {
       }
 
       authUtils.setTokens(data)
-      router.push("/dashboard")
+      router.push("/")
     } catch (err) {
       setError(err.message)
     } finally {
