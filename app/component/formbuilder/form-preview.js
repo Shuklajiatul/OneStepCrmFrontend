@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useEffect } from "react"
 import { authUtils } from '@/lib/auth-utils'
+import { useRouter } from 'next/navigation'
 
 // Helper function to process field options with nested structure
 const processFieldOptions = (field) => {
@@ -172,15 +173,83 @@ const processNestedFieldsRecursively = (nestedFields) => {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
 const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
-const USER_ID = process.env.NEXT_PUBLIC_USER_ID
 
 export function FormPreview({ fields, isEditMode = false, formData = null, onRetryCountChange = null }) {
+  const router = useRouter()
   const [generatedLink, setGeneratedLink] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [copied, setCopied] = useState(false)
   const [formName, setFormName] = useState("")
   const [formDescription, setFormDescription] = useState("")
   const [retryCount, setRetryCount] = useState("2")
+  const [mappedGene, setMappedGene] = useState("")
+  const [availableGenes, setAvailableGenes] = useState([])
+  const [isLoadingGenes, setIsLoadingGenes] = useState(false)
+
+  // Check authentication and redirect if not authenticated
+  useEffect(() => {
+    if (!authUtils.isAuthenticated()) {
+      router.push('/login')
+      return
+    }
+  }, [router])
+
+  // Get user data from localStorage
+  const getUserData = () => {
+    if (typeof window !== 'undefined') {
+      const userData = localStorage.getItem('user')
+      return userData ? JSON.parse(userData) : null
+    }
+    return null
+  }
+
+  // Get user ID from localStorage
+  const getUserId = () => {
+    const userData = getUserData()
+    return userData?.user_id || null
+  }
+
+  // Fetch genes from API
+  const fetchGenes = async () => {
+    setIsLoadingGenes(true)
+    try {
+      const response = await axios.get('http://10.10.15.194:3001/api/genes', {
+        headers: {
+          'Authorization': authUtils.getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.data.success) {
+        const userData = getUserData()
+        const userGeneIds = userData?.g_ids || []
+        
+        // Filter genes to only show those the user is mapped to
+        const userGenes = response.data.data.filter(gene => 
+          userGeneIds.includes(gene.g_id)
+        )
+        
+        setAvailableGenes(userGenes)
+        
+        // Auto-select if there's only one gene
+        if (userGenes.length === 1 && !mappedGene) {
+          setMappedGene(userGenes[0].g_id)
+        }
+
+        // If in edit mode and formData has mapped_gene, set it
+        if (isEditMode && formData?.mapped_gene && !mappedGene) {
+          setMappedGene(formData.mapped_gene)
+        }
+      } else {
+        toast.error("Failed to load genes")
+      }
+    } catch (error) {
+      console.error('Error fetching genes:', error)
+      toast.error("Failed to load genes list")
+    } finally {
+      setIsLoadingGenes(false)
+    }
+  }
 
   // Populate form metadata when in edit mode
   useEffect(() => {
@@ -188,8 +257,16 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
       setFormName(formData.formName || "")
       setFormDescription(formData.description || "")
       setRetryCount(formData.max_retry_count?.toString() || "2")
+      setMappedGene(formData.mapped_gene || "")
     }
   }, [isEditMode, formData])
+
+  // Fetch genes on component mount
+  useEffect(() => {
+    if (authUtils.isAuthenticated()) {
+      fetchGenes()
+    }
+  }, [])
 
   // Notify parent component when retry count changes
   useEffect(() => {
@@ -243,8 +320,19 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
   })
 
   const handleGenerateLink = async () => {
+    // Check authentication
+    if (!authUtils.isAuthenticated()) {
+      router.push('/login')
+      return
+    }
+
     if (!formName.trim()) {
       toast.error("Please enter a form name")
+      return
+    }
+
+    if (!mappedGene) {
+      toast.error("Please select a mapped gene")
       return
     }
 
@@ -255,6 +343,14 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
     if (previewFields.length === 0) {
       toast.error("Please add at least one field to the form")
+      return
+    }
+
+    // Get user ID from localStorage
+    const userId = getUserId()
+    if (!userId) {
+      toast.error("User not found. Please log in again.")
+      router.push('/login')
       return
     }
 
@@ -528,7 +624,8 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         table_id: TABLE_ID,
         form_name: formName,
         description: formDescription,
-        created_by: USER_ID,
+        g_id: mappedGene, // Add mapped gene to form data
+        created_by: userId, // Use user ID from localStorage
         extraFields: regularFields.map(processFieldData),
         fields: leadDatabaseFields.map(processFieldData),
         published: true,
@@ -551,13 +648,14 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
         if (result.success && result.form) {
           // Generate the public URL
-          const publicUrl = `${window.location.origin}/forms/${result.form.form_id}?user_id=${USER_ID}&version=${result.form.version || 1}`
+          const publicUrl = `${window.location.origin}/forms/${result.form.form_id}?user_id=${userId}&version=${result.form.version || 1}`
           setGeneratedLink(publicUrl)
 
           // Store form data locally for the form view page
           const completeFormData = {
             form_name: formName,
             description: formDescription,
+            g_id: mappedGene, // Store mapped gene in local storage
             retry_count: retryCount,
             previewFields: previewFields.map(field => ({
               id: field.id,
@@ -1070,6 +1168,40 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
                 className="bg-input"
               />
             </div>
+            
+            {/* Map Gene Field */}
+            <div className="space-y-2">
+              <Label htmlFor="mapped-gene" className="text-sm font-medium">
+                Map Gene *
+              </Label>
+              <select
+                id="mapped-gene"
+                value={mappedGene}
+                onChange={(e) => setMappedGene(e.target.value)}
+                className="w-full px-3 py-2 border border-input rounded-md bg-input text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                required
+                disabled={isLoadingGenes}
+              >
+                <option value="">Select a gene</option>
+                {availableGenes.map((gene) => (
+                  <option key={gene.g_id} value={gene.g_id}>
+                    {gene.g_name}
+                  </option>
+                ))}
+              </select>
+              {isLoadingGenes && (
+                <p className="text-xs text-muted-foreground">Loading genes...</p>
+              )}
+              {!isLoadingGenes && availableGenes.length === 0 && (
+                <p className="text-xs text-muted-foreground text-amber-600">
+                  No genes available. You are not mapped to any genes.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Select the gene this form will be mapped to
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="retry-count" className="text-sm font-medium">
                 Number of Edit Attempts
@@ -1241,7 +1373,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground mb-3">
-                  ✅ User ID ({USER_ID.substring(0, 8)}...) is included in the link for lead attribution
+                  ✅ User ID ({getUserId()?.substring(0, 8)}...) is included in the link for lead attribution
                 </p>
                 <div className="flex gap-2">
                   <Button
