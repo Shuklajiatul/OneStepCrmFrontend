@@ -62,7 +62,7 @@ export default function MyFormsPage() {
   const [sortField, setSortField] = useState("form_name")
   const [sortDirection, setSortDirection] = useState("asc")
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(5)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   
   // View mode state
   const [viewMode, setViewMode] = useState("table")
@@ -901,12 +901,10 @@ export default function MyFormsPage() {
     })
   }, [filteredForms, sortField, sortDirection])
 
-  // Pagination functions
-  const pageSize = itemsPerPage // Aliasing for user's requested logic
-  const startIndex = (currentPage - 1) * pageSize
-  const endIndex = startIndex + pageSize
-  const paginatedForms = sortedForms.slice(startIndex, endIndex)
-  const totalPages = Math.ceil(sortedForms.length / pageSize)
+  // Pagination calculations
+  const totalPages = Math.ceil(sortedForms.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedForms = sortedForms.slice(startIndex, startIndex + itemsPerPage)
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -978,7 +976,7 @@ export default function MyFormsPage() {
   // Main content
   const mainContent = (
     <TooltipProvider delayDuration={0}>
-      <div className="container mx-auto py-6 space-y-6">
+      <div className="container mx-auto py-1 space-y-6">
         {/* Header */}
         <Card>
           <CardHeader>
@@ -1611,28 +1609,81 @@ export default function MyFormsPage() {
                 )}
 
                 {/* Pagination */}
-                {sortedForms.length > 0 && totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="text-sm text-muted-foreground">
-                      Showing {startIndex + 1} to {Math.min(endIndex, sortedForms.length)} of {sortedForms.length} forms
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        disabled={currentPage === 1}
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
-                      >
-                        Next
-                      </Button>
+                {sortedForms.length > 0 && (
+                  <div className="mt-6 px-4 sm:px-0 pb-4 sm:pb-0">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                      <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                        {/* Items per page selector */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground whitespace-nowrap">Show</span>
+                          <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                            <SelectTrigger className="w-20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="5">5</SelectItem>
+                              <SelectItem value="10">10</SelectItem>
+                              <SelectItem value="20">20</SelectItem>
+                              <SelectItem value="50">50</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <span className="text-sm text-muted-foreground whitespace-nowrap">per page</span>
+                        </div>
+
+                        {/* Page info */}
+                        <div className="text-sm text-muted-foreground whitespace-nowrap">
+                          Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, sortedForms.length)} of {sortedForms.length} forms
+                        </div>
+                      </div>
+
+                      {/* Pagination controls */}
+                      {totalPages > 1 && (
+                        <Pagination>
+                          <PaginationContent>
+                            <PaginationItem>
+                              <PaginationPrevious
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                              />
+                            </PaginationItem>
+
+                            {/* Show limited page numbers for better UX */}
+                            {(() => {
+                              const pages = [];
+                              const maxVisiblePages = 5;
+                              let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                              let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+                              // Adjust start page if we're near the end
+                              if (endPage - startPage + 1 < maxVisiblePages) {
+                                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                              }
+
+                              for (let i = startPage; i <= endPage; i++) {
+                                pages.push(
+                                  <PaginationItem key={i}>
+                                    <PaginationLink
+                                      onClick={() => setCurrentPage(i)}
+                                      isActive={currentPage === i}
+                                      className="cursor-pointer"
+                                    >
+                                      {i}
+                                    </PaginationLink>
+                                  </PaginationItem>
+                                );
+                              }
+                              return pages;
+                            })()}
+
+                            <PaginationItem>
+                              <PaginationNext
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                              />
+                            </PaginationItem>
+                          </PaginationContent>
+                        </Pagination>
+                      )}
                     </div>
                   </div>
                 )}
