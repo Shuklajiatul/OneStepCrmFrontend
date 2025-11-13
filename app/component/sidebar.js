@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import Image from 'next/image'
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
+import { authUtils } from '@/lib/auth-utils'
 
 const menuItems = [
     { label: "Dashboard", icon: Home, href: "dashboard", active: true },
@@ -56,6 +57,14 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
     const router = useRouter()
     const pathname = usePathname()
     const [expandedMenus, setExpandedMenus] = useState(new Set())
+
+    // Check authentication and redirect if not authenticated
+    useEffect(() => {
+        if (!authUtils.isAuthenticated() && pathname !== '/login') {
+            router.push('/login')
+            return
+        }
+    }, [router, pathname])
 
     // Auto-expand parent menus when their submenu items are active
     useEffect(() => {
