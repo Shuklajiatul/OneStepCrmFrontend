@@ -14,9 +14,29 @@ export default function FormPreviewPage() {
   const [isEditMode, setIsEditMode] = useState(false)
   const [editFormData, setEditFormData] = useState(null)
   const [currentRetryCount, setCurrentRetryCount] = useState("2")
+  const [userData, setUserData] = useState(null)
   const router = useRouter()
 
+  // Get user data from localStorage
+  const getUserData = () => {
+    if (typeof window !== 'undefined') {
+      const userData = localStorage.getItem('user')
+      return userData ? JSON.parse(userData) : null
+    }
+    return null
+  }
+
+  // Get user ID from localStorage
+  const getUserId = () => {
+    const userData = getUserData()
+    return userData?.user_id || null
+  }
+
   useEffect(() => {
+    // Load user data from localStorage
+    const userData = getUserData()
+    setUserData(userData)
+
     // Load fields from localStorage (edit mode) or sessionStorage (create mode)
     const formBuilderData = localStorage.getItem('formBuilderData')
     
@@ -29,6 +49,17 @@ export default function FormPreviewPage() {
           setIsEditMode(true)
           setEditFormData(data)
           setCurrentRetryCount(data.max_retry_count?.toString() || "2")
+          
+          // If form data doesn't have g_id but user has genes, set the first one
+          if (!data.g_id && userData?.g_ids?.length > 0) {
+            // Update the formBuilderData with the first gene ID
+            const updatedData = {
+              ...data,
+              g_id: userData.g_ids[0]
+            }
+            localStorage.setItem('formBuilderData', JSON.stringify(updatedData))
+            setEditFormData(updatedData)
+          }
         }
       } catch (error) {
         console.error('Error parsing formBuilderData:', error)
@@ -118,15 +149,13 @@ export default function FormPreviewPage() {
   const handleSaveForm = async () => {
     try {
       if (isEditMode && editFormData) {
-        // Update existing form
-        
-        // FIX: Read the most up-to-date fields from localStorage to avoid stale state
         // Add a small delay to ensure any pending localStorage writes are complete
         await new Promise(resolve => setTimeout(resolve, 50))
         
         const formBuilderData = localStorage.getItem('formBuilderData')
         let latestFields = fields // Fallback to state
         let latestRetryCount = currentRetryCount
+        let latestGId = editFormData.g_id 
         
         if (formBuilderData) {
           try {
@@ -134,17 +163,30 @@ export default function FormPreviewPage() {
             if (data.isEditMode && data.fields) {
               latestFields = data.fields
               latestRetryCount = data.max_retry_count?.toString() || currentRetryCount
+              latestGId = data.g_id || latestGId
             }
           } catch (error) {
             console.error('Error parsing formBuilderData in handleSaveForm:', error)
           }
+        }
+
+        // If still no g_id, use the first gene from user data
+        if (!latestGId && userData?.g_ids?.length > 0) {
+          latestGId = userData.g_ids[0]
+        }
+
+        // Get user ID from localStorage
+        const userId = getUserId()
+        if (!userId) {
+          toast.error("User not found. Please log in again.")
+          router.push('/login')
+          return
         }
         
         // Generate the same payload structure as Generate Link
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
         const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
         const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
-        const USER_ID = process.env.NEXT_PUBLIC_USER_ID
         
         // Recursive function to process nested fields
         const processNestedFields = (nestedFields, parentIndex = null) => {
@@ -268,10 +310,13 @@ export default function FormPreviewPage() {
           table_id: TABLE_ID,
           form_name: editFormData.formName,
           description: editFormData.description,
-          created_by: USER_ID,
+          g_id: latestGId, // Use the g_id from localStorage/user data
+          created_by: userId, // Use user ID from localStorage
           fields: allFields,
           retry_count: latestRetryCount
         }
+        
+        console.log('📤 Update Payload:', updatePayload)
         
         // Send update request
         const response = await fetch(`${API_BASE_URL}/api/forms/update`, {

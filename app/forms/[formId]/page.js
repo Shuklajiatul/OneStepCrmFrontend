@@ -21,7 +21,7 @@ import { authUtils } from '@/lib/auth-utils'
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
 const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
-const USER_ID = process.env.NEXT_PUBLIC_USER_ID
+const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID
 
 // Helper functions
 const formatFileSize = (bytes) => {
@@ -1508,7 +1508,18 @@ export default function PublicFormPage() {
   const versionParam = searchParams.get('version')
 
   // Properly handle null, undefined, or "undefined" string values
-  const finalUserId = (userIdFromUrl && userIdFromUrl !== 'undefined' && userIdFromUrl !== 'null') ? userIdFromUrl : USER_ID
+  const tokens = authUtils.getTokens()
+  const storedUserId =
+    tokens?.user?.user_id ||
+    tokens?.user?.id ||
+    tokens?.user_id ||
+    tokens?.userId ||
+    null
+
+  const finalUserId =
+    (userIdFromUrl && userIdFromUrl !== 'undefined' && userIdFromUrl !== 'null')
+      ? userIdFromUrl
+      : (storedUserId || FALLBACK_USER_ID)
 
   const [formData, setFormData] = useState(null)
   const [submissionData, setSubmissionData] = useState(null)

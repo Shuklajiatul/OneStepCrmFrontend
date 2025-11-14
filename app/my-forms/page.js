@@ -37,12 +37,21 @@ import Sidebar from "../component/sidebar"
 import Topbar from "../component/topbar"
 import { cn } from "@/lib/utils"
 
-const USER_ID = process.env.NEXT_PUBLIC_USER_ID;
+const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID;
 
 export default function MyFormsPage() {
   const router = useRouter()
   const pathname = usePathname()
   const isStandaloneRoute = pathname === '/my-forms'
+
+  const tokens = authUtils.getTokens()
+  const storedUserId =
+    tokens?.user?.user_id ||
+    tokens?.user?.id ||
+    tokens?.user_id ||
+    tokens?.userId ||
+    null
+  const resolvedUserId = storedUserId || FALLBACK_USER_ID
   
   const [darkMode, setDarkMode] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -463,7 +472,7 @@ export default function MyFormsPage() {
       return
     }
 
-    const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${form.version || 1}`
+    const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}`
     
     try {
       // Check if clipboard API is available
@@ -522,19 +531,19 @@ export default function MyFormsPage() {
       const result = response.data
       if (result.success && result.form) {
         const latestVersion = result.form.version || 1
-        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${latestVersion}`
+        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${latestVersion}`
         window.open(link, '_blank', 'noopener,noreferrer')
         toast.info("Opening form in new tab")
       } else {
         // Fallback to form.version if API call fails
-        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${form.version || 1}`
+        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}`
         window.open(link, '_blank', 'noopener,noreferrer')
         toast.info("Opening form in new tab")
       }
     } catch (error) {
       console.error('Error fetching latest form version:', error)
       // Fallback to form.version if API call fails
-      const link = `${window.location.origin}/forms/${form.form_id}?user_id=${USER_ID}&version=${form.version || 1}`
+      const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}`
       window.open(link, '_blank', 'noopener,noreferrer')
       toast.info("Opening form in new tab")
     }
