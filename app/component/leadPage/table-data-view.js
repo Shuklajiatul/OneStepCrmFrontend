@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { 
   ArrowLeft, 
   Database, 
@@ -36,6 +37,216 @@ import { authUtils } from '@/lib/auth-utils'
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
+const parseOptionalValuesArray = (optionalValuesInput) => {
+  if (!optionalValuesInput) return []
+
+  const tryParse = (value) => {
+    if (Array.isArray(value)) {
+      return value
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    }
+
+    if (typeof value === 'object') {
+      return Array.isArray(value) ? value : []
+    }
+
+    return []
+  }
+
+  if (Array.isArray(optionalValuesInput)) {
+    for (const entry of optionalValuesInput) {
+      const parsed = tryParse(entry)
+      if (parsed.length) {
+        return parsed
+      }
+    }
+  }
+
+  if (typeof optionalValuesInput === 'string') {
+    return tryParse(optionalValuesInput)
+  }
+
+  return []
+}
+
+const inferTypeFromColumnName = (name = '') => {
+  const lower = name.toLowerCase()
+  if (lower.includes('email')) return 'email'
+  if (lower.includes('phone') || lower.includes('mobile')) return 'phone'
+  if (lower.includes('location') || lower.includes('address')) return 'location'
+  if (lower.includes('date') || lower.includes('dob')) return 'date'
+  if (lower.includes('time')) return 'datetime'
+  if (lower.includes('description') || lower.includes('notes') || lower.includes('feedback')) return 'textarea'
+  if (lower.includes('amount') || lower.includes('salary') || lower.includes('price')) return 'number'
+  return null
+}
+
+const normalizeColumnMetadata = (column) => {
+  if (!column) return null
+  const options = parseOptionalValuesArray(column.optional_values)
+  const propertyType =
+    column.properties?.field_type ||
+    column.properties?.type ||
+    column.properties?.input_type ||
+    column.properties?.parent_datatype
+
+  const nameBasedType = inferTypeFromColumnName(column.column_name || '')
+  let resolvedParentDatatype = column.parent_datatype || propertyType || null
+
+  if ((!resolvedParentDatatype || resolvedParentDatatype === 'text') && column.data_type === 'number') {
+    resolvedParentDatatype = 'number'
+  }
+
+  if ((!resolvedParentDatatype || resolvedParentDatatype === 'text') && column.data_type === 'boolean') {
+    resolvedParentDatatype = 'boolean'
+  }
+
+  if ((!resolvedParentDatatype || resolvedParentDatatype === 'text') && nameBasedType) {
+    resolvedParentDatatype = nameBasedType
+  }
+
+  if ((!resolvedParentDatatype || resolvedParentDatatype === 'text') && options.length > 0) {
+    resolvedParentDatatype =
+      column.properties?.selection_style ||
+      column.properties?.selection_type ||
+      column.properties?.display_type ||
+      column.properties?.field_type ||
+      'select'
+  }
+
+  if (!resolvedParentDatatype) {
+    resolvedParentDatatype = 'text'
+  }
+
+  return {
+    ...column,
+    resolvedOptions: options,
+    resolvedParentDatatype,
+    resolvedDataType: column.data_type || resolvedParentDatatype || 'text',
+  }
+}
+
+const getColumnFieldType = (column) => {
+  if (!column) return 'text'
+  return (
+    column.resolvedParentDatatype ||
+    column.parent_datatype ||
+    column.properties?.field_type ||
+    column.properties?.type ||
+    column.data_type ||
+    inferTypeFromColumnName(column.column_name || '') ||
+    'text'
+  )
+}
+
+const normalizeFieldValueForForm = (rawValue, column) => {
+  const fieldType = getColumnFieldType(column)
+
+  const parseValue = (value) => {
+    if (value === null || value === undefined) {
+      return null
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return ''
+
+      if (
+        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))
+      ) {
+        try {
+          return JSON.parse(trimmed)
+        } catch {
+          return trimmed
+        }
+      }
+
+      return trimmed
+    }
+
+    return value
+  }
+
+  const parsedValue = parseValue(rawValue)
+
+  if (fieldType === 'checkbox') {
+    if (Array.isArray(parsedValue)) {
+      return parsedValue.map((item) => {
+        if (typeof item === 'object' && item !== null) {
+          return {
+            value: item.value ?? '',
+            nestedValues: item.nestedValues || {},
+          }
+        }
+        return {
+          value: item,
+          nestedValues: {},
+        }
+      })
+    }
+    if (
+      parsedValue &&
+      typeof parsedValue === 'object' &&
+      Array.isArray(parsedValue.value)
+    ) {
+      return parsedValue.value.map((item) => ({
+        value: typeof item === 'object' && item !== null ? item.value ?? '' : item,
+        nestedValues:
+          typeof item === 'object' && item !== null && item.nestedValues
+            ? item.nestedValues
+            : {},
+      }))
+    }
+    return []
+  }
+
+  if (fieldType === 'select' || fieldType === 'radio') {
+    if (parsedValue && typeof parsedValue === 'object' && !Array.isArray(parsedValue)) {
+      return {
+        value: parsedValue.value ?? '',
+        nestedValues: parsedValue.nestedValues || {},
+      }
+    }
+
+    return {
+      value: parsedValue ? String(parsedValue) : '',
+      nestedValues: {},
+    }
+  }
+
+  if (fieldType === 'phone') {
+    if (parsedValue && typeof parsedValue === 'object') {
+      return JSON.stringify(parsedValue)
+    }
+    return parsedValue ? String(parsedValue) : ''
+  }
+
+  if (typeof parsedValue === 'object' && parsedValue !== null && parsedValue.value !== undefined) {
+    return typeof parsedValue.value === 'object'
+      ? JSON.stringify(parsedValue.value)
+      : String(parsedValue.value ?? '')
+  }
+
+  if (typeof parsedValue === 'object' && parsedValue !== null) {
+    try {
+      return JSON.stringify(parsedValue)
+    } catch {
+      return String(parsedValue)
+    }
+  }
+
+  return parsedValue !== null && parsedValue !== undefined ? String(parsedValue) : ''
+}
+
 export default function TableDataView({ table, onBack }) {
   const [columns, setColumns] = useState([])
   const [records, setRecords] = useState([])
@@ -55,7 +266,7 @@ export default function TableDataView({ table, onBack }) {
   
   // File preview modal state
   const [isFileModalOpen, setIsFileModalOpen] = useState(false)
-  const [filePreview, setFilePreview] = useState(null) // { name, mime, dataUrl }
+  const [filePreview, setFilePreview] = useState(null)
   
   // Add/Edit record dialog state
   const [isAddRecordDialogOpen, setIsAddRecordDialogOpen] = useState(false)
@@ -67,6 +278,8 @@ export default function TableDataView({ table, onBack }) {
   const [loadingUsers, setLoadingUsers] = useState(false)
   const [isViewRecordDialogOpen, setIsViewRecordDialogOpen] = useState(false)
   const [recordToView, setRecordToView] = useState(null)
+  const [activeOptionPopover, setActiveOptionPopover] = useState(null)
+  const [nestedModalContext, setNestedModalContext] = useState('record')
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -100,7 +313,6 @@ export default function TableDataView({ table, onBack }) {
         }
       })
 
-      // Handle different response formats
       let usersData = []
       if (Array.isArray(response.data)) {
         usersData = response.data
@@ -139,10 +351,11 @@ export default function TableDataView({ table, onBack }) {
         })
       ])
 
-      const columnsData = Array.isArray(columnsResponse.data) ? columnsResponse.data : (columnsResponse.data?.data || columnsResponse.data?.columns || [])
+      const columnsData = Array.isArray(columnsResponse.data)
+        ? columnsResponse.data
+        : (columnsResponse.data?.data || columnsResponse.data?.columns || [])
       let recordsData = recordsResponse.data
       
-      // Normalize recordsData to always be an array
       if (!Array.isArray(recordsData)) {
         if (recordsData?.data && Array.isArray(recordsData.data)) {
           recordsData = recordsData.data
@@ -153,24 +366,11 @@ export default function TableDataView({ table, onBack }) {
         }
       }
       
-      console.log('Columns data:', columnsData)
-      console.log('Records data:', recordsData)
-      
-      // Debug: Show column to field mapping
-      if (Array.isArray(columnsData) && columnsData.length > 0 && Array.isArray(recordsData) && recordsData.length > 0) {
-        console.log('Column to Field Mapping:')
-        columnsData.forEach(column => {
-          console.log(`Column: ${column.column_name} (${column.column_id})`)
-          const sampleRecord = recordsData.find(r => r.field_values && r.field_values[column.column_id])
-          if (sampleRecord) {
-            console.log(`  Sample value: ${sampleRecord.field_values[column.column_id]}`)
-          } else {
-            console.log(`  No data found for this column`)
-          }
-        })
-      }
-      
-      setColumns(Array.isArray(columnsData) ? columnsData : [])
+      const normalizedColumns = Array.isArray(columnsData)
+        ? columnsData.map(normalizeColumnMetadata).filter(Boolean)
+        : []
+
+      setColumns(normalizedColumns)
       setRecords(recordsData)
       toast.success(`Loaded ${recordsData.length} records successfully!`)
       
@@ -179,7 +379,6 @@ export default function TableDataView({ table, onBack }) {
       setError(errorMsg)
       toast.error(errorMsg)
       console.error("Error fetching table data:", err)
-      // Ensure records is always an array even on error
       setRecords([])
       setColumns([])
     } finally {
@@ -212,50 +411,39 @@ export default function TableDataView({ table, onBack }) {
   }
 
   const openAddRecordDialog = () => {
-    setRecordFormData({
-      assigned_to: null // Initialize as null
+    const initialFormState = {
+      assigned_to: null,
+    }
+
+    columns.forEach((column) => {
+      const fieldType = getColumnFieldType(column)
+      if (fieldType === 'checkbox') {
+        initialFormState[column.column_id] = []
+      } else if (fieldType === 'select' || fieldType === 'radio') {
+        initialFormState[column.column_id] = { value: '', nestedValues: {} }
+      } else if (fieldType === 'phone') {
+        initialFormState[column.column_id] = JSON.stringify({ countryCode: '', number: '' })
+      } else {
+        initialFormState[column.column_id] = ''
+      }
     })
+
+    setRecordFormData(initialFormState)
     setIsAddRecordDialogOpen(true)
   }
 
   const openEditRecordDialog = (record) => {
     setRecordToEdit(record)
     
-    // Initialize form data with current record values
     const formData = {
       assigned_to: record.assigned_to === "NA" || !record.assigned_to ? null : record.assigned_to
     }
     
     columns.forEach(column => {
       const rawValue = getFieldValue(record, column.column_id, column)
-      
-      // Extract the actual value from nested structure
-      let value = rawValue
-      
-      // Handle the nested object structure: {"value":"Option 1","nestedValues":{}}
-      if (typeof rawValue === 'object' && rawValue !== null && rawValue.value !== undefined) {
-        value = rawValue.value
-      }
-      
-      // Handle phone number objects
-      if (column.parent_datatype === 'phone' && typeof rawValue === 'object' && rawValue !== null) {
-        // Convert phone object to string for the input
-        value = JSON.stringify(rawValue)
-      }
-      
-      // Convert to string for form inputs
-      if (value !== null && value !== undefined) {
-        if (typeof value === 'object') {
-          formData[column.column_id] = JSON.stringify(value)
-        } else {
-          formData[column.column_id] = String(value)
-        }
-      } else {
-        formData[column.column_id] = ''
-      }
+      formData[column.column_id] = normalizeFieldValueForForm(rawValue, column)
     })
     
-    console.log('Edit form data:', formData)
     setRecordFormData(formData)
     setIsEditRecordDialogOpen(true)
   }
@@ -269,13 +457,11 @@ export default function TableDataView({ table, onBack }) {
     setIsSubmittingRecord(true)
     
     try {
-      // Get logged in user's g_id
       const tokens = authUtils.getTokens()
       const user = tokens?.user
       let gId = null
       
       if (user?.g_ids) {
-        // Handle g_ids as array or single value
         if (Array.isArray(user.g_ids)) {
           gId = user.g_ids.length > 0 ? user.g_ids[0] : null
         } else {
@@ -289,26 +475,22 @@ export default function TableDataView({ table, onBack }) {
         return
       }
 
-      // Prepare field_values payload
       const fieldValues = {}
       columns.forEach(column => {
-        const value = recordFormData[column.column_id]
-        if (value !== undefined && value !== null && value !== '') {
-          fieldValues[column.column_id] = value
+        const payloadValue = buildFieldValuePayload(column, recordFormData[column.column_id])
+        if (payloadValue !== null) {
+          fieldValues[column.column_id] = payloadValue
         }
       })
 
-      // Prepare assigned_to - convert "none" to null, otherwise use the user ID
       const assignedToValue = recordFormData.assigned_to
       const finalAssignedTo = assignedToValue === "none" || !assignedToValue ? null : assignedToValue
 
       const payload = {
         g_id: gId,
-        assigned_to: finalAssignedTo, // Add assigned_to to payload
+        assigned_to: finalAssignedTo,
         field_values: fieldValues
       }
-
-      console.log('Create record payload:', payload) // Debug log
 
       const response = await axios.post(
         `${API_BASE_URL}/api/records/${table.table_id}`,
@@ -340,13 +522,11 @@ export default function TableDataView({ table, onBack }) {
     setIsSubmittingRecord(true)
     
     try {
-      // Get logged in user's g_id
       const tokens = authUtils.getTokens()
       const user = tokens?.user
       let gId = null
       
       if (user?.g_ids) {
-        // Handle g_ids as array or single value
         if (Array.isArray(user.g_ids)) {
           gId = user.g_ids.length > 0 ? user.g_ids[0] : null
         } else {
@@ -360,26 +540,22 @@ export default function TableDataView({ table, onBack }) {
         return
       }
   
-      // Prepare field_values payload (only include changed fields)
       const fieldValues = {}
       columns.forEach(column => {
-        const value = recordFormData[column.column_id]
-        if (value !== undefined && value !== null && value !== '') {
-          fieldValues[column.column_id] = value
+        const payloadValue = buildFieldValuePayload(column, recordFormData[column.column_id])
+        if (payloadValue !== null) {
+          fieldValues[column.column_id] = payloadValue
         }
       })
   
-      // Prepare assigned_to - convert "none" to null, otherwise use the user ID
       const assignedToValue = recordFormData.assigned_to
       const finalAssignedTo = assignedToValue === "none" || !assignedToValue ? null : assignedToValue
   
       const payload = {
         g_id: gId,
-        assigned_to: finalAssignedTo, // This should be null or the user ID, never "NA"
+        assigned_to: finalAssignedTo,
         field_values: fieldValues
       }
-  
-      console.log('Update record payload:', payload) // Debug log
   
       const response = await axios.put(
         `${API_BASE_URL}/api/records/${table.table_id}/${recordToEdit.record_id}`,
@@ -406,18 +582,15 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  // Helper to check if a string is a base64 file
   const isBase64File = (str) => {
     if (typeof str !== 'string') return false
     return str.startsWith('data:') && str.includes('base64,')
   }
 
-  // Create a proper file object from base64
   const createFileFromBase64 = (base64String, filename = 'uploaded_file', originalType = null, originalSize = null, originalLastModified = null) => {
     if (!base64String) return null
 
     try {
-      // Extract mime type and base64 data
       const matches = base64String.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/)
       if (!matches || matches.length !== 3) {
         console.warn('Invalid base64 format:', base64String?.substring(0, 100))
@@ -427,7 +600,6 @@ export default function TableDataView({ table, onBack }) {
       const mimeType = matches[1]
       const base64Data = matches[2]
 
-      // Use original metadata if provided, otherwise use extracted/default values
       const finalFilename = filename.includes('.') ? filename : `${filename}.${mimeType.split('/')[1] || 'bin'}`
       const finalType = originalType || mimeType
       const finalSize = originalSize || Math.floor((base64Data.length * 3) / 4)
@@ -440,104 +612,12 @@ export default function TableDataView({ table, onBack }) {
         base64: base64String,
         previewUrl: base64String,
         lastModified: finalLastModified,
-        isFromBase64: true // Flag to identify base64-originated files
+        isFromBase64: true
       }
     } catch (error) {
       console.error('Error creating file from base64:', error)
       return null
     }
-  }
-
-  // Recursively process nested values to convert base64 files to file objects
-  const processNestedValuesForFiles = (nestedValues, column = null) => {
-    if (!nestedValues || typeof nestedValues !== 'object') return nestedValues
-
-    const processed = Array.isArray(nestedValues) ? [] : {}
-
-    if (Array.isArray(nestedValues)) {
-      return nestedValues.map(item => {
-        if (typeof item === 'object' && item !== null) {
-          // Handle array items with value and nestedValues
-          if (item.value !== undefined) {
-            const processedItem = { ...item }
-            
-            // Check if value is a base64 file
-            if (typeof item.value === 'string' && isBase64File(item.value)) {
-              const fileObject = createFileFromBase64(
-                item.value,
-                item.name || column?.column_name || 'nested_file',
-                item.type,
-                item.size,
-                item.lastModified
-              )
-              if (fileObject) {
-                processedItem.value = fileObject
-                processedItem.isFile = true
-              }
-            }
-            
-            // Recursively process nestedValues
-            if (item.nestedValues && typeof item.nestedValues === 'object') {
-              processedItem.nestedValues = processNestedValuesForFiles(item.nestedValues, column)
-            }
-            
-            return processedItem
-          }
-          // Handle direct objects (like location or phone)
-          return item
-        }
-        // Check if item itself is a base64 string
-        if (typeof item === 'string' && isBase64File(item)) {
-          const fileObject = createFileFromBase64(item, column?.column_name || 'nested_file')
-          return fileObject || item
-        }
-        return item
-      })
-    } else {
-      // Handle object structure
-      Object.keys(nestedValues).forEach(key => {
-        const value = nestedValues[key]
-        
-        if (typeof value === 'object' && value !== null) {
-          if (value.value !== undefined) {
-            const processedValue = { ...value }
-            
-            // Check if value is a base64 file
-            if (typeof value.value === 'string' && isBase64File(value.value)) {
-              const fileObject = createFileFromBase64(
-                value.value,
-                value.name || `nested_file_${key}`,
-                value.type,
-                value.size,
-                value.lastModified
-              )
-              if (fileObject) {
-                processedValue.value = fileObject
-                processedValue.isFile = true
-              }
-            }
-            
-            // Recursively process nestedValues
-            if (value.nestedValues && typeof value.nestedValues === 'object') {
-              processedValue.nestedValues = processNestedValuesForFiles(value.nestedValues, column)
-            }
-            
-            processed[key] = processedValue
-          } else {
-            // Direct object (location, phone, etc.) or recursive nested structure
-            processed[key] = processNestedValuesForFiles(value, column)
-          }
-        } else if (typeof value === 'string' && isBase64File(value)) {
-          // Direct base64 string
-          const fileObject = createFileFromBase64(value, `nested_file_${key}`)
-          processed[key] = fileObject || value
-        } else {
-          processed[key] = value
-        }
-      })
-    }
-
-    return processed
   }
 
   const parseJsonSafely = (value) => {
@@ -633,7 +713,6 @@ export default function TableDataView({ table, onBack }) {
   }
 
   const formatPhoneDisplay = (value) => {
-    // If value is already an object with phone properties
     if (value && typeof value === 'object') {
       const countryCode = value.countryCode || value.code || ''
       const number = value.number || value.value || ''
@@ -647,7 +726,6 @@ export default function TableDataView({ table, onBack }) {
       )
     }
     
-    // If value is a string, try to parse it as JSON
     if (typeof value === 'string') {
       try {
         const parsed = JSON.parse(value)
@@ -664,7 +742,6 @@ export default function TableDataView({ table, onBack }) {
           )
         }
       } catch (e) {
-        // If parsing fails, treat as plain phone number string
         return (
           <a href={`tel:${value}`} className="text-blue-600 hover:underline">
             {String(value)}
@@ -673,7 +750,6 @@ export default function TableDataView({ table, onBack }) {
       }
     }
     
-    // Fallback for any other cases
     return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
   }
 
@@ -698,23 +774,18 @@ export default function TableDataView({ table, onBack }) {
     
     const rawValue = record.field_values[columnId]
     
-    // If the value is a JSON string, parse it
     if (typeof rawValue === 'string') {
       const trimmed = rawValue.trim()
       
-      // Check if it's a JSON string (starts with { or [)
       if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
           (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
         try {
           const parsed = JSON.parse(trimmed)
           
-          // Handle the specific structure from your API: {"value":"male","nestedValues":{}}
           if (parsed && typeof parsed === 'object') {
-            // If it has a value property, return the structured object
             if (parsed.value !== undefined) {
               return parsed
             }
-            // Handle phone number objects
             if (parsed.countryCode || parsed.number) {
               return parsed
             }
@@ -722,7 +793,6 @@ export default function TableDataView({ table, onBack }) {
           
           return parsed
         } catch (e) {
-          // If parsing fails, return the original string
           return rawValue
         }
       }
@@ -731,7 +801,80 @@ export default function TableDataView({ table, onBack }) {
     return rawValue
   }
 
-  // Infer filename from data URL and optional field label (accepts column or fieldDef)
+  const buildFieldValuePayload = (column, value) => {
+    const fieldType = getColumnFieldType(column)
+
+    if (value === null || value === undefined) return null
+
+    // Handle checkbox (multi-select)
+    if (fieldType === 'checkbox') {
+      const normalizedArray = (Array.isArray(value) ? value : [])
+        .map((item) => {
+          if (typeof item === 'object' && item !== null) {
+            if (!item.value) return null
+            const payload = { value: item.value }
+            if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
+              payload.nestedValues = item.nestedValues
+            }
+            return payload
+          }
+
+          if (!item) return null
+          return { value: item }
+        })
+        .filter(Boolean)
+
+      if (!normalizedArray.length) return null
+      return JSON.stringify(normalizedArray)
+    }
+
+    // Handle select & radio (single choice)
+    if (fieldType === 'select' || fieldType === 'radio') {
+      if (typeof value === 'object' && value !== null) {
+        if (!value.value) return null
+        return JSON.stringify({
+          value: value.value,
+          nestedValues: value.nestedValues || {},
+        })
+      }
+
+      if (typeof value === 'string' && value.trim()) {
+        return JSON.stringify({
+          value: value.trim(),
+          nestedValues: {},
+        })
+      }
+
+      return null
+    }
+
+    // Handle remaining field types (wrap with { value })
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return null
+
+      if (
+        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))
+      ) {
+        try {
+          const parsed = JSON.parse(trimmed)
+          return JSON.stringify({ value: parsed })
+        } catch {
+          return JSON.stringify({ value: trimmed })
+        }
+      }
+
+      return JSON.stringify({ value: trimmed })
+    }
+
+    if (typeof value === 'object') {
+      return JSON.stringify({ value })
+    }
+
+    return JSON.stringify({ value })
+  }
+
   const inferFilenameFromDataUrl = (dataUrl, columnOrFieldDef) => {
     try {
       if (typeof dataUrl !== 'string') return 'file'
@@ -745,7 +888,6 @@ export default function TableDataView({ table, onBack }) {
         'image/webp': 'webp',
         'application/pdf': 'pdf'
       })[mime] || 'bin'
-      // Support both column (has column_name) and fieldDef (has label)
       const baseName = columnOrFieldDef?.column_name || columnOrFieldDef?.label || 'file'
       const base = baseName.toString().replace(/\s+/g, '_').toLowerCase()
       return `${base}.${ext}`
@@ -776,7 +918,6 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  // Helper to check if a value is a file object
   const isFileObject = (val) => {
     return val && typeof val === 'object' && (
       val.base64 !== undefined || 
@@ -786,19 +927,16 @@ export default function TableDataView({ table, onBack }) {
     )
   }
 
-  // Helper to recursively find field definition in nested options
   const findFieldDefinition = (fieldId, options, depth = 0) => {
-    if (depth > 10) return null // Prevent infinite recursion
+    if (depth > 10) return null
     
     if (!options || !Array.isArray(options)) return null
     
     for (const opt of options) {
       if (opt.nestedFields && Array.isArray(opt.nestedFields)) {
-        // Check direct nested fields
         const found = opt.nestedFields.find(f => f.id === fieldId)
         if (found) return found
         
-        // Recursively search in nested fields' options
         for (const nestedField of opt.nestedFields) {
           if (nestedField.options && Array.isArray(nestedField.options)) {
             const deepFound = findFieldDefinition(fieldId, nestedField.options.map(o => ({ nestedFields: o.nestedFields || [] })), depth + 1)
@@ -810,22 +948,14 @@ export default function TableDataView({ table, onBack }) {
     return null
   }
 
-  // Helper to render nested fields inline (similar to form submission page)
   const renderInlineNestedFields = (nestedValues, column, depth = 0, parentOptions = null) => {
     if (!nestedValues || typeof nestedValues !== 'object' || Object.keys(nestedValues).length === 0) {
       return null
     }
 
-    // Parse options to get field definitions
     let options = parentOptions || []
     if (!parentOptions) {
-      try {
-        if (column?.optional_values && column.optional_values.length > 0) {
-          options = JSON.parse(column.optional_values[0])
-        }
-      } catch (e) {
-        console.warn('Failed to parse options:', e)
-      }
+      options = getColumnOptions(column)
     }
 
     const borderColorClass = depth === 0 ? 'border-primary/20' : depth === 1 ? 'border-blue-300/30' : 'border-green-300/30'
@@ -839,14 +969,12 @@ export default function TableDataView({ table, onBack }) {
         </div>
         <div className="space-y-2">
           {Object.entries(nestedValues).map(([fieldId, fieldData]) => {
-            // Try to find field definition from options (recursively)
             const fieldDef = findFieldDefinition(fieldId, options)
 
             const fieldLabel = fieldDef?.label || fieldId
             let fieldValue = null
             let nestedFieldValues = null
 
-            // Extract value from fieldData
             if (fieldData && typeof fieldData === 'object') {
               if (fieldData.value !== undefined) {
                 fieldValue = fieldData.value
@@ -858,13 +986,11 @@ export default function TableDataView({ table, onBack }) {
               fieldValue = fieldData
             }
 
-            // Format the value display
             const renderFieldValue = () => {
               if (fieldValue === null || fieldValue === undefined || fieldValue === '') {
                 return <span className="text-xs text-muted-foreground italic">-</span>
               }
 
-              // Handle file objects
               if (isFileObject(fieldValue)) {
                 const dataUrl = fieldValue.base64 || fieldValue.previewUrl
                 return (
@@ -878,7 +1004,6 @@ export default function TableDataView({ table, onBack }) {
                 )
               }
 
-              // Handle base64 strings
               if (typeof fieldValue === 'string' && isBase64File(fieldValue)) {
                 const fileName = inferFilenameFromDataUrl(fieldValue, fieldDef)
                 return (
@@ -892,7 +1017,6 @@ export default function TableDataView({ table, onBack }) {
                 )
               }
 
-              // Handle arrays
               if (Array.isArray(fieldValue)) {
                 return (
                   <div className="flex flex-wrap gap-1">
@@ -905,12 +1029,9 @@ export default function TableDataView({ table, onBack }) {
                 )
               }
 
-              // Handle objects with nestedValues
               if (nestedFieldValues && typeof nestedFieldValues === 'object' && Object.keys(nestedFieldValues).length > 0) {
-                // Get nested field options from fieldDef
                 let nestedOptions = null
                 if (fieldDef && fieldDef.options && Array.isArray(fieldDef.options)) {
-                  // Find the selected option to get its nested fields
                   const selectedOption = fieldDef.options.find(opt => {
                     const optValue = typeof opt === 'object' ? opt.value : opt
                     return optValue === fieldValue
@@ -927,7 +1048,6 @@ export default function TableDataView({ table, onBack }) {
                 )
               }
 
-              // Handle location/phone objects
               if (typeof fieldValue === 'object' && fieldValue !== null) {
                 if (fieldValue.country || fieldValue.state || fieldValue.city) {
                   return formatLocationDisplay(fieldValue)
@@ -937,7 +1057,6 @@ export default function TableDataView({ table, onBack }) {
                 }
               }
 
-              // Default: string value
               return <span className="text-xs truncate max-w-[200px]">{String(fieldValue)}</span>
             }
 
@@ -970,110 +1089,106 @@ export default function TableDataView({ table, onBack }) {
         .filter(Boolean)
         .map(v => String(v))
     )
-  
-    // Check if this field has nested data in the current record
+
     const hasNestedDataInRecord = fieldValue && 
       typeof fieldValue === 'object' && 
       fieldValue.nestedValues && 
       Object.keys(fieldValue.nestedValues).length > 0
-  
-    return (
-      <div className="relative inline-block">
-        {/* Trigger */}
-        <div
-          tabIndex={0}
-          className="peer px-2 py-1 rounded border border-border hover:bg-muted/50 cursor-pointer"
-        >
+
+    const popoverKey = `${record?.record_id || 'new'}_${column.column_id}`
+
+    if (!options.length && !hasNestedData(column)) {
+      return (
+        <div className="px-2 py-1 rounded border border-border bg-background">
           {displayNode}
         </div>
-    
-        {/* Dropdown - positioned upwards for last records */}
-        <div className="absolute left-0 bottom-full mb-1 w-64 bg-popover border border-border rounded-md shadow-lg 
-                        opacity-0 invisible peer-hover:opacity-100 peer-hover:visible peer-focus:opacity-100 peer-focus:visible 
-                        hover:opacity-100 hover:visible transition-all duration-200 z-50 max-h-80 overflow-hidden">
-          <div className="p-1 flex flex-col h-full">
-            
-            {/* Sticky header */}
-            <div className="px-2 py-1.5 text-xs text-muted-foreground border-b sticky top-0 bg-popover z-10">
-              Options for {column.column_name}
-            </div>
-    
-            {/* Scrollable options */}
-            <div className="flex-1 overflow-y-auto">
-              {options.length > 0 ? (
-                options.map((opt, idx) => {
-                  const label = String(opt?.label ?? opt?.value ?? '')
-                  const value = String(opt?.value ?? label)
-                  const isSelected = selectedSet.has(value) || selectedSet.has(label)
-                  const hasNestedFields = opt.nestedFields && opt.nestedFields.length > 0
+      )
+    }
   
-                  return (
-                    <div
-                      key={idx}
-                      className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>
-                          {label}
-                        </span>
-                        {hasNestedFields && (
-                          <Badge variant="outline" className="text-xs h-4">
-                            Nested
-                          </Badge>
-                        )}
-                      </div>
-                      {isSelected && <span className="text-xs text-green-600">✓</span>}
+    return (
+      <Popover
+        open={activeOptionPopover === popoverKey}
+        onOpenChange={(open) => setActiveOptionPopover(open ? popoverKey : null)}
+      >
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="px-2 py-1 rounded border border-border hover:bg-muted/50 flex items-center gap-2 text-left w-full"
+          >
+            {displayNode}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="p-0 w-72" align="start">
+          <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
+            Options for {column.column_name}
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            {options.length > 0 ? (
+              options.map((opt, idx) => {
+                const label = String(opt?.label ?? opt?.value ?? '')
+                const value = String(opt?.value ?? label)
+                const isSelected = selectedSet.has(value) || selectedSet.has(label)
+                const hasNestedFields = opt.nestedFields && opt.nestedFields.length > 0
+  
+                return (
+                  <div
+                    key={idx}
+                    className="px-3 py-2 text-sm hover:bg-accent cursor-pointer flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>
+                        {label}
+                      </span>
+                      {hasNestedFields && (
+                        <Badge variant="outline" className="text-xs h-4">
+                          Nested
+                        </Badge>
+                      )}
                     </div>
-                  )
-                })
-              ) : (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">No options defined</div>
-              )}
-            </div>
-    
-            {/* Show nested data from current record */}
-            {hasNestedDataInRecord && (
-              <>
-                <div className="border-t my-1"></div>
-                <div className="px-2 py-1.5">
-                  <div className="text-xs font-medium text-muted-foreground mb-1">Current Nested Data:</div>
-                  <div className="space-y-1 max-h-20 overflow-y-auto">
-                    {Object.entries(fieldValue.nestedValues).map(([fieldId, nestedValue]) => {
-                      const nestedFieldDef = findNestedFieldDefinition(fieldId, options)
-                      const fieldLabel = nestedFieldDef?.label || nestedFieldDef?.name || fieldId
-                      const value = nestedValue.value || nestedValue
-  
-                      return (
-                        <div key={fieldId} className="flex justify-between items-center text-xs bg-muted/30 p-1 rounded">
-                          <span className="font-medium">{fieldLabel}:</span>
-                          <span className="truncate ml-2">{String(value)}</span>
-                        </div>
-                      )
-                    })}
+                    {isSelected && <span className="text-xs text-green-600">✓</span>}
                   </div>
-                </div>
-              </>
-            )}
-    
-            {/* Sticky footer */}
-            {hasNestedData(column) && (
-              <>
-                <div className="border-t my-1"></div>
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (onOpenNested) onOpenNested()
-                  }}
-                  className="px-2 py-1.5 text-sm hover:bg-accent cursor-pointer text-primary font-medium flex items-center gap-2 sticky bottom-0 bg-popover z-10"
-                >
-                  <Edit className="h-3.5 w-3.5" />
-                  {hasNestedDataInRecord ? 'Edit nested details' : 'Add nested details'}
-                </div>
-              </>
+                )
+              })
+            ) : (
+              <div className="px-3 py-2 text-sm text-muted-foreground">No options defined</div>
             )}
           </div>
-        </div>
-      </div>
+  
+          {hasNestedDataInRecord && (
+            <div className="border-t px-3 py-2 space-y-1">
+              <div className="text-xs font-medium text-muted-foreground">Current Nested Data:</div>
+              <div className="space-y-1 max-h-24 overflow-y-auto">
+                {Object.entries(fieldValue.nestedValues).map(([fieldId, nestedValue]) => {
+                  const nestedFieldDef = findNestedFieldDefinition(fieldId, options)
+                  const fieldLabel = nestedFieldDef?.label || nestedFieldDef?.name || fieldId
+                  const value = nestedValue.value || nestedValue
+  
+                  return (
+                    <div key={fieldId} className="flex justify-between items-center text-xs bg-muted/30 p-1 rounded">
+                      <span className="font-medium">{fieldLabel}:</span>
+                      <span className="truncate ml-2">{String(value)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+  
+          {hasNestedData(column) && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveOptionPopover(null)
+                if (onOpenNested) onOpenNested()
+              }}
+              className="w-full border-t px-3 py-2 text-sm text-primary font-medium flex items-center gap-2 hover:bg-accent"
+            >
+              <Edit className="h-3.5 w-3.5" />
+              {hasNestedDataInRecord ? 'Edit nested details' : 'Add nested details'}
+            </button>
+          )}
+        </PopoverContent>
+      </Popover>
     )
   }
 
@@ -1091,91 +1206,76 @@ export default function TableDataView({ table, onBack }) {
     return null
   }
 
-  // Helper function to check if column has nested data or is a modal-editable type
   const hasNestedData = (column) => {
-    // Select, radio, and checkbox should always show modal (even without nested fields)
     const modalEditableTypes = ['select', 'radio', 'checkbox']
-    const parentDatatype = column.parent_datatype
+    const parentDatatype = getColumnFieldType(column)
     
     if (parentDatatype && !modalEditableTypes.includes(parentDatatype)) {
       return false
     }
     
-    if (!column.optional_values || column.optional_values.length === 0) {
+    const options = getColumnOptions(column)
+    if (!options.length) {
       return false
     }
-    
-    try {
-      const options = JSON.parse(column.optional_values[0])
-      const hasOptions = Array.isArray(options) && options.length > 0
       
-      // Check if any option has nested fields
-      const hasNestedFields = options.some(option => 
-        option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0
-      )
+    const hasNestedFields = options.some(option => 
+      option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0
+    )
       
-      return hasOptions || hasNestedFields
-    } catch (error) {
-      console.log(`Column ${column.column_name}: Error parsing optional_values:`, error)
-      return false
-    }
+    return hasNestedFields || modalEditableTypes.includes(parentDatatype)
   }
 
   const getColumnOptions = (column) => {
-    if (!column?.optional_values || column.optional_values.length === 0) {
-      return []
+    if (!column) return []
+    if (Array.isArray(column.resolvedOptions)) {
+      return column.resolvedOptions
     }
-    
-    try {
-      const options = JSON.parse(column.optional_values[0])
-      return Array.isArray(options) ? options : []
-    } catch (error) {
-      console.error('Error parsing column options:', error)
-      return []
-    }
+
+    const parsed = parseOptionalValuesArray(column.optional_values)
+    return parsed
   }
 
-  // Helper function to parse nested field values and structure
   const parseNestedData = (fieldValue, column) => {
     try {
-      const parsed = JSON.parse(fieldValue)
-      const options = JSON.parse(column.optional_values[0])
-      
-      // Check if parsed is an array (root array structure like uber2)
-      const isMulti = Array.isArray(parsed)
-      
-      console.log(`[parseNestedData] Column: ${column.column_name}`)
-      console.log(`[parseNestedData] isMulti: ${isMulti}`)
-      console.log(`[parseNestedData] parsed:`, parsed)
-      console.log(`[parseNestedData] options:`, options)
+      let parsed = fieldValue
+      if (typeof fieldValue === 'string') {
+        try {
+          parsed = JSON.parse(fieldValue)
+        } catch {
+          parsed = null
+        }
+      }
+
+      const options = getColumnOptions(column)
+      const fieldType = getColumnFieldType(column)
+
+      const isMulti = Array.isArray(parsed) || fieldType === 'checkbox'
+
+      if (!parsed) {
+        parsed = isMulti ? [] : { value: '', nestedValues: {} }
+      }
       
       const result = {
         columnName: column.column_name,
         isMulti: isMulti,
         selectedValue: isMulti ? parsed.map(item => item.value) : parsed.value,
-        options: options, // Store all options for form building
-        formData: {} // Store the filled form data
+        options: options,
+        formData: {}
       }
 
-      // Recursively extract form data from nested values
       const extractFormData = (nestedValues, parentFields) => {
         const formData = {}
         
         if (!nestedValues || typeof nestedValues !== 'object') return formData
 
         Object.entries(nestedValues).forEach(([fieldId, fieldData]) => {
-          // Find the field definition
           const fieldDef = parentFields?.find(f => f.id === fieldId)
           
           if (!fieldDef) return
           
-          // Handle array (multi-checkbox case where field value is an array of objects)
           if (Array.isArray(fieldData)) {
-            console.log(`[extractFormData] Found array field: ${fieldId}`, fieldData)
-            
-            // Store array values with nested data, converting base64 files to file objects
             const arrayValue = fieldData.map(item => {
-              // Check if value is a base64 file string
               if (typeof item.value === 'string' && isBase64File(item.value)) {
                 const fileObject = createFileFromBase64(
                   item.value,
@@ -1189,11 +1289,9 @@ export default function TableDataView({ table, onBack }) {
               return item.value
             })
             
-            // Extract nested data from each array item
             const arrayNestedData = {}
             fieldData.forEach((item, index) => {
               if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
-                // Find nested fields for this option
                 let nestedFields = []
                 if (fieldDef.options) {
                   const selectedOption = fieldDef.options.find(
@@ -1202,7 +1300,6 @@ export default function TableDataView({ table, onBack }) {
                   nestedFields = selectedOption?.nestedFields || []
                 }
                 
-                // Extract nested data with index prefix
                 if (nestedFields.length > 0) {
                   const itemNestedData = extractFormData(item.nestedValues, nestedFields)
                   Object.entries(itemNestedData).forEach(([nestedFieldId, nestedFieldInfo]) => {
@@ -1219,14 +1316,12 @@ export default function TableDataView({ table, onBack }) {
             
             formData[fieldId] = {
               fieldDef: fieldDef,
-              value: arrayValue, // Array of selected values (may include file objects)
+              value: arrayValue,
               nestedData: arrayNestedData,
-              _isArray: true // Mark this as an array field
+              _isArray: true
             }
           }
-          // Handle object with value and nestedValues
           else if (typeof fieldData === 'object' && fieldData.value !== undefined) {
-            // Find the nested fields for the selected option
             let nestedFields = []
             if (fieldDef.options) {
               const selectedOption = fieldDef.options.find(
@@ -1235,7 +1330,6 @@ export default function TableDataView({ table, onBack }) {
               nestedFields = selectedOption?.nestedFields || []
             }
             
-            // Check if value is a base64 file string and convert to file object
             let processedValue = fieldData.value
             if (typeof fieldData.value === 'string' && isBase64File(fieldData.value)) {
               const fileObject = createFileFromBase64(
@@ -1258,12 +1352,9 @@ export default function TableDataView({ table, onBack }) {
                 : {}
             }
           } 
-          // Handle direct value (like {value: "door"} without nestedValues)
           else if (typeof fieldData === 'object') {
-            // Check if it's a simple object with just a value
             const keys = Object.keys(fieldData)
             if (keys.length === 1 && keys[0] === 'value') {
-              // Check if value is a base64 file string
               let processedValue = fieldData.value
               if (fieldDef.type === 'file' && typeof fieldData.value === 'string' && isBase64File(fieldData.value)) {
                 const fileObject = createFileFromBase64(
@@ -1284,9 +1375,7 @@ export default function TableDataView({ table, onBack }) {
               }
             }
           }
-          // Handle plain string/number values
           else {
-            // Check if it's a file field with base64 string
             let processedValue = fieldData
             if (fieldDef.type === 'file' && typeof fieldData === 'string' && isBase64File(fieldData)) {
               const fileObject = createFileFromBase64(
@@ -1311,28 +1400,16 @@ export default function TableDataView({ table, onBack }) {
         return formData
       }
 
-      // Handle root array structure (multiple selections)
       if (isMulti) {
-        console.log(`[parseNestedData] Processing multi-select with ${parsed.length} items`)
-        // For multi-select, we need to merge nested fields from all selected items
-        // Process each item in the array
         parsed.forEach((item, index) => {
-          console.log(`[parseNestedData] Item ${index}:`, item)
           const selectedOption = options.find(opt => opt.value === item.value || opt.label === item.value)
-          console.log(`[parseNestedData] Selected option for "${item.value}":`, selectedOption)
           
           if (selectedOption) {
-            // Check if there are nested fields defined for this option
             if (selectedOption.nestedFields && selectedOption.nestedFields.length > 0) {
-              // Extract form data from nestedValues (even if empty)
               const itemFormData = item.nestedValues && Object.keys(item.nestedValues).length > 0
                 ? extractFormData(item.nestedValues, selectedOption.nestedFields)
                 : {}
               
-              console.log(`[parseNestedData] Item ${index} formData:`, itemFormData)
-              console.log(`[parseNestedData] Item ${index} has ${Object.keys(itemFormData).length} fields`)
-              
-              // If there's form data, add it with prefixes
               if (Object.keys(itemFormData).length > 0) {
                 Object.entries(itemFormData).forEach(([fieldId, fieldInfo]) => {
                   const prefixedFieldId = `${index}_${fieldId}`
@@ -1342,12 +1419,8 @@ export default function TableDataView({ table, onBack }) {
                     _selectionIndex: index,
                     _selectionValue: item.value
                   }
-                  console.log(`[parseNestedData] Added field: ${prefixedFieldId}`)
                 })
               } else {
-                // Even if there's no data, create placeholder entries for nested fields in edit mode
-                // This ensures the fields show up when editing
-                console.log(`[parseNestedData] No form data, creating placeholders for ${selectedOption.nestedFields.length} fields`)
                 selectedOption.nestedFields.forEach(field => {
                   const prefixedFieldId = `${index}_${field.id}`
                   result.formData[prefixedFieldId] = {
@@ -1358,12 +1431,9 @@ export default function TableDataView({ table, onBack }) {
                     _selectionIndex: index,
                     _selectionValue: item.value
                   }
-                  console.log(`[parseNestedData] Added placeholder field: ${prefixedFieldId}`)
                 })
               }
             } else {
-              // No nested fields for this option - create a marker entry
-              console.log(`[parseNestedData] No nested fields for option "${item.value}", creating empty marker`)
               result.formData[`${index}_empty`] = {
                 _selectionIndex: index,
                 _selectionValue: item.value,
@@ -1372,11 +1442,8 @@ export default function TableDataView({ table, onBack }) {
             }
           }
         })
-        console.log(`[parseNestedData] Final formData:`, result.formData)
       } else {
-        // Handle single selection (original behavior)
         if (parsed.nestedValues) {
-          // Find the selected option
           const selectedOption = options.find(opt => opt.value === parsed.value || opt.label === parsed.value)
           if (selectedOption && selectedOption.nestedFields) {
             result.formData = extractFormData(parsed.nestedValues, selectedOption.nestedFields)
@@ -1391,36 +1458,38 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  // Function to open nested data modal
-  const openNestedModal = (fieldValue, column, recordId) => {
+  const openNestedModal = ({
+    fieldValue,
+    column,
+    recordId = null,
+    source = 'record',
+  }) => {
     const nestedData = parseNestedData(fieldValue, column)
     if (nestedData) {
       setNestedData(nestedData)
-      setEditableFormData(JSON.parse(JSON.stringify(nestedData.formData))) // Deep clone
+      setEditableFormData(JSON.parse(JSON.stringify(nestedData.formData)))
       setEditablePrimaryValue(nestedData.selectedValue)
       setCurrentRecordId(recordId)
       setCurrentColumnId(column.column_id)
-      setIsEditMode(false)
+      setNestedModalContext(source)
+      setIsEditMode(source === 'record' ? false : true)
       setIsNestedModalOpen(true)
     }
   }
 
-  //  formatFieldValue FUNCTION:
   const formatFieldValue = (rawValue, dataType, column = null, record = null) => {
     if (rawValue === null || rawValue === undefined || rawValue === "") {
       return <span className="text-muted-foreground italic">-</span>
     }
 
-    const fieldType = column?.parent_datatype || dataType || 'text'
+    const fieldType = getColumnFieldType(column) || dataType || 'text'
     
-    // Handle the nested object structure: {"value":"male","nestedValues":{}}
     if (typeof rawValue === 'object' && rawValue !== null && rawValue.value !== undefined) {
       const simpleValue = String(rawValue.value)
       const hasNested = rawValue.nestedValues && 
         typeof rawValue.nestedValues === 'object' && 
         Object.keys(rawValue.nestedValues).length > 0
 
-      // For select/radio types, show dropdown with nested option
       if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
         const displayNode = (
           <div className="flex items-center gap-2">
@@ -1437,13 +1506,20 @@ export default function TableDataView({ table, onBack }) {
           displayNode, 
           column, 
           simpleValue, 
-          hasNested ? () => openNestedModal(JSON.stringify(rawValue), column, record?.record_id) : undefined,
+          hasNested
+            ? () =>
+                openNestedModal({
+                  fieldValue: rawValue,
+                  column,
+                  recordId: record?.record_id,
+                  source: 'record',
+                })
+            : undefined,
           record,
-          rawValue // Pass the actual field value object
+          rawValue
         )
       }
 
-      // Default display for other types
       return (
         <div className="flex items-center gap-2">
           <span className="truncate max-w-[200px]">{simpleValue}</span>
@@ -1456,22 +1532,17 @@ export default function TableDataView({ table, onBack }) {
       )
     }
     
-    // Handle phone number objects specifically
     if (fieldType === 'phone' && typeof rawValue === 'object' && rawValue !== null) {
       return formatPhoneDisplay(rawValue)
     }
     
-    // Handle string values that might be JSON (like phone numbers)
     if (typeof rawValue === 'string') {
-      // Check if it's a JSON string that represents a phone object
       if (rawValue.trim().startsWith('{') && rawValue.trim().endsWith('}')) {
         try {
           const parsed = JSON.parse(rawValue)
-          // If it has phone number properties, treat it as a phone object
           if (parsed && typeof parsed === 'object' && (parsed.countryCode || parsed.number)) {
             return formatPhoneDisplay(parsed)
           }
-          // If it has value property (like other nested objects)
           if (parsed && typeof parsed === 'object' && parsed.value !== undefined) {
             const simpleValue = String(parsed.value)
             const hasNested = parsed.nestedValues && 
@@ -1494,9 +1565,17 @@ export default function TableDataView({ table, onBack }) {
                 displayNode, 
                 column, 
                 simpleValue, 
-                hasNested ? () => openNestedModal(rawValue, column, record?.record_id) : undefined,
+                hasNested
+                  ? () =>
+                      openNestedModal({
+                        fieldValue: rawValue,
+                        column,
+                        recordId: record?.record_id,
+                        source: 'record',
+                      })
+                  : undefined,
                 record,
-                parsed // Pass the parsed object
+                parsed
               )
             }
             return (
@@ -1511,13 +1590,11 @@ export default function TableDataView({ table, onBack }) {
             )
           }
         } catch (e) {
-          // If parsing fails, continue with normal string handling
           console.warn('Failed to parse JSON value:', e)
         }
       }
     }
     
-    // For select/radio/checkbox types, wrap in bordered box even if plain string
     if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
       const displayNode = (
         <span className="truncate max-w-[200px]">{String(rawValue)}</span>
@@ -1532,7 +1609,6 @@ export default function TableDataView({ table, onBack }) {
       )
     }
     
-    // Handle other data types...
     switch (fieldType) {
       case 'email':
         return (
@@ -1541,13 +1617,11 @@ export default function TableDataView({ table, onBack }) {
           </a>
         )
       case 'phone': {
-        // Try to parse as JSON if it's a string
         let phoneData = rawValue
         if (typeof rawValue === 'string') {
           try {
             phoneData = JSON.parse(rawValue)
           } catch (e) {
-            // If parsing fails, use as plain string
             phoneData = rawValue
           }
         }
@@ -1577,14 +1651,10 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  // Function to convert editableFormData back to API format
   const convertFormDataToAPIFormat = (formData) => {
-    // Check if this is multi-select data
     if (nestedData?.isMulti) {
-      // For multi-select, return an array
       const result = []
       
-      // Group formData by selection index
       const groupedBySelection = {}
       Object.entries(formData).forEach(([fieldId, fieldInfo]) => {
         if (fieldInfo._selectionIndex !== undefined) {
@@ -1595,7 +1665,6 @@ export default function TableDataView({ table, onBack }) {
               isEmpty: false
             }
           }
-          // Skip empty marker entries
           if (fieldInfo._isEmpty) {
             groupedBySelection[fieldInfo._selectionIndex].isEmpty = true
           } else if (fieldInfo._originalFieldId) {
@@ -1604,7 +1673,6 @@ export default function TableDataView({ table, onBack }) {
         }
       })
       
-      // Process each selection group
       Object.keys(groupedBySelection).sort().forEach(index => {
         const group = groupedBySelection[index]
         const item = {
@@ -1638,7 +1706,6 @@ export default function TableDataView({ table, onBack }) {
       
       return result
     } else {
-      // For single selection, return an object
       const result = {
         nestedValues: {}
       }
@@ -1648,11 +1715,9 @@ export default function TableDataView({ table, onBack }) {
         
         Object.entries(data).forEach(([fieldId, fieldInfo]) => {
           if (fieldInfo.value) {
-            // Handle array fields (checkboxes with nested data)
             if (fieldInfo._isArray && Array.isArray(fieldInfo.value)) {
               const arrayResult = []
               
-              // Group nested data by array index
               const groupedByIndex = {}
               if (fieldInfo.nestedData) {
                 Object.entries(fieldInfo.nestedData).forEach(([nestedFieldId, nestedFieldInfo]) => {
@@ -1671,7 +1736,6 @@ export default function TableDataView({ table, onBack }) {
                 })
               }
               
-              // Convert each array item back to API format
               fieldInfo.value.forEach((val, idx) => {
                 const item = {
                   value: val,
@@ -1687,7 +1751,6 @@ export default function TableDataView({ table, onBack }) {
               
               levelData[fieldId] = arrayResult
             }
-            // Handle regular fields
             else {
               levelData[fieldId] = {
                 value: fieldInfo.value
@@ -1706,49 +1769,53 @@ export default function TableDataView({ table, onBack }) {
       }
       
       result.nestedValues = processLevel(formData)
-      result.value = editablePrimaryValue // Use editable primary value instead
+      result.value = editablePrimaryValue
       
       return result
     }
   }
 
-  // Function to save nested data
   const handleSaveNestedData = async () => {
     try {
       setIsSaving(true)
       
-      // Convert form data to API format
       const apiData = convertFormDataToAPIFormat(editableFormData)
       const fieldValueString = JSON.stringify(apiData)
       
-      // Prepare the update payload
       const payload = {
         field_values: {
           [currentColumnId]: fieldValueString
         }
       }
       
-      console.log('Saving nested data:', payload)
-      console.log('API URL:', `${API_BASE_URL}/api/records/${table.table_id}/${currentRecordId}/nested`)
-      
-      // Call the API with /nested endpoint
-      const response = await axios.put(
-        `${API_BASE_URL}/api/records/${table.table_id}/${currentRecordId}/nested`,
-        payload,
-        {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json'
+      if (nestedModalContext === 'record') {
+        const response = await axios.put(
+          `${API_BASE_URL}/api/records/${table.table_id}/${currentRecordId}/nested`,
+          payload,
+          {
+            headers: {
+              'Authorization': authUtils.getAuthHeader(),
+              'Content-Type': 'application/json'
+            }
           }
+        )
+        
+        if (response.data) {
+          toast.success('Record updated successfully!')
+          setIsEditMode(false)
+          setIsNestedModalOpen(false)
+          setNestedModalContext('record')
+          await fetchTableData()
         }
-      )
-      
-      if (response.data) {
-        toast.success('Record updated successfully!')
-        setIsEditMode(false)
+      } else {
+        setRecordFormData(prev => ({
+          ...prev,
+          [currentColumnId]: apiData,
+        }))
+        toast.success('Nested data updated')
+        setIsEditMode(true)
         setIsNestedModalOpen(false)
-        // Refresh the table data
-        await fetchTableData()
+        setNestedModalContext('record')
       }
     } catch (error) {
       console.log('Error saving nested data:', error)
@@ -1758,21 +1825,74 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  // Function to handle primary value change
+  const handleSelectOrRadioChange = (column, selectedValue) => {
+    setRecordFormData(prev => {
+      const previous = prev[column.column_id]
+      if (
+        previous &&
+        typeof previous === 'object' &&
+        !Array.isArray(previous) &&
+        previous.value === selectedValue
+      ) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        [column.column_id]: {
+          value: selectedValue,
+          nestedValues: {},
+        },
+      }
+    })
+  }
+
+  const handleCheckboxToggle = (column, optionValue) => {
+    setRecordFormData(prev => {
+      const currentValue = prev[column.column_id]
+      const normalized = Array.isArray(currentValue) ? currentValue : []
+      const existingIndex = normalized.findIndex(item => {
+        if (typeof item === 'object' && item !== null) {
+          return item.value === optionValue
+        }
+        return item === optionValue
+      })
+
+      let updated = [...normalized]
+      if (existingIndex >= 0) {
+        updated.splice(existingIndex, 1)
+      } else {
+        updated.push({
+          value: optionValue,
+          nestedValues: {},
+        })
+      }
+
+      return {
+        ...prev,
+        [column.column_id]: updated,
+      }
+    })
+  }
+
+  const handleOpenNestedManagerFromForm = (column, dialogSource) => {
+    const fieldValue = recordFormData[column.column_id]
+    openNestedModal({
+      fieldValue,
+      column,
+      recordId: null,
+      source: dialogSource,
+    })
+  }
+
   const handlePrimaryValueChange = (newValue) => {
-    console.log('[handlePrimaryValueChange] New value:', newValue)
     setEditablePrimaryValue(newValue)
     
-    // Initialize nested fields based on the new selection(s)
     if (newValue && nestedData.options) {
-      // Handle array values (checkbox/multi-select)
       if (Array.isArray(newValue)) {
-        console.log('[handlePrimaryValueChange] Handling array value (checkboxes)')
-        
         setEditableFormData(prevFormData => {
           const newFormData = {}
           
-          // Build a map of existing data by selection value (not by index)
           const existingDataByValue = {}
           Object.entries(prevFormData).forEach(([fieldId, fieldInfo]) => {
             const selectionValue = fieldInfo._selectionValue
@@ -1785,34 +1905,24 @@ export default function TableDataView({ table, onBack }) {
             }
           })
           
-          console.log('[handlePrimaryValueChange] Existing data by value:', Object.keys(existingDataByValue))
-          
-          // Rebuild form data with new indices, preserving existing values
           newValue.forEach((selectedValue, index) => {
             const selectedOption = nestedData.options.find(
               opt => opt.value === selectedValue || opt.label === selectedValue
             )
             
             if (selectedOption && selectedOption.nestedFields && selectedOption.nestedFields.length > 0) {
-              console.log(`[handlePrimaryValueChange] Processing selection ${index}: ${selectedValue}`)
-              
-              // Check if we have existing data for this value
               const existingForThisValue = existingDataByValue[selectedValue]
               
               selectedOption.nestedFields.forEach(field => {
                 const prefixedFieldId = `${index}_${field.id}`
                 
-                // Try to preserve existing data for this field
                 if (existingForThisValue && existingForThisValue[field.id]) {
-                  console.log(`[handlePrimaryValueChange] Preserving data for ${selectedValue}.${field.id}`)
                   newFormData[prefixedFieldId] = {
                     ...existingForThisValue[field.id],
-                    _selectionIndex: index, // Update index
+                    _selectionIndex: index,
                     _selectionValue: selectedValue
                   }
                 } else {
-                  // Initialize new empty field
-                  console.log(`[handlePrimaryValueChange] Initializing new field for ${selectedValue}.${field.id}`)
                   newFormData[prefixedFieldId] = {
                     fieldDef: field,
                     value: '',
@@ -1824,7 +1934,6 @@ export default function TableDataView({ table, onBack }) {
                 }
               })
             } else if (selectedOption) {
-              // No nested fields - create empty marker
               newFormData[`${index}_empty`] = {
                 _selectionIndex: index,
                 _selectionValue: selectedValue,
@@ -1833,13 +1942,10 @@ export default function TableDataView({ table, onBack }) {
             }
           })
           
-          console.log('[handlePrimaryValueChange] Final form data with keys:', Object.keys(newFormData))
           return newFormData
         })
       } 
-      // Handle single value (select/radio)
       else {
-        console.log('[handlePrimaryValueChange] Handling single value')
         const selectedOption = nestedData.options.find(
           opt => opt.value === newValue || opt.label === newValue
         )
@@ -1853,65 +1959,41 @@ export default function TableDataView({ table, onBack }) {
               nestedData: {}
             }
           })
-          console.log('[handlePrimaryValueChange] Set form data with keys:', Object.keys(newFormData))
           setEditableFormData(newFormData)
         } else {
           setEditableFormData({})
         }
       }
     } else {
-      // No value selected, clear form data
       setEditableFormData({})
     }
   }
 
-  // Function to handle field value change
   const handleFieldChange = (fieldId, newValue, path = []) => {
-    console.log('[handleFieldChange] Called with:', { fieldId, newValue, path })
-    
     setEditableFormData(prevData => {
-      const newData = JSON.parse(JSON.stringify(prevData)) // Deep clone
+      const newData = JSON.parse(JSON.stringify(prevData))
       
-      console.log('[handleFieldChange] prevData:', prevData)
-      console.log('[handleFieldChange] Starting navigation with path:', path)
-      
-      // Navigate to the correct nested level
       let current = newData
       for (let i = 0; i < path.length; i++) {
         const pathItem = path[i]
-        console.log(`[handleFieldChange] Step ${i}: Looking for ${pathItem} in:`, Object.keys(current))
         
         if (current[pathItem]) {
-          console.log(`[handleFieldChange] Found ${pathItem}, navigating to its nestedData`)
-          console.log(`[handleFieldChange] nestedData exists:`, !!current[pathItem].nestedData)
-          
           if (!current[pathItem].nestedData) {
-            console.warn(`[handleFieldChange] nestedData missing for ${pathItem}, creating empty object`)
             current[pathItem].nestedData = {}
           }
           
           current = current[pathItem].nestedData
         } else {
-          console.error(`[handleFieldChange] Path item ${pathItem} not found!`)
-          return prevData // Return unchanged
+          return prevData
         }
       }
       
-      console.log('[handleFieldChange] After navigation, current level has keys:', Object.keys(current))
-      console.log('[handleFieldChange] Looking for field:', fieldId)
-      
       if (current[fieldId]) {
         const oldValue = current[fieldId].value
-        console.log(`[handleFieldChange] Found field ${fieldId}, updating value from "${oldValue}" to "${newValue}"`)
         current[fieldId].value = newValue
         
-        // If field has nested data and value changed, initialize nested structure for new selection
         if (current[fieldId].fieldDef.hasNested && JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
-          console.log('[handleFieldChange] Field has nested, initializing nested structure for new selection')
-          
-          // Handle checkbox/multi-select (array values)
           if (Array.isArray(newValue)) {
-            console.log('[handleFieldChange] Handling array value (checkbox/multi-select)')
             const newNestedData = {}
             const oldNestedData = current[fieldId].nestedData || {}
             
@@ -1921,23 +2003,17 @@ export default function TableDataView({ table, onBack }) {
               )
               
               if (selectedOption && selectedOption.nestedFields && selectedOption.nestedFields.length > 0) {
-                console.log(`[handleFieldChange] Array item ${arrayIndex} (${selectedValue}) has nested fields:`, selectedOption.nestedFields.map(f => f.id))
-                
-                // Check if this selection existed before (preserve data if possible)
                 const oldMatchingIndex = Array.isArray(oldValue) 
                   ? oldValue.findIndex(v => v === selectedValue)
                   : -1
                 
-                // Initialize nested fields for this array item with index prefix
                 selectedOption.nestedFields.forEach(nestedField => {
                   const prefixedFieldId = `${arrayIndex}_${nestedField.id}`
                   const oldPrefixedFieldId = oldMatchingIndex >= 0 
                     ? `${oldMatchingIndex}_${nestedField.id}`
                     : null
                   
-                  // Try to preserve existing data if this option was already selected
                   if (oldPrefixedFieldId && oldNestedData[oldPrefixedFieldId]) {
-                    console.log(`[handleFieldChange] Preserving data for ${prefixedFieldId} from ${oldPrefixedFieldId}`)
                     newNestedData[prefixedFieldId] = {
                       ...oldNestedData[oldPrefixedFieldId],
                       _arrayIndex: arrayIndex,
@@ -1952,7 +2028,6 @@ export default function TableDataView({ table, onBack }) {
                       _arrayValue: selectedValue,
                       _originalFieldId: nestedField.id
                     }
-                    console.log(`[handleFieldChange] Initialized new nested field for array item ${arrayIndex}: ${prefixedFieldId}`)
                   }
                 })
               }
@@ -1960,18 +2035,13 @@ export default function TableDataView({ table, onBack }) {
             
             current[fieldId].nestedData = newNestedData
             current[fieldId]._isArray = true
-            console.log('[handleFieldChange] Initialized array nested data with keys:', Object.keys(newNestedData))
           } 
-          // Handle single select/radio (single value)
           else {
             const selectedOption = current[fieldId].fieldDef.options?.find(
               opt => opt.value === newValue || opt.label === newValue
             )
             
             if (selectedOption && selectedOption.nestedFields && selectedOption.nestedFields.length > 0) {
-              console.log('[handleFieldChange] Selected option has nested fields:', selectedOption.nestedFields.map(f => f.id))
-              
-              // Initialize nested structure for the newly selected option
               const newNestedData = {}
               selectedOption.nestedFields.forEach(nestedField => {
                 newNestedData[nestedField.id] = {
@@ -1979,28 +2049,20 @@ export default function TableDataView({ table, onBack }) {
                   value: '',
                   nestedData: {}
                 }
-                console.log(`[handleFieldChange] Initialized nested field: ${nestedField.id}`)
               })
               
               current[fieldId].nestedData = newNestedData
-              console.log('[handleFieldChange] Initialized nested data with keys:', Object.keys(newNestedData))
             } else {
-              console.log('[handleFieldChange] Selected option has no nested fields, clearing nested data')
               current[fieldId].nestedData = {}
             }
           }
         }
-      } else {
-        console.error(`[handleFieldChange] Field ${fieldId} not found at this level!`)
-        console.error('[handleFieldChange] Available fields:', Object.keys(current))
       }
       
-      console.log('[handleFieldChange] Returning updated data:', newData)
       return newData
     })
   }
 
-  // Recursive component to render nested fields in VIEW-ONLY mode (matching form-submissions style)
   const renderNestedFieldsViewOnly = (formData, level = 0) => {
     if (!formData || Object.keys(formData).length === 0) return null
 
@@ -2009,13 +2071,11 @@ export default function TableDataView({ table, onBack }) {
         {Object.entries(formData).map(([fieldId, fieldInfo]) => {
           const { fieldDef, value, nestedData } = fieldInfo
           
-          // Format value display based on field type
           const renderValue = () => {
             if (!value && value !== 0) {
               return <span className="text-muted-foreground italic">-</span>
             }
 
-            // Handle file objects
             if (isFileObject(value)) {
               const dataUrl = value.base64 || value.previewUrl
               return (
@@ -2029,12 +2089,10 @@ export default function TableDataView({ table, onBack }) {
               )
             }
 
-            // Handle arrays (checkbox/multi-select values)
             if (Array.isArray(value)) {
               return (
                 <div className="flex flex-wrap gap-1">
                   {value.map((val, idx) => {
-                    // Check if array item is a file
                     if (isFileObject(val)) {
                       const dataUrl = val.base64 || val.previewUrl
                       return (
@@ -2058,13 +2116,11 @@ export default function TableDataView({ table, onBack }) {
               )
             }
 
-            // Handle regular values
             return <span className="text-foreground">{String(value)}</span>
           }
           
           return (
             <div key={fieldId} className="space-y-2">
-              {/* Field Label */}
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-foreground">
                   {fieldDef.name || fieldDef.label || fieldDef.id || fieldId}
@@ -2074,12 +2130,10 @@ export default function TableDataView({ table, onBack }) {
                 </Badge>
               </div>
 
-              {/* Field Value */}
               <div className="text-sm">
                 {renderValue()}
               </div>
 
-              {/* Render nested fields recursively */}
               {nestedData && Object.keys(nestedData).length > 0 && (
                 <Card className="mt-3 bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
                   <CardHeader className="pb-3 px-4 pt-3">
@@ -2099,7 +2153,6 @@ export default function TableDataView({ table, onBack }) {
     )
   }
 
-  // Recursive component to render nested form fields in EDIT mode
   const renderNestedFormFields = (formData, level = 0, path = []) => {
     if (!formData || Object.keys(formData).length === 0) return null
 
@@ -2111,7 +2164,6 @@ export default function TableDataView({ table, onBack }) {
           
           return (
             <div key={fieldId} className="space-y-2">
-              {/* Field Label */}
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-foreground">
                   {fieldDef.label}
@@ -2122,16 +2174,10 @@ export default function TableDataView({ table, onBack }) {
                 </Badge>
               </div>
 
-              {/* Field Value Based on Type */}
               {fieldDef.type === 'select' && (
                 <select
                   value={value || ''}
-                  onChange={(e) => {
-                    console.log(`[Select onChange] Field: ${fieldId}, Level: ${level}, Path:`, path)
-                    console.log(`[Select onChange] Old value: "${value}", New value: "${e.target.value}"`)
-                    console.log(`[Select onChange] fieldDef.hasNested:`, fieldDef.hasNested)
-                    handleFieldChange(fieldId, e.target.value, path)
-                  }}
+                  onChange={(e) => handleFieldChange(fieldId, e.target.value, path)}
                   disabled={!isEditMode}
                   className={`w-full px-3 py-2 border rounded-md text-sm ${
                     isEditMode 
@@ -2217,14 +2263,9 @@ export default function TableDataView({ table, onBack }) {
                 </div>
               )}
 
-              {/* Render nested fields recursively if value is selected and has nested fields */}
               {value && fieldDef.hasNested && fieldDef.options && (
                 (() => {
-                  // Handle array values (checkboxes with multiple selections)
                   if (Array.isArray(value) && fieldInfo._isArray) {
-                    console.log(`[renderNestedFormFields] Rendering array field with nested data`, {fieldId, value, nestedData})
-                    
-                    // Group nested data by array index
                     const groupedByIndex = {}
                     if (nestedData) {
                       Object.entries(nestedData).forEach(([nestedFieldId, nestedFieldInfo]) => {
@@ -2241,7 +2282,6 @@ export default function TableDataView({ table, onBack }) {
                       })
                     }
                     
-                    // Render nested fields for each selected checkbox option
                     return (
                       <div className="mt-3 space-y-3">
                         {value.map((selectedValue, idx) => {
@@ -2278,18 +2318,14 @@ export default function TableDataView({ table, onBack }) {
                     )
                   }
                   
-                  // Handle single value (non-array)
                   const selectedOption = fieldDef.options.find(opt => opt.value === value || opt.label === value)
                   if (selectedOption && selectedOption.nestedFields && selectedOption.nestedFields.length > 0) {
-                    // Show nested fields from the selected option
                     const nestedFieldsToShow = {}
                     
                     selectedOption.nestedFields.forEach(nestedField => {
-                      // Always prioritize existing data if available
                       if (nestedData && nestedData[nestedField.id]) {
                         nestedFieldsToShow[nestedField.id] = nestedData[nestedField.id]
                       } 
-                      // In edit mode, show all nested fields for selected option (create empty if doesn't exist)
                       else if (isEditMode) {
                         nestedFieldsToShow[nestedField.id] = {
                           fieldDef: nestedField,
@@ -2297,10 +2333,8 @@ export default function TableDataView({ table, onBack }) {
                           nestedData: {}
                         }
                       }
-                      // In view mode, only show fields that have data (already handled above)
                     })
                     
-                    // Show card if there are fields to display
                     if (Object.keys(nestedFieldsToShow).length > 0) {
                       return (
                         <Card className="mt-3 bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
@@ -2336,9 +2370,7 @@ export default function TableDataView({ table, onBack }) {
                   )
                 }
 
-                // Handle file objects first (before parsing)
                 if (fieldDef.type === 'file') {
-                  // Check if value is a file object
                   if (isFileObject(value)) {
                     const fileObj = value
                     const dataUrl = fileObj.base64 || fileObj.previewUrl
@@ -2363,7 +2395,6 @@ export default function TableDataView({ table, onBack }) {
                     )
                   }
                   
-                  // Check if value is a base64 string directly
                   if (typeof value === 'string' && isBase64File(value)) {
                     const fileName = inferFilenameFromDataUrl(value, fieldDef)
                     return (
@@ -2380,7 +2411,6 @@ export default function TableDataView({ table, onBack }) {
                     )
                   }
                   
-                  // Parse value to check if it's wrapped in an object
                   const parsedValue = parseJsonSafely(value)
                   const primitiveValue = (
                     parsedValue && typeof parsedValue === 'object' && !Array.isArray(parsedValue) && parsedValue.value !== undefined
@@ -2388,7 +2418,6 @@ export default function TableDataView({ table, onBack }) {
                       : parsedValue
                   )
                   
-                  // Check if primitiveValue is a base64 string
                   if (typeof primitiveValue === 'string' && isBase64File(primitiveValue)) {
                     const fileName = inferFilenameFromDataUrl(primitiveValue, fieldDef)
                     return (
@@ -2405,7 +2434,6 @@ export default function TableDataView({ table, onBack }) {
                     )
                   }
                   
-                  // Check if primitiveValue is a file object
                   if (isFileObject(primitiveValue)) {
                     const fileObj = primitiveValue
                     const dataUrl = fileObj.base64 || fileObj.previewUrl
@@ -2430,7 +2458,6 @@ export default function TableDataView({ table, onBack }) {
                     )
                   }
                   
-                  // Fallback
                   return <span className="text-sm text-muted-foreground">{value ? 'File' : '-'}</span>
                 }
 
@@ -2477,7 +2504,6 @@ export default function TableDataView({ table, onBack }) {
 
                 switch (fieldDef.type) {
                   case 'file':
-                    // File fields are read-only in nested forms (view only)
                     if (isFileObject(value)) {
                       const fileObj = value
                       const dataUrl = fileObj.base64 || fileObj.previewUrl
@@ -2870,7 +2896,7 @@ export default function TableDataView({ table, onBack }) {
                 value={pageSize.toString()}
                 onValueChange={(value) => {
                   setPageSize(Number(value))
-                  setCurrentPage(1) // Reset to first page when changing page size
+                  setCurrentPage(1)
                 }}
               >
                 <SelectTrigger id="page-size" className="w-20">
@@ -3089,7 +3115,7 @@ export default function TableDataView({ table, onBack }) {
                               const columnData = columns.find(col => col.column_id === column.accessorKey)
                               if (columnData) {
                                 const fieldValue = getFieldValue(record, column.accessorKey, columnData)
-                                const displayDataType = columnData.parent_datatype
+                                const displayDataType = getColumnFieldType(columnData)
                                 cellContent = formatFieldValue(fieldValue, displayDataType, columnData, record)
                               } else {
                                 cellContent = <span className="text-muted-foreground">-</span>
@@ -3205,7 +3231,7 @@ export default function TableDataView({ table, onBack }) {
               {recordToDelete && (() => {
                 // Find email column
                 const emailColumn = columns.find(col => 
-                  col.parent_datatype === 'email' || 
+                  getColumnFieldType(col) === 'email' || 
                   col.data_type === 'email' ||
                   col.column_name.toLowerCase().includes('email')
                 )
@@ -3610,8 +3636,35 @@ export default function TableDataView({ table, onBack }) {
                 {/* REST OF THE COLUMNS */}
                 <div className="space-y-6">
                   {columns.map((column) => {
-                    const fieldType = column.parent_datatype || column.data_type || 'text'
-                    const value = recordFormData[column.column_id] || ''
+                    const fieldType = getColumnFieldType(column)
+                    const storedValue = recordFormData[column.column_id]
+                    const primitiveValue =
+                      typeof storedValue === 'number'
+                        ? String(storedValue)
+                        : typeof storedValue === 'string'
+                          ? storedValue
+                          : ''
+                    
+                    // Derive choice values
+                    const choiceValue =
+                      fieldType === 'select' || fieldType === 'radio'
+                        ? typeof storedValue === 'object' && storedValue !== null && !Array.isArray(storedValue)
+                          ? storedValue.value || ''
+                          : typeof storedValue === 'string'
+                            ? storedValue
+                            : ''
+                        : ''
+
+                    const checkboxSelections =
+                      fieldType === 'checkbox'
+                        ? Array.isArray(storedValue)
+                          ? storedValue
+                              .map(item =>
+                                typeof item === 'object' && item !== null ? item.value : item
+                              )
+                              .filter(Boolean)
+                          : []
+                        : []
                     
                     // Get column options if available
                     const columnOptions = getColumnOptions(column)
@@ -3621,9 +3674,9 @@ export default function TableDataView({ table, onBack }) {
                       let phoneData = { countryCode: '', number: '' }
                       
                       // Parse the phone data from JSON string if it exists
-                      if (value) {
+                      if (storedValue) {
                         try {
-                          const parsed = JSON.parse(value)
+                          const parsed = JSON.parse(storedValue)
                           phoneData = {
                             countryCode: parsed.countryCode || '',
                             number: parsed.number || ''
@@ -3701,11 +3754,8 @@ export default function TableDataView({ table, onBack }) {
                             {column.column_name}
                           </Label>
                           <Select
-                            value={value}
-                            onValueChange={(newValue) => setRecordFormData(prev => ({ 
-                              ...prev, 
-                              [column.column_id]: newValue 
-                            }))}
+                            value={choiceValue || ''}
+                            onValueChange={(newValue) => handleSelectOrRadioChange(column, newValue)}
                           >
                             <SelectTrigger id={`add-${column.column_id}`} className="h-12 text-base">
                               <SelectValue placeholder={`Select ${column.column_name}`} />
@@ -3722,14 +3772,22 @@ export default function TableDataView({ table, onBack }) {
                               })}
                             </SelectContent>
                           </Select>
+                          {hasNestedData(column) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!choiceValue}
+                              onClick={() => handleOpenNestedManagerFromForm(column, 'add-form')}
+                            >
+                              Manage nested data
+                            </Button>
+                          )}
                         </div>
                       )
                     }
 
                     // Handle checkbox fields with options
                     if (fieldType === 'checkbox' && columnOptions.length > 0) {
-                      const selectedValues = value ? (Array.isArray(value) ? value : [value]) : []
-                      
                       return (
                         <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
                           <Label className="text-base font-semibold">
@@ -3739,23 +3797,12 @@ export default function TableDataView({ table, onBack }) {
                             {columnOptions.map((option, idx) => {
                               const optionLabel = option.label || option.value || String(option)
                               const optionValue = option.value || optionLabel
-                              const isChecked = selectedValues.includes(optionValue)
+                              const isChecked = checkboxSelections.includes(optionValue)
                               
                               return (
                                 <div
                                   key={idx}
-                                  onClick={() => {
-                                    let newValues
-                                    if (isChecked) {
-                                      newValues = selectedValues.filter(v => v !== optionValue)
-                                    } else {
-                                      newValues = [...selectedValues, optionValue]
-                                    }
-                                    setRecordFormData(prev => ({ 
-                                      ...prev, 
-                                      [column.column_id]: newValues
-                                    }))
-                                  }}
+                                  onClick={() => handleCheckboxToggle(column, optionValue)}
                                   className="flex items-center gap-3 p-3 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors"
                                 >
                                   <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
@@ -3772,6 +3819,16 @@ export default function TableDataView({ table, onBack }) {
                               )
                             })}
                           </div>
+                          {hasNestedData(column) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={checkboxSelections.length === 0}
+                              onClick={() => handleOpenNestedManagerFromForm(column, 'add-form')}
+                            >
+                              Manage nested data
+                            </Button>
+                          )}
                         </div>
                       )
                     }
@@ -3785,7 +3842,7 @@ export default function TableDataView({ table, onBack }) {
                         {fieldType === 'textarea' ? (
                           <Textarea
                             id={`add-${column.column_id}`}
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="min-h-[120px] text-base resize-vertical"
@@ -3794,7 +3851,7 @@ export default function TableDataView({ table, onBack }) {
                           <Input
                             id={`add-${column.column_id}`}
                             type="number"
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="h-12 text-base"
@@ -3803,7 +3860,7 @@ export default function TableDataView({ table, onBack }) {
                           <Input
                             id={`add-${column.column_id}`}
                             type="email"
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="h-12 text-base"
@@ -3812,7 +3869,7 @@ export default function TableDataView({ table, onBack }) {
                           <Input
                             id={`add-${column.column_id}`}
                             type={fieldType === 'date' ? 'date' : 'datetime-local'}
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="h-12 text-base"
@@ -3821,7 +3878,7 @@ export default function TableDataView({ table, onBack }) {
                           <Input
                             id={`add-${column.column_id}`}
                             type="text"
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="h-12 text-base"
@@ -3919,8 +3976,32 @@ export default function TableDataView({ table, onBack }) {
                 {/* REST OF THE COLUMNS */}
                 <div className="space-y-6">
                   {columns.map((column) => {
-                    const fieldType = column.parent_datatype || column.data_type || 'text'
-                    const value = recordFormData[column.column_id] || ''
+                    const fieldType = getColumnFieldType(column)
+                    const storedValue = recordFormData[column.column_id]
+                    const primitiveValue =
+                      typeof storedValue === 'number'
+                        ? String(storedValue)
+                        : typeof storedValue === 'string'
+                          ? storedValue
+                          : ''
+                    const choiceValue =
+                      fieldType === 'select' || fieldType === 'radio'
+                        ? typeof storedValue === 'object' && storedValue !== null && !Array.isArray(storedValue)
+                          ? storedValue.value || ''
+                          : typeof storedValue === 'string'
+                            ? storedValue
+                            : ''
+                        : ''
+                    const checkboxSelections =
+                      fieldType === 'checkbox'
+                        ? Array.isArray(storedValue)
+                          ? storedValue
+                              .map(item =>
+                                typeof item === 'object' && item !== null ? item.value : item
+                              )
+                              .filter(Boolean)
+                          : []
+                        : []
                     
                     // Get column options if available
                     const columnOptions = getColumnOptions(column)
@@ -3930,9 +4011,9 @@ export default function TableDataView({ table, onBack }) {
                       let phoneData = { countryCode: '', number: '' }
                       
                       // Parse the phone data from JSON string
-                      if (value) {
+                      if (storedValue) {
                         try {
-                          const parsed = JSON.parse(value)
+                          const parsed = JSON.parse(storedValue)
                           phoneData = {
                             countryCode: parsed.countryCode || '',
                             number: parsed.number || ''
@@ -4022,11 +4103,8 @@ export default function TableDataView({ table, onBack }) {
                             {column.column_name}
                           </Label>
                           <Select
-                            value={value}
-                            onValueChange={(newValue) => setRecordFormData(prev => ({ 
-                              ...prev, 
-                              [column.column_id]: newValue 
-                            }))}
+                            value={choiceValue || ''}
+                            onValueChange={(newValue) => handleSelectOrRadioChange(column, newValue)}
                           >
                             <SelectTrigger id={`edit-${column.column_id}`} className="h-12 text-base">
                               <SelectValue placeholder={`Select ${column.column_name}`} />
@@ -4045,8 +4123,18 @@ export default function TableDataView({ table, onBack }) {
                           </Select>
                           {hasNestedData(column) && (
                             <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                              💡 This field has nested options. Use the "View" action in the table to edit nested values.
+                              💡 After selecting an option, use "Manage nested data" to edit nested fields.
                             </p>
+                          )}
+                          {hasNestedData(column) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!choiceValue}
+                              onClick={() => handleOpenNestedManagerFromForm(column, 'edit-form')}
+                            >
+                              Manage nested data
+                            </Button>
                           )}
                         </div>
                       )
@@ -4054,8 +4142,6 @@ export default function TableDataView({ table, onBack }) {
 
                     // Handle checkbox fields with options
                     if (fieldType === 'checkbox' && columnOptions.length > 0) {
-                      const selectedValues = value ? (Array.isArray(value) ? value : [value]) : []
-                      
                       return (
                         <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
                           <Label className="text-base font-semibold">
@@ -4065,23 +4151,12 @@ export default function TableDataView({ table, onBack }) {
                             {columnOptions.map((option, idx) => {
                               const optionLabel = option.label || option.value || String(option)
                               const optionValue = option.value || optionLabel
-                              const isChecked = selectedValues.includes(optionValue)
+                              const isChecked = checkboxSelections.includes(optionValue)
                               
                               return (
                                 <div
                                   key={idx}
-                                  onClick={() => {
-                                    let newValues
-                                    if (isChecked) {
-                                      newValues = selectedValues.filter(v => v !== optionValue)
-                                    } else {
-                                      newValues = [...selectedValues, optionValue]
-                                    }
-                                    setRecordFormData(prev => ({ 
-                                      ...prev, 
-                                      [column.column_id]: newValues
-                                    }))
-                                  }}
+                                  onClick={() => handleCheckboxToggle(column, optionValue)}
                                   className="flex items-center gap-3 p-3 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors"
                                 >
                                   <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
@@ -4100,8 +4175,18 @@ export default function TableDataView({ table, onBack }) {
                           </div>
                           {hasNestedData(column) && (
                             <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                              💡 This field has nested options. Use the "View" action in the table to edit nested values.
+                              💡 After selecting options, use "Manage nested data" to update nested fields.
                             </p>
+                          )}
+                          {hasNestedData(column) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={checkboxSelections.length === 0}
+                              onClick={() => handleOpenNestedManagerFromForm(column, 'edit-form')}
+                            >
+                              Manage nested data
+                            </Button>
                           )}
                         </div>
                       )
@@ -4116,7 +4201,7 @@ export default function TableDataView({ table, onBack }) {
                         {fieldType === 'textarea' ? (
                           <Textarea
                             id={`edit-${column.column_id}`}
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="min-h-[120px] text-base resize-vertical"
@@ -4125,7 +4210,7 @@ export default function TableDataView({ table, onBack }) {
                           <Input
                             id={`edit-${column.column_id}`}
                             type="number"
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="h-12 text-base"
@@ -4134,7 +4219,7 @@ export default function TableDataView({ table, onBack }) {
                           <Input
                             id={`edit-${column.column_id}`}
                             type="email"
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="h-12 text-base"
@@ -4143,7 +4228,7 @@ export default function TableDataView({ table, onBack }) {
                           <Input
                             id={`edit-${column.column_id}`}
                             type={fieldType === 'date' ? 'date' : 'datetime-local'}
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="h-12 text-base"
@@ -4152,7 +4237,7 @@ export default function TableDataView({ table, onBack }) {
                           <Input
                             id={`edit-${column.column_id}`}
                             type="text"
-                            value={value}
+                            value={primitiveValue}
                             onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
                             placeholder={`Enter ${column.column_name}`}
                             className="h-12 text-base"
@@ -4292,7 +4377,7 @@ export default function TableDataView({ table, onBack }) {
                   <CardContent className="space-y-4">
                     {columns.map((column) => {
                       const fieldValue = getFieldValue(recordToView, column.column_id, column)
-                      const displayDataType = column.parent_datatype || column.data_type
+                      const displayDataType = getColumnFieldType(column)
                       const formattedValue = formatFieldValue(fieldValue, displayDataType, column, recordToView)
                       
                       return (
