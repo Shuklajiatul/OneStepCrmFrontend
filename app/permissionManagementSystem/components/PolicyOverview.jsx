@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Users, Link as LinkIcon, FileText, CheckCircle2, AlertTriangle, BarChart3, Edit, Trash2 } from "lucide-react"
+import { Users, Link as LinkIcon, FileText, CheckCircle2, AlertTriangle, BarChart3, Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
@@ -39,6 +40,12 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
   }, {})
 
   const totalMappings = policyFeatureMappings.length
+
+  // Convert module groups to array for carousel
+  const moduleGroupsArray = Object.entries(moduleGroups).map(([module, stats]) => ({
+    module,
+    ...stats
+  }))
 
   // Pagination for All Policies
   const allPoliciesStartIndex = (currentPageAllPolicies - 1) * pageSize
@@ -158,7 +165,7 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
         </Card>
       </div>
 
-      {/* Feature Modules Section */}
+      {/* // Feature Modules Section with Carousel */}
       <Card>
         <CardHeader>
           <CardTitle>Feature Modules</CardTitle>
@@ -167,26 +174,68 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Object.entries(moduleGroups).map(([module, stats]) => (
-              <Card
-                key={module}
-                className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => onModuleClick(module)}
+          {moduleGroupsArray.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No feature modules found</p>
+            </div>
+          ) : (
+            <div className="relative">
+              <Carousel 
+                className="w-full"
+                opts={{
+                  align: "start",
+                  slidesToScroll: 4 // Move 4 modules at a time
+                }}
               >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{module}</p>
-                      <p className="text-sm text-muted-foreground">{stats.total} total features</p>
-                      <p className="text-xs text-muted-foreground">{stats.active} active, {stats.inactive} inactive</p>
-                    </div>
-                    <BarChart3 className="h-6 w-6 text-primary" />
+                <CarouselContent>
+                  {moduleGroupsArray.map(({ module, total, active, inactive }, index) => (
+                    <CarouselItem key={module} className="md:basis-1/2 lg:basis-1/4">
+                      <div className="p-1">
+                        <Card
+                          className="cursor-pointer hover:bg-muted/50 transition-colors h-full"
+                          onClick={() => onModuleClick(module)}
+                        >
+                          <CardContent className="p-4 flex flex-col justify-between h-full">
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <p className="font-medium text-base mb-2">{module}</p>
+                                <div className="space-y-1">
+                                  <p className="text-sm text-muted-foreground">
+                                    <span className="font-semibold text-foreground">{total}</span> total features
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    <span className="font-medium text-green-600">{active}</span> active,{" "}
+                                    <span className="font-medium text-orange-600">{inactive}</span> inactive
+                                  </p>
+                                </div>
+                              </div>
+                              <BarChart3 className="h-6 w-6 text-primary ml-2 flex-shrink-0" />
+                            </div>
+                            <div className="mt-3 pt-2 border-t border-border">
+                              <p className="text-xs text-muted-foreground text-center">
+                                Click to view details
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                
+                {/* Navigation arrows inside Carousel */}
+                <div className="absolute top-1/2 left-0 right-0 flex justify-between -translate-y-1/2 pointer-events-none z-10">
+                  <div className="pointer-events-auto">
+                    <CarouselPrevious className="relative static transform-none -translate-y-0 bg-background/80 hover:bg-background" />
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <div className="pointer-events-auto">
+                    <CarouselNext className="relative static transform-none -translate-y-0 bg-background/80 hover:bg-background" />
+                  </div>
+                </div>
+              </Carousel>
+            </div>
+          )}
         </CardContent>
       </Card>
 
