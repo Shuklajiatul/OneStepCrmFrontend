@@ -344,7 +344,8 @@ export default function RolesPage() {
     setIsViewDialogOpen(true)
   }
 
-  const filteredRoles = roles.filter((role) => {
+  const filteredRoles = roles
+  .filter((role) => {
     // Search filter
     const roleName = role.role_name || role.name || ""
     const priority = role.priority?.toString() || ""
@@ -354,6 +355,11 @@ export default function RolesPage() {
       priority.includes(searchTerm)
 
     return matchesSearch
+  })
+  .sort((a, b) => {
+    const priorityA = a.priority || 999 
+    const priorityB = b.priority || 999
+    return priorityA - priorityB // Ascending order (lowest first)
   })
 
   return (
