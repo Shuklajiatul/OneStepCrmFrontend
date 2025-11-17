@@ -352,9 +352,9 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 {/* Remove Features Column */}
-                <div>
+                <div className="flex flex-col">
                   <h4 className="font-medium mb-3">Remove Features</h4>
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto flex-1">
                     {features.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No features to remove</p>
                     ) : (
@@ -391,7 +391,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
                 </div>
 
                 {/* Add Features Column */}
-                <div>
+                <div className="flex flex-col">
                   <h4 className="font-medium mb-3">Add Features</h4>
                   <div className="mb-4">
                     <Select value={selectedModule || "all"} onValueChange={(value) => setSelectedModule(value === "all" ? "" : value)}>
@@ -408,7 +408,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-3 max-h-[200px] overflow-y-auto">
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto flex-1">
                     {availableFeaturesToAdd.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         {selectedModule ? `No features available in ${selectedModule} module` : "No features available to add"}
