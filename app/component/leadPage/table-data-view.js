@@ -2755,7 +2755,7 @@ export default function TableDataView({ table, onBack }) {
         <div className="flex items-center gap-4">
           <Button variant="outline" onClick={onBack} className="gap-2">
             <ArrowLeft className="h-4 w-4" />
-            Back to Tables
+            {/* Back to Tables */}
           </Button>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
