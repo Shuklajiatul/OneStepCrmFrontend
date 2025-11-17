@@ -1144,9 +1144,9 @@ export default function UsersPage() {
                 </CardHeader>
                 <CardContent>
                   {/* Search and Filters */}
-                  <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                    {/* Search */}
-                    <div className="relative flex-1">
+                  <div className="flex items-center justify-between gap-4 mb-4">
+                    {/* Search - Left side */}
+                    <div className="relative w-64">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         placeholder="Search by name or email..."
@@ -1156,51 +1156,54 @@ export default function UsersPage() {
                       />
                     </div>
 
-                    {/* Status Filter */}
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    {/* Filters - Right side */}
+                    <div className="flex items-center gap-2">
+                      {/* Status Filter */}
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-40">
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Status</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
 
-                    {/* Role Filter */}
-                    <Select value={roleFilter} onValueChange={setRoleFilter}>
-                      <SelectTrigger className="w-full sm:w-[180px]">
-                        <SelectValue placeholder="Filter by role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Roles</SelectItem>
-                        {roleOptions.map((role) => {
-                          const roleName = role.role_name || role.name || role
-                          const roleValue = role.role_id || role.id || role
-                          return (
-                            <SelectItem key={roleValue} value={roleName}>
-                              {roleName}
-                            </SelectItem>
-                          )
-                        })}
-                      </SelectContent>
-                    </Select>
+                      {/* Role Filter */}
+                      <Select value={roleFilter} onValueChange={setRoleFilter}>
+                        <SelectTrigger className="w-40">
+                          <SelectValue placeholder="Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Roles</SelectItem>
+                          {roleOptions.map((role) => {
+                            const roleName = role.role_name || role.name || role
+                            const roleValue = role.role_id || role.id || role
+                            return (
+                              <SelectItem key={roleValue} value={roleName}>
+                                {roleName}
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
 
-                    {/* Clear Filters Button */}
-                    {(statusFilter !== "all" || roleFilter !== "all" || searchTerm) && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setSearchTerm("")
-                          setStatusFilter("all")
-                          setRoleFilter("all")
-                        }}
-                        className="whitespace-nowrap"
-                      >
-                        Clear Filters
-                      </Button>
-                    )}
+                      {/* Clear Filters Button */}
+                      {(statusFilter !== "all" || roleFilter !== "all" || searchTerm) && (
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSearchTerm("")
+                            setStatusFilter("all")
+                            setRoleFilter("all")
+                          }}
+                          className="whitespace-nowrap"
+                        >
+                          Clear Filters
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Users Table */}
