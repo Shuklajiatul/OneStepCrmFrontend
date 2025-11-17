@@ -361,9 +361,7 @@ export default function GeneDashboard() {
       const tokens = authUtils.getTokens();
       const token = tokens?.accessToken || 
                    localStorage.getItem('token') || 
-                   localStorage.getItem('accessToken') ||
-                   sessionStorage.getItem('token') ||
-                   sessionStorage.getItem('accessToken');
+                   localStorage.getItem('accessToken');
       
       if (!token) {
         console.warn('No token available for fetching users');
@@ -1482,7 +1480,7 @@ export default function GeneDashboard() {
   return (
     <div className="min-h-screen bg-background">      
       {/* Header */}
-      <header className="bg-card border-b">
+      {/* <header className="bg-card border-b">
         <div className="px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center justify-between sm:justify-start">
@@ -1506,10 +1504,10 @@ export default function GeneDashboard() {
             </div>
           </div>
         </div>
-      </header>
+      </header> */}
 
       {/* Main Content */}
-      <div className="w-full px-4 sm:px-6 py-4 md:py-8">
+      <div className="w-full px-4 sm:px-2 py-4 md:py-2">
         {/* Dashboard Header */}
         <div className="mb-6 md:mb-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
