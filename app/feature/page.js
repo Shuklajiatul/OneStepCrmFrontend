@@ -449,9 +449,9 @@ export default function FeaturePage() {
             />
           </div>
           <div className="flex-1 p-4 md:p-6 bg-background">
-            <div className="container mx-auto py-6 space-y-6">
+            <div className="container mx-auto py-4 space-y-6">
               {/* Header */}
-              <div className="flex items-center gap-2 mb-4">
+              {/* <div className="flex items-center gap-2 mb-4">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -466,14 +466,20 @@ export default function FeaturePage() {
                     Manage and view all system features
                   </p>
                 </div>
-              </div>
+              </div> */}
 
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2 text-2xl">
-                        <Shield className="h-6 w-6" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => window.history.back()}
+                        className="h-8 w-8">
+                        <ArrowLeft className="h-4 w-4" />
+                      </Button>
                         Feature Management
                       </CardTitle>
                       <CardDescription>
