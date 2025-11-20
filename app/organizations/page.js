@@ -6,6 +6,7 @@ import axios from "axios"
 import Sidebar from "../component/sidebar"
 import Topbar from "../component/topbar"
 import { cn } from "@/lib/utils"
+import { authUtils } from "@/lib/auth-utils"
 import {
   Building,
   Building2,
@@ -49,6 +50,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider
+} from "@/components/ui/tooltip"
 import { Separator } from "@/components/ui/separator"
 
 // API Base URL
@@ -95,15 +102,19 @@ export default function OrganizationsPage() {
 
   const getAuthToken = () => {
     if (typeof window === "undefined") return null
-    return localStorage.getItem("token") || localStorage.getItem("accessToken")
+    const tokens = authUtils.getTokens()
+    return tokens?.accessToken || localStorage.getItem("token") || localStorage.getItem("accessToken")
   }
 
   const getAuthHeaders = () => {
+    const bearerFromCookies = authUtils.getAuthHeader()
     const token = getAuthToken()
+    const authorization = bearerFromCookies || (token ? `Bearer ${token}` : null)
+
     return {
       "Content-Type": "application/json",
       Accept: "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(authorization && { Authorization: authorization }),
     }
   }
 
@@ -335,6 +346,7 @@ export default function OrganizationsPage() {
   })
 
   return (
+    <TooltipProvider delayDuration={0}>
     <main className="min-h-screen bg-background">
       {!isCollapsed && (
         <div 
@@ -557,67 +569,81 @@ export default function OrganizationsPage() {
                                       </span>
                                     </TableCell>
                                     <TableCell className="w-[120px] whitespace-nowrap text-right py-4">
-                                      <div className="flex items-center justify-end space-x-1">
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => openViewDialog(org)}
-                                          title="View"
-                                          className="h-8 w-8"
-                                        >
-                                          <Eye className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => openEditDialog(org)}
-                                          title="Edit"
-                                          className="h-8 w-8"
-                                        >
-                                          <Edit className="h-4 w-4" />
-                                        </Button>
-                                        <AlertDialog>
-                                          <AlertDialogTrigger asChild>
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              title="Delete"
-                                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                          </AlertDialogTrigger>
-                                          <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                              <AlertDialogTitle>Delete Organization</AlertDialogTitle>
-                                              <AlertDialogDescription>
-                                                Are you sure you want to delete the organization{" "}
-                                                <strong>{orgName}</strong>?
-                                                <br />
-                                                <br />
-                                                This action cannot be undone.
-                                              </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                              <AlertDialogAction
-                                                onClick={() => handleDeleteOrganization(orgId)}
-                                                className="bg-destructive text-white hover:bg-destructive/90 hover:text-white"
-                                                disabled={submitting}
+                                    <div className="flex items-center justify-end space-x-1">
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => openViewDialog(org)}
+                                            className="h-8 w-8"
+                                          >
+                                            <Eye className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>View</TooltipContent>
+                                      </Tooltip>
+
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => openEditDialog(org)}
+                                            className="h-8 w-8"
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Edit</TooltipContent>
+                                      </Tooltip>
+
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                                               >
-                                                {submitting ? (
-                                                  <>
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    Deleting...
-                                                  </>
-                                                ) : (
-                                                  "Delete"
-                                                )}
-                                              </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                          </AlertDialogContent>
-                                        </AlertDialog>
-                                      </div>
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                              <AlertDialogHeader>
+                                                <AlertDialogTitle>Delete Organization</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                  Are you sure you want to delete the organization{" "}
+                                                  <strong>{org.name}</strong>?
+                                                  <br />
+                                                  <br />
+                                                  This action cannot be undone.
+                                                </AlertDialogDescription>
+                                              </AlertDialogHeader>
+                                              <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                  onClick={() => handleDeleteOrganization(org.organization_id)}
+                                                  className="bg-destructive text-white hover:bg-destructive/90 hover:text-white"
+                                                  disabled={submitting}
+                                                >
+                                                  {submitting ? (
+                                                    <>
+                                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                      Deleting...
+                                                    </>
+                                                  ) : (
+                                                    "Delete"
+                                                  )}
+                                                </AlertDialogAction>
+                                              </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                          </AlertDialog>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Delete</TooltipContent>
+                                      </Tooltip>
+                                    </div>
                                     </TableCell>
                                   </TableRow>
                                 )
@@ -768,5 +794,6 @@ export default function OrganizationsPage() {
         </section>
       </div>
     </main>
+    </TooltipProvider>
   )
 }

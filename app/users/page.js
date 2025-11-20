@@ -6,6 +6,7 @@ import axios from "axios"
 import Sidebar from "../component/sidebar"
 import Topbar from "../component/topbar"
 import { cn } from "@/lib/utils"
+import { authUtils } from "@/lib/auth-utils"
 import {
   UserPlus,
   Edit,
@@ -76,9 +77,16 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider
+} from "@/components/ui/tooltip"
+import { apiClient } from '@/lib/api-utils'
+
 // API Base URL
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
-
 export default function UsersPage() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -150,22 +158,26 @@ export default function UsersPage() {
 
   const getAuthToken = () => {
     if (typeof window === "undefined") return null
-    return localStorage.getItem("token") || localStorage.getItem("accessToken")
+    const tokens = authUtils.getTokens()
+    return tokens?.accessToken || localStorage.getItem("token") || localStorage.getItem("accessToken")
   }
 
   const getAuthHeaders = () => {
+    const bearerFromCookies = authUtils.getAuthHeader()
     const token = getAuthToken()
+    const authorization = bearerFromCookies || (token ? `Bearer ${token}` : null)
+
     return {
       "Content-Type": "application/json",
       Accept: "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(authorization && { Authorization: authorization }),
     }
   }
 
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      const response = await axios.get(`${API_BASE_URL}/api/users`, {
+      const response = await apiClient.get(`/api/users`, {
         headers: getAuthHeaders(),
         timeout: 30000,
       })
@@ -179,7 +191,7 @@ export default function UsersPage() {
         const roles = [...new Set(userData.map((u) => u.roles || u.role).filter(Boolean))]
         console.log("Available roles in user data:", roles)
       }
-    } catch (error) {
+    } catch (error) {p
       console.error("Error fetching users:", error)
       toast.error("Failed to fetch users. Please check your connection and authentication.")
       if (error.response?.status === 401) {
@@ -509,7 +521,7 @@ export default function UsersPage() {
     try {
       setSubmitting(true)
       console.log("Deactivating user with ID:", userId)
-      console.log("API URL:", `${API_BASE_URL}/api/users/${userId}`)
+      console.log("API URL:", `/api/users/${userId}`)
 
       const response = await axios.delete(`${API_BASE_URL}/api/users/${userId}`, {
         headers: getAuthHeaders(),
@@ -798,6 +810,7 @@ export default function UsersPage() {
   }
 
   return (
+    <TooltipProvider delayDuration={0}>
     <main className="min-h-screen bg-background">
       {!isCollapsed && (
         <div
@@ -1272,35 +1285,49 @@ export default function UsersPage() {
                                     </div>
                                   </TableCell>
                                   <TableCell className="w-[120px] whitespace-nowrap text-right py-4">
-                                    <div className="flex items-center justify-end space-x-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => openViewDialog(user)}
-                                        title="View"
-                                        className="h-8 w-8"
-                                      >
-                                        <Eye className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => openEditDialog(user)}
-                                        title="Edit"
-                                        className="h-8 w-8"
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => openRoleDialog(user)}
-                                        title="Manage Roles"
-                                        className="h-8 w-8"
-                                      >
-                                        <Shield className="h-4 w-4" />
-                                      </Button>
-                                    </div>
+                                  <div className="flex items-center justify-end space-x-1">
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => openViewDialog(user)}
+                                          className="h-8 w-8"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>View</TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => openEditDialog(user)}
+                                          className="h-8 w-8"
+                                        >
+                                          <Edit className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Edit</TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => openRoleDialog(user)}
+                                          className="h-8 w-8"
+                                        >
+                                          <Shield className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Manage Roles</TooltipContent>
+                                    </Tooltip>
+                                  </div>
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -1893,5 +1920,6 @@ export default function UsersPage() {
         </section>
       </div>
     </main>
+    </TooltipProvider>
   )
 }
