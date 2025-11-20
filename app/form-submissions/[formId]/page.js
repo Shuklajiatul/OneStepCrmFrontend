@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { RefreshCw, AlertCircle, Search, FileText, Send } from "lucide-react"
+import { RefreshCw, AlertCircle, Search, FileText, Send, ArrowLeft } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -39,6 +39,11 @@ import { useParams, useRouter, usePathname } from "next/navigation"
 import Sidebar from "../../component/sidebar"
 import Topbar from "../../component/topbar"
 import { cn } from "@/lib/utils"
+import {formatDateTimeDisplay} from "@/lib/utils"
+import {extractTimestampFromUUID} from "@/lib/utils"
+import {isUUIDv1} from "@/lib/utils"
+import {isValidDate} from "@/lib/utils"
+
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -169,40 +174,46 @@ export default function FormSubmissionsPage() {
   }
 
   const formatDateOnly = (input) => {
-    if (input instanceof Date && !Number.isNaN(input.getTime())) {
-      return input.toLocaleDateString()
+    if (input instanceof Date && !isNaN(input.getTime())) {
+      return input.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
     }
-
-    if (input === null || input === undefined) return null
-
-    const str = String(input).trim()
-    if (!str) return null
-
-    const direct = new Date(str)
-    if (!Number.isNaN(direct.getTime())) {
-      return direct.toLocaleDateString()
+  
+    if (input === null || input === undefined) return null;
+  
+    const str = String(input).trim();
+    if (!str) return null;
+  
+    // Try direct parsing first
+    const direct = new Date(str);
+    if (!isNaN(direct.getTime())) {
+      return direct.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
     }
-
-    const match = str.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2})(?::(\d{2})(?::(\d{2}))?)?)?$/)
-    if (match) {
-      const [, datePart] = match
-      const [yearStr, monthStr, dayStr] = datePart.split("-")
-      const year = Number(yearStr)
-      const month = Number(monthStr)
-      const day = Number(dayStr)
-
-      if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
-        const dateObj = new Date(year, month - 1, day)
-        if (!Number.isNaN(dateObj.getTime())) {
-          return dateObj.toLocaleDateString()
-        }
+  
+    // Handle ISO format with time
+    const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
+    if (isoMatch) {
+      const datePart = isoMatch[1];
+      const [year, month, day] = datePart.split('-');
+      const dateObj = new Date(year, month - 1, day);
+      if (!isNaN(dateObj.getTime())) {
+        return dateObj.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
       }
-
-      return datePart
     }
-
-    return null
-  }
+  
+    return null;
+  };
 
   const formatPhoneDisplay = (value) => {
     const parsed = parseJsonSafely(value)
@@ -919,12 +930,25 @@ export default function FormSubmissionsPage() {
       <Card>
         <CardHeader className="border-b bg-card/50">
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-2xl">
-                <FileText className="h-6 w-6" />
-                Form Submissions
-              </CardTitle>
-              <CardDescription>View all submitted data for {formDetails?.form_name || "this form"}</CardDescription>
+            <div className="flex items-center gap-3">
+              {/* Back Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.back()}
+                className="h-8 w-8 shrink-0"
+                title="Go back"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              
+              <div>
+                <CardTitle className="flex items-center gap-2 text-2xl">
+                  <FileText className="h-6 w-6" />
+                  Form Submissions
+                </CardTitle>
+                <CardDescription>View all submitted data for {formDetails?.form_name || "this form"}</CardDescription>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={fetchSubmissions} disabled={loading}>
@@ -991,48 +1015,95 @@ export default function FormSubmissionsPage() {
                 <div className="overflow-x-auto w-full">
                   <div className="w-full min-w-full">
                     <Table className="caption-bottom text-sm w-full table-auto">
-                      <TableHeader>
-                        <TableRow className="bg-muted/50 hover:bg-muted/50">
-                          {columns.map((column) => (
-                            <TableHead
-                              key={column.id}
-                              className="font-semibold text-foreground whitespace-nowrap"
-                            >
-                              {column.label}
-                            </TableHead>
-                          ))}
-                          <TableHead className="font-semibold text-foreground whitespace-nowrap">
-                            Submitted At
-                          </TableHead>
-                          <TableHead className="font-semibold text-foreground whitespace-nowrap">
-                            Edit Attempts
-                          </TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {paginatedSubmissions.map((submission, index) => (
-                          <TableRow
-                            key={submission.submission_id || index}
-                            className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        {columns.map((column) => (
+                          <TableHead
+                            key={column.id}
+                            className="font-semibold text-foreground whitespace-nowrap"
                           >
-                            {columns.map((column) => (
-                              <TableCell key={column.id} className="py-4">
-                                {column.render(column.accessor(submission), submission)}
-                              </TableCell>
-                            ))}
-                            <TableCell className="py-4">
-                              {/* date rendering logic */}
-                            </TableCell>
-                            <TableCell className="py-4">
-                              <Badge variant="secondary" className="font-medium">
-                                {typeof submission.edit_count === "number"
-                                  ? submission.edit_count
-                                  : 0}
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
+                            {column.label}
+                          </TableHead>
                         ))}
-                      </TableBody>
+                        <TableHead className="font-semibold text-foreground whitespace-nowrap">
+                          Submitted At
+                        </TableHead>
+                        <TableHead className="font-semibold text-foreground whitespace-nowrap">
+                          Last Edited At
+                        </TableHead>
+                        <TableHead className="font-semibold text-foreground whitespace-nowrap">
+                          Edit Attempts
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedSubmissions.map((submission, index) => (
+                        <TableRow
+                          key={submission.submission_id || index}
+                          className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                        >
+                          {columns.map((column) => (
+                            <TableCell key={column.id} className="py-4">
+                              {column.render(column.accessor(submission), submission)}
+                            </TableCell>
+                          ))}
+                          {/* Created At Column */}
+                            <TableCell className="py-4">
+                              {(() => {
+                                const createdDateString = submission.created_at;
+                                
+                                if (!createdDateString) {
+                                  return <span className="text-muted-foreground italic">-</span>;
+                                }
+
+                                // First, try to parse as regular date
+                                if (isValidDate(createdDateString)) {
+                                  return formatDateTimeDisplay(createdDateString);
+                                }
+                                
+                                // Check if it's a UUID v1 and try to extract timestamp
+                                if (isUUIDv1(createdDateString)) {
+                                  const uuidDate = extractTimestampFromUUID(createdDateString);
+                                  if (uuidDate) {
+                                    return (
+                                      <div className="flex flex-col">
+                                        <span className="text-sm font-medium">
+                                          {formatDateTimeDisplay(uuidDate.toISOString())}
+                                        </span>
+                                        {/* <span className="text-xs text-muted-foreground">from UUID timestamp</span> */}
+                                      </div>
+                                    );
+                                  }
+                                }
+                                
+                                // If it's not a UUID v1 or extraction failed, show the raw value
+                                return (
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-muted-foreground">-</span>
+                                    <span className="text-xs text-muted-foreground break-all max-w-[120px]">
+                                      {createdDateString.length > 20 ? `${createdDateString.substring(0, 20)}...` : createdDateString}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </TableCell>
+                          {/* Last Edited At Column */}
+                          <TableCell className="py-4">
+                            {formatDateTimeDisplay(submission.last_edited_at) || 
+                            <span className="text-muted-foreground italic">-</span>}
+                          </TableCell>
+                          
+                          {/* Edit Attempts Column */}
+                          <TableCell className="py-4">
+                            <Badge variant="secondary" className="font-medium">
+                              {typeof submission.edit_count === "number"
+                                ? submission.edit_count
+                                : 0}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
                     </Table>
                   </div>
                 </div>
