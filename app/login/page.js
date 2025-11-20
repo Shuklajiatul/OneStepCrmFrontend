@@ -12,7 +12,6 @@ import Image from "next/image"
 import { authUtils } from "@/lib/auth-utils"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.10.15.194:3001'
-
 export default function LoginPage() {
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
@@ -28,6 +27,7 @@ export default function LoginPage() {
   const [success, setSuccess] = useState("")
   const [loginData, setLoginData] = useState(null)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+  const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -47,27 +47,27 @@ export default function LoginPage() {
   }, [searchParams])
 
   // Check if user is already logged in
-  useEffect(() => {
-    checkAuthStatus()
-  }, [])
+  // useEffect(() => {
+  //   checkAuthStatus()
+  // }, [])
 
-  const checkAuthStatus = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/auth/check-session`, {
-        method: 'GET',
-        credentials: 'include'
-      })
+  // const checkAuthStatus = async () => {
+  //   try {
+  //     const response = await fetch(`/api/auth/check-session`, {
+  //       method: 'GET',
+  //       credentials: 'include'
+  //     })
       
-      if (response.ok) {
-        const data = await response.json()
-        if (data.authenticated) {
-          router.push('/')
-        }
-      }
-    } catch (error) {
-      console.error('Error checking auth status:', error)
-    }
-  }
+  //     if (response.ok) {
+  //       const data = await response.json()
+  //       if (data.authenticated) {
+  //         router.push('/')
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error('Error checking auth status:', error)
+  //   }
+  // }
 
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target
@@ -93,10 +93,20 @@ export default function LoginPage() {
       setError(err.message || "Failed to initiate Google login")
       setIsGoogleLoading(false)
     }
+    authUtils.setTokens(data);
   }
 
   const handleMicrosoftLogin = () => {
-    setError("Microsoft login coming soon")
+    setIsMicrosoftLoading(true)
+    setError("")
+
+    try {
+      // Redirect to backend OAuth endpoint
+      window.location.href = `${API_URL}/api/ssoAuth/microsoft`
+    } catch (err) {
+      setError(err.message || "Failed to initiate Microsoft login")
+      setIsMicrosoftLoading(false)
+    }
   }
 
   const handleEmailLoginClick = () => {
@@ -123,7 +133,8 @@ export default function LoginPage() {
       })
 
       const data = await response.json()
-
+      console.log('Login response::::::::', data);
+      console.log('All cookies:::::::::::', document.cookie);
       if (!response.ok) {
         throw new Error(data.message || "Login failed")
       }
@@ -167,8 +178,9 @@ export default function LoginPage() {
       if (!response.ok) {
         throw new Error(data.message || "OTP verification failed")
       }
-
+      console.log('OTP verification response::::::::', data);
       authUtils.setTokens(data)
+      console.log('All cookies:::::::::::', document.cookie);
       router.push("/")
     } catch (err) {
       setError(err.message)
@@ -326,9 +338,13 @@ export default function LoginPage() {
                   <Button
                     type="button"
                     variant="outline"
+                    disabled={isMicrosoftLoading}
                     className="w-full h-12 border-purple-200 bg-white hover:bg-purple-50 flex items-center justify-center gap-3"
                     onClick={handleMicrosoftLogin}
                   >
+                    {isMicrosoftLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
                     <svg className="w-5 h-5" viewBox="0 0 23 23">
                       <path fill="#f3f3f3" d="M0 0h23v23H0z"/>
                       <path fill="#f35325" d="M1 1h10v10H1z"/>
@@ -336,7 +352,8 @@ export default function LoginPage() {
                       <path fill="#05a6f0" d="M1 12h10v10H1z"/>
                       <path fill="#ffba08" d="M12 12h10v10H12z"/>
                     </svg>
-                    Continue with Microsoft
+                    )}
+                    {isMicrosoftLoading ? "Redirecting..." : "Continue with Microsoft"}
                   </Button>
                 </div>
 
