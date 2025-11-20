@@ -16,13 +16,23 @@ import { LogOut, Settings, Palette, User, Bell, Menu, Search, Command } from "lu
 import { useRouter } from "next/navigation"
 import { authUtils } from "@/lib/auth-utils"
 import GlobalSearch from "@/components/global-search"
+import { usePathname } from "next/navigation"
 
 export default function Topbar({darkMode, toggleDarkMode, toggleSidebar}) {
     const router = useRouter()
+    const pathname = usePathname()
     const [userName, setUserName] = useState("")
     const [userEmail, setUserEmail] = useState("")
     const [userInitials, setUserInitials] = useState("AP")
     const [isSearchOpen, setIsSearchOpen] = useState(false)
+
+    // Check authentication and redirect if not authenticated
+    useEffect(() => {
+        if (!authUtils.isAuthenticated() && pathname !== '/login') {
+            router.push('/login')
+            return
+        }
+    }, [router, pathname])
 
     useEffect(() => {
         const tokens = authUtils.getTokens()
