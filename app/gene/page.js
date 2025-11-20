@@ -41,9 +41,15 @@ import { cn } from "@/lib/utils";
 import UserGeneMappingModal from "./components/UserGeneMappingModal";
 import GeneModal from "./components/GeneModal";
 import GeneCsvModal from "./components/GeneCsvModal";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // API Constants
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 const API_CONSTANTS = {
   BASE_URL: API_BASE_URL,
   geneList: '/api/genes',
@@ -124,13 +130,9 @@ export default function GeneDashboard() {
      
       // Get token from auth utils, localStorage, or sessionStorage
       const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken || 
-                   localStorage.getItem('token') || 
-                   localStorage.getItem('accessToken') ||
-                   sessionStorage.getItem('token') ||
-                   sessionStorage.getItem('accessToken');
+      const token = tokens?.accessToken;
       
-      if (!token) {
+      if (!tokens) {
         setError('Authentication required. Please login again.');
         toast.error('Authentication required. Please login again.');
         router.push('/login');
@@ -1200,27 +1202,44 @@ export default function GeneDashboard() {
               </div>
               <Separator />
               <div className="flex items-center justify-between">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openViewModal(gene)}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => openEditModal(gene)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteGene(gene.g_id || gene.id)}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openViewModal(gene)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>View</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditModal(gene)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteGene(gene.g_id || gene.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete</TooltipContent>
+                </Tooltip>
               </div>
             </CardContent>
           </Card>
@@ -1270,30 +1289,44 @@ export default function GeneDashboard() {
                 </div>
 
                 <div className="flex items-center space-x-2 ml-6">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openViewModal(gene)}
-                    title="View"
-                  >
-                    <Eye className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEditModal(gene)}
-                    title="Edit"
-                  >
-                    <Edit className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteGene(gene.g_id || gene.id)}
-                    title="Delete"
-                  >
-                    <Trash2 className="h-5 w-5 text-destructive" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openViewModal(gene)}
+                      >
+                        <Eye className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>View</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditModal(gene)}
+                      >
+                        <Edit className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Edit</TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteGene(gene.g_id || gene.id)}
+                      >
+                        <Trash2 className="h-5 w-5 text-destructive" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Delete</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
              
@@ -1380,35 +1413,49 @@ export default function GeneDashboard() {
                     <span className="text-sm text-muted-foreground">{gene.lastUpdated}</span>
                   </TableCell>
                   <TableCell className="w-[120px] whitespace-nowrap text-right py-4">
-                    <div className="flex items-center justify-end space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openViewModal(gene)}
-                        title="View"
-                        className="h-8 w-8"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditModal(gene)}
-                        title="Edit"
-                        className="h-8 w-8"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteGene(gene.g_id || gene.id)}
-                        title="Delete"
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                  <div className="flex items-center justify-end space-x-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openViewModal(gene)}
+                          className="h-8 w-8"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>View</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditModal(gene)}
+                          className="h-8 w-8"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Edit</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteGene(gene.g_id || gene.id)}
+                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Delete</TooltipContent>
+                    </Tooltip>
+                  </div>
                   </TableCell>
                 </TableRow>
               );
@@ -1478,6 +1525,7 @@ export default function GeneDashboard() {
   };
 
   return (
+    <TooltipProvider delayDuration={0}>
     <div className="min-h-screen bg-background">      
       {/* Header */}
       {/* <header className="bg-card border-b">
@@ -2113,5 +2161,6 @@ export default function GeneDashboard() {
         onSubmit={handleCsvUserGeneSubmit}
       />
     </div>
+  </TooltipProvider>
   );
 }
