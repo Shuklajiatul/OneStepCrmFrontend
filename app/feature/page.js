@@ -6,6 +6,7 @@ import axios from "axios"
 import Sidebar from "../component/sidebar"
 import Topbar from "../component/topbar"
 import { cn } from "@/lib/utils"
+import { authUtils } from "@/lib/auth-utils"
 import {
   Shield,
   ShieldPlus,
@@ -104,13 +105,19 @@ export default function FeaturePage() {
     setIsCollapsed(!isCollapsed)
   }
 
+  // FIXED: Use authUtils to get token from cookies
   const getAuthToken = () => {
     if (typeof window === "undefined") return null
-    return localStorage.getItem("token") || localStorage.getItem("accessToken")
+    const tokens = authUtils.getTokens()
+    console.log("Tokens:::::::::::", tokens);
+    return tokens?.accessToken || null
   }
 
+ 
   const getAuthHeaders = () => {
     const token = getAuthToken()
+    console.log("Tokens:::::::::::", token);
+
     return {
       "Content-Type": "application/json",
       Accept: "application/json",
@@ -140,11 +147,10 @@ export default function FeaturePage() {
         toast.info("Features API endpoint not found. Using demo mode.")
         setFeatures([])
         setTotalResults(0)
+      } else if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.")
       } else {
         toast.error("Failed to fetch features. Please check your connection and authentication.")
-      }
-      if (error.response?.status === 401) {
-        toast.error("Session expired. Please login again.")
       }
     } finally {
       setLoading(false)
@@ -254,7 +260,6 @@ export default function FeaturePage() {
       const errorMessage =
         error.response?.data?.message || error.response?.data?.error || "Failed to update feature status"
       toast.error(errorMessage)
-      // Refresh to get correct status if update failed
       fetchFeatures()
     }
   }
@@ -387,7 +392,6 @@ export default function FeaturePage() {
   }
 
   const filteredFeatures = features.filter((feature) => {
-    // Search filter
     const featureName = feature.feature_name || feature.name || ""
     const description = feature.description || ""
     const module = feature.module || ""
@@ -397,12 +401,10 @@ export default function FeaturePage() {
       description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       module.toLowerCase().includes(searchTerm.toLowerCase())
 
-    // Module filter
     const matchesModule =
       moduleFilter === "all" ||
       (feature.module || "").toLowerCase() === moduleFilter.toLowerCase()
 
-    // Status filter
     const featureStatus = feature.is_active !== undefined ? feature.is_active : true
     const statusString = featureStatus ? "active" : "inactive"
     const matchesStatus =
@@ -412,13 +414,11 @@ export default function FeaturePage() {
     return matchesSearch && matchesModule && matchesStatus
   })
 
-  // Pagination
   const startIndex = (currentPage - 1) * pageSize
   const endIndex = startIndex + pageSize
   const paginatedFeatures = filteredFeatures.slice(startIndex, endIndex)
   const totalPages = Math.ceil(filteredFeatures.length / pageSize)
 
-  // Get unique modules for filter
   const uniqueModules = [...new Set(features.map(f => f.module).filter(Boolean))]
 
   return (
@@ -450,36 +450,18 @@ export default function FeaturePage() {
           </div>
           <div className="flex-1 p-4 md:p-6 bg-background">
             <div className="container mx-auto py-4 space-y-6">
-              {/* Header */}
-              {/* <div className="flex items-center gap-2 mb-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => window.history.back()}
-                  className="h-8 w-8"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </Button>
-                <div className="flex-1">
-                  <h1 className="text-2xl font-semibold">Feature Management</h1>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Manage and view all system features
-                  </p>
-                </div>
-              </div> */}
-
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2 text-2xl">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => window.history.back()}
-                        className="h-8 w-8">
-                        <ArrowLeft className="h-4 w-4" />
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => window.history.back()}
+                          className="h-8 w-8">
+                          <ArrowLeft className="h-4 w-4" />
+                        </Button>
                         Feature Management
                       </CardTitle>
                       <CardDescription>
@@ -588,9 +570,7 @@ export default function FeaturePage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {/* Search and Filters */}
                   <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                    {/* Search */}
                     <div className="relative flex-1">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -601,7 +581,6 @@ export default function FeaturePage() {
                       />
                     </div>
                     
-                    {/* Module Filter */}
                     <Select value={moduleFilter} onValueChange={setModuleFilter}>
                       <SelectTrigger className="w-full sm:w-[180px]">
                         <SelectValue placeholder="Filter by module" />
@@ -616,7 +595,6 @@ export default function FeaturePage() {
                       </SelectContent>
                     </Select>
 
-                    {/* Status Filter */}
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
                       <SelectTrigger className="w-full sm:w-[180px]">
                         <SelectValue placeholder="Filter by status" />
@@ -628,7 +606,6 @@ export default function FeaturePage() {
                       </SelectContent>
                     </Select>
 
-                    {/* Clear Filters Button */}
                     {(moduleFilter !== "all" || statusFilter !== "all" || searchTerm) && (
                       <Button
                         variant="outline"
@@ -644,7 +621,6 @@ export default function FeaturePage() {
                     )}
                   </div>
 
-                  {/* Features Table */}
                   {loading ? (
                     <div className="flex items-center justify-center py-12">
                       <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -661,127 +637,124 @@ export default function FeaturePage() {
                     <>
                       <div className="rounded-md border overflow-hidden w-full">
                         <div className="overflow-x-auto w-full">
-                          <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
-                            <Table className="w-full table-auto">
-                              <TableHeader>
-                                <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                  <TableHead className="font-semibold text-foreground">FEATURE NAME</TableHead>
-                                  <TableHead className="font-semibold text-foreground">DESCRIPTION</TableHead>
-                                  <TableHead className="font-semibold text-foreground">MODULE</TableHead>
-                                  <TableHead className="font-semibold text-foreground">CREATED AT</TableHead>
-                                  <TableHead className="font-semibold text-foreground">STATUS</TableHead>
-                                  <TableHead className="w-[120px] whitespace-nowrap text-center font-semibold text-foreground">ACTION</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {paginatedFeatures.map((feature) => {
-                                  const featureId = feature.feature_id || feature.id
-                                  const featureName = feature.feature_name || feature.name || "N/A"
-                                  const isActive = feature.is_active !== undefined ? feature.is_active : true
-                                  const status = isActive ? "active" : "inactive"
-                                  return (
-                                    <TableRow 
-                                      key={featureId}
-                                      className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
-                                    >
-                                      <TableCell className="py-4">
-                                        <span className="font-medium text-primary truncate text-sm md:text-base">
-                                          {featureName}
-                                        </span>
-                                      </TableCell>
-                                      <TableCell className="py-4">
+                          <Table className="w-full table-auto">
+                            <TableHeader>
+                              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                <TableHead className="font-semibold text-foreground">FEATURE NAME</TableHead>
+                                <TableHead className="font-semibold text-foreground">DESCRIPTION</TableHead>
+                                <TableHead className="font-semibold text-foreground">MODULE</TableHead>
+                                <TableHead className="font-semibold text-foreground">CREATED AT</TableHead>
+                                <TableHead className="font-semibold text-foreground">STATUS</TableHead>
+                                <TableHead className="w-[120px] whitespace-nowrap text-center font-semibold text-foreground">ACTION</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {paginatedFeatures.map((feature) => {
+                                const featureId = feature.feature_id || feature.id
+                                const featureName = feature.feature_name || feature.name || "N/A"
+                                const isActive = feature.is_active !== undefined ? feature.is_active : true
+                                const status = isActive ? "active" : "inactive"
+                                return (
+                                  <TableRow 
+                                    key={featureId}
+                                    className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                                  >
+                                    <TableCell className="py-4">
+                                      <span className="font-medium text-primary truncate text-sm md:text-base">
+                                        {featureName}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                      <span className="text-sm text-muted-foreground">
+                                        {feature.description || "N/A"}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                      <Badge variant="outline">
+                                        {feature.module || "N/A"}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="h-3 w-3 text-muted-foreground" />
                                         <span className="text-sm text-muted-foreground">
-                                          {feature.description || "N/A"}
+                                          {formatDate(feature.created_at)}
                                         </span>
-                                      </TableCell>
-                                      <TableCell className="py-4">
-                                        <Badge variant="outline">
-                                          {feature.module || "N/A"}
-                                        </Badge>
-                                      </TableCell>
-                                      <TableCell className="py-4">
-                                        <div className="flex items-center gap-2">
-                                          <Clock className="h-3 w-3 text-muted-foreground" />
-                                          <span className="text-sm text-muted-foreground">
-                                            {formatDate(feature.created_at)}
-                                          </span>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell className="py-4">
-                                        <div className="flex items-center gap-2">
-                                          <Switch
-                                            checked={isActive}
-                                            onCheckedChange={() => handleToggleStatus(featureId, isActive)}
-                                            disabled={submitting}
-                                          />
-                                          <span className="text-sm text-muted-foreground">
-                                            {status.charAt(0).toUpperCase() + status.slice(1)}
-                                          </span>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell className="w-[120px] whitespace-nowrap text-right py-4">
-                                        <div className="flex items-center justify-end space-x-2">
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => openViewDialog(feature)}
-                                            title="View"
-                                            className="h-8 w-8"
-                                          >
-                                            <Eye className="h-4 w-4" />
-                                          </Button>
-                                          <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-8 px-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                      <div className="flex items-center gap-2">
+                                        <Switch
+                                          checked={isActive}
+                                          onCheckedChange={() => handleToggleStatus(featureId, isActive)}
+                                          disabled={submitting}
+                                        />
+                                        <span className="text-sm text-muted-foreground">
+                                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                                        </span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="w-[120px] whitespace-nowrap text-right py-4">
+                                      <div className="flex items-center justify-end space-x-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => openViewDialog(feature)}
+                                          title="View"
+                                          className="h-8 w-8"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-8 px-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                            >
+                                              Delete
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Delete Feature</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                Are you sure you want to delete the feature{" "}
+                                                <strong>{featureName}</strong>?
+                                                <br />
+                                                <br />
+                                                This action cannot be undone.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => handleDeleteFeature(featureId)}
+                                                className="bg-destructive text-white hover:bg-destructive/90 hover:text-white"
+                                                disabled={submitting}
                                               >
-                                                Delete
-                                              </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                              <AlertDialogHeader>
-                                                <AlertDialogTitle>Delete Feature</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                  Are you sure you want to delete the feature{" "}
-                                                  <strong>{featureName}</strong>?
-                                                  <br />
-                                                  <br />
-                                                  This action cannot be undone.
-                                                </AlertDialogDescription>
-                                              </AlertDialogHeader>
-                                              <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                  onClick={() => handleDeleteFeature(featureId)}
-                                                  className="bg-destructive text-white hover:bg-destructive/90 hover:text-white"
-                                                  disabled={submitting}
-                                                >
-                                                  {submitting ? (
-                                                    <>
-                                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                      Deleting...
-                                                    </>
-                                                  ) : (
-                                                    "Delete"
-                                                  )}
-                                                </AlertDialogAction>
-                                              </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                          </AlertDialog>
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  )
-                                })}
-                              </TableBody>
-                            </Table>
-                          </div>
+                                                {submitting ? (
+                                                  <>
+                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                    Deleting...
+                                                  </>
+                                                ) : (
+                                                  "Delete"
+                                                )}
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              })}
+                            </TableBody>
+                          </Table>
                         </div>
                       </div>
 
-                      {/* Pagination */}
                       <div className="flex items-center justify-between mt-4">
                         <div className="text-sm text-muted-foreground">
                           Showing {startIndex + 1} to {Math.min(endIndex, filteredFeatures.length)} of {filteredFeatures.length} results
@@ -810,7 +783,6 @@ export default function FeaturePage() {
                 </CardContent>
               </Card>
 
-              {/* View Feature Dialog */}
               <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
                 <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
@@ -889,7 +861,6 @@ export default function FeaturePage() {
                 </DialogContent>
               </Dialog>
 
-              {/* Edit Feature Dialog */}
               <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
@@ -972,4 +943,3 @@ export default function FeaturePage() {
     </main>
   )
 }
-
