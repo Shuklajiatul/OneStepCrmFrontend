@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 // API Constants
 const API_CONSTANTS = {
-  BASE_URL: '',
+  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
   geneDetails: '/api/genes',
   geneMappedUser: '/api/genes/by-geneId',
 };
