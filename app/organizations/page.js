@@ -228,7 +228,7 @@ export default function OrganizationsPage() {
       const payload = {
         name: formData.name.trim(),
         subscription_tier: formData.subscription_tier || "free",
-        settings: formData.settings || null,
+        settings: formData.settings || {},
       }
 
       const response = await axios.put(
