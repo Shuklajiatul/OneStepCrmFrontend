@@ -58,7 +58,7 @@ const processFieldOptions = (field) => {
             nestedFields: processNestedFieldsRecursively(option.nestedFields)
           }
         }
-        
+
         // Fallback to field.nestedFields[index] for old form builder structure
         if (field.nestedFields && field.nestedFields[index]) {
           return {
@@ -223,14 +223,14 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
       if (response.data.success) {
         const userData = getUserData()
         const userGeneIds = userData?.g_ids || []
-        
+
         // Filter genes to only show those the user is mapped to
-        const userGenes = response.data.data.filter(gene => 
+        const userGenes = response.data.data.filter(gene =>
           userGeneIds.includes(gene.g_id)
         )
-        
+
         setAvailableGenes(userGenes)
-        
+
         // Auto-select if there's only one gene
         if (userGenes.length === 1 && !mappedGene) {
           setMappedGene(userGenes[0].g_id)
@@ -646,9 +646,9 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         const result = response.data
         console.log('✅ API Success Response:', result)
 
-        if (result.success && result.form) {
+        if (result.success && result.data) {
           // Generate the public URL
-          const publicUrl = `${window.location.origin}/forms/${result.form.form_id}?user_id=${userId}&version=${result.form.version || 1}`
+          const publicUrl = `${window.location.origin}/forms/${result.data.form_id}?user_id=${userId}&version=${result.data.version || 1}`
           setGeneratedLink(publicUrl)
 
           // Store form data locally for the form view page
@@ -675,7 +675,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
             generatedAt: new Date().toISOString()
           }
 
-          localStorage.setItem(`form-${result.form.form_id}`, JSON.stringify(completeFormData))
+          localStorage.setItem(`form-${result.data.form_id}`, JSON.stringify(completeFormData))
           toast.success("Form link generated successfully!")
           return result
         } else {
@@ -722,7 +722,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
           document.body.appendChild(textArea)
           textArea.focus()
           textArea.select()
-          
+
           try {
             const successful = document.execCommand('copy')
             if (successful) {
@@ -769,16 +769,16 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
     // File type validation
     if (nestedField.type === "file" && value) {
       const fileType = nestedField.validation?.fileType || "both"
-      
+
       let allowedTypes = []
       let allowedExtensions = []
       let errorMessage = ""
-      
+
       if (fileType === "images") {
         // Image-only field
         allowedTypes = [
           'image/jpeg',
-          'image/jpg', 
+          'image/jpg',
           'image/png',
           'image/gif',
           'image/webp',
@@ -963,16 +963,16 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
     // File type validation based on field configuration (if no specific accept validation is set)
     if (field.type === "file" && value && !field.validation?.accept) {
       const fileType = field.validation?.fileType || "both"
-      
+
       let allowedTypes = []
       let allowedExtensions = []
       let errorMessage = ""
-      
+
       if (fileType === "images") {
         // Image-only field
         allowedTypes = [
           'image/jpeg',
-          'image/jpg', 
+          'image/jpg',
           'image/png',
           'image/gif',
           'image/webp',
@@ -990,7 +990,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         allowedTypes = [
           'image/jpeg',
           'image/jpg',
-          'image/png', 
+          'image/png',
           'image/gif',
           'image/webp',
           'image/svg+xml',
@@ -1002,7 +1002,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
       const fileName = value.name || ""
       const fileTypeValue = value.type || ""
-      
+
       const isValidType = allowedTypes.includes(fileTypeValue) ||
         allowedExtensions.some(ext => fileName.toLowerCase().endsWith(ext))
 
@@ -1168,7 +1168,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
                 className="bg-input"
               />
             </div>
-            
+
             {/* Map Gene Field */}
             <div className="space-y-2">
               <Label htmlFor="mapped-gene" className="text-sm font-medium">
