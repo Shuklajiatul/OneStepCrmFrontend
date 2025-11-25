@@ -19,7 +19,6 @@ import {
   Eye,
   Edit,
   Trash2,
-  MoreHorizontal,
   Settings,
   Search,
   ChevronLeft,
@@ -29,7 +28,7 @@ import {
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
+
 import { toast } from "sonner"
 import axios from "axios"
 import { authUtils } from '@/lib/auth-utils'
@@ -2997,54 +2996,18 @@ export default function TableDataView({ table, onBack }) {
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 hover:bg-destructive/10"
-                                        title="More actions"
-                                      >
-                                        <MoreHorizontal className="h-4 w-4" />
-                                        <span className="sr-only">Open menu</span>
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                      align="center"
-                                      className="w-[160px] z-[9999]"
-                                      side="auto"
-                                      sideOffset={4}
-                                      collisionPadding={16}
-                                      avoidCollisions={true}
-                                      onCloseAutoFocus={(e) => e.preventDefault()}
-                                    >
-                                      <DropdownMenuItem
-                                        className="cursor-pointer text-xs"
-                                        onClick={() => openViewRecordDialog(record)}
-                                      >
-                                        <Eye className="h-3.5 w-3.5 mr-2" />
-                                        View Details
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        className="cursor-pointer text-xs"
-                                        onClick={() => openEditRecordDialog(record)}
-                                      >
-                                        <Edit className="h-3.5 w-3.5 mr-2" />
-                                        Edit Record
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem
-                                        onClick={() => {
-                                          setRecordToDelete(record)
-                                          setIsDeleteDialogOpen(true)
-                                        }}
-                                        className="text-destructive cursor-pointer text-xs focus:text-destructive"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5 mr-2" />
-                                        Delete Record
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:bg-destructive/10"
+                                    title="Delete record"
+                                    onClick={() => {
+                                      setRecordToDelete(record)
+                                      setIsDeleteDialogOpen(true)
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
                                 </div>
                               )
                             } else if (column.accessorKey === "assigned_to") {
