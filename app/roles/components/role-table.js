@@ -175,8 +175,8 @@ export function RoleTable({
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            This action cannot be undone. This will permanently delete the role "
-                                            {role.role_name || role.name || 'this role'}" and remove it from the system.
+                                            This action cannot be undone. This will permanently delete the role &quot;
+                                            {role.role_name || role.name || 'this role'}&quot; and remove it from the system.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
