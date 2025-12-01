@@ -9,25 +9,22 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 
 const searchItems = [
-  { label: "Dashboard", category: "General", href: "/", type: "page" },
-  { label: "Leads", category: "General", href: "/", tab: "leads", type: "page" },
-  { label: "Forms", category: "General", href: "/", tab: "forms", type: "page" },
-  { label: "Custom Form", category: "Forms", href: "/", tab: "custom-form", type: "page" },
-  { label: "My Forms", category: "Forms", href: "/", tab: "my-forms", type: "page" },
-  { label: "Form Analytics", category: "Forms", href: "/", tab: "form-analytics", type: "page" },
-  { label: "Gene Management", category: "Gene Management", href: "/", tab: "general-management", type: "page" },
-  { label: "Gene", category: "Gene Management", href: "/", tab: "gene", type: "page" },
+  { label: "Dashboard", category: "General", href: "/", type: "route" },
+  { label: "Leads", category: "General", href: "/leadPage", type: "route" },
+  { label: "Custom Form", category: "Forms", href: "/custom-form", type: "route" },
+  { label: "My Forms", category: "Forms", href: "/my-forms", type: "route" },
+  { label: "Form Analytics", category: "Forms", href: "/form-analytics", type: "route" },
+  { label: "Gene Management", category: "Gene Management", href: "/geneManagement", type: "route" },
+  { label: "Gene", category: "Gene Management", href: "/gene", type: "route" },
   { label: "Feature", category: "Gene Management", href: "/feature", type: "route" },
   { label: "Permission Management System", category: "Gene Management", href: "/permissionManagementSystem", type: "route" },
   { label: "User Management", category: "User Management", href: "/users", type: "route" },
   { label: "Role Management", category: "User Management", href: "/roles", type: "route" },
   { label: "Org Management", category: "User Management", href: "/organizations", type: "route" },
-  { label: "Custom Table", category: "General", href: "/", tab: "custom-table", type: "page" },
-  { label: "Report", category: "General", href: "/", tab: "report", type: "page" },
-  { label: "Setting", category: "General", href: "/", tab: "setting", type: "page" },
-  { label: "Help", category: "General", href: "/", tab: "help", type: "page" },
+  { label: "Custom Table", category: "General", href: "/custom-table-builder", type: "route" },
+  { label: "Report", category: "General", href: "/report", type: "route" },
+  { label: "Setting", category: "General", href: "/setting", type: "route" },
   { label: "Profile", category: "User", href: "/profile", type: "route" },
-  { label: "Settings", category: "User", href: "#", type: "action" },
 ]
 
 export default function GlobalSearch({ open, onOpenChange }) {
@@ -60,21 +57,14 @@ export default function GlobalSearch({ open, onOpenChange }) {
   }, [open])
 
   const handleSelect = (item) => {
-    if (item.type === "route") {
-      router.push(item.href)
-    } else if (item.type === "page") {
-      if (item.tab) {
-        sessionStorage.setItem('intended-tab', item.tab)
-      }
-      router.push(item.href)
-    }
+    router.push(item.href)
     onOpenChange(false)
   }
 
   const handleKeyDown = (e) => {
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      setSelectedIndex(prev => 
+      setSelectedIndex(prev =>
         prev < filteredItems.length - 1 ? prev + 1 : prev
       )
     } else if (e.key === "ArrowUp") {
@@ -103,7 +93,7 @@ export default function GlobalSearch({ open, onOpenChange }) {
       <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden">
         {/* Visually hidden title for accessibility */}
         <DialogTitle className="sr-only">Global Search</DialogTitle>
-        
+
         <div className="flex items-center border-b px-4 py-3">
           <Search className="size-4 text-muted-foreground mr-2" />
           <Input
@@ -114,10 +104,10 @@ export default function GlobalSearch({ open, onOpenChange }) {
             onKeyDown={handleKeyDown}
             autoFocus
           />
-          {/* <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Command className="size-3" />
             <span>K</span>
-          </div> */}
+          </div>
         </div>
 
         <ScrollArea className="max-h-[400px]">
