@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono, Shantell_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
+import ClientLayout from "./client-layout";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,9 +28,9 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        // className={shantellSans.className}
+      // className={shantellSans.className}
       >
-        {children}
+        <ClientLayout>{children}</ClientLayout>
         <Toaster position="top-right" />
       </body>
     </html>
