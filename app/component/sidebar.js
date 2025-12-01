@@ -11,49 +11,49 @@ import { useRouter, usePathname } from "next/navigation"
 import { authUtils } from '@/lib/auth-utils'
 
 const menuItems = [
-    { label: "Dashboard", icon: Home, href: "dashboard", active: true },
+    { label: "Dashboard", icon: Home, href: "/" },
     {
         label: "Leads",
         icon: Users,
-        href: "leads"
+        href: "/leadPage"
     },
     {
         label: "Forms",
         icon: BookCopy,
-        href: "forms",
+        href: "/forms",
         submenu: [
-            { label: "Custom Form", icon: FormInput, href: "custom-form" },
-            { label: "My Forms", icon: List, href: "my-forms" },
-            { label: "Form Analytics", icon: BarChart3, href: "form-analytics" },
+            { label: "Custom Form", icon: FormInput, href: "/custom-form" },
+            { label: "My Forms", icon: List, href: "/my-forms" },
+            { label: "Form Analytics", icon: BarChart3, href: "/form-analytics" },
         ]
     },
     {
         label: "Gene Management",
         icon: Network,
-        href: "general-management",
+        href: "/general-management",
         submenu: [
-            { label: "Gene", icon: Layers, href: "gene" },
-            { label: "Feature", icon: Shield, href: "/feature", isRoute: true },
-            { label: "Permission Management System", icon: Lock, href: "/permissionManagementSystem", isRoute: true },
+            { label: "Gene", icon: Layers, href: "/gene" },
+            { label: "Feature", icon: Shield, href: "/feature" },
+            { label: "Permission Management System", icon: Lock, href: "/permissionManagementSystem" },
         ]
     },
     {
         label: "User",
         icon: UserCog,
-        href: "user",
+        href: "/user",
         submenu: [
-            { label: "User Management", icon: UserCog, href: "/users", isRoute: true },
-            { label: "Role Management", icon: Shield, href: "/roles", isRoute: true },
-            { label: "Org Management", icon: Building, href: "/organizations", isRoute: true },
+            { label: "User Management", icon: UserCog, href: "/users" },
+            { label: "Role Management", icon: Shield, href: "/roles" },
+            { label: "Org Management", icon: Building, href: "/organizations" },
         ]
     },
-    { label: "Custom Table", icon: Table, href: "custom-table" },
-    { label: "Report", icon: ClipboardMinus, href: "report" },
-    { label: "Setting", icon: Settings, href: "setting" },
-    { label: "Help", icon: HelpCircle, href: "help" },
+    { label: "Custom Table", icon: Table, href: "/custom-table-builder" },
+    { label: "Report", icon: ClipboardMinus, href: "/report" },
+    { label: "Setting", icon: Settings, href: "/setting" },
+    { label: "Help", icon: HelpCircle, href: "/help" },
 ]
 
-export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCollapsed }) {
+export default function Sidebar({ isCollapsed, setIsCollapsed }) {
     const router = useRouter()
     const pathname = usePathname()
     const [expandedMenus, setExpandedMenus] = useState(new Set())
@@ -69,12 +69,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
     // Auto-expand parent menus when their submenu items are active
     useEffect(() => {
         const activeSubmenuItems = menuItems.filter(item =>
-            item.submenu?.some(subItem => {
-                if (subItem.isRoute) {
-                    return pathname === subItem.href
-                }
-                return pathname === '/' && activeTab === subItem.href
-            })
+            item.submenu?.some(subItem => pathname === subItem.href)
         )
 
         if (activeSubmenuItems.length > 0) {
@@ -91,7 +86,7 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                 return newExpanded
             })
         }
-    }, [pathname, activeTab])
+    }, [pathname])
 
     const toggleSubmenu = (menuLabel) => {
         const newExpanded = new Set(expandedMenus)
@@ -108,30 +103,20 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
     const handleMenuClick = (item) => {
         if (item.submenu) {
             toggleSubmenu(item.label)
-        } else if (item.isRoute) {
-            router.push(item.href)
         } else {
-            if (pathname !== '/') {
-                sessionStorage.setItem('intended-tab', item.href)
-                router.push('/')
-            } else {
-                setActiveTab(item.href)
-            }
+            router.push(item.href)
         }
     }
 
-    const isActive = (href, isRoute = false) => {
-        if (isRoute) {
-            return pathname === href
-        }
-        // Non-route items should only be active when on the home page
-        return pathname === '/' && activeTab === href
+    const isActive = (href) => {
+        return pathname === href
     }
+
     const isParentActive = (item) => {
         if (item.submenu) {
-            return item.submenu.some(subItem => isActive(subItem.href, subItem.isRoute))
+            return item.submenu.some(subItem => isActive(subItem.href))
         }
-        return isActive(item.href, item.isRoute)
+        return isActive(item.href)
     }
 
     return (
@@ -280,21 +265,12 @@ export default function Sidebar({ activeTab, setActiveTab, isCollapsed, setIsCol
                                                 {item.submenu.map((subItem) => (
                                                     <Button
                                                         key={subItem.label}
-                                                        variant={isActive(subItem.href, subItem.isRoute) ? "secondary" : "ghost"}
+                                                        variant={isActive(subItem.href) ? "secondary" : "ghost"}
                                                         className={cn(
                                                             "w-full gap-2 justify-start py-2 h-auto text-sm min-h-[2rem] pr-2",
-                                                            isActive(subItem.href, subItem.isRoute) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
+                                                            isActive(subItem.href) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
                                                         )}
-                                                        onClick={() => {
-                                                            if (subItem.isRoute) {
-                                                                router.push(subItem.href)
-                                                            } else if (pathname !== '/') {
-                                                                sessionStorage.setItem('intended-tab', subItem.href)
-                                                                router.push('/')
-                                                            } else {
-                                                                setActiveTab(subItem.href)
-                                                            }
-                                                        }}
+                                                        onClick={() => router.push(subItem.href)}
                                                     >
                                                         <subItem.icon className="size-4 shrink-0" />
                                                         <span className="truncate flex-1">{subItem.label}</span>
