@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react"
 import { Plus, Lock, Loader2 } from "lucide-react"
 import axios from "axios"
-import Sidebar from "../component/sidebar"
-import Topbar from "../component/topbar"
 import { cn } from "@/lib/utils"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
@@ -131,7 +129,7 @@ const fetchUserCountsForPolicies = async (policies) => {
   }
 
   const counts = {}
-  
+
   // Fetch all user counts in parallel for better performance
   const fetchPromises = policies.map(async (policy) => {
     const policyId = policy.p_id || policy.policy_id || policy.id
@@ -158,7 +156,7 @@ const fetchUserCountsForPolicies = async (policies) => {
   })
 
   const results = await Promise.all(fetchPromises)
-  
+
   // Convert results array to counts object
   results.forEach(({ policyId, count }) => {
     if (policyId) {
@@ -174,8 +172,6 @@ export default function PermissionManagement() {
   const [selectedModule, setSelectedModule] = useState(null)
   const [selectedPolicy, setSelectedPolicy] = useState(null)
   const [selectedMapping, setSelectedMapping] = useState(null)
-  const [darkMode, setDarkMode] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(false)
 
   const [policies, setPolicies] = useState([])
   const [policyFeatureMappings, setPolicyFeatureMappings] = useState([])
@@ -193,14 +189,6 @@ export default function PermissionManagement() {
     loadAllData()
   }, [])
 
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-  }, [darkMode])
-
   const loadAllData = async () => {
     try {
       setLoading(true)
@@ -214,20 +202,20 @@ export default function PermissionManagement() {
       // Fetch user counts for all policies
       const userCountsMap = await fetchUserCountsForPolicies(data.policies || [])
       setUserCounts(userCountsMap)
-      
+
       // Update selectedMapping if we're on mapping-detail tab to get fresh data
       if (activeTab === "mapping-detail" && selectedMapping) {
         const policyId = selectedMapping.p_id || selectedMapping.policy_id || selectedMapping.id || selectedMapping.policy?.p_id || selectedMapping.policy?.policy_id || selectedMapping.policy?.id
         if (policyId) {
           // Find the updated mapping from the fresh data
-          const updatedMapping = data.mappings.find(m => 
+          const updatedMapping = data.mappings.find(m =>
             (m.p_id || m.policy_id || m.id) === policyId
           )
           if (updatedMapping) {
             setSelectedMapping(updatedMapping)
           } else {
             // If mapping not found in mappings list, try to find in policies and create mapping object
-            const policy = data.policies.find(p => 
+            const policy = data.policies.find(p =>
               (p.p_id || p.policy_id || p.id) === policyId
             )
             if (policy) {
@@ -351,146 +339,119 @@ export default function PermissionManagement() {
 
   return (
     <main className="min-h-screen bg-background">
-      {!isCollapsed && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setIsCollapsed(true)}
-        />
-      )}
+      <div className="flex-1 p-4 md:p-6 bg-background">
+        <div className="container mx-auto py-6 space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-2xl">
+                    <Lock className="h-6 w-6" />
+                    Permission Management System
+                  </CardTitle>
+                  <CardDescription>
+                    Manage feature access, create policies, and control user permissions
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={() => setActiveTab("create-policy")}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Policy
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="ml-3 text-muted-foreground">Loading permission data...</p>
+                </div>
+              ) : error ? (
+                <div className="text-center py-12">
+                  <p className="text-destructive mb-4">{error}</p>
+                  <Button onClick={loadAllData} variant="outline">
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="create-policy">Create Policy</TabsTrigger>
+                    {activeTab === "module-detail" && (
+                      <TabsTrigger value="module-detail">Module Details</TabsTrigger>
+                    )}
+                    {activeTab === "policy-mapped-users" && (
+                      <TabsTrigger value="policy-mapped-users">Mapped Users</TabsTrigger>
+                    )}
+                    {activeTab === "mapping-detail" && (
+                      <TabsTrigger value="mapping-detail">Mapping Details</TabsTrigger>
+                    )}
+                  </TabsList>
 
-      <div className="flex min-h-screen">
-        <Sidebar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          isCollapsed={isCollapsed}
-          setIsCollapsed={setIsCollapsed}
-        />
-        <section className={cn(
-          "flex-1 transition-all duration-300 flex flex-col min-h-screen",
-          isCollapsed ? "md:ml-0" : "md:ml-0"
-        )}>
-          <div className="p-4 border-b border-border bg-card/50">
-            <Topbar
-              darkMode={darkMode}
-              toggleDarkMode={() => setDarkMode(!darkMode)}
-              toggleSidebar={() => setIsCollapsed(!isCollapsed)}
-            />
-          </div>
-          <div className="flex-1 p-4 md:p-6 bg-background">
-            <div className="container mx-auto py-6 space-y-6">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2 text-2xl">
-                        <Lock className="h-6 w-6" />
-                        Permission Management System
-                      </CardTitle>
-                      <CardDescription>
-                        Manage feature access, create policies, and control user permissions
-                      </CardDescription>
-                    </div>
-                    <Button
-                      onClick={() => setActiveTab("create-policy")}
-                      className="flex items-center gap-2"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Create Policy
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      <p className="ml-3 text-muted-foreground">Loading permission data...</p>
-                    </div>
-                  ) : error ? (
-                    <div className="text-center py-12">
-                      <p className="text-destructive mb-4">{error}</p>
-                      <Button onClick={loadAllData} variant="outline">
-                        Retry
-                      </Button>
-                    </div>
-                  ) : (
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                      <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
-                        <TabsTrigger value="overview">Overview</TabsTrigger>
-                        <TabsTrigger value="create-policy">Create Policy</TabsTrigger>
-                        {activeTab === "module-detail" && (
-                          <TabsTrigger value="module-detail">Module Details</TabsTrigger>
-                        )}
-                        {activeTab === "policy-mapped-users" && (
-                          <TabsTrigger value="policy-mapped-users">Mapped Users</TabsTrigger>
-                        )}
-                        {activeTab === "mapping-detail" && (
-                          <TabsTrigger value="mapping-detail">Mapping Details</TabsTrigger>
-                        )}
-                      </TabsList>
+                  <TabsContent value="overview" className="mt-6">
+                    <PolicyOverview
+                      policies={policies}
+                      policyFeatureMappings={policyFeatureMappings}
+                      allFeatures={allFeatures}
+                      userCounts={userCounts}
+                      onModuleClick={handleModuleClick}
+                      onViewMappedUsers={handlePolicyMappedUsersClick}
+                      onMappingClick={handleMappingClick}
+                      onEditPolicy={handleEditPolicy}
+                      onDeletePolicy={handleDeletePolicy}
+                      onPolicyUpdate={loadAllData}
+                    />
+                  </TabsContent>
 
-                      <TabsContent value="overview" className="mt-6">
-                        <PolicyOverview
-                          policies={policies}
-                          policyFeatureMappings={policyFeatureMappings}
-                          allFeatures={allFeatures}
-                          userCounts={userCounts}
-                          onModuleClick={handleModuleClick}
-                          onViewMappedUsers={handlePolicyMappedUsersClick}
-                          onMappingClick={handleMappingClick}
-                          onEditPolicy={handleEditPolicy}
-                          onDeletePolicy={handleDeletePolicy}
-                          onPolicyUpdate={loadAllData}
-                        />
-                      </TabsContent>
+                  <TabsContent value="create-policy" className="mt-6">
+                    <CreatePolicyTab
+                      allFeatures={allFeatures}
+                      onPolicyCreated={() => {
+                        setActiveTab("overview")
+                        loadAllData()
+                      }}
+                    />
+                  </TabsContent>
 
-                      <TabsContent value="create-policy" className="mt-6">
-                        <CreatePolicyTab
-                          allFeatures={allFeatures}
-                          onPolicyCreated={() => {
-                            setActiveTab("overview")
-                            loadAllData()
-                          }}
-                        />
-                      </TabsContent>
+                  <TabsContent value="module-detail" className="mt-6">
+                    {selectedModule && (
+                      <ModuleDetailTab moduleName={selectedModule} onBack={handleBackToOverview} />
+                    )}
+                  </TabsContent>
 
-                      <TabsContent value="module-detail" className="mt-6">
-                        {selectedModule && (
-                          <ModuleDetailTab moduleName={selectedModule} onBack={handleBackToOverview} />
-                        )}
-                      </TabsContent>
+                  <TabsContent value="policy-mapped-users" className="mt-6">
+                    {selectedPolicy && (
+                      <PolicyMappedUsersTab
+                        policy={selectedPolicy}
+                        onBack={handleBackToOverview}
+                        onUserUpdate={async () => {
+                          // Refresh user counts when users are added/removed
+                          // Use current policies state to get updated counts
+                          const updatedCounts = await fetchUserCountsForPolicies(policies)
+                          setUserCounts(updatedCounts)
+                        }}
+                      />
+                    )}
+                  </TabsContent>
 
-                      <TabsContent value="policy-mapped-users" className="mt-6">
-                        {selectedPolicy && (
-                          <PolicyMappedUsersTab 
-                            policy={selectedPolicy} 
-                            onBack={handleBackToOverview}
-                            onUserUpdate={async () => {
-                              // Refresh user counts when users are added/removed
-                              // Use current policies state to get updated counts
-                              const updatedCounts = await fetchUserCountsForPolicies(policies)
-                              setUserCounts(updatedCounts)
-                            }}
-                          />
-                        )}
-                      </TabsContent>
-
-                      <TabsContent value="mapping-detail" className="mt-6">
-                        {selectedMapping && (
-                          <PolicyMappingDetailTab
-                            mapping={selectedMapping}
-                            onBack={handleBackToOverview}
-                            onUpdate={loadAllData}
-                            allFeatures={allFeatures}
-                          />
-                        )}
-                      </TabsContent>
-                    </Tabs>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
+                  <TabsContent value="mapping-detail" className="mt-6">
+                    {selectedMapping && (
+                      <PolicyMappingDetailTab
+                        mapping={selectedMapping}
+                        onBack={handleBackToOverview}
+                        onUpdate={loadAllData}
+                        allFeatures={allFeatures}
+                      />
+                    )}
+                  </TabsContent>
+                </Tabs>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
 
@@ -519,10 +480,10 @@ export default function PermissionManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to delete this policy?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the policy "
+              This action cannot be undone. This will permanently delete the policy &quot;
               <span className="font-semibold">
                 {policyToDelete?.policy_name || policyToDelete?.name || policyToDelete?.p_name || "Unknown"}
-              </span>" and all of its data.
+              </span>&quot; and all of its data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -544,8 +505,8 @@ export default function PermissionManagement() {
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </main>
+        </AlertDialogContent >
+      </AlertDialog >
+    </main >
   )
 }
