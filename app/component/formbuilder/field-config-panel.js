@@ -363,7 +363,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
     return field.options.map((option, optionIndex) => {
       const optionObj = typeof option === 'string' ? { value: option, label: option } : { ...option }
-      
+
       // Sync nestedFields from the field.nestedFields structure
       if (nestedFields && nestedFields[optionIndex] && Array.isArray(nestedFields[optionIndex])) {
         optionObj.nestedFields = nestedFields[optionIndex].map(nf => {
@@ -378,13 +378,13 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
             hasNested: !!(nf.nestedFields && Object.keys(nf.nestedFields).length > 0),
             isLeadColumn: nf.isLeadColumn || false
           }
-          
+
           // Process options for this nested field
           if (nf.options && Array.isArray(nf.options)) {
             // If this nested field has options, recursively sync them too
             processedNestedField.options = nf.options.map((nfOption, nfOptIndex) => {
               const nfOptionObj = typeof nfOption === 'string' ? { value: nfOption, label: nfOption } : { ...nfOption }
-              
+
               // Recursively sync nested fields for this option
               if (nf.nestedFields && nf.nestedFields[nfOptIndex] && Array.isArray(nf.nestedFields[nfOptIndex])) {
                 nfOptionObj.nestedFields = nf.nestedFields[nfOptIndex].map(deepNf => {
@@ -400,32 +400,32 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                     hasNested: !!(deepNf.nestedFields && Object.keys(deepNf.nestedFields).length > 0),
                     isLeadColumn: deepNf.isLeadColumn || false
                   }
-                  
+
                   // Continue recursion if there are more options
                   if (deepNf.options && Array.isArray(deepNf.options)) {
                     deepNestedField.options = syncOptionsWithNestedFields({ options: deepNf.options }, deepNf.nestedFields)
                   } else {
                     deepNestedField.options = []
                   }
-                  
+
                   return deepNestedField
                 })
               } else {
                 nfOptionObj.nestedFields = []
               }
-              
+
               return nfOptionObj
             })
           } else {
             processedNestedField.options = []
           }
-          
+
           return processedNestedField
         })
       } else {
         optionObj.nestedFields = []
       }
-      
+
       return optionObj
     })
   }
@@ -548,17 +548,17 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         path,
         updates
       )
-      
+
       // Sync options with nested fields to ensure preview gets the updates
       const updatedOptions = syncOptionsWithNestedFields(field, updatedNestedFields)
 
       if (useDebounce) {
-        debouncedUpdateField(fieldId, { 
+        debouncedUpdateField(fieldId, {
           nestedFields: updatedNestedFields,
           options: updatedOptions
         })
       } else {
-        onUpdateField(fieldId, { 
+        onUpdateField(fieldId, {
           nestedFields: updatedNestedFields,
           options: updatedOptions
         })
@@ -571,11 +571,11 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         path,
         null
       )
-      
+
       // Sync options with nested fields to ensure preview gets the updates
       const updatedOptions = syncOptionsWithNestedFields(field, updatedNestedFields)
-      
-      onUpdateField(fieldId, { 
+
+      onUpdateField(fieldId, {
         nestedFields: updatedNestedFields,
         options: updatedOptions
       })
@@ -587,11 +587,11 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
         path,
         optionIndex
       )
-      
+
       // Sync options with nested fields to ensure preview gets the updates
       const updatedOptions = syncOptionsWithNestedFields(field, updatedNestedFields)
-      
-      onUpdateField(fieldId, { 
+
+      onUpdateField(fieldId, {
         nestedFields: updatedNestedFields,
         options: updatedOptions
       })
@@ -1394,6 +1394,8 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
     )
   })
 
+  NestedFieldConfig.displayName = "NestedFieldConfig"
+
   const needsOptions = ["select", "checkbox", "radio"].includes(field.type)
 
   return (
@@ -1573,11 +1575,11 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                   [],
                                   index
                                 )
-                                
+
                                 // Sync options with nested fields to ensure preview gets the updates
                                 const updatedOptions = syncOptionsWithNestedFields(field, updatedNestedFields)
-                                
-                                onUpdateField(field.id, { 
+
+                                onUpdateField(field.id, {
                                   nestedFields: updatedNestedFields,
                                   options: updatedOptions
                                 })
@@ -1629,7 +1631,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                   <div className="flex flex-col items-center gap-2">
                                     <Settings2 className="h-4 w-4" />
                                     <span>No additional fields for this option</span>
-                                    <span className="text-xs">Click "Add Field" to create conditional fields</span>
+                                    <span className="text-xs">Click &quot;Add Field&quot; to create conditional fields</span>
                                   </div>
                                 </div>
                               )}
@@ -2059,3 +2061,5 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
     </div>
   )
 }
+
+FieldConfigPanel.displayName = "FieldConfigPanel"

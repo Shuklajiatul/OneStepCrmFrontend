@@ -84,7 +84,7 @@ const useLocationData = (currentValue, validation = {}) => {
             return
           }
         }
-        
+
         try {
           setLoadingStates(true)
           const statesData = await fetchStates(selectedCountry.id)
@@ -116,7 +116,7 @@ const useLocationData = (currentValue, validation = {}) => {
         // Check if this state is allowed (for location fields with restrictions)
         const selectedState = states.find(s => s.name === currentValue.state)
         const selectedCountry = countries.find(c => c.name === currentValue.country)
-        
+
         if (validation.allowedStates && selectedCountry) {
           if (!selectedState || !validation.allowedStates[selectedCountry.name]?.includes(selectedState.name)) {
             setCities([])
@@ -124,7 +124,7 @@ const useLocationData = (currentValue, validation = {}) => {
             return
           }
         }
-        
+
         try {
           setLoadingCities(true)
           const citiesData = await fetchCities(selectedState.id)
@@ -156,10 +156,10 @@ const useLocationData = (currentValue, validation = {}) => {
         return false
       }
     }
-    
+
     // Apply search filter
     return country.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-           country.iso2.toLowerCase().includes(countrySearch.toLowerCase())
+      country.iso2.toLowerCase().includes(countrySearch.toLowerCase())
   })
 
   const filteredStates = states.filter(state => {
@@ -172,7 +172,7 @@ const useLocationData = (currentValue, validation = {}) => {
         }
       }
     }
-    
+
     // Apply search filter
     return state.name.toLowerCase().includes(stateSearch.toLowerCase())
   })
@@ -187,7 +187,7 @@ const useLocationData = (currentValue, validation = {}) => {
         }
       }
     }
-    
+
     // Apply search filter
     return city.name.toLowerCase().includes(citySearch.toLowerCase())
   })
@@ -200,12 +200,12 @@ const useLocationData = (currentValue, validation = {}) => {
     allCountries: countries,
     allStates: states,
     allCities: cities,
-    
+
     // Loading states
     loadingStates,
     loadingCities,
     apiError,
-    
+
     // Search states
     countrySearch,
     stateSearch,
@@ -213,7 +213,7 @@ const useLocationData = (currentValue, validation = {}) => {
     setCountrySearch,
     setStateSearch,
     setCitySearch,
-    
+
     // Popover states
     countryOpen,
     stateOpen,
@@ -226,7 +226,7 @@ const useLocationData = (currentValue, validation = {}) => {
 
 // Reusable Location Field Component
 const LocationField = ({ current, validation, onChange, invalid, error, disabled }) => {
-  
+
   const locationData = useLocationData(current, validation)
 
   const handleCountry = (countryId) => {
@@ -508,15 +508,15 @@ const isImageFile = (file) => {
 }
 
 const renderNestedFields = (field, selectedOptions, onChange, parentValue, disabled, invalid, error, locationData, depth = 0, processedIds = new Set(), hideFieldTypes = false) => {
-  
+
   // Generate a unique key for this field if id is undefined
   const fieldKey = field.id || generateUniqueFieldId(`nested-${field.label}-${depth}`)
-  
+
   // Prevent infinite recursion by tracking processed field IDs
   if (processedIds.has(fieldKey)) {
     return null
   }
-  
+
   // Create a new Set for this recursion level to avoid mutation issues
   const currentProcessedIds = new Set(processedIds)
   currentProcessedIds.add(fieldKey)
@@ -535,19 +535,19 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
   if (Array.isArray(selectedOptions)) {
     selectedOptions.forEach(selectedValue => {
       const option = findOptionByValue(selectedValue)
-      
+
       if (option && typeof option === 'object' && option.nestedFields && option.nestedFields.length > 0) {
         const optionIndex = field.options?.findIndex(opt => {
           const optValue = typeof opt === 'string' ? opt : opt.value
           return optValue === selectedValue
         })
-        
+
         // Add unique nested fields only
         option.nestedFields.forEach((nestedField, nestedIndex) => {
           // Generate unique key for nested field if id is undefined
           const nestedFieldId = nestedField.id || `nested-${nestedField.label}-${optionIndex}-${nestedIndex}`
           const nestedFieldKey = `${fieldKey}_${optionIndex}_${nestedFieldId}`
-          
+
           if (!currentProcessedIds.has(nestedFieldKey)) {
             nestedFieldsToShow.push({
               ...nestedField,
@@ -574,7 +574,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
             // Generate unique key for nested field if id is undefined
             const nestedFieldId = nestedField.id || `nested-${nestedField.label}-${optionIndex}-${nestedIndex}`
             const nestedFieldKey = `${fieldKey}_${optionIndex}_${nestedFieldId}`
-            
+
             if (!currentProcessedIds.has(nestedFieldKey)) {
               nestedFieldsToShow.push({
                 ...nestedField,
@@ -582,8 +582,8 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
                 name: nestedField.name || nestedField.label,
                 optionIndex,
                 optionValue: selectedValue,
-              uniqueKey: nestedFieldKey,
-              options: nestedField.options || [] // Ensure options are preserved
+                uniqueKey: nestedFieldKey,
+                options: nestedField.options || [] // Ensure options are preserved
               })
               currentProcessedIds.add(nestedFieldKey)
             }
@@ -595,19 +595,19 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
   // For single select/radio, show nested fields for the selected option
   else if (selectedOptions && typeof selectedOptions === 'string') {
     const option = findOptionByValue(selectedOptions)
-    
+
     if (option && typeof option === 'object' && option.nestedFields && option.nestedFields.length > 0) {
       const optionIndex = field.options?.findIndex(opt => {
         const optValue = typeof opt === 'string' ? opt : opt.value
         return optValue === selectedOptions
       })
-      
+
       // Add unique nested fields only
       option.nestedFields.forEach((nestedField, nestedIndex) => {
         // Generate unique key for nested field if id is undefined
         const nestedFieldId = nestedField.id || `nested-${nestedField.label}-${optionIndex}-${nestedIndex}`
         const nestedFieldKey = `${fieldKey}_${optionIndex}_${nestedFieldId}`
-        
+
         if (!currentProcessedIds.has(nestedFieldKey)) {
           nestedFieldsToShow.push({
             ...nestedField,
@@ -633,7 +633,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
           // Generate unique key for nested field if id is undefined
           const nestedFieldId = nestedField.id || `nested-${nestedField.label}-${optionIndex}-${nestedIndex}`
           const nestedFieldKey = `${fieldKey}_${optionIndex}_${nestedFieldId}`
-          
+
           if (!currentProcessedIds.has(nestedFieldKey)) {
             nestedFieldsToShow.push({
               ...nestedField,
@@ -649,12 +649,12 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
       }
     }
   }
-  
-  
+
+
   if (nestedFieldsToShow.length === 0) {
     return null
   }
-  
+
   const borderColor = depth === 0 ? 'border-primary/20' : depth === 1 ? 'border-blue-300/30' : 'border-green-300/30'
   const dotColor = depth === 0 ? 'bg-primary' : depth === 1 ? 'bg-blue-500' : 'bg-green-500'
 
@@ -670,7 +670,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
       <div className="space-y-4 w-full min-w-0">
         {nestedFieldsToShow.map((nestedField) => {
           const nestedFieldId = nestedField.uniqueKey || `${fieldKey}_${nestedField.optionIndex}_${nestedField.id}`
-          
+
           // Get the nested value from parentValue - handle both old and new structures
           let nestedValue = null
 
@@ -799,7 +799,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
                   </Badge>
                 )}
               </div>
-              
+
               {/* Render the nested field input */}
               {renderNestedFieldInput(nestedField, nestedValue, handleNestedChange, disabled, invalid, error, {
                 countries: locationData?.countries || [],
@@ -818,103 +818,103 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
                 stateOpen: locationData?.stateOpen || false,
                 cityOpen: locationData?.cityOpen || false,
                 phoneCountryOpen: locationData?.phoneCountryOpen || false,
-                setCountrySearch: locationData?.setCountrySearch || (() => {}),
-                setStateSearch: locationData?.setStateSearch || (() => {}),
-                setCitySearch: locationData?.setCitySearch || (() => {}),
-                setPhoneCountrySearch: locationData?.setPhoneCountrySearch || (() => {}),
-                setCountryOpen: locationData?.setCountryOpen || (() => {}),
-                setStateOpen: locationData?.setStateOpen || (() => {}),
-                setCityOpen: locationData?.setCityOpen || (() => {}),
-                setPhoneCountryOpen: locationData?.setPhoneCountryOpen || (() => {}),
+                setCountrySearch: locationData?.setCountrySearch || (() => { }),
+                setStateSearch: locationData?.setStateSearch || (() => { }),
+                setCitySearch: locationData?.setCitySearch || (() => { }),
+                setPhoneCountrySearch: locationData?.setPhoneCountrySearch || (() => { }),
+                setCountryOpen: locationData?.setCountryOpen || (() => { }),
+                setStateOpen: locationData?.setStateOpen || (() => { }),
+                setCityOpen: locationData?.setCityOpen || (() => { }),
+                setPhoneCountryOpen: locationData?.setPhoneCountryOpen || (() => { }),
                 filteredCountries: locationData?.filteredCountries || [],
                 filteredStates: locationData?.filteredStates || [],
                 filteredCities: locationData?.filteredCities || [],
                 filteredPhoneCountries: locationData?.filteredPhoneCountries || []
               })}
-              
+
               {/* Recursively render nested fields if this field has nested fields */}
               {/* Check if this nested field itself has nested fields in its options */}
-              {nestedField.options && nestedField.options.some(option => 
+              {nestedField.options && nestedField.options.some(option =>
                 option.nestedFields && option.nestedFields.length > 0
               ) && (
-                <div className="mt-3">
-                  {renderNestedFields(
-                    nestedField, 
-                    nestedValue?.value || nestedValue, 
-                    (deepValue) => {
-                      // Create a recursive change handler that properly propagates changes through all nesting levels
-                      const currentNestedFields = parentValue?.nestedFields || {}
-                      const optionNestedFields = currentNestedFields[nestedField.optionIndex] || {}
-                      
-                      // Handle deep nested values properly - merge the deep value structure
-                      let updatedOptionNestedFields
-                      if (typeof deepValue === 'object' && deepValue !== null && deepValue.nestedFields) {
-                        // Deep value contains nested fields - merge them properly
-                        updatedOptionNestedFields = {
-                          ...optionNestedFields,
-                          [nestedField.id]: {
-                            ...optionNestedFields[nestedField.id],
-                            ...deepValue
+                  <div className="mt-3">
+                    {renderNestedFields(
+                      nestedField,
+                      nestedValue?.value || nestedValue,
+                      (deepValue) => {
+                        // Create a recursive change handler that properly propagates changes through all nesting levels
+                        const currentNestedFields = parentValue?.nestedFields || {}
+                        const optionNestedFields = currentNestedFields[nestedField.optionIndex] || {}
+
+                        // Handle deep nested values properly - merge the deep value structure
+                        let updatedOptionNestedFields
+                        if (typeof deepValue === 'object' && deepValue !== null && deepValue.nestedFields) {
+                          // Deep value contains nested fields - merge them properly
+                          updatedOptionNestedFields = {
+                            ...optionNestedFields,
+                            [nestedField.id]: {
+                              ...optionNestedFields[nestedField.id],
+                              ...deepValue
+                            }
+                          }
+                        } else {
+                          // Simple value update
+                          updatedOptionNestedFields = {
+                            ...optionNestedFields,
+                            [nestedField.id]: deepValue
                           }
                         }
-                      } else {
-                        // Simple value update
-                        updatedOptionNestedFields = {
-                          ...optionNestedFields,
-                          [nestedField.id]: deepValue
-                        }
-                      }
-                      
-                      const updatedNestedFields = {
-                        ...currentNestedFields,
-                        [nestedField.optionIndex]: updatedOptionNestedFields
-                      }
 
-                      onChange({
-                        ...parentValue,
-                        nestedFields: updatedNestedFields
-                      })
-                    }, 
-                    nestedValue, 
-                    disabled, 
-                    invalid, 
-                    error,
-                    {
-                      countries: locationData?.countries || [],
-                      states: locationData?.states || [],
-                      cities: locationData?.cities || [],
-                      phoneCountries: locationData?.phoneCountries || [],
-                      loadingStates: locationData?.loadingStates || false,
-                      loadingCities: locationData?.loadingCities || false,
-                      loadingPhoneCountries: locationData?.loadingPhoneCountries || false,
-                      apiError: locationData?.apiError || null,
-                      countrySearch: locationData?.countrySearch || "",
-                      stateSearch: locationData?.stateSearch || "",
-                      citySearch: locationData?.citySearch || "",
-                      phoneCountrySearch: locationData?.phoneCountrySearch || "",
-                      countryOpen: locationData?.countryOpen || false,
-                      stateOpen: locationData?.stateOpen || false,
-                      cityOpen: locationData?.cityOpen || false,
-                      phoneCountryOpen: locationData?.phoneCountryOpen || false,
-                      setCountrySearch: locationData?.setCountrySearch || (() => {}),
-                      setStateSearch: locationData?.setStateSearch || (() => {}),
-                      setCitySearch: locationData?.setCitySearch || (() => {}),
-                      setPhoneCountrySearch: locationData?.setPhoneCountrySearch || (() => {}),
-                      setCountryOpen: locationData?.setCountryOpen || (() => {}),
-                      setStateOpen: locationData?.setStateOpen || (() => {}),
-                      setCityOpen: locationData?.setCityOpen || (() => {}),
-                      setPhoneCountryOpen: locationData?.setPhoneCountryOpen || (() => {}),
-                      filteredCountries: locationData?.filteredCountries || [],
-                      filteredStates: locationData?.filteredStates || [],
-                      filteredCities: locationData?.filteredCities || [],
-                      filteredPhoneCountries: locationData?.filteredPhoneCountries || []
-                    }, 
-                    depth + 1, 
-                    new Set(currentProcessedIds),
-                    hideFieldTypes
-                  )}
-                </div>
-              )}
+                        const updatedNestedFields = {
+                          ...currentNestedFields,
+                          [nestedField.optionIndex]: updatedOptionNestedFields
+                        }
+
+                        onChange({
+                          ...parentValue,
+                          nestedFields: updatedNestedFields
+                        })
+                      },
+                      nestedValue,
+                      disabled,
+                      invalid,
+                      error,
+                      {
+                        countries: locationData?.countries || [],
+                        states: locationData?.states || [],
+                        cities: locationData?.cities || [],
+                        phoneCountries: locationData?.phoneCountries || [],
+                        loadingStates: locationData?.loadingStates || false,
+                        loadingCities: locationData?.loadingCities || false,
+                        loadingPhoneCountries: locationData?.loadingPhoneCountries || false,
+                        apiError: locationData?.apiError || null,
+                        countrySearch: locationData?.countrySearch || "",
+                        stateSearch: locationData?.stateSearch || "",
+                        citySearch: locationData?.citySearch || "",
+                        phoneCountrySearch: locationData?.phoneCountrySearch || "",
+                        countryOpen: locationData?.countryOpen || false,
+                        stateOpen: locationData?.stateOpen || false,
+                        cityOpen: locationData?.cityOpen || false,
+                        phoneCountryOpen: locationData?.phoneCountryOpen || false,
+                        setCountrySearch: locationData?.setCountrySearch || (() => { }),
+                        setStateSearch: locationData?.setStateSearch || (() => { }),
+                        setCitySearch: locationData?.setCitySearch || (() => { }),
+                        setPhoneCountrySearch: locationData?.setPhoneCountrySearch || (() => { }),
+                        setCountryOpen: locationData?.setCountryOpen || (() => { }),
+                        setStateOpen: locationData?.setStateOpen || (() => { }),
+                        setCityOpen: locationData?.setCityOpen || (() => { }),
+                        setPhoneCountryOpen: locationData?.setPhoneCountryOpen || (() => { }),
+                        filteredCountries: locationData?.filteredCountries || [],
+                        filteredStates: locationData?.filteredStates || [],
+                        filteredCities: locationData?.filteredCities || [],
+                        filteredPhoneCountries: locationData?.filteredPhoneCountries || []
+                      },
+                      depth + 1,
+                      new Set(currentProcessedIds),
+                      hideFieldTypes
+                    )}
+                  </div>
+                )}
             </div>
           )
         })}
@@ -1038,7 +1038,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
         (validation?.min !== undefined && numValue < validation.min) ||
         (validation?.max !== undefined && numValue > validation.max)
       )
-      
+
       return (
         <div className="space-y-1">
           <div className="relative">
@@ -1065,9 +1065,9 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
           </div>
           {isOutOfRange && (
             <p className="text-xs text-red-500">
-              {validation?.min !== undefined && validation?.max !== undefined 
+              {validation?.min !== undefined && validation?.max !== undefined
                 ? `Value must be between ${validation.min} and ${validation.max}`
-                : validation?.min !== undefined 
+                : validation?.min !== undefined
                   ? `Value must be at least ${validation.min}`
                   : `Value must be at most ${validation.max}`
               }
@@ -1199,7 +1199,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                                 if (!onChange) return
                                 let newValues
                                 let newNestedFields = { ...currentNestedFields }
-                                
+
                                 if (checked) {
                                   newValues = selectedValues.filter((v) => v !== optionValue)
                                   // Remove nested fields for this option if they exist
@@ -1245,13 +1245,13 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
               onValueChange={(selectedOption) => {
                 if (!onChange) return
                 const newNestedFields = {}
-                
+
                 // Only keep nested fields for the currently selected option
                 const selectedOptionIndex = nestedField.options?.indexOf(selectedOption)
                 if (selectedOptionIndex !== -1 && nestedField.nestedFields && nestedField.nestedFields[selectedOptionIndex]) {
                   newNestedFields[selectedOptionIndex] = currentNestedFields[selectedOptionIndex] || {}
                 }
-                
+
                 onChange({
                   value: selectedOption,
                   nestedFields: newNestedFields
@@ -1292,7 +1292,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
       } else if (value !== undefined && value !== null) {
         selectedValues = Array.isArray(value) ? value : [value]
       }
-      
+
       const currentNestedFieldsCheckbox = value?.nestedFields || {}
 
       return (
@@ -1306,45 +1306,45 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                   <Checkbox
                     id={`${nestedField.id}-${index}`}
                     checked={selectedValues.includes(optionValue)}
-                  onCheckedChange={(checked) => {
-                    if (!onChange) return
-                    let newValues
-                    let newNestedFields = { ...currentNestedFieldsCheckbox }
+                    onCheckedChange={(checked) => {
+                      if (!onChange) return
+                      let newValues
+                      let newNestedFields = { ...currentNestedFieldsCheckbox }
 
-                    if (checked) {
-                      newValues = [...selectedValues, optionValue]
-                      // Initialize nested fields for this option if they exist
-                      if (nestedField.nestedFields && nestedField.nestedFields[index]) {
-                        newNestedFields[index] = newNestedFields[index] || {}
+                      if (checked) {
+                        newValues = [...selectedValues, optionValue]
+                        // Initialize nested fields for this option if they exist
+                        if (nestedField.nestedFields && nestedField.nestedFields[index]) {
+                          newNestedFields[index] = newNestedFields[index] || {}
+                        }
+                      } else {
+                        newValues = selectedValues.filter((v) => v !== optionValue)
+                        // Remove nested fields for this option if they exist
+                        if (newNestedFields[index]) {
+                          delete newNestedFields[index]
+                        }
                       }
-                    } else {
-                      newValues = selectedValues.filter((v) => v !== optionValue)
-                      // Remove nested fields for this option if they exist
-                      if (newNestedFields[index]) {
-                        delete newNestedFields[index]
-                      }
-                    }
 
-                    // Determine the correct structure based on the original value format
-                    if (typeof value === 'object' && value !== null && value.hasOwnProperty('value')) {
-                      // Original value was an object with .value property
-                      onChange({
-                        value: newValues,
-                        nestedFields: newNestedFields
-                      })
-                    } else {
-                      // Original value was a direct array or simple value
-                      onChange(newValues)
-                    }
-                  }}
-                  disabled={disabled}
-                  className={invalid ? "border-red-500" : ""}
-                />
-                <Label htmlFor={`${nestedField.id}-${index}`} className="text-sm font-normal cursor-pointer">
-                  {optionLabel}
-                </Label>
+                      // Determine the correct structure based on the original value format
+                      if (typeof value === 'object' && value !== null && value.hasOwnProperty('value')) {
+                        // Original value was an object with .value property
+                        onChange({
+                          value: newValues,
+                          nestedFields: newNestedFields
+                        })
+                      } else {
+                        // Original value was a direct array or simple value
+                        onChange(newValues)
+                      }
+                    }}
+                    disabled={disabled}
+                    className={invalid ? "border-red-500" : ""}
+                  />
+                  <Label htmlFor={`${nestedField.id}-${index}`} className="text-sm font-normal cursor-pointer">
+                    {optionLabel}
+                  </Label>
+                </div>
               </div>
-            </div>
             )
           }) : (
             <div className="text-sm text-muted-foreground p-2 border border-dashed rounded text-center">
@@ -1366,13 +1366,13 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                 onValueChange={(selectedOption) => {
                   if (!onChange) return
                   const newNestedFields = {}
-                  
+
                   // Only keep nested fields for the currently selected option
                   const selectedOptionIndex = nestedField.options?.indexOf(selectedOption)
                   if (selectedOptionIndex !== -1 && nestedField.nestedFields && nestedField.nestedFields[selectedOptionIndex]) {
                     newNestedFields[selectedOptionIndex] = currentNestedFieldsRadio[selectedOptionIndex] || {}
                   }
-                  
+
                   onChange({
                     value: selectedOption,
                     nestedFields: newNestedFields
@@ -1390,9 +1390,9 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                         <RadioGroupItem value={optionValue} id={`${nestedField.id}-${index}`} className={invalid ? "border-red-500" : ""} />
                         <Label htmlFor={`${nestedField.id}-${index}`} className="text-sm font-normal cursor-pointer">
                           {optionLabel}
-                      </Label>
+                        </Label>
+                      </div>
                     </div>
-                  </div>
                   )
                 })}
               </RadioGroup>
@@ -1417,173 +1417,173 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
           )}
         </div>
       )
-      case "file":
-        const handleFileChange = async (e) => {
-          const file = e.target.files?.[0] || null
-      
-          if (!file) {
-            onChange(null)
-            return
-          }
-      
-          // File type validation based on field configuration - SAME LOGIC AS MAIN FIELD
-          const fileType = validation?.fileType || "both"
-          
-          let allowedTypes = []
-          let allowedExtensions = []
-          let errorMessage = ""
-          
-          if (fileType === "images") {
-            // Image-only field
-            allowedTypes = [
-              'image/jpeg',
-              'image/jpg', 
-              'image/png',
-              'image/gif',
-              'image/webp',
-              'image/svg+xml'
-            ]
-            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
-            errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG)'
-          } else if (fileType === "pdf") {
-            // PDF-only field
-            allowedTypes = ['application/pdf']
-            allowedExtensions = ['.pdf']
-            errorMessage = 'Please select only PDF files'
-          } else {
-            // Default: allow both images and PDFs
-            allowedTypes = [
-              'image/jpeg',
-              'image/jpg',
-              'image/png',
-              'image/gif',
-              'image/webp',
-              'image/svg+xml',
-              'application/pdf'
-            ]
-            allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
-            errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files'
-          }
-      
-          // Check both MIME type and file extension
-          const isValidType = allowedTypes.includes(file.type) ||
-            allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
-      
-          if (!isValidType) {
-            alert(errorMessage)
+    case "file":
+      const handleFileChange = async (e) => {
+        const file = e.target.files?.[0] || null
+
+        if (!file) {
+          onChange(null)
+          return
+        }
+
+        // File type validation based on field configuration - SAME LOGIC AS MAIN FIELD
+        const fileType = validation?.fileType || "both"
+
+        let allowedTypes = []
+        let allowedExtensions = []
+        let errorMessage = ""
+
+        if (fileType === "images") {
+          // Image-only field
+          allowedTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/svg+xml'
+          ]
+          allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg']
+          errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG)'
+        } else if (fileType === "pdf") {
+          // PDF-only field
+          allowedTypes = ['application/pdf']
+          allowedExtensions = ['.pdf']
+          errorMessage = 'Please select only PDF files'
+        } else {
+          // Default: allow both images and PDFs
+          allowedTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+            'image/svg+xml',
+            'application/pdf'
+          ]
+          allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.pdf']
+          errorMessage = 'Please select only image files (JPEG, PNG, GIF, WebP, SVG) or PDF files'
+        }
+
+        // Check both MIME type and file extension
+        const isValidType = allowedTypes.includes(file.type) ||
+          allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
+
+        if (!isValidType) {
+          alert(errorMessage)
+          e.target.value = ''
+          onChange(null)
+          return
+        }
+
+        // File size validation - SAME LOGIC AS MAIN FIELD
+        if (validation?.maxSize) {
+          const maxSizeBytes = validation.maxSize * 1024 * 1024 // Convert MB to bytes
+          if (file.size > maxSizeBytes) {
+            alert(`File size must be less than ${validation.maxSize}MB.`)
             e.target.value = ''
             onChange(null)
             return
           }
-      
-          // File size validation - SAME LOGIC AS MAIN FIELD
-          if (validation?.maxSize) {
-            const maxSizeBytes = validation.maxSize * 1024 * 1024 // Convert MB to bytes
-            if (file.size > maxSizeBytes) {
-              alert(`File size must be less than ${validation.maxSize}MB.`)
-              e.target.value = ''
-              onChange(null)
-              return
-            }
-          } else {
-            // Default file size validation (5MB) - SAME AS MAIN FIELD
-            const maxSizeBytes = 5 * 1024 * 1024 // 5MB in bytes
-            if (file.size > maxSizeBytes) {
-              alert('File size must be less than 5MB.')
-              e.target.value = ''
-              onChange(null)
-              return
-            }
-          }
-      
-          try {
-            const base64 = await fileToBase64(file)
-            const fileData = {
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              lastModified: file.lastModified,
-              base64: base64
-            }
-            onChange(fileData)
-          } catch (error) {
-            console.error('Error converting file to base64:', error)
-            alert('Error processing file. Please try again.')
+        } else {
+          // Default file size validation (5MB) - SAME AS MAIN FIELD
+          const maxSizeBytes = 5 * 1024 * 1024 // 5MB in bytes
+          if (file.size > maxSizeBytes) {
+            alert('File size must be less than 5MB.')
             e.target.value = ''
             onChange(null)
+            return
           }
         }
-      
-        const fileToBase64 = (file) => {
-          return new Promise((resolve, reject) => {
-            const reader = new FileReader()
-            reader.readAsDataURL(file)
-            reader.onload = () => resolve(reader.result)
-            reader.onerror = error => reject(error)
-          })
-        }
-      
-        // Get accepted file types for input - SAME LOGIC AS MAIN FIELD
-        const getAcceptedTypes = () => {
-          const fileType = validation?.fileType || "both"
-          
-          if (fileType === "images") {
-            return ".jpg,.jpeg,.png,.gif,.webp,.svg"
-          } else if (fileType === "pdf") {
-            return ".pdf"
-          } else {
-            return ".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf"
+
+        try {
+          const base64 = await fileToBase64(file)
+          const fileData = {
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            lastModified: file.lastModified,
+            base64: base64
           }
+          onChange(fileData)
+        } catch (error) {
+          console.error('Error converting file to base64:', error)
+          alert('Error processing file. Please try again.')
+          e.target.value = ''
+          onChange(null)
         }
-      
-        return (
-          <div className="space-y-2">
-            <Input
-              type="file"
-              onChange={handleFileChange}
-              disabled={disabled}
-              className={`bg-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 ${invalid ? "border-red-500" : ""
-                }`}
-              accept={getAcceptedTypes()} // Use the same accept logic
-            />
-            
-            {/* File info display - SAME AS MAIN FIELD */}
-            {value && value.name && (
-              <div className="p-3 border border-green-200 bg-green-50 rounded-md">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-8 h-8 flex items-center justify-center rounded ${value.type === 'application/pdf' || value.name.toLowerCase().endsWith('.pdf')
-                      ? 'bg-red-100 text-red-600'
-                      : 'bg-blue-100 text-blue-600'
-                      }`}>
-                      {value.type === 'application/pdf' || value.name.toLowerCase().endsWith('.pdf') ? (
-                        <span className="text-xs font-bold">PDF</span>
-                      ) : (
-                        <span className="text-xs">IMG</span>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 truncate max-w-xs">
-                        {value.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatFileSize(value.size || 0)} • {value.type || 'Unknown type'}
-                      </p>
-                      <p className="text-xs text-green-600">
-                        ✓ Ready to upload ({formatFileSize(value.base64?.length || 0)} as base64)
-                      </p>
-                    </div>
+      }
+
+      const fileToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.readAsDataURL(file)
+          reader.onload = () => resolve(reader.result)
+          reader.onerror = error => reject(error)
+        })
+      }
+
+      // Get accepted file types for input - SAME LOGIC AS MAIN FIELD
+      const getAcceptedTypes = () => {
+        const fileType = validation?.fileType || "both"
+
+        if (fileType === "images") {
+          return ".jpg,.jpeg,.png,.gif,.webp,.svg"
+        } else if (fileType === "pdf") {
+          return ".pdf"
+        } else {
+          return ".jpg,.jpeg,.png,.gif,.webp,.svg,.pdf"
+        }
+      }
+
+      return (
+        <div className="space-y-2">
+          <Input
+            type="file"
+            onChange={handleFileChange}
+            disabled={disabled}
+            className={`bg-input file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 ${invalid ? "border-red-500" : ""
+              }`}
+            accept={getAcceptedTypes()} // Use the same accept logic
+          />
+
+          {/* File info display - SAME AS MAIN FIELD */}
+          {value && value.name && (
+            <div className="p-3 border border-green-200 bg-green-50 rounded-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-8 h-8 flex items-center justify-center rounded ${value.type === 'application/pdf' || value.name.toLowerCase().endsWith('.pdf')
+                    ? 'bg-red-100 text-red-600'
+                    : 'bg-blue-100 text-blue-600'
+                    }`}>
+                    {value.type === 'application/pdf' || value.name.toLowerCase().endsWith('.pdf') ? (
+                      <span className="text-xs font-bold">PDF</span>
+                    ) : (
+                      <span className="text-xs">IMG</span>
+                    )}
                   </div>
-                  <div className="flex gap-2">
-                    {/* Preview button for images and PDFs */}
-                    {(value.type?.includes('image/') || value.type === 'application/pdf') && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (value.base64) {
-                            const newWindow = window.open()
-                            if (value.type.includes('image/')) {
-                              newWindow.document.write(`
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 truncate max-w-xs">
+                      {value.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatFileSize(value.size || 0)} • {value.type || 'Unknown type'}
+                    </p>
+                    <p className="text-xs text-green-600">
+                      ✓ Ready to upload ({formatFileSize(value.base64?.length || 0)} as base64)
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {/* Preview button for images and PDFs */}
+                  {(value.type?.includes('image/') || value.type === 'application/pdf') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (value.base64) {
+                          const newWindow = window.open()
+                          if (value.type.includes('image/')) {
+                            newWindow.document.write(`
                                 <html>
                                   <head><title>${value.name}</title></head>
                                   <body style="margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f5f5;">
@@ -1591,8 +1591,8 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                                   </body>
                                 </html>
                               `)
-                            } else if (value.type === 'application/pdf') {
-                              newWindow.document.write(`
+                          } else if (value.type === 'application/pdf') {
+                            newWindow.document.write(`
                                 <html>
                                   <head><title>${value.name}</title></head>
                                   <body style="margin: 0;">
@@ -1600,65 +1600,65 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                                   </body>
                                 </html>
                               `)
-                            }
                           }
-                        }}
-                        className="px-3 py-1 text-sm text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md border border-transparent hover:border-green-200 transition-colors"
-                      >
-                        Preview
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onChange(null)
-                        const fileInput = document.querySelector('input[type="file"]')
-                        if (fileInput) fileInput.value = ''
+                        }
                       }}
-                      className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md border border-transparent hover:border-red-200 transition-colors"
+                      className="px-3 py-1 text-sm text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md border border-transparent hover:border-green-200 transition-colors"
                     >
-                      Remove
+                      Preview
                     </button>
-                  </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(null)
+                      const fileInput = document.querySelector('input[type="file"]')
+                      if (fileInput) fileInput.value = ''
+                    }}
+                    className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md border border-transparent hover:border-red-200 transition-colors"
+                  >
+                    Remove
+                  </button>
                 </div>
-      
-                {/* Image preview for image files */}
-                {isImageFile(value) && value.base64 && (
-                  <div className="mt-2">
-                    <img
-                      src={value.base64}
-                      alt="Preview"
-                      className="max-h-32 max-w-full rounded border"
-                      onError={(e) => {
-                        console.error('Error loading image preview')
-                        e.target.style.display = 'none'
-                      }}
-                    />
-                  </div>
-                )}
               </div>
-            )}
-            
-            {/* Help text - SAME AS MAIN FIELD */}
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>
-                {validation?.fileType === "images" 
-                  ? "Allowed formats: JPEG, PNG, GIF, WebP, SVG (Images only)"
-                  : validation?.fileType === "pdf" 
-                    ? "Allowed formats: PDF only"
-                    : "Allowed formats: JPEG, PNG, GIF, WebP, SVG, PDF"
-                }
-              </p>
-              <p>
-                {validation?.maxSize 
-                  ? `Maximum file size: ${validation.maxSize}MB`
-                  : "Maximum file size: 5MB"
-                }
-              </p>
-              <p className="text-blue-600">Files will be converted to base64 format</p>
+
+              {/* Image preview for image files */}
+              {isImageFile(value) && value.base64 && (
+                <div className="mt-2">
+                  <img
+                    src={value.base64}
+                    alt="Preview"
+                    className="max-h-32 max-w-full rounded border"
+                    onError={(e) => {
+                      console.error('Error loading image preview')
+                      e.target.style.display = 'none'
+                    }}
+                  />
+                </div>
+              )}
             </div>
+          )}
+
+          {/* Help text - SAME AS MAIN FIELD */}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>
+              {validation?.fileType === "images"
+                ? "Allowed formats: JPEG, PNG, GIF, WebP, SVG (Images only)"
+                : validation?.fileType === "pdf"
+                  ? "Allowed formats: PDF only"
+                  : "Allowed formats: JPEG, PNG, GIF, WebP, SVG, PDF"
+              }
+            </p>
+            <p>
+              {validation?.maxSize
+                ? `Maximum file size: ${validation.maxSize}MB`
+                : "Maximum file size: 5MB"
+              }
+            </p>
+            <p className="text-blue-600">Files will be converted to base64 format</p>
           </div>
-        )
+        </div>
+      )
     case "datetime":
       return (
         <Input
@@ -1822,7 +1822,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
 
       // Use the same LocationField component for nested fields
       return (
-        <LocationField 
+        <LocationField
           key={`nested-location-${nestedField.id}`}
           current={current}
           validation={validation}
@@ -1861,7 +1861,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
 }
 
 export function FieldRenderer({ field, value, onChange, disabled = false, invalid = false, error, hideFieldTypes = false }) {
-  const safeOnChange = onChange || (() => {})
+  const safeOnChange = onChange || (() => { })
   const [countries, setCountries] = useState([])
   const [phoneCountries, setPhoneCountries] = useState([])
   const [states, setStates] = useState([])
@@ -1949,7 +1949,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
       if (current.country) {
         // Find the country by name (since current.country contains the country name, not ID)
         const selectedCountry = countries.find(c => c.name === current.country)
-        
+
         if (!selectedCountry) {
           console.warn('Country not found in countries list:', current.country)
           setStates([])
@@ -1957,7 +1957,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
           setApiError('Selected country not found')
           return
         }
-        
+
         // Check if this country is allowed (for location fields with restrictions)
         if (field.type === 'location' && fieldValidation?.allowedCountries?.length > 0) {
           if (!fieldValidation.allowedCountries.includes(selectedCountry.name)) {
@@ -1967,7 +1967,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
             return
           }
         }
-        
+
         try {
           setLoadingStates(true)
           // Pass the country ID, not the country name
@@ -2001,14 +2001,14 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         // Find the state by name (since current.state contains the state name, not ID)
         const selectedState = states.find(s => s.name === current.state)
         const selectedCountry = countries.find(c => c.id === parseInt(current.country))
-        
+
         if (!selectedState) {
           console.warn('State not found in states list:', current.state)
           setCities([])
           setApiError('Selected state not found')
           return
         }
-        
+
         // Check if this state is allowed (for location fields with restrictions)
         if (field.type === 'location' && fieldValidation?.allowedStates && selectedCountry) {
           if (!fieldValidation.allowedStates[selectedCountry.name]?.includes(selectedState.name)) {
@@ -2017,7 +2017,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
             return
           }
         }
-        
+
         try {
           setLoadingCities(true)
           // Pass the state ID, not the state name
@@ -2050,10 +2050,10 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         return false
       }
     }
-    
+
     // Apply search filter
     return country.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-           country.iso2.toLowerCase().includes(countrySearch.toLowerCase())
+      country.iso2.toLowerCase().includes(countrySearch.toLowerCase())
   })
 
   const filteredStates = states.filter(state => {
@@ -2066,7 +2066,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         }
       }
     }
-    
+
     // Apply search filter
     return state.name.toLowerCase().includes(stateSearch.toLowerCase())
   })
@@ -2081,7 +2081,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         }
       }
     }
-    
+
     // Apply search filter
     return city.name.toLowerCase().includes(citySearch.toLowerCase())
   })
@@ -2215,7 +2215,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
           (fieldValidation?.min !== undefined && numValue < fieldValidation.min) ||
           (fieldValidation?.max !== undefined && numValue > fieldValidation.max)
         )
-        
+
         return (
           <div className="space-y-1">
             <div className="relative">
@@ -2242,9 +2242,9 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
             </div>
             {isOutOfRange && (
               <p className="text-xs text-red-500">
-                {fieldValidation?.min !== undefined && fieldValidation?.max !== undefined 
+                {fieldValidation?.min !== undefined && fieldValidation?.max !== undefined
                   ? `Value must be between ${fieldValidation.min} and ${fieldValidation.max}`
-                  : fieldValidation?.min !== undefined 
+                  : fieldValidation?.min !== undefined
                     ? `Value must be at least ${fieldValidation.min}`
                     : `Value must be at most ${fieldValidation.max}`
                 }
@@ -2368,7 +2368,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                                   } else {
                                     newValues = [...selectedValues, optionValue]
                                   }
-                                  
+
                                   // Only keep nested fields for currently selected options
                                   const newNestedFields = {}
                                   newValues.forEach(selectedOption => {
@@ -2380,7 +2380,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                                       newNestedFields[optionIndex] = value?.nestedFields?.[optionIndex] || {}
                                     }
                                   })
-                                  
+
                                   safeOnChange({
                                     value: newValues,
                                     nestedFields: newNestedFields
@@ -2410,13 +2410,13 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
               <Select value={value?.value || ""} onValueChange={(selectedValue) => {
                 // Clear nested fields when switching options
                 const newNestedFields = {}
-                
+
                 // Only keep nested fields for the currently selected option
                 const selectedOptionIndex = field.options?.indexOf(selectedValue)
                 if (selectedOptionIndex !== -1 && field.nestedFields && field.nestedFields[selectedOptionIndex]) {
                   newNestedFields[selectedOptionIndex] = value?.nestedFields?.[selectedOptionIndex] || {}
                 }
-                
+
                 safeOnChange({
                   value: selectedValue,
                   nestedFields: newNestedFields
@@ -2468,55 +2468,55 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                     <Checkbox
                       id={`${field.id}-${index}`}
                       checked={Array.isArray(value?.value) ? value.value.includes(optionValue) : false}
-                    onCheckedChange={(checked) => {
-                      if (!onChange) return
-                      const currentValue = Array.isArray(value?.value) ? value.value : []
-                      const currentNestedFields = value?.nestedFields || {}
+                      onCheckedChange={(checked) => {
+                        if (!onChange) return
+                        const currentValue = Array.isArray(value?.value) ? value.value : []
+                        const currentNestedFields = value?.nestedFields || {}
 
-                      let newValue
-                      if (checked) {
-                        newValue = [...currentValue, optionValue]
-                      } else {
-                        newValue = currentValue.filter((v) => v !== optionValue)
-                        
-                        // Remove nested fields for this option if they exist
-                        if (field.nestedFields && field.nestedFields[index]) {
-                          const { [index]: removed, ...remainingNestedFields } = currentNestedFields
-                          safeOnChange({
-                            value: newValue,
-                            nestedFields: remainingNestedFields
-                          })
-                          return
+                        let newValue
+                        if (checked) {
+                          newValue = [...currentValue, optionValue]
+                        } else {
+                          newValue = currentValue.filter((v) => v !== optionValue)
+
+                          // Remove nested fields for this option if they exist
+                          if (field.nestedFields && field.nestedFields[index]) {
+                            const { [index]: removed, ...remainingNestedFields } = currentNestedFields
+                            safeOnChange({
+                              value: newValue,
+                              nestedFields: remainingNestedFields
+                            })
+                            return
+                          }
                         }
-                      }
 
-                      safeOnChange({
-                        value: newValue,
-                        nestedFields: currentNestedFields
-                      })
-                    }}
-                    disabled={disabled}
-                    className={invalid ? "border-red-500" : ""}
-                  />
-                  <Label htmlFor={`${field.id}-${index}`} className={`text-sm font-normal cursor-pointer ${invalid ? "text-red-500" : ""}`}>
-                    {optionLabel}
-                  </Label>
-                </div>
-
-        {(() => {
-          // Check for nested fields in both possible structures:
-          // 1. option.nestedFields (for table columns and new structure)
-          // 2. field.nestedFields[index] (for old form builder structure)
-          const hasNestedFields = (option.nestedFields && option.nestedFields.length > 0) || 
-                                 (field.nestedFields && field.nestedFields[index])
-          const shouldRender = Array.isArray(value?.value) && value.value?.includes(optionValue) && hasNestedFields
-          return shouldRender
-        })() && (
-                  <div className="ml-6 space-y-3">
-                    {renderNestedFields(field, [optionValue], onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
+                        safeOnChange({
+                          value: newValue,
+                          nestedFields: currentNestedFields
+                        })
+                      }}
+                      disabled={disabled}
+                      className={invalid ? "border-red-500" : ""}
+                    />
+                    <Label htmlFor={`${field.id}-${index}`} className={`text-sm font-normal cursor-pointer ${invalid ? "text-red-500" : ""}`}>
+                      {optionLabel}
+                    </Label>
                   </div>
-                )}
-              </div>
+
+                  {(() => {
+                    // Check for nested fields in both possible structures:
+                    // 1. option.nestedFields (for table columns and new structure)
+                    // 2. field.nestedFields[index] (for old form builder structure)
+                    const hasNestedFields = (option.nestedFields && option.nestedFields.length > 0) ||
+                      (field.nestedFields && field.nestedFields[index])
+                    const shouldRender = Array.isArray(value?.value) && value.value?.includes(optionValue) && hasNestedFields
+                    return shouldRender
+                  })() && (
+                      <div className="ml-6 space-y-3">
+                        {renderNestedFields(field, [optionValue], onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
+                      </div>
+                    )}
+                </div>
               )
             }) : (
               <div className="text-sm text-muted-foreground p-3 border border-dashed rounded-lg text-center">
@@ -2535,18 +2535,18 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         return (
           <div className="space-y-3">
             {field.options && field.options.length > 0 ? (
-              <RadioGroup 
-                value={value?.value || ""} 
+              <RadioGroup
+                value={value?.value || ""}
                 onValueChange={(selectedValue) => {
                   // Clear nested fields when switching options
                   const newNestedFields = {}
-                  
+
                   // Only keep nested fields for the currently selected option
                   const selectedOptionIndex = field.options?.indexOf(selectedValue)
                   if (selectedOptionIndex !== -1 && field.nestedFields && field.nestedFields[selectedOptionIndex]) {
                     newNestedFields[selectedOptionIndex] = value?.nestedFields?.[selectedOptionIndex] || {}
                   }
-                  
+
                   safeOnChange({
                     value: selectedValue,
                     nestedFields: newNestedFields
@@ -2571,15 +2571,15 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                         // Check for nested fields in both possible structures:
                         // 1. option.nestedFields (for table columns and new structure)
                         // 2. field.nestedFields[index] (for old form builder structure)
-                        const hasNestedFields = (option.nestedFields && option.nestedFields.length > 0) || 
-                                               (field.nestedFields && field.nestedFields[index])
+                        const hasNestedFields = (option.nestedFields && option.nestedFields.length > 0) ||
+                          (field.nestedFields && field.nestedFields[index])
                         return value?.value === optionValue && hasNestedFields
                       })() && (
-                        <div className="ml-6 space-y-3">
-                          {renderNestedFields(field, [optionValue], onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
-                        </div>
-                      )}
-                  </div>
+                          <div className="ml-6 space-y-3">
+                            {renderNestedFields(field, [optionValue], onChange, value, disabled, invalid, error, locationData, 0, new Set(), hideFieldTypes)}
+                          </div>
+                        )}
+                    </div>
                   )
                 })}
               </RadioGroup>
@@ -2633,16 +2633,16 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
 
           // File type validation based on field configuration
           const fileType = fieldValidation?.fileType || "both"
-          
+
           let allowedTypes = []
           let allowedExtensions = []
           let errorMessage = ""
-          
+
           if (fileType === "images") {
             // Image-only field
             allowedTypes = [
               'image/jpeg',
-              'image/jpg', 
+              'image/jpg',
               'image/png',
               'image/gif',
               'image/webp',
@@ -2738,7 +2738,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
         // Get accepted file types for input
         const getAcceptedTypes = () => {
           const fileType = fieldValidation?.fileType || "both"
-          
+
           if (fileType === "images") {
             return ".jpg,.jpeg,.png,.gif,.webp,.svg"
           } else if (fileType === "pdf") {
@@ -2822,19 +2822,19 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                         Preview
                       </button>
                     )}
-                    
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onChange?.(null)
-                      // Reset the file input
-                      const fileInput = document.querySelector('input[type="file"]')
-                      if (fileInput) fileInput.value = ''
-                    }}
-                    className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md border border-transparent hover:border-red-200 transition-colors"
-                  >
-                    Remove
-                  </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChange?.(null)
+                        // Reset the file input
+                        const fileInput = document.querySelector('input[type="file"]')
+                        if (fileInput) fileInput.value = ''
+                      }}
+                      className="px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md border border-transparent hover:border-red-200 transition-colors"
+                    >
+                      Remove
+                    </button>
                   </div>
                 </div>
 
@@ -2854,7 +2854,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                 )}
               </div>
             )}
-            
+
             {/* Fallback display for base64 strings that weren't converted to file objects */}
             {!fileValue && value && typeof value === 'string' && value.startsWith('data:') && (
               <div className="p-3 border border-yellow-200 bg-yellow-50 rounded-md">
@@ -2884,7 +2884,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                           const extension = mimeType.split('/')[1] || 'bin'
                           const filename = `file.${extension}`
                           const size = Math.floor((base64Data.length * 3) / 4)
-                          
+
                           const fileObject = {
                             name: filename,
                             type: mimeType,
@@ -2894,7 +2894,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                             lastModified: Date.now(),
                             isFromBase64: true
                           }
-                          
+
                           onChange?.(fileObject)
                         }
                       } catch (error) {
@@ -2912,15 +2912,15 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
             {/* Help text */}
             <div className="text-xs text-muted-foreground space-y-1">
               <p>
-                {fieldValidation?.fileType === "images" 
+                {fieldValidation?.fileType === "images"
                   ? "Allowed formats: JPEG, PNG, GIF, WebP, SVG (Images only)"
-                  : fieldValidation?.fileType === "pdf" 
+                  : fieldValidation?.fileType === "pdf"
                     ? "Allowed formats: PDF only"
                     : "Allowed formats: JPEG, PNG, GIF, WebP, SVG, PDF"
                 }
               </p>
               <p>
-                {fieldValidation?.maxSize 
+                {fieldValidation?.maxSize
                   ? `Maximum file size: ${fieldValidation.maxSize}MB`
                   : "Maximum file size: 5MB"
                 }
@@ -2959,7 +2959,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
 
         // Use the same LocationField component for main fields
         return (
-          <LocationField 
+          <LocationField
             current={current}
             validation={fieldValidation || {}}
             onChange={onChange}

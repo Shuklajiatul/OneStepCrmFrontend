@@ -764,8 +764,6 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
   const validateNestedField = (nestedField, value) => {
     const errors = []
 
-    // Required validation removed for nested fields - only parent form validation applies
-
     // File type validation
     if (nestedField.type === "file" && value) {
       const fileType = nestedField.validation?.fileType || "both"
@@ -1397,7 +1395,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Share this link with users to collect form responses. Click "Open Form" to view the form in a new tab.
+                  Share this link with users to collect form responses. Click &quot;Open Form&quot; to view the form in a new tab.
                 </p>
               </div>
             )}
