@@ -22,7 +22,7 @@ export default function ClientLayout({ children }) {
 
     // Define public routes that should not have the sidebar/topbar
     const publicRoutes = ['/login', '/register', '/forgot-password']
-    const isPublicRoute = publicRoutes.includes(pathname)
+    const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith('/forms/')
 
     if (isPublicRoute) {
         return <>{children}</>
