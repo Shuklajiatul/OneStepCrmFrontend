@@ -1396,6 +1396,84 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
   NestedFieldConfig.displayName = "NestedFieldConfig"
 
+  const GroupSubFieldConfig = memo(({ subField, index, onUpdate, onRemove }) => {
+    // Local state for immediate UI feedback
+    const [localLabel, setLocalLabel] = useState(subField.label)
+    const [localPlaceholder, setLocalPlaceholder] = useState(subField.placeholder || "")
+
+    // Sync local state
+    useEffect(() => {
+      setLocalLabel(subField.label)
+      setLocalPlaceholder(subField.placeholder || "")
+    }, [subField.label, subField.placeholder])
+
+    return (
+      <div className="p-3 border rounded-lg space-y-3 w-full bg-muted/20">
+        <div className="flex items-center justify-between">
+          <Badge variant="outline" className="text-xs">Field {index + 1}</Badge>
+          <Button size="sm" variant="ghost" onClick={() => onRemove(index)} className="h-6 w-6 p-0 text-destructive">
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground">Label</Label>
+          <Input
+            value={localLabel}
+            onChange={(e) => setLocalLabel(e.target.value)}
+            onBlur={(e) => onUpdate(index, { label: e.target.value })}
+            className="h-8 text-sm"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground">Type</Label>
+          <Select
+            value={subField.type}
+            onValueChange={(value) => onUpdate(index, { type: value })}
+          >
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text">Text Input</SelectItem>
+              <SelectItem value="number">Number</SelectItem>
+              <SelectItem value="email">Email</SelectItem>
+              <SelectItem value="textarea">Textarea</SelectItem>
+              <SelectItem value="select">Select</SelectItem>
+              <SelectItem value="checkbox">Checkbox</SelectItem>
+              <SelectItem value="radio">Radio</SelectItem>
+              <SelectItem value="file">File Upload</SelectItem>
+              <SelectItem value="datetime">Date & Time</SelectItem>
+              <SelectItem value="phone">Phone Number</SelectItem>
+              <SelectItem value="location">Location</SelectItem>
+              <SelectItem value="group">Group</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Placeholder */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground">Placeholder</Label>
+          <Input
+            value={localPlaceholder}
+            onChange={(e) => setLocalPlaceholder(e.target.value)}
+            onBlur={(e) => onUpdate(index, { placeholder: e.target.value })}
+            className="h-8 text-sm"
+          />
+        </div>
+
+        {/* Required Toggle */}
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-medium text-muted-foreground">Required</Label>
+          <Switch
+            checked={subField.required || false}
+            onCheckedChange={(checked) => onUpdate(index, { required: checked })}
+          />
+        </div>
+      </div>
+    )
+  })
+  GroupSubFieldConfig.displayName = "GroupSubFieldConfig"
+
   const needsOptions = ["select", "checkbox", "radio"].includes(field.type)
 
   return (
@@ -1665,6 +1743,56 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
               <div className="text-xs text-muted-foreground">
                 <span className="font-bold text-purple-600">Tip:</span> You can add nested fields to each option.
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Group Fields Configuration */}
+        {field.type === "group" && (
+          <Card className="border-0 shadow-none bg-transparent">
+            <CardHeader className="px-0 pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                Group Fields
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-0 space-y-4">
+              <div className="space-y-3">
+                {field.subFields?.map((subField, index) => (
+                  <GroupSubFieldConfig
+                    key={subField.id}
+                    subField={subField}
+                    index={index}
+                    onUpdate={(idx, updates) => {
+                      const newSubFields = [...(field.subFields || [])]
+                      newSubFields[idx] = { ...newSubFields[idx], ...updates }
+                      onUpdateField(field.id, { subFields: newSubFields })
+                    }}
+                    onRemove={(idx) => {
+                      const newSubFields = field.subFields.filter((_, i) => i !== idx)
+                      onUpdateField(field.id, { subFields: newSubFields })
+                    }}
+                  />
+                ))}
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  const newSubField = {
+                    id: uuidv4(),
+                    type: 'text',
+                    label: `Field ${(field.subFields?.length || 0) + 1}`,
+                    placeholder: '',
+                    required: false
+                  }
+                  onUpdateField(field.id, {
+                    subFields: [...(field.subFields || []), newSubField]
+                  })
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" /> Add Field to Group
+              </Button>
             </CardContent>
           </Card>
         )}

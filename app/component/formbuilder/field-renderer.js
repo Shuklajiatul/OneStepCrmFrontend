@@ -1834,6 +1834,51 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
       )
     }
 
+    case "group":
+      return (
+        <div className="border rounded-md p-4 space-y-4 bg-white">
+          {nestedField.subFields && nestedField.subFields.length > 0 ? (
+            nestedField.subFields.map((subField) => {
+              const subFieldValue = value?.[subField.id]
+              const handleSubFieldChange = (newValue) => {
+                const newData = { ...value, [subField.id]: newValue }
+                onChange(newData)
+              }
+
+              return (
+                <div key={subField.id} className="space-y-2">
+                  <Label>{subField.label}</Label>
+                  {renderNestedFieldInput(
+                    subField,
+                    subFieldValue,
+                    handleSubFieldChange,
+                    disabled,
+                    false,
+                    null,
+                    {
+                      countries, states, cities, phoneCountries,
+                      loadingStates, loadingCities, loadingPhoneCountries,
+                      apiError,
+                      countrySearch, stateSearch, citySearch, phoneCountrySearch,
+                      countryOpen, stateOpen, cityOpen, phoneCountryOpen,
+                      setCountrySearch, setStateSearch, setCitySearch, setPhoneCountrySearch,
+                      setCountryOpen, setStateOpen, setCityOpen, setPhoneCountryOpen,
+                      filteredCountries, filteredStates, filteredCities, filteredPhoneCountries
+                    },
+                    depth + 1,
+                    processedIds
+                  )}
+                </div>
+              )
+            })
+          ) : (
+            <div className="text-sm text-muted-foreground border border-dashed p-4 text-center rounded-md">
+              Empty Group.
+            </div>
+          )}
+        </div>
+      )
+
     default:
       return (
         <div className="relative">
@@ -3115,6 +3160,40 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
           </div>
         )
       }
+
+      case "group":
+        return (
+          <div className="border rounded-md p-4 space-y-4 bg-gray-50/50">
+            {field.subFields && field.subFields.length > 0 ? (
+              field.subFields.map((subField) => {
+                const subFieldValue = value?.[subField.id]
+                const handleSubFieldChange = (newValue) => {
+                  const newData = { ...value, [subField.id]: newValue }
+                  onChange?.(newData)
+                }
+
+                return (
+                  <div key={subField.id} className="space-y-2">
+                    <Label>{subField.label}</Label>
+                    {renderNestedFieldInput(
+                      subField,
+                      subFieldValue,
+                      handleSubFieldChange,
+                      disabled,
+                      false,
+                      null,
+                      locationData
+                    )}
+                  </div>
+                )
+              })
+            ) : (
+              <div className="text-sm text-muted-foreground border border-dashed p-4 text-center rounded-md">
+                Empty Group. Add fields from configuration.
+              </div>
+            )}
+          </div>
+        )
 
       default:
         return (

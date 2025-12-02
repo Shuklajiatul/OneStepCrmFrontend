@@ -20,6 +20,7 @@ import {
   Database,
   ChevronLeft,
   ChevronRight,
+  Box,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -36,6 +37,7 @@ const fieldTypes = [
   { type: "datetime", label: "Date Time", icon: Calendar, description: "Date and time picker" },
   { type: "location", label: "Location", icon: MapPin, description: "Country → State → City" },
   { type: "table_column", label: "Table Column", icon: Database, description: "Use table columns as fields" },
+  { type: "group", label: "Group", icon: Box, description: "Group fields together" },
 ]
 
 const DraggableFieldItem = memo(function DraggableFieldItem({ field, collapsed, onAddField }) {
@@ -63,8 +65,8 @@ const DraggableFieldItem = memo(function DraggableFieldItem({ field, collapsed, 
       style={style}
       variant="ghost"
       className={`w-full ${collapsed
-          ? "justify-center p-2 h-10 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-105"
-          : "justify-start h-auto p-3 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm"
+        ? "justify-center p-2 h-10 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-105"
+        : "justify-start h-auto p-3 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-sm"
         } field-type-button cursor-grab active:cursor-grabbing rounded-md transition-all duration-200 ease-out ${isDragging ? "opacity-50 scale-95" : ""
         }`}
       onClick={handleClick}
@@ -106,13 +108,13 @@ const DraggableFieldItem = memo(function DraggableFieldItem({ field, collapsed, 
 })
 
 const FieldPaletteComponent = function FieldPalette({ onAddField, collapsed = false, onToggleCollapse, width }) {
-  const style = width ? { 
+  const style = width ? {
     width: `${width}px`,
     transition: 'width 0.05s ease-out'
   } : {}
-  
+
   return (
-    <div 
+    <div
       className={`h-full bg-sidebar border-r border-sidebar-border ${collapsed ? "w-16" : ""} flex flex-col flex-shrink-0 transition-all duration-200 ease-out relative group/sidebar`}
       style={collapsed ? {} : style}
     >
@@ -122,9 +124,8 @@ const FieldPaletteComponent = function FieldPalette({ onAddField, collapsed = fa
           <Button
             variant="ghost"
             size="icon"
-            className={`absolute top-3 -right-3 z-20 h-6 w-6 rounded-full bg-background border border-border shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 hover:!opacity-100 ${
-              collapsed ? "opacity-100" : ""
-            }`}
+            className={`absolute top-3 -right-3 z-20 h-6 w-6 rounded-full bg-background border border-border shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 hover:!opacity-100 ${collapsed ? "opacity-100" : ""
+              }`}
             onClick={onToggleCollapse}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
@@ -149,17 +150,17 @@ const FieldPaletteComponent = function FieldPalette({ onAddField, collapsed = fa
             </CardTitle>
           )}
         </CardHeader>
-        
+
         {/* Scrollable Content Area */}
         <CardContent className="p-0 flex-1 overflow-hidden">
           <div className="h-full overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-sidebar-border scrollbar-track-transparent">
             <div className={collapsed ? "space-y-1" : "space-y-2"}>
               {fieldTypes.map((field) => (
-                <DraggableFieldItem 
-                  key={field.type} 
-                  field={field} 
-                  collapsed={collapsed} 
-                  onAddField={onAddField} 
+                <DraggableFieldItem
+                  key={field.type}
+                  field={field}
+                  collapsed={collapsed}
+                  onAddField={onAddField}
                 />
               ))}
             </div>
