@@ -36,13 +36,11 @@ import { toast } from "sonner"
 import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
 import { useParams, useRouter, usePathname } from "next/navigation"
-import Sidebar from "../../component/sidebar"
-import Topbar from "../../component/topbar"
 import { cn } from "@/lib/utils"
-import {formatDateTimeDisplay} from "@/lib/utils"
-import {extractTimestampFromUUID} from "@/lib/utils"
-import {isUUIDv1} from "@/lib/utils"
-import {isValidDate} from "@/lib/utils"
+import { formatDateTimeDisplay } from "@/lib/utils"
+import { extractTimestampFromUUID } from "@/lib/utils"
+import { isUUIDv1 } from "@/lib/utils"
+import { isValidDate } from "@/lib/utils"
 
 
 // API Configuration
@@ -56,10 +54,6 @@ export default function FormSubmissionsPage() {
   const pathname = usePathname()
   const formId = params.formId
   const isStandaloneRoute = pathname?.startsWith("/form-submissions/")
-
-  const [darkMode, setDarkMode] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const [activeTab, setActiveTab] = useState("my-forms")
 
   const [formDetails, setFormDetails] = useState(null)
   const [submissions, setSubmissions] = useState([])
@@ -81,22 +75,6 @@ export default function FormSubmissionsPage() {
       fetchSubmissions()
     }
   }, [formId])
-
-  useEffect(() => {
-    if (isStandaloneRoute && darkMode) {
-      document.documentElement.classList.add("dark")
-    } else if (isStandaloneRoute) {
-      document.documentElement.classList.remove("dark")
-    }
-  }, [darkMode, isStandaloneRoute])
-
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode)
-  }
-
-  const toggleSidebar = () => {
-    setIsCollapsed(!isCollapsed)
-  }
 
   const fetchFormDetails = async () => {
     setLoading(true)
@@ -181,12 +159,12 @@ export default function FormSubmissionsPage() {
         day: 'numeric'
       });
     }
-  
+
     if (input === null || input === undefined) return null;
-  
+
     const str = String(input).trim();
     if (!str) return null;
-  
+
     // Try direct parsing first
     const direct = new Date(str);
     if (!isNaN(direct.getTime())) {
@@ -196,7 +174,7 @@ export default function FormSubmissionsPage() {
         day: 'numeric'
       });
     }
-  
+
     // Handle ISO format with time
     const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
     if (isoMatch) {
@@ -211,7 +189,7 @@ export default function FormSubmissionsPage() {
         });
       }
     }
-  
+
     return null;
   };
 
@@ -349,21 +327,21 @@ export default function FormSubmissionsPage() {
 
               const finalFieldDef = fieldDef
                 ? {
-                    id: fieldDef.id || fieldId,
-                    name: fieldDef.name || fieldDef.label || fieldId,
-                    label: fieldDef.label || fieldDef.name || fieldId,
-                    type: fieldDef.type || "text",
-                    nestedFields: nestedFieldsForThisField,
-                    options: fieldDef.options || [],
-                  }
+                  id: fieldDef.id || fieldId,
+                  name: fieldDef.name || fieldDef.label || fieldId,
+                  label: fieldDef.label || fieldDef.name || fieldId,
+                  type: fieldDef.type || "text",
+                  nestedFields: nestedFieldsForThisField,
+                  options: fieldDef.options || [],
+                }
                 : {
-                    id: fieldId,
-                    name: fieldId,
-                    label: fieldId,
-                    type: "text",
-                    nestedFields: [],
-                    options: [],
-                  }
+                  id: fieldId,
+                  name: fieldId,
+                  label: fieldId,
+                  type: "text",
+                  nestedFields: [],
+                  options: [],
+                }
 
               formData[fieldId] = {
                 fieldDef: finalFieldDef,
@@ -941,7 +919,7 @@ export default function FormSubmissionsPage() {
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              
+
               <div>
                 <CardTitle className="flex items-center gap-2 text-2xl">
                   <FileText className="h-6 w-6" />
@@ -1015,43 +993,43 @@ export default function FormSubmissionsPage() {
                 <div className="overflow-x-auto w-full">
                   <div className="w-full min-w-full">
                     <Table className="caption-bottom text-sm w-full table-auto">
-                    <TableHeader>
-                      <TableRow className="bg-muted/50 hover:bg-muted/50">
-                        {columns.map((column) => (
-                          <TableHead
-                            key={column.id}
-                            className="font-semibold text-foreground whitespace-nowrap"
-                          >
-                            {column.label}
-                          </TableHead>
-                        ))}
-                        <TableHead className="font-semibold text-foreground whitespace-nowrap">
-                          Submitted At
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground whitespace-nowrap">
-                          Last Edited At
-                        </TableHead>
-                        <TableHead className="font-semibold text-foreground whitespace-nowrap">
-                          Edit Attempts
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paginatedSubmissions.map((submission, index) => (
-                        <TableRow
-                          key={submission.submission_id || index}
-                          className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
-                        >
+                      <TableHeader>
+                        <TableRow className="bg-muted/50 hover:bg-muted/50">
                           {columns.map((column) => (
-                            <TableCell key={column.id} className="py-4">
-                              {column.render(column.accessor(submission), submission)}
-                            </TableCell>
+                            <TableHead
+                              key={column.id}
+                              className="font-semibold text-foreground whitespace-nowrap"
+                            >
+                              {column.label}
+                            </TableHead>
                           ))}
-                          {/* Created At Column */}
+                          <TableHead className="font-semibold text-foreground whitespace-nowrap">
+                            Submitted At
+                          </TableHead>
+                          <TableHead className="font-semibold text-foreground whitespace-nowrap">
+                            Last Edited At
+                          </TableHead>
+                          <TableHead className="font-semibold text-foreground whitespace-nowrap">
+                            Edit Attempts
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedSubmissions.map((submission, index) => (
+                          <TableRow
+                            key={submission.submission_id || index}
+                            className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                          >
+                            {columns.map((column) => (
+                              <TableCell key={column.id} className="py-4">
+                                {column.render(column.accessor(submission), submission)}
+                              </TableCell>
+                            ))}
+                            {/* Created At Column */}
                             <TableCell className="py-4">
                               {(() => {
                                 const createdDateString = submission.created_at;
-                                
+
                                 if (!createdDateString) {
                                   return <span className="text-muted-foreground italic">-</span>;
                                 }
@@ -1060,7 +1038,7 @@ export default function FormSubmissionsPage() {
                                 if (isValidDate(createdDateString)) {
                                   return formatDateTimeDisplay(createdDateString);
                                 }
-                                
+
                                 // Check if it's a UUID v1 and try to extract timestamp
                                 if (isUUIDv1(createdDateString)) {
                                   const uuidDate = extractTimestampFromUUID(createdDateString);
@@ -1075,7 +1053,7 @@ export default function FormSubmissionsPage() {
                                     );
                                   }
                                 }
-                                
+
                                 // If it's not a UUID v1 or extraction failed, show the raw value
                                 return (
                                   <div className="flex flex-col">
@@ -1087,23 +1065,23 @@ export default function FormSubmissionsPage() {
                                 );
                               })()}
                             </TableCell>
-                          {/* Last Edited At Column */}
-                          <TableCell className="py-4">
-                            {formatDateTimeDisplay(submission.last_edited_at) || 
-                            <span className="text-muted-foreground italic">-</span>}
-                          </TableCell>
-                          
-                          {/* Edit Attempts Column */}
-                          <TableCell className="py-4">
-                            <Badge variant="secondary" className="font-medium">
-                              {typeof submission.edit_count === "number"
-                                ? submission.edit_count
-                                : 0}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
+                            {/* Last Edited At Column */}
+                            <TableCell className="py-4">
+                              {formatDateTimeDisplay(submission.last_edited_at) ||
+                                <span className="text-muted-foreground italic">-</span>}
+                            </TableCell>
+
+                            {/* Edit Attempts Column */}
+                            <TableCell className="py-4">
+                              <Badge variant="secondary" className="font-medium">
+                                {typeof submission.edit_count === "number"
+                                  ? submission.edit_count
+                                  : 0}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
                     </Table>
                   </div>
                 </div>
@@ -1248,47 +1226,47 @@ export default function FormSubmissionsPage() {
                     <div className="space-y-4 pb-4">
                       {nestedData.isMulti
                         ? (() => {
-                            const groupedBySelection = {}
-                            Object.entries(nestedData.formData).forEach(([fieldId, fieldInfo]) => {
-                              const index = fieldInfo._selectionIndex
-                              if (index !== undefined) {
-                                if (!groupedBySelection[index]) {
-                                  groupedBySelection[index] = {
-                                    value: fieldInfo._selectionValue,
-                                    fields: {},
-                                  }
+                          const groupedBySelection = {}
+                          Object.entries(nestedData.formData).forEach(([fieldId, fieldInfo]) => {
+                            const index = fieldInfo._selectionIndex
+                            if (index !== undefined) {
+                              if (!groupedBySelection[index]) {
+                                groupedBySelection[index] = {
+                                  value: fieldInfo._selectionValue,
+                                  fields: {},
                                 }
-                                groupedBySelection[index].fields[fieldId] = fieldInfo
                               }
-                            })
+                              groupedBySelection[index].fields[fieldId] = fieldInfo
+                            }
+                          })
 
-                            return Object.keys(groupedBySelection)
-                              .sort()
-                              .map((index) => (
-                                <Card
-                                  key={index}
-                                  className="bg-gradient-to-br from-blue-50/50 to-transparent border-blue-200"
-                                >
-                                  <CardHeader className="pb-3 px-4 pt-3">
-                                    <CardTitle className="text-sm font-semibold text-blue-700 flex items-center gap-2">
-                                      <Badge variant="default" className="text-xs">
-                                        Selection {Number.parseInt(index) + 1}
-                                      </Badge>
-                                      {groupedBySelection[index].value}
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent className="px-4 pb-4">
-                                    {Object.keys(groupedBySelection[index].fields).length === 0 ? (
-                                      <div className="text-sm text-muted-foreground italic py-2">
-                                        No nested fields for this selection
-                                      </div>
-                                    ) : (
-                                      renderNestedFormFields(groupedBySelection[index].fields)
-                                    )}
-                                  </CardContent>
-                                </Card>
-                              ))
-                          })()
+                          return Object.keys(groupedBySelection)
+                            .sort()
+                            .map((index) => (
+                              <Card
+                                key={index}
+                                className="bg-gradient-to-br from-blue-50/50 to-transparent border-blue-200"
+                              >
+                                <CardHeader className="pb-3 px-4 pt-3">
+                                  <CardTitle className="text-sm font-semibold text-blue-700 flex items-center gap-2">
+                                    <Badge variant="default" className="text-xs">
+                                      Selection {Number.parseInt(index) + 1}
+                                    </Badge>
+                                    {groupedBySelection[index].value}
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent className="px-4 pb-4">
+                                  {Object.keys(groupedBySelection[index].fields).length === 0 ? (
+                                    <div className="text-sm text-muted-foreground italic py-2">
+                                      No nested fields for this selection
+                                    </div>
+                                  ) : (
+                                    renderNestedFormFields(groupedBySelection[index].fields)
+                                  )}
+                                </CardContent>
+                              </Card>
+                            ))
+                        })()
                         : renderNestedFormFields(nestedData.formData)}
                     </div>
                   </div>
@@ -1368,7 +1346,7 @@ export default function FormSubmissionsPage() {
   )
 
   if (loading && (!formDetails || submissions.length === 0)) {
-    const loadingContent = (
+    return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
@@ -1376,69 +1354,11 @@ export default function FormSubmissionsPage() {
         </div>
       </div>
     )
-
-    if (!isStandaloneRoute) {
-      return loadingContent
-    }
-
-    return (
-      <main className="min-h-screen bg-background">
-        {!isCollapsed && (
-          <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsCollapsed(true)} />
-        )}
-
-        <div className="flex min-h-screen">
-          <Sidebar
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            isCollapsed={isCollapsed}
-            setIsCollapsed={setIsCollapsed}
-          />
-          <section
-            className={cn(
-              "flex-1 transition-all duration-300 flex flex-col min-h-screen overflow-hidden",
-              isCollapsed ? "md:ml-0" : "md:ml-0",
-            )}
-          >
-            <div className="p-4 border-b border-border bg-card/50">
-              <Topbar darkMode={darkMode} toggleDarkMode={toggleDarkMode} toggleSidebar={toggleSidebar} />
-            </div>
-            <div className="flex-1 p-4 md:p-6 bg-background overflow-x-hidden">{loadingContent}</div>
-          </section>
-        </div>
-      </main>
-    )
-  }
-
-  if (!isStandaloneRoute) {
-    return mainContent
   }
 
   return (
     <main className="min-h-screen bg-background">
-      {!isCollapsed && (
-        <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={() => setIsCollapsed(true)} />
-      )}
-
-      <div className="flex min-h-screen">
-        <Sidebar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          isCollapsed={isCollapsed}
-          setIsCollapsed={setIsCollapsed}
-        />
-        <section
-          className={cn(
-            "flex-1 transition-all duration-300 flex flex-col min-h-screen overflow-hidden",
-            isCollapsed ? "md:ml-0" : "md:ml-0",
-          )}
-        >
-          <div className="p-4 border-b border-border bg-card/50">
-            <Topbar darkMode={darkMode} toggleDarkMode={toggleDarkMode} toggleSidebar={toggleSidebar} />
-          </div>
-          <div className="flex-1 p-4 md:p-6 bg-background overflow-x-auto">{mainContent}</div>
-        </section>
-      </div>
+      <div className="flex-1 p-4 md:p-6 bg-background overflow-x-auto">{mainContent}</div>
     </main>
   )
 }

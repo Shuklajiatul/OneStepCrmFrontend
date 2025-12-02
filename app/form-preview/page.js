@@ -39,7 +39,7 @@ export default function FormPreviewPage() {
 
     // Load fields from localStorage (edit mode) or sessionStorage (create mode)
     const formBuilderData = localStorage.getItem('formBuilderData')
-    
+
     if (formBuilderData) {
       // Edit mode - load from localStorage
       try {
@@ -49,7 +49,7 @@ export default function FormPreviewPage() {
           setIsEditMode(true)
           setEditFormData(data)
           setCurrentRetryCount(data.max_retry_count?.toString() || "2")
-          
+
           // If form data doesn't have g_id but user has genes, set the first one
           if (!data.g_id && userData?.g_ids?.length > 0) {
             // Update the formBuilderData with the first gene ID
@@ -102,7 +102,7 @@ export default function FormPreviewPage() {
 
     // Listen for storage events (cross-tab)
     window.addEventListener('storage', handleStorageChange)
-    
+
     // Also listen for custom events (for same-tab updates)
     window.addEventListener('formBuilderDataUpdated', handleStorageChange)
 
@@ -142,7 +142,7 @@ export default function FormPreviewPage() {
     } else {
       // In create mode, go back to custom-form normally
       sessionStorage.setItem('intended-tab', 'custom-form')
-      router.push('/')
+      router.push('/custom-form')
     }
   }
 
@@ -151,12 +151,12 @@ export default function FormPreviewPage() {
       if (isEditMode && editFormData) {
         // Add a small delay to ensure any pending localStorage writes are complete
         await new Promise(resolve => setTimeout(resolve, 50))
-        
+
         const formBuilderData = localStorage.getItem('formBuilderData')
         let latestFields = fields // Fallback to state
         let latestRetryCount = currentRetryCount
-        let latestGId = editFormData.g_id 
-        
+        let latestGId = editFormData.g_id
+
         if (formBuilderData) {
           try {
             const data = JSON.parse(formBuilderData)
@@ -182,12 +182,12 @@ export default function FormPreviewPage() {
           router.push('/login')
           return
         }
-        
+
         // Generate the same payload structure as Generate Link
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
         const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
         const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
-        
+
         // Recursive function to process nested fields
         const processNestedFields = (nestedFields, parentIndex = null) => {
           if (!nestedFields || !Array.isArray(nestedFields)) return []
@@ -299,10 +299,10 @@ export default function FormPreviewPage() {
 
           return fieldObj
         }
-        
+
         // Combine all fields into a single fields array
         const allFields = latestFields.map(processFieldForAPI)
-        
+
         // Prepare the update payload
         const updatePayload = {
           organization_id: ORGANIZATION_ID,
@@ -315,9 +315,9 @@ export default function FormPreviewPage() {
           fields: allFields,
           retry_count: latestRetryCount
         }
-        
+
         console.log('📤 Update Payload:', updatePayload)
-        
+
         // Send update request
         const response = await fetch(`${API_BASE_URL}/api/forms/update`, {
           method: 'POST',
@@ -327,10 +327,10 @@ export default function FormPreviewPage() {
           },
           body: JSON.stringify(updatePayload)
         })
-        
+
         const result = await response.json()
         console.log('✅ Update API Response:', result)
-        
+
         if (result.success) {
           toast.success(`Form "${editFormData.formName}" updated successfully!`)
           // Clear localStorage and navigate to My Forms
@@ -384,9 +384,9 @@ export default function FormPreviewPage() {
       </div>
 
       {/* Form Preview Content */}
-      <FormPreview 
-        fields={fields} 
-        isEditMode={isEditMode} 
+      <FormPreview
+        fields={fields}
+        isEditMode={isEditMode}
         formData={editFormData}
         onRetryCountChange={setCurrentRetryCount}
       />

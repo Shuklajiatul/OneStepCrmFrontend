@@ -228,14 +228,14 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
         }
         return
       }
-      
+
       // If it's a non-numeric key (field ID), process it in the second loop below
       // But first check if it's a simple value (like a string)
       if (typeof value !== 'object' || value === null || Array.isArray(value)) {
         // This might be a direct field value, process it in the second loop
         return
       }
-      
+
       // Check if this is a field ID key with nested structure - extract it here if it has value or nestedFields
       if (typeof key === 'string' && !key.startsWith('field-') && (value.value !== undefined || value.nestedFields)) {
         // This is likely a field ID (UUID) with a value/nestedFields structure
@@ -545,7 +545,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
     // Use the ORIGINAL field ID from the form data, but ensure it's a valid UUID
     // If originalId is not a valid UUID (old format), use the parsed field.id instead
     let finalFieldKey = fieldId
-    
+
     // Priority: originalId (if valid UUID) > field.id (if valid UUID) > fieldId (if valid UUID) > generate new UUID
     if (field.originalId && isValidUUID(field.originalId)) {
       finalFieldKey = field.originalId
@@ -558,12 +558,12 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
       console.warn(`Invalid field ID format for field ${field.name || field.label}, generating new UUID`)
       finalFieldKey = uuidv4()
     }
-    
+
     // If field ID has "field-" prefix, strip it to get just the UUID
     if (typeof finalFieldKey === 'string' && finalFieldKey.startsWith('field-')) {
       finalFieldKey = finalFieldKey.replace('field-', '')
     }
-    
+
     // Final validation: ensure we have a valid UUID
     if (!isValidUUID(finalFieldKey)) {
       // Last resort: use field.id if it's valid, otherwise generate new UUID
@@ -593,7 +593,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                 if (nested && Object.keys(nested).length > 0) {
                   // Use processed options if available, otherwise fall back to regular options
                   const optionsToSearch = field._processedOptions || field.options || []
-                  
+
                   // Try to find nested fields by option index first, then by option value
                   let optionNested = nested[idx]
                   if (!optionNested) {
@@ -609,7 +609,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                   if (!optionNested) {
                     optionNested = nested[primitiveValue]
                   }
-                  
+
                   if (optionNested) {
                     const processed = transformNestedValues(optionNested, primitiveValue, field, 0)
                     if (processed && Object.keys(processed).length > 0) {
@@ -667,13 +667,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
               if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
                 // Use processed options if available, otherwise fall back to regular options
                 const optionsToSearch = field._processedOptions || field.options || []
-                
+
                 // Find the option index for the selected value
                 const selectedOptionIndex = optionsToSearch.findIndex(opt => {
                   const optValue = typeof opt === 'string' ? opt : (opt?.value || opt?.label)
                   return optValue === processedValue
                 })
-                
+
                 // Get nested fields for the selected option index
                 let optionNestedFields = null
                 if (selectedOptionIndex !== -1 && fieldValue.nestedFields[selectedOptionIndex]) {
@@ -682,7 +682,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                   // Fallback: try to get by numeric keys or process all
                   optionNestedFields = fieldValue.nestedFields
                 }
-                
+
                 if (optionNestedFields) {
                   const processedNested = transformNestedValues(optionNestedFields, processedValue, field, 0)
                   if (Object.keys(processedNested).length > 0) {
@@ -754,10 +754,10 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                 if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
                   // Use processed options if available, otherwise fall back to regular options
                   const optionsToSearch = field._processedOptions || field.options || []
-                  
+
                   // Try to find nested fields by option index first
                   let optionNestedFields = fieldValue.nestedFields[arrayIndex]
-                  
+
                   if (!optionNestedFields) {
                     // Find option index in field options
                     const optionIndex = optionsToSearch.findIndex(opt => {
@@ -768,7 +768,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                       optionNestedFields = fieldValue.nestedFields[optionIndex]
                     }
                   }
-                  
+
                   if (!optionNestedFields) {
                     // Fallback: try by option value or by index in array
                     optionNestedFields = fieldValue.nestedFields[optionValue] ||
@@ -822,13 +822,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
               if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
                 // Use processed options if available, otherwise fall back to regular options
                 const optionsToSearch = field._processedOptions || field.options || []
-                
+
                 // Find the option index for the selected value
                 const selectedOptionIndex = optionsToSearch.findIndex(opt => {
                   const optValue = typeof opt === 'string' ? opt : (opt?.value || opt?.label)
                   return optValue === processedValue
                 })
-                
+
                 // Get nested fields for the selected option index
                 let optionNestedFields = null
                 if (selectedOptionIndex !== -1 && fieldValue.nestedFields[selectedOptionIndex]) {
@@ -837,7 +837,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                   // Fallback: try to get by numeric keys or process all
                   optionNestedFields = fieldValue.nestedFields
                 }
-                
+
                 if (optionNestedFields) {
                   const processedNested = transformNestedValues(optionNestedFields, processedValue, field, 0)
                   if (Object.keys(processedNested).length > 0) {
@@ -890,13 +890,13 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
             if (fieldValue.nestedFields && Object.keys(fieldValue.nestedFields).length > 0) {
               // Use processed options if available, otherwise fall back to regular options
               const optionsToSearch = field._processedOptions || field.options || []
-              
+
               // Find the option index for the selected value
               const selectedOptionIndex = optionsToSearch.findIndex(opt => {
                 const optValue = typeof opt === 'string' ? opt : (opt?.value || opt?.label)
                 return optValue === processedValue
               })
-              
+
               // Get nested fields for the selected option index
               let optionNestedFields = null
               if (selectedOptionIndex !== -1 && fieldValue.nestedFields[selectedOptionIndex]) {
@@ -905,7 +905,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
                 // Fallback: try to get by numeric keys or process all
                 optionNestedFields = fieldValue.nestedFields
               }
-              
+
               if (optionNestedFields) {
                 const processedNested = transformNestedValues(optionNestedFields, processedValue, field, 0)
                 if (Object.keys(processedNested).length > 0) {
@@ -1541,7 +1541,7 @@ export default function PublicFormPage() {
     if (formId) {
       // Check for existing submission first
       const hasExistingSubmission = checkExistingSubmission()
-      
+
       // Always fetch form data to verify version (even if submission exists)
       // This ensures we clear FORM_SUBMITTED if version has changed
       if (!token && !submissionId) {
@@ -1591,8 +1591,8 @@ export default function PublicFormPage() {
           }
         })
         const latestRes = latestResp.data
-        if (latestRes?.success && latestRes?.form) {
-          const latestVer = latestRes.form.version || null
+        if (latestRes?.success && latestRes?.data) {
+          const latestVer = latestRes.data.version || null
           setLatestVersion(latestVer)
           if (latestVer && Number(formData.version) < Number(latestVer)) {
             setIsEditable(false)
@@ -1620,7 +1620,7 @@ export default function PublicFormPage() {
         if (versionParam && savedVersion) {
           const currentVersion = String(versionParam)
           const storedVersion = String(savedVersion)
-          
+
           // If versions don't match, clear the submission data (new version created)
           if (currentVersion !== storedVersion) {
             console.log(`Version mismatch: current=${currentVersion}, stored=${storedVersion}. Clearing FORM_SUBMITTED.`)
@@ -1628,7 +1628,7 @@ export default function PublicFormPage() {
             return false
           }
         }
-        
+
         // Set the submission success state to show the success page
         setLastSubmissionId(savedSubmissionId)
         setLastSubmissionToken(savedEditToken)
@@ -1648,7 +1648,7 @@ export default function PublicFormPage() {
   const saveSubmissionToStorage = (submissionId, editToken) => {
     try {
       const currentVersion = versionParam || (formData?.version ? String(formData.version) : '1')
-      
+
       localStorage.setItem("SUBMISSION_ID", submissionId)
       localStorage.setItem("EDIT_TOKEN", editToken)
       localStorage.setItem("FORM_SUBMITTED", 'true')
@@ -1694,12 +1694,6 @@ export default function PublicFormPage() {
     }
 
     try {
-      console.log('Fetching submission data for editing:', {
-        submissionId,
-        token,
-        organization_id: ORGANIZATION_ID,
-        form_id: formId
-      })
 
       const response = await axios.post(
         `${API_BASE_URL}/api/submit/edit?token=${token}`,
@@ -1711,39 +1705,30 @@ export default function PublicFormPage() {
         },
         {
           headers: {
-            'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json'
           }
         }
       )
       const result = response.data
 
-      console.log('📨 Full editFormHandler API response:', result)
-      console.log('📋 Response structure:', {
-        success: result.success,
-        hasSubmission: !!result.submission,
-        hasFormVersion: !!result.form_version,
-        formVersionStructure: result.form_version ? Object.keys(result.form_version) : 'N/A'
-      })
+      console.log('Full editFormHandler API response:', result)
 
       // Handle the response format where values are JSON strings
-      if (result.success && result.submission) {
-        console.log('Submission data found:', result.submission)
+      if (result.success && result.data?.submission) {
 
         // Capture editable flag from API response
         const editable = result.editable !== undefined ? result.editable : true
-        console.log('📝 Editable flag from API:', editable)
         setIsEditable(editable)
 
         // Parse any JSON strings in the values
         const parsedSubmission = {
-          ...result.submission,
+          ...result.data.submission,
           values: {}
         }
 
         // Parse each field value if it's a JSON string and transform nested structure
-        Object.keys(result.submission.values || {}).forEach(key => {
-          const value = result.submission.values[key]
+        Object.keys(result.data.submission.values || {}).forEach(key => {
+          const value = result.data.submission.values[key]
           if (typeof value === 'string') {
             try {
               const parsedValue = JSON.parse(value)
@@ -1757,15 +1742,6 @@ export default function PublicFormPage() {
         })
 
         console.log('📝 Setting submission data:', parsedSubmission)
-        console.log('📝 Submission values:', parsedSubmission.values)
-
-        // Debug file fields in submission data
-        Object.keys(parsedSubmission.values || {}).forEach(key => {
-          const value = parsedSubmission.values[key]
-          if (typeof value === 'string' && value.startsWith('data:')) {
-            console.log(`📁 Found base64 file in submission: ${key}`, value.substring(0, 100) + '...')
-          }
-        })
 
         setSubmissionData(parsedSubmission)
 
@@ -1786,14 +1762,13 @@ export default function PublicFormPage() {
                 `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}?version=${result.form_version}`,
                 {
                   headers: {
-                    'Authorization': authUtils.getAuthHeader(),
                     'Content-Type': 'application/json',
                   }
                 }
               )
 
-              if (versionResponse.data.success && versionResponse.data.form) {
-                const originalFormData = parseFormData(versionResponse.data.form)
+              if (versionResponse.data.success && versionResponse.data.data) {
+                const originalFormData = parseFormData(versionResponse.data.data)
                 setFormData(originalFormData)
                 setLoading(false)
                 toast.success(`Submission loaded - Using original form v${result.form_version}`)
@@ -1801,6 +1776,7 @@ export default function PublicFormPage() {
                 throw new Error('Failed to fetch form version data')
               }
             } catch (versionError) {
+
               console.warn('⚠️ First attempt failed, trying alternative endpoint patterns:', versionError.message)
 
               // Try alternative API patterns
@@ -2227,6 +2203,183 @@ export default function PublicFormPage() {
     }
   }
 
+  // const fetchFormData = async () => {
+  //   try {
+  //     const baseUrl = `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`
+
+  //     let result
+  //     let usedVersionEndpoint = null
+
+  //     if (versionParam) {
+  //       // Try primary query-param endpoint first
+  //       const primaryUrl = `${baseUrl}?version=${versionParam}`
+  //       try {
+  //         const resp = await axios.get(primaryUrl, {
+  //           headers: {
+  //             'Authorization': authUtils.getAuthHeader(),
+  //             'Content-Type': 'application/json',
+  //           }
+  //         })
+  //         if (resp.data?.success && resp.data?.data) {
+  //           result = resp.data.data
+  //           usedVersionEndpoint = primaryUrl
+  //         } else {
+  //           throw new Error('Versioned form not returned')
+  //         }
+  //       } catch (e1) {
+  //         // Try alternative endpoints
+  //         const alternatives = [
+  //           `${API_BASE_URL}/api/forms/version/${formId}/${versionParam}`,
+  //           `${API_BASE_URL}/api/forms/${formId}/version/${versionParam}`,
+  //           `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${formId}/version/${versionParam}`,
+  //           `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}/version/${versionParam}`
+  //         ]
+  //         for (const alt of alternatives) {
+  //           try {
+  //             const altResp = await axios.get(alt, {
+  //               headers: {
+  //                 'Authorization': authUtils.getAuthHeader(),
+  //                 'Content-Type': 'application/json',
+  //               }
+  //             })
+  //             if (altResp.data?.success && altResp.data?.data) {
+  //               result = altResp.data.data
+  //               usedVersionEndpoint = alt
+  //               break
+  //             }
+  //           } catch {}
+  //         }
+  //       }
+  //     }
+
+  //     // Fallback to latest if no version or version-specific fetch failed
+  //     if (!result) {
+  //       const response = await axios.get(baseUrl, {
+  //         headers: {
+  //           'Authorization': authUtils.getAuthHeader(),
+  //           'Content-Type': 'application/json',
+  //         }
+  //       })
+  //       result = response.data
+  //     }
+
+  //     if (result.success && result.data) {
+  //       if (versionParam) {
+  //         console.log('Form version load:', { requestedVersion: versionParam, usedVersionEndpoint })
+  //       }
+  //       try {
+  //         // Also fetch latest to determine read-only state when a specific version is requested
+  //         const latestResp = await axios.get(baseUrl, {
+  //           headers: {
+  //             'Authorization': authUtils.getAuthHeader(),
+  //             'Content-Type': 'application/json',
+  //           }
+  //         })
+  //         const latestRes = latestResp.data
+  //         if (latestRes.success && latestRes.data) {
+  //           const latestVer = latestRes.data.version || null
+  //           setLatestVersion(latestVer)
+  //           if (versionParam && latestVer && Number(versionParam) < Number(latestVer)) {
+  //             setIsVersionReadOnly(true)
+  //           } else {
+  //             setIsVersionReadOnly(false)
+  //           }
+  //         }
+  //       } catch (e) {
+  //         console.warn('Unable to fetch latest form version for comparison:', e?.message)
+  //       }
+  //       // Check if form is archived/inactive
+  //       if (result.data.archived || result.data.status === false) {
+  //         console.log('⚠️ Form is archived/inactive:', result.form.archived, result.form.status)
+  //         setFormData({
+  //           form_name: result.data.form_name || 'Form Unavailable',
+  //           description: 'This form is currently inactive and cannot accept submissions.',
+  //           retry_count: result.data.retry_count || '2',
+  //           fields: [],
+  //           archived: true
+  //         })
+  //         return
+  //       }
+
+  //       try {
+  //         const parsedForm = parseFormData(result.data)
+  //         setFormData(parsedForm)
+
+  //         // Check if version has changed and clear FORM_SUBMITTED if it has
+  //         const currentFormVersion = String(result.data.version || versionParam || '1')
+  //         const savedFormId = localStorage.getItem("FORM_ID")
+  //         const savedVersion = localStorage.getItem("FORM_VERSION")
+
+  //         if (savedFormId === formId && savedVersion) {
+  //           const storedVersion = String(savedVersion)
+  //           if (currentFormVersion !== storedVersion) {
+  //             console.log(`Version changed: current=${currentFormVersion}, stored=${storedVersion}. Clearing FORM_SUBMITTED for previous version.`)
+  //             // Clear FORM_SUBMITTED for previous version
+  //             localStorage.removeItem("FORM_SUBMITTED")
+  //             localStorage.removeItem("SUBMISSION_ID")
+  //             localStorage.removeItem("EDIT_TOKEN")
+  //             localStorage.removeItem("FORM_VERSION")
+  //           }
+  //         }
+  //       } catch (parseError) {
+  //         console.error('❌ Error parsing form data:', parseError)
+  //         toast.error('Failed to parse form data. The form may be corrupted.')
+  //         setFormData({
+  //           form_name: 'Error Loading Form',
+  //           description: 'Unable to load form data',
+  //           retry_count: '2',
+  //           fields: []
+  //         })
+  //       }
+  //     } else {
+  //       throw new Error('Form not found in response: ' + JSON.stringify(result))
+  //     }
+
+  //   } catch (error) {
+  //     console.error('❌ Error fetching form:', error)
+
+  //     if (error.response?.status === 404) {
+  //       toast.error(`Form not found. The form with ID "${formId}" does not exist or has been deleted.`)
+  //       setFormData({
+  //         form_name: 'Form Not Found',
+  //         description: 'The requested form could not be found.',
+  //         retry_count: '2',
+  //         fields: []
+  //       })
+  //     } else if (error.response?.status === 401) {
+  //       toast.error('Authentication failed. Please check your authentication token.')
+  //       setFormData({
+  //         form_name: 'Authentication Error',
+  //         description: 'Unable to access this form due to authentication issues.',
+  //         retry_count: '2',
+  //         fields: []
+  //       })
+  //     } else if (error.response?.status === 403) {
+  //       toast.error('Access forbidden. You do not have permission to access this form.')
+  //       setFormData({
+  //         form_name: 'Access Denied',
+  //         description: 'You do not have permission to access this form.',
+  //         retry_count: '2',
+  //         fields: []
+  //       })
+  //     } else {
+  //       toast.error(`Failed to load form: ${error.message}`)
+  //       setFormData({
+  //         form_name: 'Error Loading Form',
+  //         description: 'An error occurred while loading the form.',
+  //         retry_count: '2',
+  //         fields: []
+  //       })
+  //     }
+
+  //   } finally {
+  //     setLoading(false)
+  //   }
+  // }
+
+  // Get default values for form initialization
+
+
   const fetchFormData = async () => {
     try {
       const baseUrl = `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`
@@ -2244,8 +2397,9 @@ export default function PublicFormPage() {
               'Content-Type': 'application/json',
             }
           })
-          if (resp.data?.success && resp.data?.form) {
-            result = resp.data
+          // Handle both response formats - with wrapper and without
+          if (resp.data) {
+            result = resp.data.success ? resp.data.data : resp.data
             usedVersionEndpoint = primaryUrl
           } else {
             throw new Error('Versioned form not returned')
@@ -2266,12 +2420,12 @@ export default function PublicFormPage() {
                   'Content-Type': 'application/json',
                 }
               })
-              if (altResp.data?.success && altResp.data?.form) {
-                result = altResp.data
+              if (altResp.data) {
+                result = altResp.data.success ? altResp.data.data : altResp.data
                 usedVersionEndpoint = alt
                 break
               }
-            } catch {}
+            } catch { }
           }
         }
       }
@@ -2284,13 +2438,16 @@ export default function PublicFormPage() {
             'Content-Type': 'application/json',
           }
         })
-        result = response.data
+        // Handle both response formats
+        result = response.data.success ? response.data.data : response.data
       }
 
-      if (result.success && result.form) {
+      // Check if we got form data (result should be the form object)
+      if (result && (result.fields || result.form_name)) {
         if (versionParam) {
           console.log('Form version load:', { requestedVersion: versionParam, usedVersionEndpoint })
         }
+
         try {
           // Also fetch latest to determine read-only state when a specific version is requested
           const latestResp = await axios.get(baseUrl, {
@@ -2300,8 +2457,9 @@ export default function PublicFormPage() {
             }
           })
           const latestRes = latestResp.data
-          if (latestRes.success && latestRes.form) {
-            const latestVer = latestRes.form.version || null
+          const latestData = latestRes.success ? latestRes.data : latestRes
+          if (latestData) {
+            const latestVer = latestData.version || null
             setLatestVersion(latestVer)
             if (versionParam && latestVer && Number(versionParam) < Number(latestVer)) {
               setIsVersionReadOnly(true)
@@ -2312,13 +2470,14 @@ export default function PublicFormPage() {
         } catch (e) {
           console.warn('Unable to fetch latest form version for comparison:', e?.message)
         }
+
         // Check if form is archived/inactive
-        if (result.form.archived || result.form.status === false) {
-          console.log('⚠️ Form is archived/inactive:', result.form.archived, result.form.status)
+        if (result.archived || result.isarchieved || result.status === false) {
+          console.log('⚠️ Form is archived/inactive:', result.archived, result.isarchieved, result.status)
           setFormData({
-            form_name: result.form.form_name || 'Form Unavailable',
+            form_name: result.form_name || 'Form Unavailable',
             description: 'This form is currently inactive and cannot accept submissions.',
-            retry_count: result.form.retry_count || '2',
+            retry_count: result.max_retry_count || result.retry_count || '2',
             fields: [],
             archived: true
           })
@@ -2326,14 +2485,14 @@ export default function PublicFormPage() {
         }
 
         try {
-          const parsedForm = parseFormData(result.form)
+          const parsedForm = parseFormData(result)
           setFormData(parsedForm)
-          
+
           // Check if version has changed and clear FORM_SUBMITTED if it has
-          const currentFormVersion = String(result.form.version || versionParam || '1')
+          const currentFormVersion = String(result.version || versionParam || '1')
           const savedFormId = localStorage.getItem("FORM_ID")
           const savedVersion = localStorage.getItem("FORM_VERSION")
-          
+
           if (savedFormId === formId && savedVersion) {
             const storedVersion = String(savedVersion)
             if (currentFormVersion !== storedVersion) {
@@ -2356,7 +2515,7 @@ export default function PublicFormPage() {
           })
         }
       } else {
-        throw new Error('Form not found in response: ' + JSON.stringify(result))
+        throw new Error('Form data not found in response: ' + JSON.stringify(result))
       }
 
     } catch (error) {
@@ -2401,7 +2560,6 @@ export default function PublicFormPage() {
     }
   }
 
-  // Get default values for form initialization
   const getDefaultValues = () => {
     if (!formData?.fields) {
       return {}
@@ -2777,10 +2935,10 @@ export default function PublicFormPage() {
           console.log('Submission successful:', result)
 
           if (result.success && result.data) {
-            const newSubmissionId = result.data
+            const newSubmissionId = result.data?.submission_id
             console.log('Submission ID from data field:', newSubmissionId)
 
-            const editToken = newSubmissionId
+            const editToken = result.data?.edit_token
 
             console.log('Generated edit token:', editToken)
 
@@ -2806,8 +2964,8 @@ export default function PublicFormPage() {
             }
           } else {
             // Fallback to old format handling for backward compatibility
-            const newSubmissionId = result?.submission_id
-            const editToken = result?.edit_token
+            const newSubmissionId = result?.data?.submission_id
+            const editToken = result?.data?.edit_token
             console.log('Submission editToken:', editToken)
 
             if (newSubmissionId && editToken) {
@@ -3047,7 +3205,7 @@ export default function PublicFormPage() {
             </div>
             <h2 className="text-xl font-semibold mb-2">Form Not Found</h2>
             <p className="text-muted-foreground mb-4">
-              The form you're looking for doesn't exist or has been removed.
+              The form you&apos;re looking for doesn&apos;t exist or has been removed.
             </p>
             <Button asChild>
               <Link href="/">
@@ -3281,7 +3439,7 @@ export default function PublicFormPage() {
                 <div className="mt-2 space-y-1">
                   {isEditable ? (
                     <p className="text-sm text-blue-600">
-                      You are editing an existing submission. Make your changes and click "Update Form" to save.
+                      You are editing an existing submission. Make your changes and click &quot;Update Form&quot; to save.
                     </p>
                   ) : (
                     <p className="text-sm text-amber-600">
@@ -3364,10 +3522,10 @@ export default function PublicFormPage() {
                     {isEditMode && " • Editing existing submission"}
                     {isEditMode && editCountLeft !== null && (
                       <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${editCountLeft === 0
-                          ? "bg-red-100 text-red-700"
-                          : editCountLeft <= 2
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-green-100 text-green-700"
+                        ? "bg-red-100 text-red-700"
+                        : editCountLeft <= 2
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-green-100 text-green-700"
                         }`}>
                         {editCountLeft === 0
                           ? "⚠️ No edits remaining"

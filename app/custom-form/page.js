@@ -47,7 +47,7 @@ export default function CustomFormPage() {
   const [editFormData, setEditFormData] = useState(null)
   const [showMyForms, setShowMyForms] = useState(false)
   const [isClient, setIsClient] = useState(false)
-  
+
   // Resizable panel widths
   const [paletteWidth, setPaletteWidth] = useState(256) // 256px = w-64
   const [configPanelWidth, setConfigPanelWidth] = useState(400) // ~33% of typical screen
@@ -64,11 +64,11 @@ export default function CustomFormPage() {
   // Ensure client-side rendering to avoid hydration mismatch
   useEffect(() => {
     setIsClient(true)
-    
+
     // Load saved panel widths from localStorage
     const savedPaletteWidth = localStorage.getItem('formbuilder-palette-width')
     const savedConfigWidth = localStorage.getItem('formbuilder-config-width')
-    
+
     if (savedPaletteWidth) {
       setPaletteWidth(parseInt(savedPaletteWidth, 10))
     }
@@ -173,9 +173,9 @@ export default function CustomFormPage() {
               // Only process options for field types that have options (select, checkbox, radio)
               if (field.options && Array.isArray(field.options)) {
                 field.options.forEach((option, optionIndex) => {
-                if (typeof option === 'object' && option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
-                  nestedFields[optionIndex] = extractNestedFieldsRecursively(option.nestedFields)
-                }
+                  if (typeof option === 'object' && option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0) {
+                    nestedFields[optionIndex] = extractNestedFieldsRecursively(option.nestedFields)
+                  }
                 })
               }
 
@@ -381,7 +381,7 @@ export default function CustomFormPage() {
         const fieldsWithUniqueIds = ensureUniqueFieldIds(predefinedFields)
         setFields(prev => {
           const newFields = [...prev, ...fieldsWithUniqueIds]
-          
+
           // Immediately save to localStorage if in edit mode
           if (isEditMode && editFormData) {
             const formBuilderData = {
@@ -391,7 +391,7 @@ export default function CustomFormPage() {
             localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
             window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
           }
-          
+
           return newFields
         })
         if (fieldsWithUniqueIds.length > 0) {
@@ -402,7 +402,7 @@ export default function CustomFormPage() {
         const fieldWithUniqueId = ensureUniqueFieldIds([predefinedFields])[0]
         setFields(prev => {
           const newFields = [...prev, fieldWithUniqueId]
-          
+
           // Immediately save to localStorage if in edit mode
           if (isEditMode && editFormData) {
             const formBuilderData = {
@@ -412,7 +412,7 @@ export default function CustomFormPage() {
             localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
             window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
           }
-          
+
           return newFields
         })
         setSelectedField(fieldWithUniqueId)
@@ -433,17 +433,17 @@ export default function CustomFormPage() {
             const fieldsWithUniqueIds = ensureUniqueFieldIds(newFields)
             setFields(prev => {
               const updatedFields = [...prev, ...fieldsWithUniqueIds]
-              
+
               // Immediately save to localStorage if in edit mode
               if (isEditMode && editFormData) {
                 const formBuilderData = {
                   ...editFormData,
-                fields: updatedFields
+                  fields: updatedFields
+                }
+                localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+                window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
               }
-              localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-              window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
-              }
-              
+
               return updatedFields
             })
             setSelectedField(fieldsWithUniqueIds[0])
@@ -468,17 +468,17 @@ export default function CustomFormPage() {
       }
       setFields(prev => {
         const newFields = [...prev, newField]
-        
+
         // Immediately save to localStorage if in edit mode
         if (isEditMode && editFormData) {
           const formBuilderData = {
             ...editFormData,
-              fields: newFields
-            }
-            localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-            window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+            fields: newFields
+          }
+          localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+          window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
         }
-        
+
         return newFields
       })
       setSelectedField(newField)
@@ -559,6 +559,49 @@ export default function CustomFormPage() {
 
     if (!over) return
 
+    // Handle dropping into a group
+    if (over.id.toString().startsWith('group-drop-')) {
+      const groupId = over.id.toString().replace('group-drop-', '')
+
+      // If dragging a new field type from palette
+      if (active.data.current?.type === "field-type") {
+        const fieldType = active.data.current.fieldType
+
+        // Create new field
+        const newField = {
+          id: generateUniqueFieldId(),
+          type: fieldType,
+          label: fieldType.charAt(0).toUpperCase() + fieldType.slice(1) + " Field",
+          placeholder: "",
+          required: false,
+          options: ["select", "checkbox", "radio"].includes(fieldType) ? ["Option 1", "Option 2", "Option 3"] : undefined,
+          validation: {},
+          nestedFields: {},
+        }
+
+        // Add to group
+        setFields(prev => {
+          return prev.map(field => {
+            if (field.id === groupId) {
+              return {
+                ...field,
+                subFields: [...(field.subFields || []), newField]
+              }
+            }
+            return field
+          })
+        })
+
+        // Select the new field (optional, might need to handle selection logic for nested fields)
+        // setSelectedField(newField) 
+        return
+      }
+
+      // If dragging an existing field into a group (reordering/nesting)
+      // TODO: Implement moving existing fields into groups
+      return
+    }
+
     if (active.data.current?.type === "field-type") {
       const fieldType = active.data.current.fieldType
       addField(fieldType)
@@ -636,13 +679,13 @@ export default function CustomFormPage() {
     setShowClearDialog(false)
   }, [])
 
-  const regularFieldsCount = useMemo(() => 
-    fields.filter(f => f.source !== 'table').length, 
+  const regularFieldsCount = useMemo(() =>
+    fields.filter(f => f.source !== 'table').length,
     [fields]
   )
-  
-  const tableFieldsCount = useMemo(() => 
-    fields.filter(f => f.source === 'table').length, 
+
+  const tableFieldsCount = useMemo(() =>
+    fields.filter(f => f.source === 'table').length,
     [fields]
   )
 
@@ -753,7 +796,7 @@ export default function CustomFormPage() {
               Clear All Fields?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to clear all fields? This action cannot be undone and will remove all the fields you've added to the form.
+              Are you sure you want to clear all fields? This action cannot be undone and will remove all the fields you&apos;ve added to the form.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -805,7 +848,7 @@ export default function CustomFormPage() {
 
                 {/* Main Canvas */}
                 <div className="flex-1 flex min-w-0">
-                  <div 
+                  <div
                     className="flex-1 min-w-0 transition-all duration-150 ease-out"
                     style={selectedField ? { width: `calc(100% - ${configPanelWidth}px)` } : {}}
                   >
@@ -832,9 +875,9 @@ export default function CustomFormPage() {
 
                   {/* Configuration Panel */}
                   {selectedField && (
-                    <div 
+                    <div
                       className="border-l bg-card flex-shrink-0 overflow-hidden animate-in slide-in-from-right relative group/config"
-                      style={{ 
+                      style={{
                         width: `${configPanelWidth}px`,
                         transition: 'width 0.05s ease-out'
                       }}
@@ -887,7 +930,7 @@ export default function CustomFormPage() {
 
               {/* Main Canvas */}
               <div className="flex-1 flex min-w-0">
-                <div 
+                <div
                   className="flex-1 min-w-0 transition-all duration-150 ease-out"
                   style={selectedField ? { width: `calc(100% - ${configPanelWidth}px)` } : {}}
                 >
@@ -914,9 +957,9 @@ export default function CustomFormPage() {
 
                 {/* Configuration Panel */}
                 {selectedField && (
-                  <div 
+                  <div
                     className="border-l bg-card flex-shrink-0 overflow-hidden animate-in slide-in-from-right relative group/config"
-                    style={{ 
+                    style={{
                       width: `${configPanelWidth}px`,
                       transition: 'width 0.05s ease-out'
                     }}
