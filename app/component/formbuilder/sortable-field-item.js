@@ -42,8 +42,8 @@ const SortableFieldItemComponent = function SortableFieldItem({ field, selectedF
     zIndex: isDragging ? 1000 : 'auto',
   }), [transform, transition, isDeleting, isDragging])
 
-  const isSelected = useMemo(() => 
-    selectedField?.id === field.id, 
+  const isSelected = useMemo(() =>
+    selectedField?.id === field.id,
     [selectedField?.id, field.id]
   )
 
@@ -80,7 +80,7 @@ const SortableFieldItemComponent = function SortableFieldItem({ field, selectedF
             </div>
 
             <div className="flex-1 min-w-0">
-              <FieldRenderer field={field} />
+              <FieldRenderer field={field} isBuilder={true} />
             </div>
 
             <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">

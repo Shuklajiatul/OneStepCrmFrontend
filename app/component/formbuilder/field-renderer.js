@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+import { useDroppable } from "@dnd-kit/core"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -1905,7 +1906,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
   }
 }
 
-export function FieldRenderer({ field, value, onChange, disabled = false, invalid = false, error, hideFieldTypes = false }) {
+export function FieldRenderer({ field, value, onChange, disabled = false, invalid = false, error, hideFieldTypes = false, isBuilder = false }) {
   const safeOnChange = onChange || (() => { })
   const [countries, setCountries] = useState([])
   const [phoneCountries, setPhoneCountries] = useState([])
@@ -3162,8 +3163,20 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
       }
 
       case "group":
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const { setNodeRef: setGroupDropRef, isOver: isGroupOver } = isBuilder ? useDroppable({
+          id: `group-drop-${field.id}`,
+          data: {
+            type: 'group-container',
+            fieldId: field.id
+          }
+        }) : { setNodeRef: null, isOver: false }
         return (
-          <div className="border rounded-md p-4 space-y-4 bg-gray-50/50">
+          <div
+            ref={isBuilder ? setGroupDropRef : null}
+            className={`border rounded-md p-4 space-y-4 transition-colors duration-200 ${isGroupOver ? 'bg-primary/10 border-primary border-dashed ring-2 ring-primary/20' : 'bg-gray-50/50'
+              }`}
+          >
             {field.subFields && field.subFields.length > 0 ? (
               field.subFields.map((subField) => {
                 const subFieldValue = value?.[subField.id]
@@ -3189,7 +3202,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
               })
             ) : (
               <div className="text-sm text-muted-foreground border border-dashed p-4 text-center rounded-md">
-                Empty Group. Add fields from configuration.
+                {isGroupOver ? 'Drop field here' : 'Empty Group. Drag and drop fields here.'}
               </div>
             )}
           </div>
