@@ -57,7 +57,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
       })
       const result = response.data
       console.log('Table columns:', result)
-      
+
       // Handle array response directly
       if (Array.isArray(result)) {
         setTableColumns(result)
@@ -198,7 +198,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
   const toggleColumnSelection = (column) => {
     setSelectedColumns(prev => {
       const isSelected = prev.some(col => col.column_id === column.column_id)
-      
+
       if (isSelected) {
         return prev.filter(col => col.column_id !== column.column_id)
       } else {
@@ -228,7 +228,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
 
         // Parse optional values to get proper options structure
         const parsedOptions = parseOptionalValues(column.optional_values)
-        
+
         const fieldData = {
           id: generateUniqueFieldId(),
           type: fieldType,
@@ -246,7 +246,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
           originalDataType: column.parent_datatype, // Keep original for debugging
           isLeadColumn: true // Set isLeadColumn to true for table columns
         }
-        
+
         return fieldData
       })
 
@@ -263,7 +263,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
     const columnName = column.column_name || ''
     const dataType = column.parent_datatype || ''
     return columnName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           dataType.toLowerCase().includes(searchTerm.toLowerCase())
+      dataType.toLowerCase().includes(searchTerm.toLowerCase())
   })
 
   // Get used columns for display
@@ -285,7 +285,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
           {/* Button Container */}
           <div className="flex justify-between items-center">
             {selectedColumns.length > 0 && (
-              <Button 
+              <Button
                 onClick={addColumnsAsFields}
                 variant="default"
                 size="sm"
@@ -294,12 +294,12 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
                 Add {selectedColumns.length} {selectedColumns.length === 1 ? 'Column' : 'Columns'}
               </Button>
             )}
-            
-            <Button 
+
+            <Button
               onClick={() => {
                 fetchTableColumns()
                 setSelectedColumns([])
-              }} 
+              }}
               disabled={loading}
               size="sm"
               variant="outline"
@@ -345,18 +345,17 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
                     </TableHeader>
                     <TableBody>
                       {filteredColumns.map((column) => (
-                        <TableRow 
+                        <TableRow
                           key={column.column_id}
                           className="cursor-pointer hover:bg-muted/50"
                           onClick={() => toggleColumnSelection(column)}
                         >
                           <TableCell>
                             <div className="flex items-center justify-center">
-                              <div className={`w-4 h-4 border rounded flex items-center justify-center ${
-                                selectedColumns.some(col => col.column_id === column.column_id) 
-                                  ? 'bg-primary border-primary' 
+                              <div className={`w-4 h-4 border rounded flex items-center justify-center ${selectedColumns.some(col => col.column_id === column.column_id)
+                                  ? 'bg-primary border-primary'
                                   : 'border-border'
-                              }`}>
+                                }`}>
                                 {selectedColumns.some(col => col.column_id === column.column_id) && (
                                   <Check className="h-3 w-3 text-primary-foreground" />
                                 )}
@@ -409,7 +408,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
           {tableColumns.length === 0 && !loading && (
             <div className="text-center py-8 text-muted-foreground">
               <Database className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-              <p>Click "Refresh Columns" to load columns from your table</p>
+              <p>Click &quot;Refresh Columns&quot; to load columns from your table</p>
               <p className="text-sm mt-2">Columns will be converted to appropriate form field types</p>
               <p className="text-xs mt-1 text-muted-foreground/70">Refresh also clears all selected columns</p>
             </div>
@@ -457,7 +456,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
               ))}
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              These columns will be added to the form with "Add to Lead Database" enabled by default.
+              These columns will be added to the form with &quot;Add to Lead Database&quot; enabled by default.
             </p>
           </CardContent>
         </Card>
