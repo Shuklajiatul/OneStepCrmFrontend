@@ -33,8 +33,6 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 import { authUtils } from '@/lib/auth-utils'
 import { useRouter, usePathname } from 'next/navigation'
-import Sidebar from "../component/sidebar"
-import Topbar from "../component/topbar"
 import { cn } from "@/lib/utils"
 
 const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID;
@@ -52,10 +50,8 @@ export default function MyFormsPage() {
     tokens?.userId ||
     null
   const resolvedUserId = storedUserId || FALLBACK_USER_ID
-  
-  const [darkMode, setDarkMode] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const [activeTab, setActiveTab] = useState("my-forms")
+
+
   const [forms, setForms] = useState([])
   const [loading, setLoading] = useState(true)
   const [editingForm, setEditingForm] = useState(null)
@@ -72,7 +68,7 @@ export default function MyFormsPage() {
   const [sortDirection, setSortDirection] = useState("asc")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
-  
+
   // View mode state
   const [viewMode, setViewMode] = useState("table")
 
@@ -80,21 +76,7 @@ export default function MyFormsPage() {
     fetchForms()
   }, [])
 
-  useEffect(() => {
-    if (isStandaloneRoute && darkMode) {
-      document.documentElement.classList.add('dark');
-    } else if (isStandaloneRoute) {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode, isStandaloneRoute]);
 
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-  };
-
-  const toggleSidebar = () => {
-    setIsCollapsed(!isCollapsed)
-  }
 
   // Helper function to generate unique field IDs
   const generateUniqueFieldId = (prefix = 'field') => {
@@ -230,8 +212,8 @@ export default function MyFormsPage() {
       )
       const result = response.data
 
-      if (result.success && result.form) {
-        return result.form
+      if (result.success && result.data) {
+        return result.data
       } else {
         throw new Error('Form not found in response')
       }
@@ -290,7 +272,7 @@ export default function MyFormsPage() {
         status: !currentStatus, // Toggle the status
         version: form.version || 1
       }
-      
+
       console.log('Archive payload:', archivePayload)
 
       const response = await axios.post(
@@ -314,7 +296,7 @@ export default function MyFormsPage() {
 
         // Update the local state - only update the specific version
         setForms(prevForms => {
-          const updatedForms = prevForms.map(f => 
+          const updatedForms = prevForms.map(f =>
             f.form_id === formId && f.version === form.version
               ? {
                 ...f,
@@ -362,7 +344,7 @@ export default function MyFormsPage() {
         table_id: process.env.NEXT_PUBLIC_TABLE_ID,
         version: form.version || 1
       }
-      
+
       console.log('Delete payload:', deletePayload)
 
       const response = await axios.post(
@@ -382,13 +364,13 @@ export default function MyFormsPage() {
       if (result.success) {
         // Remove the specific form version from local state
         setForms(prevForms => {
-          const filteredForms = prevForms.filter(f => 
+          const filteredForms = prevForms.filter(f =>
             !(f.form_id === form.form_id && (f.version || 1) === (form.version || 1))
           )
           console.log(`Removed version ${form.version || 1} of form ${form.form_id}. Remaining forms:`, filteredForms.length)
           return filteredForms
         })
-        
+
         toast.success(`Form "${form.form_name}" v-${form.version || 1} deleted successfully!`)
         // Close dialog and reset state
         setDeleteDialogOpen(false)
@@ -427,9 +409,9 @@ export default function MyFormsPage() {
       const result = response.data
       console.log('API Forms Response:', result)
 
-      if (result.success && Array.isArray(result.form)) {
+      if (result.success && Array.isArray(result.data)) {
         // Process the forms to add field counts and format dates
-        const processedForms = result.form.map(form => {
+        const processedForms = result.data.map(form => {
 
           return {
             ...form,
@@ -473,7 +455,7 @@ export default function MyFormsPage() {
     }
 
     const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}`
-    
+
     try {
       // Check if clipboard API is available
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -489,7 +471,7 @@ export default function MyFormsPage() {
         document.body.appendChild(textArea)
         textArea.focus()
         textArea.select()
-        
+
         try {
           const successful = document.execCommand('copy')
           if (successful) {
@@ -527,7 +509,7 @@ export default function MyFormsPage() {
           }
         }
       )
-      
+
       const result = response.data
       if (result.success && result.form) {
         const latestVersion = result.form.version || 1
@@ -581,7 +563,7 @@ export default function MyFormsPage() {
         // Recursive function to parse nested fields structure
         const parseNestedFieldsRecursively = (nestedFieldsArray) => {
           if (!Array.isArray(nestedFieldsArray)) return []
-          
+
           return nestedFieldsArray.map(nestedField => {
             const parsedNestedField = {
               id: nestedField.id,
@@ -694,7 +676,7 @@ export default function MyFormsPage() {
 
       // Clear any existing localStorage data first to ensure fresh start
       localStorage.removeItem('formBuilderData')
-      
+
       // Store the form data in localStorage to pass to form builder
       const formBuilderData = {
         formId: formDetails.form_id,
@@ -706,7 +688,7 @@ export default function MyFormsPage() {
       }
 
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
-      
+
       // Set flag to indicate this is a direct edit action
       sessionStorage.setItem('directEditAction', 'true')
 
@@ -726,7 +708,7 @@ export default function MyFormsPage() {
       // Helper function to recursively process nested fields
       const processNestedFieldsForAPI = (nestedFieldsObj) => {
         if (!nestedFieldsObj || typeof nestedFieldsObj !== 'object') return []
-        
+
         const result = []
         // nestedFieldsObj is structured as { optionIndex: [fields] }
         Object.values(nestedFieldsObj).forEach(fieldsArray => {
@@ -750,11 +732,11 @@ export default function MyFormsPage() {
                 processedNestedField.options = nestedField.options.map((opt, idx) => ({
                   value: typeof opt === 'string' ? opt : opt.value,
                   label: typeof opt === 'string' ? opt : opt.label,
-                  nestedFields: nestedField.nestedFields && nestedField.nestedFields[idx] 
+                  nestedFields: nestedField.nestedFields && nestedField.nestedFields[idx]
                     ? processNestedFieldsForAPI({ [idx]: nestedField.nestedFields[idx] })
                     : []
                 }))
-                processedNestedField.hasNested = processedNestedField.options.some(opt => 
+                processedNestedField.hasNested = processedNestedField.options.some(opt =>
                   opt.nestedFields && opt.nestedFields.length > 0
                 )
               }
@@ -800,7 +782,7 @@ export default function MyFormsPage() {
           }
 
           // Check if field has nested fields
-          const hasNested = processedOptions.some(option => 
+          const hasNested = processedOptions.some(option =>
             option.nestedFields && option.nestedFields.length > 0
           )
 
@@ -934,51 +916,12 @@ export default function MyFormsPage() {
     setCurrentPage(1)
   }, [searchTerm, statusFilter])
 
-  // Loading state - only wrap with layout if standalone route
+  // Loading state
   if (loading) {
-    const loadingContent = (
+    return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
-    )
-
-    if (!isStandaloneRoute) {
-      return loadingContent
-    }
-
-    return (
-      <main className="min-h-screen bg-background">
-        {!isCollapsed && (
-          <div 
-            className="fixed inset-0 bg-black/50 z-40 md:hidden"
-            onClick={() => setIsCollapsed(true)}
-          />
-        )}
-        
-        <div className="flex min-h-screen">
-          <Sidebar 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab}
-            isCollapsed={isCollapsed}
-            setIsCollapsed={setIsCollapsed}
-          />
-          <section className={cn(
-            "flex-1 transition-all duration-300 flex flex-col min-h-screen overflow-hidden",
-            isCollapsed ? "md:ml-0" : "md:ml-0"
-          )}>
-            <div className="p-4 border-b border-border bg-card/50">
-              <Topbar 
-                darkMode={darkMode} 
-                toggleDarkMode={toggleDarkMode}
-                toggleSidebar={toggleSidebar}
-              />
-            </div>
-            <div className="flex-1 p-4 md:p-6 bg-background overflow-x-hidden">
-              {loadingContent}
-            </div>
-          </section>
-        </div>
-      </main>
     )
   }
 
@@ -1127,7 +1070,7 @@ export default function MyFormsPage() {
                         <Table className="w-full table-auto">
                           <TableHeader>
                             <TableRow className="bg-muted/50 hover:bg-muted/50">
-                              <TableHead 
+                              <TableHead
                                 className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
                                 onClick={() => handleSort("form_name")}
                               >
@@ -1137,7 +1080,7 @@ export default function MyFormsPage() {
                                 </div>
                               </TableHead>
                               <TableHead className="font-semibold text-foreground hidden md:table-cell">Description</TableHead>
-                              <TableHead 
+                              <TableHead
                                 className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
                                 onClick={() => handleSort("fieldCount")}
                               >
@@ -1146,7 +1089,7 @@ export default function MyFormsPage() {
                                   <ArrowUpDown className="h-4 w-4" />
                                 </div>
                               </TableHead>
-                              <TableHead 
+                              <TableHead
                                 className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
                                 onClick={() => handleSort("createdDate")}
                               >
@@ -1161,7 +1104,7 @@ export default function MyFormsPage() {
                           </TableHeader>
                           <TableBody>
                             {paginatedForms.map((form) => (
-                              <TableRow 
+                              <TableRow
                                 key={`${form.form_id}-v${form.version || 1}`}
                                 className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
                               >
@@ -1330,7 +1273,7 @@ export default function MyFormsPage() {
                 {viewMode === "list" && (
                   <div className="space-y-3">
                     {paginatedForms.map((form) => (
-                      <div 
+                      <div
                         key={`${form.form_id}-v${form.version || 1}`}
                         className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
                       >
@@ -1715,8 +1658,8 @@ export default function MyFormsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure you want to delete this form?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the form "
-                <span className="font-semibold">{formToDelete?.form_name}</span>" and all of its data.
+                This action cannot be undone. This will permanently delete the form &quot;
+                <span className="font-semibold">{formToDelete?.form_name}</span>&quot; and all of its data.
                 {formToDelete?.published && (
                   <span className="block mt-2 text-amber-600 font-medium">
                     ⚠️ This form is currently published. Deleting it will make it inaccessible to users.
@@ -1750,43 +1693,6 @@ export default function MyFormsPage() {
   )
 
   // If not standalone route (used within main page), return just the content
-  if (!isStandaloneRoute) {
-    return mainContent
-  }
+  return mainContent
 
-  // If standalone route, wrap with layout
-  return (
-    <main className="min-h-screen bg-background">
-      {!isCollapsed && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setIsCollapsed(true)}
-        />
-      )}
-      
-      <div className="flex min-h-screen">
-        <Sidebar 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab}
-          isCollapsed={isCollapsed}
-          setIsCollapsed={setIsCollapsed}
-        />
-        <section className={cn(
-          "flex-1 transition-all duration-300 flex flex-col min-h-screen overflow-hidden",
-          isCollapsed ? "md:ml-0" : "md:ml-0"
-        )}>
-          <div className="p-4 border-b border-border bg-card/50">
-            <Topbar 
-              darkMode={darkMode} 
-              toggleDarkMode={toggleDarkMode}
-              toggleSidebar={toggleSidebar}
-            />
-          </div>
-          <div className="flex-1 p-4 md:p-6 bg-background overflow-x-hidden">
-            {mainContent}
-          </div>
-        </section>
-      </div>
-    </main>
-  )
 }
