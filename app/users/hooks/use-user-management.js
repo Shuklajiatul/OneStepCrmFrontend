@@ -1,9 +1,6 @@
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
-import axios from "axios"
-import { authUtils } from "@/lib/auth-utils"
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
+import apiClient from "@/lib/api-client"
 
 export function useUserManagement({ initialUsers = [], initialRoles = [], initialGenes = [], initialPolicies = [] }) {
     const [users, setUsers] = useState(initialUsers)
@@ -43,33 +40,11 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
 
     const [submitting, setSubmitting] = useState(false)
 
-    // Auth helpers
-    const getAuthToken = () => {
-        if (typeof window === "undefined") return null
-        const tokens = authUtils.getTokens()
-        return tokens?.accessToken || localStorage.getItem("token") || localStorage.getItem("accessToken")
-    }
-
-    const getAuthHeaders = () => {
-        const bearerFromCookies = authUtils.getAuthHeader()
-        const token = getAuthToken()
-        const authorization = bearerFromCookies || (token ? `Bearer ${token}` : null)
-
-        return {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            ...(authorization && { Authorization: authorization }),
-        }
-    }
-
     // Fetchers
     const fetchUsers = async () => {
         try {
             setLoading(true)
-            const response = await axios.get(`${API_BASE_URL}/api/users`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.get('/api/users')
 
             if (response.data) {
                 const userData = Array.isArray(response.data)
@@ -85,14 +60,9 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
         }
     }
 
-
-
     const fetchGenes = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/genes`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.get('/api/genes')
 
             if (response.data) {
                 const allGenes = Array.isArray(response.data)
@@ -108,10 +78,7 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
 
     const fetchPolicies = async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/policies`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.get('/api/policies')
 
             if (response.data) {
                 const policyData = Array.isArray(response.data)
@@ -127,10 +94,7 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
 
     const fetchUserDetails = async (userId) => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/users/${userId}`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.get(`/api/users/${userId}`)
 
             if (response.data) {
                 const userData = response.data.data || response.data
@@ -190,10 +154,7 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
                 reporting_id: selectedRolePriority === 1 ? "" : (formData.reporting_id || ""),
             }
 
-            const response = await axios.post(`${API_BASE_URL}/api/users`, payload, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.post('/api/users', payload)
 
             if (response.data) {
                 toast.success("User created successfully")
@@ -244,10 +205,7 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
                 return
             }
 
-            const response = await axios.patch(`${API_BASE_URL}/api/users/${selectedUser.user_id}`, payload, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.patch(`/api/users/${selectedUser.user_id}`, payload)
 
             if (response.data) {
                 toast.success("User updated successfully")
@@ -270,10 +228,7 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
 
         try {
             setSubmitting(true)
-            const response = await axios.patch(`${API_BASE_URL}/api/users/${user.user_id}`, { is_active: newStatus }, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.patch(`/api/users/${user.user_id}`, { is_active: newStatus })
 
             if (response.data || response.status === 200) {
                 toast.success(`User ${newStatus ? "activated" : "deactivated"} successfully`)
@@ -289,16 +244,13 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
         }
     }
 
-
-
     const handleAssignRole = async () => {
         if (!selectedUser?.user_id || !roleFormData.role_id) return toast.error("Please select a role")
 
         try {
             setSubmitting(true)
-            const response = await axios.post(`${API_BASE_URL}/api/users/${selectedUser.user_id}/roles`,
-                { role_id: roleFormData.role_id },
-                { headers: getAuthHeaders(), timeout: 30000 }
+            const response = await apiClient.post(`/api/users/${selectedUser.user_id}/roles`,
+                { role_id: roleFormData.role_id }
             )
 
             if (response.data) {
@@ -318,10 +270,7 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
     const handleRemoveRole = async (userId, roleId) => {
         try {
             setSubmitting(true)
-            const response = await axios.delete(`${API_BASE_URL}/api/users/${userId}/roles/${roleId}`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.delete(`/api/users/${userId}/roles/${roleId}`)
 
             if (response.status === 200 || response.status === 204) {
                 toast.success("Role removed successfully")

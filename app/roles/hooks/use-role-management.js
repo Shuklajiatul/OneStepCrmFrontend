@@ -1,9 +1,6 @@
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
-import axios from "axios"
-import { authUtils } from "@/lib/auth-utils"
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
+import apiClient from "@/lib/api-client"
 
 export function useRoleManagement({ initialRoles = [] }) {
     const [roles, setRoles] = useState(initialRoles)
@@ -25,33 +22,11 @@ export function useRoleManagement({ initialRoles = [] }) {
         priority: 1,
     })
 
-    // Auth helpers
-    const getAuthToken = () => {
-        if (typeof window === "undefined") return null
-        const tokens = authUtils.getTokens()
-        return tokens?.accessToken || localStorage.getItem("token") || localStorage.getItem("accessToken")
-    }
-
-    const getAuthHeaders = () => {
-        const bearerFromCookies = authUtils.getAuthHeader()
-        const token = getAuthToken()
-        const authorization = bearerFromCookies || (token ? `Bearer ${token}` : null)
-
-        return {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            ...(authorization && { Authorization: authorization }),
-        }
-    }
-
     // Fetchers
     const fetchRoles = async () => {
         try {
             setLoading(true)
-            const response = await axios.get(`${API_BASE_URL}/api/roles`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.get('/api/roles')
 
             if (response.data) {
                 const roleData = Array.isArray(response.data)
@@ -64,8 +39,6 @@ export function useRoleManagement({ initialRoles = [] }) {
             if (error.response?.status === 404) {
                 toast.info("Roles API endpoint not found.")
                 setRoles([])
-            } else if (error.response?.status === 401) {
-                toast.error("Session expired. Please login again.")
             } else {
                 toast.error("Failed to fetch roles.")
             }
@@ -76,10 +49,7 @@ export function useRoleManagement({ initialRoles = [] }) {
 
     const fetchRoleDetails = async (roleId) => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/roles/${roleId}`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.get(`/api/roles/${roleId}`)
 
             if (response.data) {
                 const roleData = response.data.data || response.data
@@ -116,10 +86,7 @@ export function useRoleManagement({ initialRoles = [] }) {
                 priority: parseInt(formData.priority) || 1,
             }
 
-            const response = await axios.post(`${API_BASE_URL}/api/roles`, payload, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.post('/api/roles', payload)
 
             if (response.data) {
                 toast.success("Role created successfully")
@@ -178,13 +145,9 @@ export function useRoleManagement({ initialRoles = [] }) {
                 payload.priority = newPriority
             }
 
-            const response = await axios.put(
-                `${API_BASE_URL}/api/roles/${roleId}`,
-                payload,
-                {
-                    headers: getAuthHeaders(),
-                    timeout: 30000,
-                }
+            const response = await apiClient.put(
+                `/api/roles/${roleId}`,
+                payload
             )
 
             if (response.data) {
@@ -211,10 +174,7 @@ export function useRoleManagement({ initialRoles = [] }) {
         try {
             setDeleteSubmitting(true)
 
-            const response = await axios.delete(`${API_BASE_URL}/api/roles/${roleId}`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.delete(`/api/roles/${roleId}`)
 
             if (response.status === 200 || response.status === 204 || response.data) {
                 toast.success("Role deleted successfully")
