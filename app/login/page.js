@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { useState, useCallback, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -12,7 +13,8 @@ import Image from "next/image"
 import { authUtils } from "@/lib/auth-utils"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.10.15.194:3001'
-export default function LoginPage() {
+
+function LoginForm() {
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
     organization_id: "",
@@ -28,7 +30,7 @@ export default function LoginPage() {
   const [loginData, setLoginData] = useState(null)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false)
-  
+
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -57,7 +59,7 @@ export default function LoginPage() {
   //       method: 'GET',
   //       credentials: 'include'
   //     })
-      
+
   //     if (response.ok) {
   //       const data = await response.json()
   //       if (data.authenticated) {
@@ -93,7 +95,6 @@ export default function LoginPage() {
       setError(err.message || "Failed to initiate Google login")
       setIsGoogleLoading(false)
     }
-    authUtils.setTokens(data);
   }
 
   const handleMicrosoftLogin = () => {
@@ -286,8 +287,8 @@ export default function LoginPage() {
               {step === 1
                 ? "Login to check for store updates and deliveries"
                 : step === 2
-                ? "Enter your credentials to continue"
-                : "Enter the OTP sent to your email and phone"}
+                  ? "Enter your credentials to continue"
+                  : "Enter the OTP sent to your email and phone"}
             </p>
           </div>
 
@@ -345,13 +346,13 @@ export default function LoginPage() {
                     {isMicrosoftLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                    <svg className="w-5 h-5" viewBox="0 0 23 23">
-                      <path fill="#f3f3f3" d="M0 0h23v23H0z"/>
-                      <path fill="#f35325" d="M1 1h10v10H1z"/>
-                      <path fill="#81bc06" d="M12 1h10v10H12z"/>
-                      <path fill="#05a6f0" d="M1 12h10v10H1z"/>
-                      <path fill="#ffba08" d="M12 12h10v10H12z"/>
-                    </svg>
+                      <svg className="w-5 h-5" viewBox="0 0 23 23">
+                        <path fill="#f3f3f3" d="M0 0h23v23H0z" />
+                        <path fill="#f35325" d="M1 1h10v10H1z" />
+                        <path fill="#81bc06" d="M12 1h10v10H12z" />
+                        <path fill="#05a6f0" d="M1 12h10v10H1z" />
+                        <path fill="#ffba08" d="M12 12h10v10H12z" />
+                      </svg>
                     )}
                     {isMicrosoftLoading ? "Redirecting..." : "Continue with Microsoft"}
                   </Button>
@@ -379,7 +380,7 @@ export default function LoginPage() {
 
                 <div className="text-center">
                   <Link href="/register" className="text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors">
-                    Don't have an account? Register here
+                    Don&apos;t have an account? Register here
                   </Link>
                 </div>
               </div>
@@ -540,5 +541,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-purple-600" /></div>}>
+      <LoginForm />
+    </Suspense>
   )
 }
