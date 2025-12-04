@@ -1,9 +1,6 @@
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
-import axios from "axios"
-import { authUtils } from "@/lib/auth-utils"
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
+import apiClient from "@/lib/api-client"
 
 export function useOrganizationManagement({ initialOrganizations = [] }) {
     const [organizations, setOrganizations] = useState(initialOrganizations)
@@ -27,33 +24,11 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
         settings: null,
     })
 
-    // Auth helpers
-    const getAuthToken = () => {
-        if (typeof window === "undefined") return null
-        const tokens = authUtils.getTokens()
-        return tokens?.accessToken || localStorage.getItem("token") || localStorage.getItem("accessToken")
-    }
-
-    const getAuthHeaders = () => {
-        const bearerFromCookies = authUtils.getAuthHeader()
-        const token = getAuthToken()
-        const authorization = bearerFromCookies || (token ? `Bearer ${token}` : null)
-
-        return {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            ...(authorization && { Authorization: authorization }),
-        }
-    }
-
     // Fetchers
     const fetchOrganizations = async () => {
         try {
             setLoading(true)
-            const response = await axios.get(`${API_BASE_URL}/api/organizations`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.get('/api/organizations')
 
             if (response.data) {
                 const orgData = Array.isArray(response.data)
@@ -66,9 +41,8 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
             if (error.response?.status === 404) {
                 toast.info("Organizations API endpoint not found.")
                 setOrganizations([])
-            } else if (error.response?.status === 401) {
-                toast.error("Session expired. Please login again.")
             } else {
+                // 401 is handled by apiClient interceptor
                 toast.error("Failed to fetch organizations.")
             }
         } finally {
@@ -78,10 +52,7 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
 
     const fetchOrganizationDetails = async (organizationId) => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/api/organizations/${organizationId}`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.get(`/api/organizations/${organizationId}`)
 
             if (response.data) {
                 const orgData = response.data.data || response.data
@@ -118,10 +89,7 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
                 payload.settings = formData.settings
             }
 
-            const response = await axios.post(`${API_BASE_URL}/api/organizations`, payload, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.post('/api/organizations', payload)
 
             if (response.data) {
                 toast.success("Organization created successfully")
@@ -156,13 +124,9 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
                 settings: formData.settings || {},
             }
 
-            const response = await axios.put(
-                `${API_BASE_URL}/api/organizations/${organizationId}`,
-                payload,
-                {
-                    headers: getAuthHeaders(),
-                    timeout: 30000,
-                }
+            const response = await apiClient.put(
+                `/api/organizations/${organizationId}`,
+                payload
             )
 
             if (response.data) {
@@ -189,10 +153,7 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
         try {
             setDeleteSubmitting(true)
 
-            const response = await axios.delete(`${API_BASE_URL}/api/organizations/${organizationId}`, {
-                headers: getAuthHeaders(),
-                timeout: 30000,
-            })
+            const response = await apiClient.delete(`/api/organizations/${organizationId}`)
 
             if (response.status === 200 || response.status === 204 || response.data) {
                 toast.success("Organization deleted successfully")
