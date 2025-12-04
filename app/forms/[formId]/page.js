@@ -2885,18 +2885,14 @@ export default function PublicFormPage() {
             }
           })
 
-          // Log the actual submission payload before sending
           const updateData = {
             organization_id: ORGANIZATION_ID,
             form_id: formId,
-            reference_id: finalUserId, // Use user ID from URL, fallback to hardcoded
+            reference_id: finalUserId,
             submission_id: submissionId,
             values: transformedValues
           }
           console.log('Final update payload:', JSON.stringify(updateData, null, 2))
-          console.log('=== END DEBUG ===')
-
-          console.log('Form update data:', updateData)
 
           const response = await axios.post(`${API_BASE_URL}/api/submit/update?token=${token}`, updateData, {
             headers: {
@@ -2913,12 +2909,18 @@ export default function PublicFormPage() {
             setEditCountLeft(result.editCountLeft)
           }
 
-          setUpdateSuccess(true)
+          // Clear the form and redirect to my-forms
+          form.reset()
+          setFormData(null)
+          setSubmissionData(null)
+          setIsEditMode(false)
+          setFormInitialized(false)
+          router.push('/my-forms')
         } else {
           // Create new submission
           const submissionData = {
             organization_id: ORGANIZATION_ID,
-            reference_id: finalUserId, // Use user ID from URL, fallback to hardcoded
+            reference_id: finalUserId,
             form_id: formId,
             values: transformedValues
           }
@@ -3208,7 +3210,7 @@ export default function PublicFormPage() {
               The form you&apos;re looking for doesn&apos;t exist or has been removed.
             </p>
             <Button asChild>
-              <Link href="/">
+              <Link href="/my-forms">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Home
               </Link>
@@ -3233,7 +3235,7 @@ export default function PublicFormPage() {
               This form is currently inactive and cannot accept submissions. Please contact the form owner if you need to access it.
             </p>
             <Button asChild>
-              <Link href="/">
+              <Link href="/my-forms">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Home
               </Link>
