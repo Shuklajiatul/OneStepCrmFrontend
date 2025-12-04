@@ -14,7 +14,9 @@ import ReactFlow, {
   useEdgesState,
   Position,
   MarkerType,
+  Handle,
 } from 'reactflow';
+
 import 'reactflow/dist/style.css';
 
 // Shadcn UI Components
@@ -31,6 +33,49 @@ const API_CONSTANTS = {
   BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
   geneDetails: '/api/genes',
   geneMappedUser: '/api/genes/by-geneId',
+};
+
+const CustomNode = ({ data }) => {
+  return (
+    <Card className="min-w-[160px] hover:shadow-xl transition-all cursor-default border-2 relative" style={{ borderColor: data.colors.border }}>
+      <Handle type="target" position={Position.Top} className="w-3 h-3 bg-muted-foreground" />
+      <Handle type="source" position={Position.Bottom} className="w-3 h-3 bg-muted-foreground" />
+      <Handle type="source" position={Position.Right} id="right" className="w-3 h-3 bg-muted-foreground opacity-0" />
+      <Handle type="target" position={Position.Left} id="left" className="w-3 h-3 bg-muted-foreground opacity-0" />
+      <CardContent className="p-3">
+        <div className="flex flex-col items-center gap-2">
+          <div
+            className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
+            style={{
+              background: `linear-gradient(135deg, ${data.colors.bg}, ${data.colors.border})`,
+            }}
+          >
+            <User size={24} className="text-white" strokeWidth={2.5} />
+          </div>
+          <div className="text-center w-full">
+            <p className="font-semibold text-sm text-foreground truncate mb-0.5">
+              {data.label}
+            </p>
+            <p className="text-xs text-muted-foreground truncate capitalize mb-2">
+              {data.role}
+            </p>
+            <Badge
+              className="text-[10px] font-bold text-white"
+              style={{
+                backgroundColor: data.colors.bg,
+              }}
+            >
+              P{data.priority}
+            </Badge>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const nodeTypes = {
+  custom: CustomNode,
 };
 
 const RolePriorityTree = () => {
@@ -66,26 +111,26 @@ const RolePriorityTree = () => {
 
   useEffect(() => {
     if (users.length > 0 && availableRoles.length > 0) {
-      const needsReNormalization = users.some(u => 
+      const needsReNormalization = users.some(u =>
         !u.role_info?.priority || u.role_info.priority === 999
       );
-      
+
       if (!needsReNormalization) {
         return;
       }
-      
+
       const normalizedUsers = users.map((u) => {
         if (u.role_info?.priority && u.role_info.priority !== 999) {
           return u;
         }
-        
+
         const originalUser = u;
         let roleName = u.role_info?.role_name || 'User';
         let priority = u.role_info?.priority || 999;
-        
+
         if (u.role_id) {
-          const role = availableRoles.find(r => 
-            (r.role_id || r.id) === u.role_id || 
+          const role = availableRoles.find(r =>
+            (r.role_id || r.id) === u.role_id ||
             String(r.role_id || r.id) === String(u.role_id)
           );
           if (role) {
@@ -93,16 +138,16 @@ const RolePriorityTree = () => {
             priority = role.priority || priority;
           }
         }
-        
+
         if (roleName !== 'User' && priority === 999) {
-          const roleByName = availableRoles.find(r => 
+          const roleByName = availableRoles.find(r =>
             (r.role_name || r.name || '').toLowerCase() === roleName.toLowerCase()
           );
           if (roleByName) {
             priority = roleByName.priority || priority;
           }
         }
-        
+
         return {
           ...originalUser,
           role_info: {
@@ -111,7 +156,7 @@ const RolePriorityTree = () => {
           },
         };
       });
-      
+
       console.log('Re-normalizing users with updated role priorities');
       setUsers(normalizedUsers);
       extractPriorityLevels(normalizedUsers);
@@ -139,7 +184,7 @@ const RolePriorityTree = () => {
     try {
       setLoadingGene(true);
       const token = getToken();
-      
+
       if (!token) {
         console.warn('No token available for fetching gene details');
         setLoadingGene(false);
@@ -148,7 +193,7 @@ const RolePriorityTree = () => {
 
       const geneDetailsUrl = `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneDetails}/${gId}`;
       console.log('Fetching gene details from:', geneDetailsUrl);
-      
+
       const response = await axios.get(
         geneDetailsUrl,
         {
@@ -180,7 +225,7 @@ const RolePriorityTree = () => {
   const fetchRoles = async () => {
     try {
       const token = getToken();
-      
+
       if (!token) {
         console.warn('No token available for fetching roles');
         return;
@@ -188,7 +233,7 @@ const RolePriorityTree = () => {
 
       const rolesUrl = `${API_CONSTANTS.BASE_URL}/api/roles`;
       console.log('Fetching roles from:', rolesUrl);
-      
+
       const response = await axios.get(
         rolesUrl,
         {
@@ -222,21 +267,21 @@ const RolePriorityTree = () => {
     try {
       setLoading(true);
       setError(null);
-  
+
       const token = getToken();
-      
+
       if (!token) {
         setError('Authentication required. Please login again.');
         handleAuthError(401);
         return;
       }
-     
+
       const baseUrl = API_CONSTANTS.BASE_URL;
       const endPoint = API_CONSTANTS.geneMappedUser;
       const fullUrl = baseUrl + endPoint + '/' + gId;
-     
+
       let rawUsers = [];
-      
+
       try {
         const response = await axios.get(
           fullUrl,
@@ -249,10 +294,10 @@ const RolePriorityTree = () => {
             timeout: 30000
           }
         );
-       
+
         const resp = response.data || {};
         console.log('API Response:', resp);
-       
+
         const isOk = resp.status === 'success' || resp.success === true;
         if (isOk) {
           rawUsers = Array.isArray(resp.data) ? resp.data : [];
@@ -264,7 +309,7 @@ const RolePriorityTree = () => {
           return;
         }
       }
-      
+
       if (!rawUsers || rawUsers.length === 0) {
         console.log('Using fallback: fetching all users and filtering by g_ids');
         try {
@@ -279,7 +324,7 @@ const RolePriorityTree = () => {
               timeout: 30000
             }
           );
-          
+
           let allUsers = [];
           if (Array.isArray(allUsersResponse.data)) {
             allUsers = allUsersResponse.data;
@@ -288,7 +333,7 @@ const RolePriorityTree = () => {
           } else if (Array.isArray(allUsersResponse.data?.data)) {
             allUsers = allUsersResponse.data.data;
           }
-          
+
           rawUsers = allUsers.filter(user => {
             const gIds = user.g_ids || [];
             if (Array.isArray(gIds)) {
@@ -296,7 +341,7 @@ const RolePriorityTree = () => {
             }
             return String(gIds) === String(gId);
           });
-          
+
           console.log(`Found ${rawUsers.length} users mapped to gene ${gId}`);
         } catch (fallbackErr) {
           console.error('Fallback also failed:', fallbackErr);
@@ -304,7 +349,7 @@ const RolePriorityTree = () => {
             handleAuthError(401);
             return;
           }
-          
+
           if (geneDetails && geneDetails.users && Array.isArray(geneDetails.users) && geneDetails.users.length > 0) {
             console.log('Using user IDs from gene details as last resort');
             rawUsers = geneDetails.users.map(userId => ({
@@ -323,13 +368,13 @@ const RolePriorityTree = () => {
         const id = u.user_id || u.id;
         const name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
         const username = name || u.email || `User ${id || ''}`;
-        
+
         let roleName = 'User';
         let priority = 999;
-        
+
         if (u.role_id) {
-          const role = availableRoles.find(r => 
-            (r.role_id || r.id) === u.role_id || 
+          const role = availableRoles.find(r =>
+            (r.role_id || r.id) === u.role_id ||
             String(r.role_id || r.id) === String(u.role_id)
           );
           if (role) {
@@ -337,11 +382,11 @@ const RolePriorityTree = () => {
             priority = role.priority || 999;
           }
         }
-        
+
         if (roleName === 'User' && priority === 999) {
           if (u.roles && typeof u.roles === 'string') {
             roleName = u.roles;
-            const roleByName = availableRoles.find(r => 
+            const roleByName = availableRoles.find(r =>
               (r.role_name || r.name || '').toLowerCase() === u.roles.toLowerCase()
             );
             if (roleByName) {
@@ -349,7 +394,7 @@ const RolePriorityTree = () => {
             }
           } else if (u.role && typeof u.role === 'string') {
             roleName = u.role;
-            const roleByName = availableRoles.find(r => 
+            const roleByName = availableRoles.find(r =>
               (r.role_name || r.name || '').toLowerCase() === u.role.toLowerCase()
             );
             if (roleByName) {
@@ -362,7 +407,7 @@ const RolePriorityTree = () => {
             }
           }
         }
-        
+
         if (u.role_info) {
           if (u.role_info.role_name) {
             roleName = u.role_info.role_name;
@@ -371,7 +416,7 @@ const RolePriorityTree = () => {
             priority = u.role_info.priority;
           }
         }
-        
+
         return {
           ...u,
           id,
@@ -383,7 +428,7 @@ const RolePriorityTree = () => {
         };
       });
 
-      console.log('Normalized Users:', normalizedUsers); 
+      console.log('Normalized Users:', normalizedUsers);
       setUsers(normalizedUsers);
       extractPriorityLevels(normalizedUsers);
       buildPriorityTree(normalizedUsers);
@@ -403,25 +448,25 @@ const RolePriorityTree = () => {
 
   const extractPriorityLevels = (usersData) => {
     const levels = new Map();
-   
+
     usersData.forEach(user => {
       const priority = user.role_info?.priority;
       const roleName = user.role_info?.role_name;
-     
+
       if (priority && roleName && !levels.has(priority)) {
         levels.set(priority, roleName);
       }
     });
-   
+
     const sortedLevels = Array.from(levels.entries())
       .sort((a, b) => a[0] - b[0])
       .map(([priority, roleName]) => ({
         priority,
         roleName: roleName.charAt(0).toUpperCase() + roleName.slice(1)
       }));
-   
+
     setPriorityLevels(sortedLevels);
-    
+
     const expandedState = {};
     sortedLevels.forEach(level => {
       expandedState[level.priority] = true;
@@ -440,7 +485,7 @@ const RolePriorityTree = () => {
       { bg: '#0891b2', border: '#0e7490', light: '#cffafe', text: '#164e63' },
       { bg: '#4f46e5', border: '#4338ca', light: '#e0e7ff', text: '#312e81' },
     ];
-   
+
     const colorIndex = (priority - 1) % colors.length;
     return colors[colorIndex] || { bg: '#6b7280', border: '#4b5563', light: '#f3f4f6', text: '#1f2937' };
   };
@@ -462,30 +507,30 @@ const RolePriorityTree = () => {
     });
 
     const priorities = Object.keys(priorityGroups).map(Number).sort((a, b) => a - b);
-   
+
     const newNodes = [];
     const newEdges = [];
-   
+
     const HORIZONTAL_SPACING = 200;
     const VERTICAL_SPACING = 200;
-   
+
     let nodeIdCounter = 0;
     const priorityNodeMap = {};
 
     priorities.forEach((priority, levelIndex) => {
       const usersAtLevel = priorityGroups[priority];
       const colors = getPriorityColor(priority);
-     
+
       priorityNodeMap[priority] = [];
-     
+
       const totalWidth = (usersAtLevel.length - 1) * HORIZONTAL_SPACING;
       const startX = -(totalWidth / 2);
       const yPosition = levelIndex * VERTICAL_SPACING;
-     
+
       usersAtLevel.forEach((user, userIndex) => {
         const nodeId = `node-${nodeIdCounter++}`;
         const xPosition = startX + (userIndex * HORIZONTAL_SPACING);
-       
+
         newNodes.push({
           id: nodeId,
           type: 'custom',
@@ -501,7 +546,7 @@ const RolePriorityTree = () => {
             email: user.email
           },
         });
-       
+
         priorityNodeMap[priority].push({
           nodeId,
           userId: user.id,
@@ -511,18 +556,42 @@ const RolePriorityTree = () => {
     });
 
     priorities.forEach((currentPriority, levelIndex) => {
+      // Horizontal connections for the first level (highest priority)
+      if (levelIndex === 0) {
+        const topLevelNodes = priorityNodeMap[currentPriority];
+        for (let i = 0; i < topLevelNodes.length - 1; i++) {
+          const sourceNode = topLevelNodes[i];
+          const targetNode = topLevelNodes[i + 1];
+
+          newEdges.push({
+            id: `edge-horizontal-${sourceNode.nodeId}-${targetNode.nodeId}`,
+            source: sourceNode.nodeId,
+            target: targetNode.nodeId,
+            sourceHandle: 'right',
+            targetHandle: 'left',
+            type: 'smoothstep',
+            animated: false,
+            style: {
+              stroke: 'hsl(var(--muted-foreground))',
+              strokeWidth: 2.5,
+              strokeDasharray: '5,5'
+            },
+          });
+        }
+      }
+
       if (levelIndex === priorities.length - 1) return;
-     
+
       const nextPriority = priorities[levelIndex + 1];
       const currentLevelNodes = priorityNodeMap[currentPriority];
       const nextLevelNodes = priorityNodeMap[nextPriority];
-     
+
       nextLevelNodes.forEach((targetNode, targetIndex) => {
         const parentIndex = Math.floor(
           (targetIndex / nextLevelNodes.length) * currentLevelNodes.length
         );
         const sourceNode = currentLevelNodes[parentIndex];
-       
+
         if (sourceNode) {
           newEdges.push({
             id: `edge-${sourceNode.nodeId}-${targetNode.nodeId}`,
@@ -543,44 +612,7 @@ const RolePriorityTree = () => {
     setEdges(newEdges);
   };
 
-  const CustomNode = ({ data }) => {
-    return (
-      <Card className="min-w-[160px] hover:shadow-xl transition-all cursor-default border-2" style={{ borderColor: data.colors.border }}>
-        <CardContent className="p-3">
-          <div className="flex flex-col items-center gap-2">
-            <div
-              className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
-              style={{
-                background: `linear-gradient(135deg, ${data.colors.bg}, ${data.colors.border})`,
-              }}
-            >
-              <User size={24} className="text-white" strokeWidth={2.5} />
-            </div>
-            <div className="text-center w-full">
-              <p className="font-semibold text-sm text-foreground truncate mb-0.5">
-                {data.label}
-              </p>
-              <p className="text-xs text-muted-foreground truncate capitalize mb-2">
-                {data.role}
-              </p>
-              <Badge
-                className="text-[10px] font-bold text-white"
-                style={{
-                  backgroundColor: data.colors.bg,
-                }}
-              >
-                P{data.priority}
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
 
-  const nodeTypes = {
-    custom: CustomNode,
-  };
 
   const togglePriority = (priority) => {
     setExpandedPriorities(prev => ({
@@ -591,7 +623,7 @@ const RolePriorityTree = () => {
 
   const handleBack = () => {
     sessionStorage.setItem('intended-tab', 'gene')
-    router.push('/')
+    router.push('/gene')
   }
 
   const getUsersByPriority = (priority) => {
@@ -714,7 +746,7 @@ const RolePriorityTree = () => {
                 </CardDescription>
               </div>
             </div>
-           
+
             <div className="flex gap-2 flex-wrap justify-end max-w-lg flex-shrink-0">
               {priorityLevels.map(({ priority, roleName }) => {
                 const colors = getPriorityColor(priority);
@@ -792,12 +824,12 @@ const RolePriorityTree = () => {
                 size={1.5}
                 variant="dots"
               />
-             
+
               <Controls
                 showInteractive={false}
                 position="bottom-right"
               />
-             
+
               <MiniMap
                 nodeColor={(node) => node.data.colors.bg}
                 className="bg-card border-2 border-border rounded-lg"
@@ -817,7 +849,7 @@ const RolePriorityTree = () => {
 
                 return (
                   <Card key={priority} className="overflow-hidden">
-                    <div 
+                    <div
                       className="px-6 py-4 cursor-pointer hover:bg-muted/50 transition-colors flex items-center justify-between"
                       style={{ backgroundColor: colors.light }}
                       onClick={() => togglePriority(priority)}
@@ -837,13 +869,13 @@ const RolePriorityTree = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge 
+                        <Badge
                           className="text-white"
                           style={{ backgroundColor: colors.bg }}
                         >
                           {levelUsers.length}
                         </Badge>
-                        <ChevronDown 
+                        <ChevronDown
                           className={cn(
                             "h-5 w-5 transition-transform flex-shrink-0",
                             isExpanded ? "rotate-0" : "-rotate-90"
@@ -852,7 +884,7 @@ const RolePriorityTree = () => {
                         />
                       </div>
                     </div>
-                    
+
                     {isExpanded && (
                       <>
                         <Separator />
@@ -888,10 +920,10 @@ const RolePriorityTree = () => {
                                             </div>
                                           )}
                                         </div>
-                                        <Badge 
-                                          variant="outline" 
+                                        <Badge
+                                          variant="outline"
                                           className="flex-shrink-0 text-xs"
-                                          style={{ 
+                                          style={{
                                             backgroundColor: colors.light,
                                             color: colors.text,
                                             borderColor: colors.border
@@ -1021,8 +1053,8 @@ const RolePriorityTree = () => {
                       const levelUsers = getUsersByPriority(priority);
 
                       return (
-                        <div 
-                          key={priority} 
+                        <div
+                          key={priority}
                           className="p-4 rounded-lg border-2 transition-all hover:shadow-md"
                           style={{
                             backgroundColor: colors.light,
