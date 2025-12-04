@@ -88,8 +88,8 @@ export default function FormSubmissionsPage() {
         },
       })
 
-      if (response.data.success && response.data.form) {
-        setFormDetails(response.data.form)
+      if (response.data.success && response.data.data) {
+        setFormDetails(response.data.data)
       } else {
         throw new Error("Form not found")
       }
@@ -115,8 +115,8 @@ export default function FormSubmissionsPage() {
         },
       })
 
-      if (response.data.success && Array.isArray(response.data.submissions)) {
-        const mappedSubmissions = response.data.submissions.map((submission) => ({
+      if (response.data.success && Array.isArray(response.data.data)) {
+        const mappedSubmissions = response.data.data.map((submission) => ({
           ...submission,
           created_at: submission.created_at || submission.last_edited_at || new Date().toISOString(),
         }))
@@ -905,7 +905,7 @@ export default function FormSubmissionsPage() {
       )}
 
       {/* Main Content Card */}
-      <Card>
+      <Card className="w-full">
         <CardHeader className="border-b bg-card/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1357,8 +1357,8 @@ export default function FormSubmissionsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background">
-      <div className="flex-1 p-4 md:p-6 bg-background overflow-x-auto">{mainContent}</div>
+    <main className="min-h-screen bg-background w-full">
+      <div className="w-full p-4 md:p-6 bg-background overflow-x-auto">{mainContent}</div>
     </main>
   )
 }
