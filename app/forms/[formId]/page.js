@@ -2885,14 +2885,18 @@ export default function PublicFormPage() {
             }
           })
 
+          // Log the actual submission payload before sending
           const updateData = {
             organization_id: ORGANIZATION_ID,
             form_id: formId,
-            reference_id: finalUserId,
+            reference_id: finalUserId, // Use user ID from URL, fallback to hardcoded
             submission_id: submissionId,
             values: transformedValues
           }
           console.log('Final update payload:', JSON.stringify(updateData, null, 2))
+          console.log('=== END DEBUG ===')
+
+          console.log('Form update data:', updateData)
 
           const response = await axios.post(`${API_BASE_URL}/api/submit/update?token=${token}`, updateData, {
             headers: {
@@ -2909,13 +2913,7 @@ export default function PublicFormPage() {
             setEditCountLeft(result.editCountLeft)
           }
 
-          // Clear the form and redirect to my-forms
-          form.reset()
-          setFormData(null)
-          setSubmissionData(null)
-          setIsEditMode(false)
-          setFormInitialized(false)
-          router.push('/my-forms')
+          setUpdateSuccess(true)
         } else {
           // Create new submission
           const submissionData = {
