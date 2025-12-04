@@ -333,11 +333,11 @@ export default function FormPreviewPage() {
 
         if (result.success) {
           toast.success(`Form "${editFormData.formName}" updated successfully!`)
-          // Clear localStorage and navigate to My Forms
+          // Clear localStorage and sessionStorage form data
           localStorage.removeItem('formBuilderData')
-          sessionStorage.setItem('intended-tab', 'my-forms')
-          // Navigate to home page
-          router.push('/')
+          sessionStorage.removeItem('form-preview-fields')
+          // Navigate to my-forms page
+          router.push('/my-forms')
         } else {
           toast.error(`Failed to update form: ${result.message || 'Unknown error'}`)
         }
