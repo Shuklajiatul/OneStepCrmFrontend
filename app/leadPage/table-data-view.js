@@ -4104,7 +4104,7 @@ export default function TableDataView({ table, onBack }) {
                           </Select>
                           {hasNestedData(column) && (
                             <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                              💡 After selecting an option, use "Manage nested data" to edit nested fields.
+                              💡 After selecting an option, use &quot;Manage nested data&quot; to edit nested fields.
                             </p>
                           )}
                           {hasNestedData(column) && (
@@ -4155,7 +4155,7 @@ export default function TableDataView({ table, onBack }) {
                           </div>
                           {hasNestedData(column) && (
                             <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                              💡 After selecting options, use "Manage nested data" to update nested fields.
+                              💡 After selecting options, use &quot;Manage nested data&quot; to update nested fields.
                             </p>
                           )}
                           {hasNestedData(column) && (

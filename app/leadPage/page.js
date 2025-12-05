@@ -9,16 +9,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCap
 import { DataTable } from "@/components/ui/data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import TableDataView from "./table-data-view"
-import { 
-  Database, 
-  RefreshCw, 
-  AlertCircle, 
-  Search, 
-  Grid3X3, 
-  List, 
-  Eye, 
-  Edit, 
-  Trash2, 
+import {
+  Database,
+  RefreshCw,
+  AlertCircle,
+  Search,
+  Grid3X3,
+  List,
+  Eye,
+  Edit,
+  Trash2,
   MoreHorizontal,
   Calendar,
   User,
@@ -69,7 +69,7 @@ export default function LeadsPage() {
               </div>
             </div>
             <div className="min-w-0 flex-1">
-              <div 
+              <div
                 className="font-semibold text-foreground truncate cursor-pointer hover:text-primary hover:underline"
                 onClick={() => {
                   setSelectedTable(table)
@@ -183,9 +183,9 @@ export default function LeadsPage() {
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="h-8 w-8 p-0 hover:bg-destructive/10"
                   title="More actions"
                 >
@@ -194,7 +194,7 @@ export default function LeadsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[180px]">
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   className="cursor-pointer"
                   onClick={() => {
                     setSelectedTable(table)
@@ -213,7 +213,7 @@ export default function LeadsPage() {
                   Table Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => {
                     setTableToDelete(table)
                     setIsDeleteDialogOpen(true)
@@ -236,10 +236,10 @@ export default function LeadsPage() {
     fetchTables()
   }, [])
 
-   const fetchTables = async () => {
+  const fetchTables = async () => {
     setLoading(true)
     setError(null)
-    
+
     try {
       const response = await axios.get(`${API_BASE_URL}/api/datatables`, {
         headers: {
@@ -261,7 +261,7 @@ export default function LeadsPage() {
       console.log('tablesData', tablesData)
       setTables(tablesData)
       toast.success(`Loaded ${tablesData.length} tables successfully!`)
-      
+
     } catch (err) {
       const errorMsg = `Failed to fetch tables: ${err.message}`
       setError(errorMsg)
@@ -274,7 +274,7 @@ export default function LeadsPage() {
 
   const handleDeleteTable = async (tableId) => {
     setLoading(true)
-    
+
     try {
       const response = await axios.delete(`${API_BASE_URL}/api/datatables/${tableId}`, {
         headers: {
@@ -287,7 +287,7 @@ export default function LeadsPage() {
       setIsDeleteDialogOpen(false)
       setTableToDelete(null)
       fetchTables()
-      
+
     } catch (err) {
       toast.error(`Failed to delete table: ${err.message}`)
       console.error("Error deleting table:", err)
@@ -298,14 +298,14 @@ export default function LeadsPage() {
 
   // Filter tables based on search and active tab
   const filteredTables = tables.filter(table => {
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       table.table_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (table.description && table.description.toLowerCase().includes(searchTerm.toLowerCase()))
-    
-    const matchesTab = activeTab === "all" || 
+
+    const matchesTab = activeTab === "all" ||
       (activeTab === "active" && table.is_active) ||
       (activeTab === "inactive" && !table.is_active)
-    
+
     return matchesSearch && matchesTab
   })
 
@@ -325,7 +325,7 @@ export default function LeadsPage() {
     if (groupBy === "none") {
       return { "All Tables": paginatedTables }
     }
-    
+
     if (groupBy === "status") {
       const active = paginatedTables.filter(table => table.is_active)
       const inactive = paginatedTables.filter(table => !table.is_active)
@@ -334,34 +334,34 @@ export default function LeadsPage() {
         "Inactive Tables": inactive
       }
     }
-    
+
     if (groupBy === "date") {
       const today = new Date()
       const yesterday = new Date(today)
       yesterday.setDate(yesterday.getDate() - 1)
       const weekAgo = new Date(today)
       weekAgo.setDate(weekAgo.getDate() - 7)
-      
+
       const todayTables = paginatedTables.filter(table => {
         const createdDate = new Date(table.created_at)
         return createdDate.toDateString() === today.toDateString()
       })
-      
+
       const yesterdayTables = paginatedTables.filter(table => {
         const createdDate = new Date(table.created_at)
         return createdDate.toDateString() === yesterday.toDateString()
       })
-      
+
       const weekTables = paginatedTables.filter(table => {
         const createdDate = new Date(table.created_at)
         return createdDate >= weekAgo && createdDate < yesterday
       })
-      
+
       const olderTables = paginatedTables.filter(table => {
         const createdDate = new Date(table.created_at)
         return createdDate < weekAgo
       })
-      
+
       return {
         "Today": todayTables,
         "Yesterday": yesterdayTables,
@@ -369,7 +369,7 @@ export default function LeadsPage() {
         "Older": olderTables
       }
     }
-    
+
     return { "All Tables": paginatedTables }
   }
 
@@ -415,8 +415,8 @@ export default function LeadsPage() {
   // Show table data view if a table is selected
   if (currentView === "data" && selectedTable) {
     return (
-      <TableDataView 
-        table={selectedTable} 
+      <TableDataView
+        table={selectedTable}
         onBack={handleBackToTables}
       />
     )
@@ -430,17 +430,17 @@ export default function LeadsPage() {
           <h1 className="text-2xl font-bold">Data Tables</h1>
           <p className="text-muted-foreground">Manage and view all your data tables</p>
         </div>
-        
+
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={fetchTables}
             disabled={loading}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          
+
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
             Create Table
@@ -476,7 +476,7 @@ export default function LeadsPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -490,7 +490,7 @@ export default function LeadsPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -504,7 +504,7 @@ export default function LeadsPage() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -539,7 +539,7 @@ export default function LeadsPage() {
             />
           </div>
         </div>
-        
+
         {/* Group By and View Tabs on right */}
         <div className="flex items-center gap-4">
           {/* Group By Select */}
@@ -609,14 +609,14 @@ export default function LeadsPage() {
       <div className="space-y-6">
         {Object.entries(groupedTables()).map(([groupName, groupTables]) => {
           if (groupTables.length === 0) return null
-          
+
           return (
             <div key={groupName} className="space-y-4">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold">{groupName}</h2>
                 <Badge variant="outline">{groupTables.length}</Badge>
               </div>
-              
+
               {displayMode === "card" ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                   {groupTables.map((table) => (
@@ -624,7 +624,7 @@ export default function LeadsPage() {
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 mr-2">
-                            <CardTitle 
+                            <CardTitle
                               className="text-lg font-semibold truncate text-primary hover:underline cursor-pointer"
                               onClick={() => {
                                 setSelectedTable(table)
@@ -641,7 +641,7 @@ export default function LeadsPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 className="cursor-pointer"
                                 onClick={() => {
                                   setSelectedTable(table)
@@ -656,7 +656,7 @@ export default function LeadsPage() {
                                 Edit Table
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={() => {
                                   setTableToDelete(table)
                                   setIsDeleteDialogOpen(true)
@@ -684,7 +684,7 @@ export default function LeadsPage() {
                             </p>
                           )}
                         </div>
-                        
+
                         {/* Footer Info */}
                         <div className="space-y-3">
                           <div className="flex items-center justify-between pt-3 border-t">
@@ -740,7 +740,7 @@ export default function LeadsPage() {
                                       <Database className="h-4 w-4 text-primary" />
                                     </div>
                                   </div>
-                                  <div 
+                                  <div
                                     className="font-semibold text-foreground cursor-pointer hover:text-primary hover:underline"
                                     onClick={() => {
                                       setSelectedTable(table)
@@ -811,9 +811,9 @@ export default function LeadsPage() {
                                   </Button>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
                                         className="h-8 w-8 p-0 hover:bg-destructive/10"
                                         title="More actions"
                                       >
@@ -822,7 +822,7 @@ export default function LeadsPage() {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" className="w-[180px]">
-                                      <DropdownMenuItem 
+                                      <DropdownMenuItem
                                         className="cursor-pointer"
                                         onClick={() => {
                                           setSelectedTable(table)
@@ -841,7 +841,7 @@ export default function LeadsPage() {
                                         Table Settings
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
-                                      <DropdownMenuItem 
+                                      <DropdownMenuItem
                                         onClick={() => {
                                           setTableToDelete(table)
                                           setIsDeleteDialogOpen(true)
@@ -894,14 +894,14 @@ export default function LeadsPage() {
           </div>
         )}
       </div>
-      
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Table</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete the table "{tableToDelete?.table_name}"? 
+              Are you sure you want to delete the table &quot;{tableToDelete?.table_name}&quot;?
               This action cannot be undone and will permanently remove all data in this table.
             </DialogDescription>
           </DialogHeader>
@@ -909,8 +909,8 @@ export default function LeadsPage() {
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={() => handleDeleteTable(tableToDelete?.table_id)}
               disabled={loading}
             >
