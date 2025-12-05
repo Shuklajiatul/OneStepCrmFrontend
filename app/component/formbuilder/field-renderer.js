@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Check, ChevronsUpDown, Search, AlertCircle, Info, X } from "lucide-react"
 import { fetchCountries, fetchStates, fetchCities, fetchPhoneCountries } from "@/lib/constants/location-api"
-import { useState, useEffect } from "react"
+import { useState, useEffect, memo, useMemo, useCallback } from "react"
 import { Database } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
