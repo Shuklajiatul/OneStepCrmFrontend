@@ -624,10 +624,10 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         table_id: TABLE_ID,
         form_name: formName,
         description: formDescription,
-        g_id: mappedGene, // Add mapped gene to form data
-        created_by: userId, // Use user ID from localStorage
-        extraFields: regularFields.map(processFieldData),
-        fields: leadDatabaseFields.map(processFieldData),
+        g_id: mappedGene,
+        created_by: userId,
+        extraFields: leadDatabaseFields.map(processFieldData),
+        fields: regularFields.map(processFieldData),
         published: true,
         retry_count: retryCount
       }
