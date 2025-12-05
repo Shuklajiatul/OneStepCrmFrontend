@@ -1,46 +1,101 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { authUtils } from '@/lib/auth-utils';
 import { Loader2 } from 'lucide-react';
+
+// Define public routes that don't require authentication
+const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password'];
+
+// Check if a route is public
+function isPublicRoute(pathname) {
+  return PUBLIC_ROUTES.includes(pathname) || pathname.startsWith('/forms/');
+}
 
 export default function ProtectedRoute({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        if (authUtils.isAuthenticated()) {
-          setIsAuthenticated(true);
-        } else {
-          router.push('/login');
-        }
-      } catch (error) {
-        console.error('Auth check error:', error);
-        router.push('/login');
-      } finally {
+  // Check authentication status
+  const checkAuth = useCallback(() => {
+    try {
+      // Public routes don't need auth check
+      if (isPublicRoute(pathname)) {
+        setIsAuthenticated(true);
         setIsLoading(false);
+        return;
+      }
+
+      // Check if user has valid tokens
+      if (authUtils.isAuthenticated()) {
+        setIsAuthenticated(true);
+      } else {
+        // Clear any stale tokens
+        authUtils.clearTokens();
+        router.push('/login');
+      }
+    } catch (error) {
+      console.error('Auth check error:', error);
+      authUtils.clearTokens();
+      router.push('/login');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pathname, router]);
+
+  // Initial auth check
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  // Listen for storage events (handles logout in other tabs)
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key === 'accessToken' && !event.newValue) {
+        // Token was removed (logout in another tab)
+        setIsAuthenticated(false);
+        router.push('/login');
       }
     };
 
-    checkAuth();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageChange);
+      return () => window.removeEventListener('storage', handleStorageChange);
+    }
   }, [router]);
 
+  // Periodic auth check (every 5 minutes)
+  useEffect(() => {
+    if (isPublicRoute(pathname)) return;
+
+    const interval = setInterval(() => {
+      if (!authUtils.isAuthenticated()) {
+        setIsAuthenticated(false);
+        authUtils.clearTokens();
+        router.push('/login?error=session_expired');
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [pathname, router]);
+
+  // Show loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex items-center space-x-2">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Loading...</span>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="text-muted-foreground">Loading...</span>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
+  // Not authenticated - show nothing while redirecting
+  if (!isAuthenticated && !isPublicRoute(pathname)) {
     return null;
   }
 
