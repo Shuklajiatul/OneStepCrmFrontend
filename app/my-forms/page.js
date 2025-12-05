@@ -76,8 +76,6 @@ export default function MyFormsPage() {
     fetchForms()
   }, [])
 
-
-
   // Helper function to generate unique field IDs
   const generateUniqueFieldId = (prefix = 'field') => {
     return uuidv4()
@@ -248,20 +246,13 @@ export default function MyFormsPage() {
   }
 
   // Function to archive/unarchive form
-  const toggleArchiveForm = async (formId, currentStatus) => {
+  const toggleArchiveForm = async (formId, currentStatus, version) => {
     try {
       setArchivingForm(formId)
 
-      // Find the form to get its version
-      const form = forms.find(f => f.form_id === formId)
-      if (!form) {
-        throw new Error('Form not found')
-      }
-
       console.log('Archiving specific form version:', {
-        form_id: form.form_id,
-        form_name: form.form_name,
-        version: form.version || 1,
+        form_id: formId,
+        version: version || 1,
         current_status: currentStatus
       })
 
@@ -270,7 +261,7 @@ export default function MyFormsPage() {
         form_id: formId,
         table_id: process.env.NEXT_PUBLIC_TABLE_ID,
         status: !currentStatus, // Toggle the status
-        version: form.version || 1
+        version: version || 1
       }
 
       console.log('Archive payload:', archivePayload)
@@ -294,23 +285,30 @@ export default function MyFormsPage() {
         const newArchiveStatus = result.archieve_status
         console.log('New archive status:', newArchiveStatus, 'for form:', formId)
 
-        // Update the local state - only update the specific version
+        // Update the local state - update the specific version
+        // Handle version comparison carefully (might be undefined, string, or number)
+        const targetVersion = version || 1
         setForms(prevForms => {
-          const updatedForms = prevForms.map(f =>
-            f.form_id === formId && f.version === form.version
-              ? {
+          const updatedForms = prevForms.map(f => {
+            const fVersion = f.version || 1
+            // Match by form_id and version (normalize both to numbers for comparison)
+            if (f.form_id === formId && Number(fVersion) === Number(targetVersion)) {
+              return {
                 ...f,
                 archived: newArchiveStatus,
                 isarchieved: newArchiveStatus  // Also update the isarchieved property
               }
-              : f
-          )
-          console.log('Updated specific form version:', updatedForms.find(f => f.form_id === formId && f.version === form.version))
+            }
+            return f
+          })
+          console.log('Updated specific form version:', updatedForms.find(f => f.form_id === formId && (f.version || 1) == targetVersion))
           return updatedForms
         })
 
         const action = newArchiveStatus ? "archived" : "unarchived"
-        toast.success(`Form "${form.form_name}" v-${form.version || 1} ${action} successfully!`)
+        // Find form name for toast
+        const formName = forms.find(f => f.form_id === formId)?.form_name || "Form"
+        toast.success(`Form "${formName}" v-${targetVersion} ${action} successfully!`)
 
         if (newArchiveStatus) {
           toast.info("Form is now inactive. Users cannot access it.")
@@ -1221,7 +1219,7 @@ export default function MyFormsPage() {
                                         <Button
                                           variant={form.archived ? "default" : "outline"}
                                           size="icon"
-                                          onClick={() => toggleArchiveForm(form.form_id, form.archived)}
+                                          onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
                                           disabled={archivingForm === form.form_id}
                                           className="h-8 w-8"
                                         >
@@ -1372,7 +1370,7 @@ export default function MyFormsPage() {
                                 <Button
                                   size="sm"
                                   variant={form.archived ? "default" : "outline"}
-                                  onClick={() => toggleArchiveForm(form.form_id, form.archived)}
+                                  onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
                                   disabled={archivingForm === form.form_id}
                                 >
                                   {archivingForm === form.form_id ? (
@@ -1518,7 +1516,7 @@ export default function MyFormsPage() {
                                 <Button
                                   size="sm"
                                   variant={form.archived ? "default" : "outline"}
-                                  onClick={() => toggleArchiveForm(form.form_id, form.archived)}
+                                  onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
                                   disabled={archivingForm === form.form_id}
                                 >
                                   {archivingForm === form.form_id ? (
