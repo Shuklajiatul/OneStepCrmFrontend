@@ -559,6 +559,25 @@ export default function CustomFormPage() {
 
     if (!over) return
 
+    // Helper to find a field and its parent
+    const findFieldInfo = (id, currentFields) => {
+      // Check top-level fields
+      const field = currentFields.find(f => f.id === id)
+      if (field) return { field, parent: null, index: currentFields.findIndex(f => f.id === id) }
+
+      // Check groups
+      for (let i = 0; i < currentFields.length; i++) {
+        const f = currentFields[i]
+        if (f.type === 'group' && f.subFields) {
+          const subFieldIndex = f.subFields.findIndex(sf => sf.id === id)
+          if (subFieldIndex !== -1) {
+            return { field: f.subFields[subFieldIndex], parent: f, index: subFieldIndex }
+          }
+        }
+      }
+      return null
+    }
+
     // Handle dropping into a group
     if (over.id.toString().startsWith('group-drop-')) {
       const groupId = over.id.toString().replace('group-drop-', '')
@@ -610,9 +629,28 @@ export default function CustomFormPage() {
 
     if (active.id !== over?.id) {
       setFields((items) => {
-        const oldIndex = items.findIndex(item => item.id === active.id)
-        const newIndex = items.findIndex(item => item.id === over.id)
-        return arrayMove(items, oldIndex, newIndex)
+        const activeInfo = findFieldInfo(active.id, items)
+        const overInfo = findFieldInfo(over.id, items)
+
+        if (activeInfo && overInfo) {
+          // Reordering top-level fields
+          if (!activeInfo.parent && !overInfo.parent) {
+            return arrayMove(items, activeInfo.index, overInfo.index)
+          }
+          // Reordering within the same group
+          else if (activeInfo.parent && overInfo.parent && activeInfo.parent.id === overInfo.parent.id) {
+            return items.map(f => {
+              if (f.id === activeInfo.parent.id) {
+                return {
+                  ...f,
+                  subFields: arrayMove(f.subFields, activeInfo.index, overInfo.index)
+                }
+              }
+              return f
+            })
+          }
+        }
+        return items
       })
     }
   }, [addField])
@@ -645,7 +683,7 @@ export default function CustomFormPage() {
     sessionStorage.removeItem('directEditAction')
     sessionStorage.removeItem('wasEditingForm')
     sessionStorage.setItem('intended-tab', 'my-forms')
-    router.push('/')
+    router.push('/my-forms')
   }, [router])
 
   const handleTabChange = useCallback((value) => {
@@ -941,6 +979,7 @@ export default function CustomFormPage() {
                     onDeleteField={deleteField}
                     onMoveField={moveField}
                     onAddField={addField}
+                    onUpdateField={updateField}
                     activeId={activeId}
                   />
                 </div>
