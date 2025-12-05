@@ -2987,7 +2987,7 @@ export default function TableDataView({ table, onBack }) {
                                   >
                                     <Eye className="h-4 w-4" />
                                   </Button>
-                                  <Button
+                                  {/* <Button
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 w-8 p-0 hover:bg-primary/10"
@@ -2995,7 +2995,7 @@ export default function TableDataView({ table, onBack }) {
                                     onClick={() => openEditRecordDialog(record)}
                                   >
                                     <Edit className="h-4 w-4" />
-                                  </Button>
+                                  </Button> */}
                                   <Button
                                     variant="ghost"
                                     size="sm"
