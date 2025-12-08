@@ -1499,6 +1499,64 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
 
   fields.forEach(field => {
     const fieldId = field.id
+
+    // Special handling for group fields
+    if (field.type === 'group' && field.subFields && Array.isArray(field.subFields)) {
+      // For group fields, collect values for all subfields from top-level submissionValues
+      const groupValue = {}
+
+      field.subFields.forEach(subField => {
+        const subFieldId = subField.id
+        let subFieldValue = submissionValues[subFieldId]
+
+        // If not found, try with originalId
+        if (subFieldValue === undefined && subField.originalId) {
+          subFieldValue = submissionValues[subField.originalId]
+        }
+
+        if (subFieldValue !== undefined && subFieldValue !== null) {
+          // Parse JSON string if needed
+          let parsedValue = subFieldValue
+          if (typeof subFieldValue === 'string') {
+            try {
+              parsedValue = JSON.parse(subFieldValue)
+            } catch (e) {
+              parsedValue = subFieldValue
+            }
+          }
+
+          // Extract the actual value
+          if (typeof parsedValue === 'object' && parsedValue !== null) {
+            if (parsedValue.value !== undefined) {
+              groupValue[subFieldId] = parsedValue.value
+            } else if (parsedValue.countryCode !== undefined || parsedValue.number !== undefined) {
+              // Phone field
+              groupValue[subFieldId] = parsedValue
+            } else if (parsedValue.country !== undefined || parsedValue.state !== undefined) {
+              // Location field
+              groupValue[subFieldId] = parsedValue
+            } else {
+              groupValue[subFieldId] = parsedValue
+            }
+          } else {
+            groupValue[subFieldId] = parsedValue
+          }
+        } else {
+          // Set default based on subfield type
+          if (subField.type === 'phone') {
+            groupValue[subFieldId] = {}
+          } else if (subField.type === 'location') {
+            groupValue[subFieldId] = {}
+          } else {
+            groupValue[subFieldId] = ''
+          }
+        }
+      })
+
+      transformedValues[fieldId] = groupValue
+      return // Skip the rest of the loop for group fields
+    }
+
     let fieldValue = submissionValues[fieldId]
 
     // If not found by parsed form ID, try the clean UUID (without "field-" prefix)
