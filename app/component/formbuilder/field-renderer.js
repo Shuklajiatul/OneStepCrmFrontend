@@ -1906,7 +1906,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
   }
 }
 
-export function FieldRenderer({ field, value, onChange, disabled = false, invalid = false, error, hideFieldTypes = false, isBuilder = false }) {
+export function FieldRenderer({ field, value, onChange, disabled = false, invalid = false, error, hideFieldTypes = false, isBuilder = false, onSelectField, onUpdateSubField, selectedSubFieldId }) {
   const safeOnChange = onChange || (() => { })
   const [countries, setCountries] = useState([])
   const [phoneCountries, setPhoneCountries] = useState([])
@@ -3185,9 +3185,32 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                   onChange?.(newData)
                 }
 
+                const isSubFieldSelected = selectedSubFieldId === subField.id
+
                 return (
-                  <div key={subField.id} className="space-y-2">
-                    <Label>{subField.label}</Label>
+                  <div
+                    key={subField.id}
+                    className={`space-y-2 p-3 rounded-md transition-all cursor-pointer ${isBuilder
+                        ? isSubFieldSelected
+                          ? 'ring-2 ring-primary bg-primary/5 border border-primary/30'
+                          : 'hover:bg-gray-100/80 hover:ring-1 hover:ring-gray-300'
+                        : ''
+                      }`}
+                    onClick={(e) => {
+                      if (isBuilder && onSelectField) {
+                        e.stopPropagation()
+                        onSelectField(subField, field.id)
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <Label className={isSubFieldSelected ? 'text-primary font-medium' : ''}>{subField.label}</Label>
+                      {isBuilder && (
+                        <Badge variant={isSubFieldSelected ? "default" : "secondary"} className="text-xs">
+                          {subField.type}
+                        </Badge>
+                      )}
+                    </div>
                     {renderNestedFieldInput(
                       subField,
                       subFieldValue,

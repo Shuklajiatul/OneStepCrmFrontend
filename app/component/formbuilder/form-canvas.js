@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { FieldRenderer } from "./field-renderer"
 import { SortableFieldItem } from "./sortable-field-item"
 
-const FormCanvasComponent = function FormCanvas({ fields, selectedField, onSelectField, onDeleteField, onMoveField, onAddField, onUpdateField, activeId }) {
+const FormCanvasComponent = function FormCanvas({ fields, selectedField, onSelectField, onDeleteField, onMoveField, onAddField, onUpdateField, activeId, onSelectSubField, selectedSubFieldId }) {
   const { setNodeRef, isOver } = useDroppable({
     id: "form-canvas",
   })
@@ -77,6 +77,8 @@ const FormCanvasComponent = function FormCanvas({ fields, selectedField, onSelec
               onDeleteField={onDeleteField}
               onUpdateField={onUpdateField}
               isActive={activeId === field.id}
+              onSelectSubField={onSelectSubField}
+              selectedSubFieldId={selectedSubFieldId}
             />
           ))}
         </SortableContext>

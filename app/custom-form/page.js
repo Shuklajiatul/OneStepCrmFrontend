@@ -47,6 +47,8 @@ export default function CustomFormPage() {
   const [editFormData, setEditFormData] = useState(null)
   const [showMyForms, setShowMyForms] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  const [selectedSubField, setSelectedSubField] = useState(null)
+  const [selectedSubFieldParentId, setSelectedSubFieldParentId] = useState(null)
 
   // Resizable panel widths
   const [paletteWidth, setPaletteWidth] = useState(256) // 256px = w-64
@@ -540,6 +542,57 @@ export default function CustomFormPage() {
     }
   }, [fields, selectedField])
 
+  // Handler for selecting a subfield inside a group
+  const handleSelectSubField = useCallback((subField, parentGroupId) => {
+    setSelectedSubField(subField)
+    setSelectedSubFieldParentId(parentGroupId)
+    // Clear regular field selection when selecting a subfield
+    setSelectedField(null)
+  }, [])
+
+  // Handler for updating a subfield inside a group
+  const updateSubField = useCallback((subFieldId, updates) => {
+    if (!selectedSubFieldParentId) return
+
+    setFields(prev => prev.map(field => {
+      if (field.id === selectedSubFieldParentId && field.subFields) {
+        return {
+          ...field,
+          subFields: field.subFields.map(sf =>
+            sf.id === subFieldId ? { ...sf, ...updates } : sf
+          )
+        }
+      }
+      return field
+    }))
+
+    // Update the selected subfield state
+    if (selectedSubField && selectedSubField.id === subFieldId) {
+      setSelectedSubField({ ...selectedSubField, ...updates })
+    }
+
+    // Save to localStorage if in edit mode
+    if (isEditMode && editFormData) {
+      const updatedFields = fields.map(field => {
+        if (field.id === selectedSubFieldParentId && field.subFields) {
+          return {
+            ...field,
+            subFields: field.subFields.map(sf =>
+              sf.id === subFieldId ? { ...sf, ...updates } : sf
+            )
+          }
+        }
+        return field
+      })
+      const formBuilderData = {
+        ...editFormData,
+        fields: updatedFields
+      }
+      localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+      window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+    }
+  }, [selectedSubFieldParentId, selectedSubField, fields, isEditMode, editFormData])
+
   const moveField = useCallback((fromIndex, toIndex) => {
     setFields(prev => {
       const newFields = [...prev]
@@ -893,16 +946,24 @@ export default function CustomFormPage() {
                     <FormCanvas
                       fields={fields}
                       selectedField={selectedField}
-                      onSelectField={setSelectedField}
+                      onSelectField={(field) => {
+                        setSelectedField(field)
+                        // Clear subfield selection when selecting a regular field
+                        setSelectedSubField(null)
+                        setSelectedSubFieldParentId(null)
+                      }}
                       onDeleteField={deleteField}
                       onMoveField={moveField}
                       onAddField={addField}
+                      onUpdateField={updateField}
                       activeId={activeId}
+                      onSelectSubField={handleSelectSubField}
+                      selectedSubFieldId={selectedSubField?.id}
                     />
                   </div>
 
                   {/* Resizable Divider for Config Panel */}
-                  {selectedField && (
+                  {(selectedField || selectedSubField) && (
                     <ResizableDivider
                       onResize={handleConfigPanelResize}
                       minSize={300}
@@ -912,7 +973,7 @@ export default function CustomFormPage() {
                   )}
 
                   {/* Configuration Panel */}
-                  {selectedField && (
+                  {(selectedField || selectedSubField) && (
                     <div
                       className="border-l bg-card flex-shrink-0 overflow-hidden animate-in slide-in-from-right relative group/config"
                       style={{
@@ -927,7 +988,11 @@ export default function CustomFormPage() {
                             variant="ghost"
                             size="icon"
                             className="absolute top-3 -left-3 z-20 h-6 w-6 rounded-full bg-background border border-border shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200 ease-out opacity-0 group-hover/config:opacity-100 hover:!opacity-100"
-                            onClick={() => setSelectedField(null)}
+                            onClick={() => {
+                              setSelectedField(null)
+                              setSelectedSubField(null)
+                              setSelectedSubFieldParentId(null)
+                            }}
                             aria-label="Close panel"
                           >
                             <ChevronRight className="h-3 w-3" />
@@ -938,10 +1003,19 @@ export default function CustomFormPage() {
                         </TooltipContent>
                       </Tooltip>
 
-                      <FieldConfigPanel
-                        field={selectedField}
-                        onUpdateField={updateField}
-                      />
+                      {selectedSubField ? (
+                        <FieldConfigPanel
+                          field={selectedSubField}
+                          onUpdateField={(fieldId, updates) => updateSubField(fieldId, updates)}
+                          allFields={fields}
+                        />
+                      ) : (
+                        <FieldConfigPanel
+                          field={selectedField}
+                          onUpdateField={updateField}
+                          allFields={fields}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -975,17 +1049,23 @@ export default function CustomFormPage() {
                   <FormCanvas
                     fields={fields}
                     selectedField={selectedField}
-                    onSelectField={setSelectedField}
+                    onSelectField={(field) => {
+                      setSelectedField(field)
+                      setSelectedSubField(null)
+                      setSelectedSubFieldParentId(null)
+                    }}
                     onDeleteField={deleteField}
                     onMoveField={moveField}
                     onAddField={addField}
                     onUpdateField={updateField}
                     activeId={activeId}
+                    onSelectSubField={handleSelectSubField}
+                    selectedSubFieldId={selectedSubField?.id}
                   />
                 </div>
 
                 {/* Resizable Divider for Config Panel */}
-                {selectedField && (
+                {(selectedField || selectedSubField) && (
                   <ResizableDivider
                     onResize={handleConfigPanelResize}
                     minSize={300}
@@ -995,7 +1075,7 @@ export default function CustomFormPage() {
                 )}
 
                 {/* Configuration Panel */}
-                {selectedField && (
+                {(selectedField || selectedSubField) && (
                   <div
                     className="border-l bg-card flex-shrink-0 overflow-hidden animate-in slide-in-from-right relative group/config"
                     style={{
@@ -1010,7 +1090,11 @@ export default function CustomFormPage() {
                           variant="ghost"
                           size="icon"
                           className="absolute top-3 -left-3 z-20 h-6 w-6 rounded-full bg-background border border-border shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200 ease-out opacity-0 group-hover/config:opacity-100 hover:!opacity-100"
-                          onClick={() => setSelectedField(null)}
+                          onClick={() => {
+                            setSelectedField(null)
+                            setSelectedSubField(null)
+                            setSelectedSubFieldParentId(null)
+                          }}
                           aria-label="Close panel"
                         >
                           <ChevronRight className="h-3 w-3" />
@@ -1021,11 +1105,19 @@ export default function CustomFormPage() {
                       </TooltipContent>
                     </Tooltip>
 
-                    <FieldConfigPanel
-                      field={selectedField}
-                      onUpdateField={updateField}
-                      allFields={fields}
-                    />
+                    {selectedSubField ? (
+                      <FieldConfigPanel
+                        field={selectedSubField}
+                        onUpdateField={(fieldId, updates) => updateSubField(fieldId, updates)}
+                        allFields={fields}
+                      />
+                    ) : (
+                      <FieldConfigPanel
+                        field={selectedField}
+                        onUpdateField={updateField}
+                        allFields={fields}
+                      />
+                    )}
                   </div>
                 )}
               </div>
