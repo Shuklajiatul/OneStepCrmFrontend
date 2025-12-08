@@ -672,6 +672,106 @@ export default function MyFormsPage() {
         }
       }).filter(field => field.id && field.type)
 
+      // Parse group data and reconstruct group fields with subFields
+      let groupFields = []
+      if (formDetails.group) {
+        let groupData = formDetails.group
+        // Parse group if it's a JSON string
+        if (typeof groupData === 'string') {
+          try {
+            groupData = JSON.parse(groupData)
+          } catch (e) {
+            console.warn('Failed to parse group data:', e)
+            groupData = []
+          }
+        }
+
+        if (Array.isArray(groupData)) {
+          groupFields = groupData.map(group => {
+            // Check if group.fields contains full field objects or just ID references
+            const subFields = []
+            if (group.fields && Array.isArray(group.fields)) {
+              group.fields.forEach(fieldRef => {
+                // Check if fieldRef is a full field object (has type property) or just an ID
+                if (typeof fieldRef === 'object' && fieldRef.type) {
+                  // It's a full field object - parse it like we do for regular fields
+                  const parsedSubField = {
+                    id: fieldRef.id,
+                    name: fieldRef.name || fieldRef.id,
+                    type: fieldRef.type,
+                    label: fieldRef.label || fieldRef.name || 'Field',
+                    placeholder: fieldRef.placeholder || '',
+                    required: fieldRef.required === true || fieldRef.required === 'true' || false,
+                    options: [],
+                    nestedFields: {},
+                    isLeadColumn: fieldRef.isLeadColumn === true || fieldRef.isLeadColumn === 'true' || false,
+                    validation: fieldRef.validations || fieldRef.validation || {}
+                  }
+
+                  // Parse options if they exist
+                  if (fieldRef.options && Array.isArray(fieldRef.options)) {
+                    parsedSubField.options = fieldRef.options.map(opt => {
+                      if (typeof opt === 'object' && opt.value) {
+                        return {
+                          value: opt.value,
+                          label: opt.label || opt.value,
+                          nestedFields: opt.nestedFields || []
+                        }
+                      }
+                      return typeof opt === 'string' ? opt : (opt.value || opt.label || 'Option')
+                    })
+                  }
+
+                  subFields.push(parsedSubField)
+                } else {
+                  // It's a field ID reference - find the matching field in parsedFields
+                  const fieldId = typeof fieldRef === 'string' ? fieldRef : fieldRef.id
+                  const matchingField = parsedFields.find(f => f.id === fieldId || f.name === fieldId)
+                  if (matchingField) {
+                    subFields.push(matchingField)
+                  }
+                }
+              })
+            }
+
+            return {
+              id: group.id,
+              name: group.name,
+              type: 'group',
+              label: group.label,
+              required: group.required === true || group.required === 'true' || false,
+              subFields: subFields
+            }
+          })
+
+          // Remove fields that are part of groups from the main parsedFields array
+          // (only if they were ID references, not full objects stored in group)
+          const groupFieldIds = new Set()
+          groupData.forEach(group => {
+            if (group.fields && Array.isArray(group.fields)) {
+              group.fields.forEach(fieldRef => {
+                // Only add to removal set if it's an ID reference
+                if (typeof fieldRef === 'string') {
+                  groupFieldIds.add(fieldRef)
+                } else if (fieldRef.id && !fieldRef.type) {
+                  // It's an object with just id (reference)
+                  groupFieldIds.add(fieldRef.id)
+                }
+              })
+            }
+          })
+
+          // Filter out fields that belong to groups (only those that were ID references)
+          const fieldsNotInGroups = parsedFields.filter(f =>
+            !groupFieldIds.has(f.id) && !groupFieldIds.has(f.name)
+          )
+
+          // Combine non-group fields with group fields
+          parsedFields.length = 0 // Clear the array
+          parsedFields.push(...fieldsNotInGroups, ...groupFields)
+        }
+      }
+
       // Clear any existing localStorage data first to ensure fresh start
       localStorage.removeItem('formBuilderData')
 

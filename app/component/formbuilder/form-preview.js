@@ -5,14 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { AlertCircle, CheckCircle2, Send, Copy, ExternalLink, Settings } from "lucide-react"
+import { AlertCircle, CheckCircle2, Settings } from "lucide-react"
 import { FieldRenderer } from "./field-renderer"
-import { useState } from "react"
+import { useState, useEffect, useMemo, useCallback, memo } from "react"
 import axios from "axios"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { useEffect } from "react"
 import { authUtils } from '@/lib/auth-utils'
 import { useRouter } from 'next/navigation'
 
@@ -34,7 +33,7 @@ const processFieldOptions = (field) => {
     })
   }
 
-  // Handle options that might be stored as JSON strings (from API)
+  // Check if options is a string and try to parse it as JSON
   let options = field.options || []
 
   if (typeof options === 'string') {
@@ -128,13 +127,12 @@ const processNestedFieldsRecursively = (nestedFields) => {
       type: nestedField.type,
       label: nestedField.label,
       placeholder: nestedField.placeholder || '',
-      required: false, // Remove required validation from nested fields
+      required: false,
       validation: validation,
-      options: processFieldOptions(nestedField) // Process options recursively
+      options: processFieldOptions(nestedField)
     }
 
     // Recursively process nested fields within this field
-    // Check both possible structures: nestedField.nestedFields (array) and nestedField.nestedFields (object with indices)
     if (nestedField.nestedFields) {
       if (Array.isArray(nestedField.nestedFields)) {
         processedField.nestedFields = processNestedFieldsRecursively(nestedField.nestedFields)
@@ -147,7 +145,7 @@ const processNestedFieldsRecursively = (nestedFields) => {
       }
     } else {
       // If no direct nestedFields, check if the options have nested fields
-      // This handles the case where nested fields are stored in options (like from table columns)
+      // This handles the case where nested fields are stored in options
       if (processedField.options && Array.isArray(processedField.options)) {
         const allNestedFields = []
         processedField.options.forEach(option => {
@@ -176,9 +174,7 @@ const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 
 export function FormPreview({ fields, isEditMode = false, formData = null, onRetryCountChange = null }) {
   const router = useRouter()
-  const [generatedLink, setGeneratedLink] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [formName, setFormName] = useState("")
   const [formDescription, setFormDescription] = useState("")
   const [retryCount, setRetryCount] = useState("2")
@@ -186,7 +182,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
   const [availableGenes, setAvailableGenes] = useState([])
   const [isLoadingGenes, setIsLoadingGenes] = useState(false)
 
-  // Check authentication and redirect if not authenticated
+  // Check authentication
   useEffect(() => {
     if (!authUtils.isAuthenticated()) {
       router.push('/login')
@@ -210,7 +206,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
   }
 
   // Fetch genes from API
-  const fetchGenes = async () => {
+  const fetchGenes = useCallback(async () => {
     setIsLoadingGenes(true)
     try {
       const response = await axios.get('http://10.10.15.194:3001/api/genes', {
@@ -232,13 +228,13 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         setAvailableGenes(userGenes)
 
         // Auto-select if there's only one gene
-        if (userGenes.length === 1 && !mappedGene) {
-          setMappedGene(userGenes[0].g_id)
+        if (userGenes.length === 1) {
+          setMappedGene(prev => prev || userGenes[0].g_id)
         }
 
         // If in edit mode and formData has mapped_gene, set it
-        if (isEditMode && formData?.mapped_gene && !mappedGene) {
-          setMappedGene(formData.mapped_gene)
+        if (isEditMode && formData?.mapped_gene) {
+          setMappedGene(prev => prev || formData.mapped_gene)
         }
       } else {
         toast.error("Failed to load genes")
@@ -249,7 +245,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
     } finally {
       setIsLoadingGenes(false)
     }
-  }
+  }, [isEditMode, formData?.mapped_gene])
 
   // Populate form metadata when in edit mode
   useEffect(() => {
@@ -266,7 +262,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
     if (authUtils.isAuthenticated()) {
       fetchGenes()
     }
-  }, [])
+  }, [fetchGenes])
 
   // Notify parent component when retry count changes
   useEffect(() => {
@@ -275,15 +271,27 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
     }
   }, [retryCount, onRetryCountChange, isEditMode])
 
-  // Filter out table_column type fields from preview
-  const previewFields = fields.filter(field => field.type !== "table_column")
+  const previewFields = useMemo(() =>
+    fields.filter(field => field.type !== "table_column"),
+    [fields]
+  )
 
-  // Separate table columns from regular form fields
-  const tableColumnFields = previewFields.filter(field => field.source === 'table')
-  const regularFormFields = previewFields.filter(field => field.source !== 'table')
+  const tableColumnFields = useMemo(() =>
+    previewFields.filter(field => field.source === 'table'),
+    [previewFields]
+  )
 
-  // Ensure unique field IDs for form default values
-  const getDefaultValues = () => {
+  const groupFieldsList = useMemo(() =>
+    previewFields.filter(field => field.type === 'group' && field.source !== 'table'),
+    [previewFields]
+  )
+
+  const regularFormFields = useMemo(() =>
+    previewFields.filter(field => field.source !== 'table' && field.type !== 'group'),
+    [previewFields]
+  )
+
+  const defaultValues = useMemo(() => {
     return previewFields.reduce((acc, field) => {
       const fieldKey = field.id
 
@@ -309,17 +317,17 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
       return acc
     }, {})
-  }
+  }, [previewFields])
 
   const form = useForm({
-    defaultValues: getDefaultValues(),
+    defaultValues: defaultValues,
     onSubmit: async ({ value }) => {
       console.log("Form submitted:", value)
       toast.success("Form submitted successfully")
     },
   })
 
-  const handleGenerateLink = async () => {
+  const handleSaveForm = async () => {
     // Check authentication
     if (!authUtils.isAuthenticated()) {
       router.push('/login')
@@ -376,7 +384,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
                 nestedFields: []
               }
 
-              // ✅ FIX: Check for nested fields in the option itself (for deep table column nesting)
+              // Check for nested fields in the option itself (for deep table column nesting)
               if (nestedOption.nestedFields && Array.isArray(nestedOption.nestedFields)) {
                 nestedOptionObj.nestedFields = processNestedFields(
                   nestedOption.nestedFields,
@@ -395,7 +403,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
             })
           }
 
-          // Strip "field-" prefix from nested field ID before sending to backend
+          // Strip "field-" prefix from nested field ID before sending
           let cleanNestedFieldId = nestedField.id
           if (typeof cleanNestedFieldId === 'string' && cleanNestedFieldId.startsWith('field-')) {
             cleanNestedFieldId = cleanNestedFieldId.replace('field-', '')
@@ -435,11 +443,9 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
             }
 
             // Process nested fields for this option - check both structures
-            // First check if option already has nestedFields (for table columns)
             if (option.nestedFields && Array.isArray(option.nestedFields)) {
               optionObj.nestedFields = processNestedFields(option.nestedFields, index)
             }
-            // Then check if field has nestedFields[index] (for form builder fields)
             else if (field.nestedFields && field.nestedFields[index]) {
               optionObj.nestedFields = processNestedFields(field.nestedFields[index], index)
             }
@@ -452,7 +458,6 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
           option.nestedFields && option.nestedFields.length > 0
         )
 
-        // Strip "field-" prefix from table field ID before sending to backend
         let cleanFieldId = field.tableColumnId || field.id
         if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
           cleanFieldId = cleanFieldId.replace('field-', '')
@@ -473,7 +478,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         return fieldObj
       })
 
-      // Prepare extra fields (regular form fields)
+      // Prepare extra fields
       const extraFields = regularFormFields.map(field => {
         let optionsArray = []
 
@@ -503,7 +508,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
           option.nestedFields && option.nestedFields.length > 0
         )
 
-        // Strip "field-" prefix from extra field ID before sending to backend
+        // Strip "field-" prefix from extra field ID
         let cleanFieldId = field.id
         if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
           cleanFieldId = cleanFieldId.replace('field-', '')
@@ -525,11 +530,76 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
       })
 
       // Check if we have any fields to send
-      if (tableFields.length === 0 && extraFields.length === 0) {
+      if (tableFields.length === 0 && extraFields.length === 0 && groupFieldsList.length === 0) {
         toast.error("No valid fields to add to the form")
         setIsGenerating(false)
         return
       }
+
+      // Helper function to process subFields inside group fields
+      const processSubFieldForAPI = (subField) => {
+        // Strip "field-" prefix from subfield ID
+        let cleanSubFieldId = subField.id
+        if (typeof cleanSubFieldId === 'string' && cleanSubFieldId.startsWith('field-')) {
+          cleanSubFieldId = cleanSubFieldId.replace('field-', '')
+        }
+
+        let optionsArray = []
+        if (subField.options && Array.isArray(subField.options)) {
+          optionsArray = subField.options.map(option => ({
+            value: typeof option === 'string' ? option : option.value,
+            label: typeof option === 'string' ? option : option.label,
+            nestedFields: []
+          }))
+        }
+
+        return {
+          id: cleanSubFieldId,
+          name: subField.label?.toLowerCase().replace(/\s+/g, '_') || subField.name,
+          label: subField.label,
+          type: subField.type,
+          required: subField.required ? "true" : "false",
+          validations: subField.validation || subField.validations || {},
+          hasNested: false,
+          options: optionsArray,
+          isLeadColumn: subField.isLeadColumn ? "true" : "false"
+        }
+      }
+
+      // Extract fields from groups and collect field IDs for group references
+      const groupSubFieldsForMainArray = []
+      const processGroupFieldData = (groupField) => {
+        // Strip "field-" prefix from group field ID
+        let cleanGroupId = groupField.id
+        if (typeof cleanGroupId === 'string' && cleanGroupId.startsWith('field-')) {
+          cleanGroupId = cleanGroupId.replace('field-', '')
+        }
+
+        // Process all subFields inside the group and collect their IDs
+        const fieldIds = []
+        if (groupField.subFields && Array.isArray(groupField.subFields)) {
+          groupField.subFields.forEach(subField => {
+            // Process the subField as a full field object
+            const processedSubField = processSubFieldForAPI(subField)
+            // Add to the main fields array
+            groupSubFieldsForMainArray.push(processedSubField)
+            // Collect the field ID for the group reference
+            fieldIds.push(processedSubField.id)
+          })
+        }
+
+        return {
+          id: cleanGroupId,
+          name: groupField.label?.toLowerCase().replace(/\s+/g, '_') || groupField.name,
+          label: groupField.label,
+          type: "group",
+          required: groupField.required ? "true" : "false",
+          fields: fieldIds
+        }
+      }
+
+      // Process group fields
+      const processedGroupFields = groupFieldsList.map(processGroupFieldData)
 
       // Separate fields based on isLeadColumn setting
       const allFields = [...tableFields, ...extraFields]
@@ -541,7 +611,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         if (!Array.isArray(nestedFields)) return []
 
         return nestedFields.map(nestedField => {
-          // Strip "field-" prefix from nested field ID before sending to backend
+          // Strip "field-" prefix from nested field ID
           let cleanNestedFieldId = nestedField.id
           if (typeof cleanNestedFieldId === 'string' && cleanNestedFieldId.startsWith('field-')) {
             cleanNestedFieldId = cleanNestedFieldId.replace('field-', '')
@@ -593,7 +663,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         // Ensure options is always an array
         const processedOptions = Array.isArray(field.options) ? field.options : []
 
-        // Strip "field-" prefix from field ID before sending to backend
+        // Strip "field-" prefix from field ID
         let cleanFieldId = field.id
         if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
           cleanFieldId = cleanFieldId.replace('field-', '')
@@ -619,7 +689,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
       }
 
       // Prepare the form data for API
-      const formData = {
+      const formPayload = {
         organization_id: ORGANIZATION_ID,
         table_id: TABLE_ID,
         form_name: formName,
@@ -627,16 +697,16 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         g_id: mappedGene,
         created_by: userId,
         extraFields: leadDatabaseFields.map(processFieldData),
-        fields: regularFields.map(processFieldData),
+        fields: [...regularFields.map(processFieldData), ...groupSubFieldsForMainArray],
+        group: JSON.stringify(processedGroupFields),
         published: true,
         retry_count: retryCount
       }
 
-      // Use only the correct endpoint
       const endpoint = `${API_BASE_URL}/api/forms`
 
       try {
-        const response = await axios.post(endpoint, formData, {
+        const response = await axios.post(endpoint, formPayload, {
           headers: {
             'Authorization': authUtils.getAuthHeader(),
             'Content-Type': 'application/json',
@@ -647,36 +717,8 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         console.log('✅ API Success Response:', result)
 
         if (result.success && result.data) {
-          // Generate the public URL
-          const publicUrl = `${window.location.origin}/forms/${result.data.form_id}?user_id=${userId}&version=${result.data.version || 1}`
-          setGeneratedLink(publicUrl)
-
-          // Store form data locally for the form view page
-          const completeFormData = {
-            form_name: formName,
-            description: formDescription,
-            g_id: mappedGene, // Store mapped gene in local storage
-            retry_count: retryCount,
-            previewFields: previewFields.map(field => ({
-              id: field.id,
-              type: field.type,
-              label: field.label,
-              placeholder: field.placeholder,
-              required: field.required,
-              options: field.options,
-              validation: field.validation,
-              source: field.source,
-              tableColumnId: field.tableColumnId,
-              tableColumnName: field.tableColumnName,
-              nestedFields: field.nestedFields
-            })),
-            tableFields: tableFields,
-            extraFields: extraFields,
-            generatedAt: new Date().toISOString()
-          }
-
-          localStorage.setItem(`form-${result.data.form_id}`, JSON.stringify(completeFormData))
-          toast.success("Form link generated successfully!")
+          toast.success("Form saved successfully!")
+          router.push('/my-forms')
           return result
         } else {
           throw new Error('Invalid response from server: ' + JSON.stringify(result))
@@ -696,60 +738,10 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
       }
 
     } catch (error) {
-      console.error('❌ Form generation error:', error)
-      toast.error(error.message || 'Failed to generate form link')
+      console.error('❌ Form save error:', error)
+      toast.error(error.message || 'Failed to save form')
     } finally {
       setIsGenerating(false)
-    }
-  }
-
-  const copyToClipboard = async () => {
-    if (generatedLink) {
-      try {
-        // Check if clipboard API is available
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          await navigator.clipboard.writeText(generatedLink)
-          setCopied(true)
-          toast.success("Link copied to clipboard!")
-          setTimeout(() => setCopied(false), 2000)
-        } else {
-          // Fallback for browsers that don't support clipboard API
-          const textArea = document.createElement('textarea')
-          textArea.value = generatedLink
-          textArea.style.position = 'fixed'
-          textArea.style.left = '-999999px'
-          textArea.style.top = '-999999px'
-          document.body.appendChild(textArea)
-          textArea.focus()
-          textArea.select()
-
-          try {
-            const successful = document.execCommand('copy')
-            if (successful) {
-              setCopied(true)
-              toast.success("Link copied to clipboard!")
-              setTimeout(() => setCopied(false), 2000)
-            } else {
-              toast.error("Failed to copy link. Please copy manually.")
-            }
-          } catch (err) {
-            console.error('Fallback copy failed:', err)
-            toast.error("Failed to copy link. Please copy manually.")
-          } finally {
-            document.body.removeChild(textArea)
-          }
-        }
-      } catch (err) {
-        console.error('Clipboard copy failed:', err)
-        toast.error("Failed to copy link. Please copy manually.")
-      }
-    }
-  }
-
-  const openFormInNewTab = () => {
-    if (generatedLink) {
-      window.open(generatedLink, '_blank', 'noopener,noreferrer')
-      toast.info("Opening form in new tab")
     }
   }
 
@@ -1318,87 +1310,27 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
-                      variant="secondary"
-                      onClick={handleGenerateLink}
+                      variant="default"
+                      onClick={handleSaveForm}
                       disabled={isGenerating || previewFields.length === 0}
                       className="gap-2"
                     >
                       {isGenerating ? (
                         <>
                           <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          Generating...
+                          Saving...
                         </>
                       ) : (
                         <>
-                          <ExternalLink className="h-4 w-4" />
-                          Generate Link
+                          <CheckCircle2 className="h-4 w-4" />
+                          Save Form
                         </>
                       )}
                     </Button>
-                    <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
-                      {([canSubmit, isSubmitting]) => (
-                        <Button type="submit" disabled={true} className="gap-2">
-                          <Send className="h-4 w-4" />
-                          {isSubmitting ? "Submitting..." : "Submit Form"}
-                        </Button>
-                      )}
-                    </form.Subscribe>
                   </div>
                 )}
               </div>
             </form>
-
-            {/* Generated Link Section */}
-            {!isEditMode && generatedLink && (
-              <div className="mt-6 p-4 border rounded-lg bg-muted/50">
-                <Label className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <ExternalLink className="h-4 w-4" />
-                  Form Link Generated
-                </Label>
-                <div className="flex gap-2 mb-3">
-                  <Input
-                    value={generatedLink}
-                    readOnly
-                    className="bg-background font-mono text-sm flex-1"
-                  />
-                  <Button
-                    onClick={copyToClipboard}
-                    variant="outline"
-                    className="gap-2 shrink-0"
-                  >
-                    <Copy className="h-4 w-4" />
-                    {copied ? "Copied!" : "Copy"}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  ✅ User ID ({getUserId()?.substring(0, 8)}...) is included in the link for lead attribution
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={openFormInNewTab}
-                    variant="default"
-                    className="gap-2"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Open Form
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      copyToClipboard()
-                      openFormInNewTab()
-                    }}
-                    variant="outline"
-                    className="gap-2"
-                  >
-                    <Copy className="h-4 w-4" />
-                    Copy & Open
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Share this link with users to collect form responses. Click &quot;Open Form&quot; to view the form in a new tab.
-                </p>
-              </div>
-            )}
           </CardContent>
         </Card>
 

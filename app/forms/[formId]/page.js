@@ -1057,6 +1057,63 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
         }
         break
 
+      case "group":
+        // For group fields, extract subfield values to top level instead of nesting
+        if (typeof fieldValue === 'object' && fieldValue !== null) {
+          // The fieldValue contains subfield IDs as keys with their values
+          Object.keys(fieldValue).forEach(subFieldId => {
+            const subFieldValue = fieldValue[subFieldId]
+            const subField = field.subFields?.find(sf => sf.id === subFieldId)
+
+            // Transform each subfield value based on its type
+            if (subField) {
+              switch (subField.type) {
+                case "phone":
+                  if (typeof subFieldValue === 'object' && subFieldValue !== null) {
+                    let countryCode = "+1"
+                    let number = subFieldValue.number || ""
+                    if (phoneCountries && Array.isArray(phoneCountries)) {
+                      const phoneCountry = phoneCountries.find(c => c.code === subFieldValue.country)
+                      countryCode = phoneCountry?.dial || "+1"
+                    }
+                    transformedValues[subFieldId] = { countryCode, number }
+                  } else {
+                    transformedValues[subFieldId] = { countryCode: "+1", number: "" }
+                  }
+                  break
+                case "location":
+                  if (typeof subFieldValue === 'object' && subFieldValue !== null) {
+                    transformedValues[subFieldId] = {
+                      country: subFieldValue.country || "",
+                      state: subFieldValue.state || "",
+                      city: subFieldValue.city || ""
+                    }
+                  } else {
+                    transformedValues[subFieldId] = { country: "", state: "", city: "" }
+                  }
+                  break
+                case "select":
+                case "checkbox":
+                case "radio":
+                  if (typeof subFieldValue === 'object' && subFieldValue !== null && subFieldValue.value !== undefined) {
+                    transformedValues[subFieldId] = { value: subFieldValue.value }
+                  } else {
+                    transformedValues[subFieldId] = { value: subFieldValue || "" }
+                  }
+                  break
+                default:
+                  // For text, email, number, textarea, etc.
+                  transformedValues[subFieldId] = { value: subFieldValue || "" }
+              }
+            } else {
+              // Fallback if subField definition not found
+              transformedValues[subFieldId] = { value: subFieldValue || "" }
+            }
+          })
+        }
+        // Don't add the group itself to transformedValues - only its subfields
+        break
+
       default:
         // Text, email, number, textarea
         transformedValues[finalFieldKey] = { value: fieldValue || "" }
@@ -2186,6 +2243,119 @@ export default function PublicFormPage() {
         })
       }
 
+      // Parse group fields from API and add them to parsedFields
+      if (apiForm.group) {
+        let groupData = apiForm.group
+
+        // Parse group if it's a JSON string
+        if (typeof groupData === 'string') {
+          try {
+            groupData = JSON.parse(groupData)
+          } catch (e) {
+            console.warn('Failed to parse group data:', e)
+            groupData = []
+          }
+        }
+
+        if (Array.isArray(groupData)) {
+          // Collect all field IDs that belong to groups
+          const groupFieldIds = new Set()
+
+          groupData.forEach(group => {
+            // Build subFields from the group's fields array
+            const subFields = []
+            if (group.fields && Array.isArray(group.fields)) {
+              group.fields.forEach(fieldRef => {
+                // Check if fieldRef is a string (field ID reference)
+                if (typeof fieldRef === 'string') {
+                  // Find the matching field in parsedFields by ID
+                  const matchingField = parsedFields.find(f => f.id === fieldRef || f.originalId === fieldRef)
+                  if (matchingField) {
+                    subFields.push(matchingField)
+                    groupFieldIds.add(fieldRef)
+                  }
+                }
+                // Check if fieldRef is a full field object (has type property)
+                else if (typeof fieldRef === 'object' && fieldRef.type) {
+                  // Parse the subfield like a regular field
+                  let validation = {}
+                  if (fieldRef.validations) {
+                    if (typeof fieldRef.validations === 'string') {
+                      try {
+                        validation = JSON.parse(fieldRef.validations)
+                      } catch (e) {
+                        console.warn('Failed to parse subfield validations:', fieldRef.validations)
+                      }
+                    } else if (typeof fieldRef.validations === 'object') {
+                      validation = fieldRef.validations
+                    }
+                  }
+
+                  // Parse options if they exist
+                  let options = []
+                  if (fieldRef.options) {
+                    if (typeof fieldRef.options === 'string') {
+                      try {
+                        options = JSON.parse(fieldRef.options)
+                      } catch (e) {
+                        console.warn('Failed to parse subfield options:', fieldRef.options)
+                        options = []
+                      }
+                    } else if (Array.isArray(fieldRef.options)) {
+                      options = fieldRef.options
+                    }
+                  }
+
+                  const parsedSubField = {
+                    id: fieldRef.id,
+                    name: fieldRef.name || fieldRef.id,
+                    type: fieldRef.type,
+                    label: fieldRef.label || fieldRef.name || 'Field',
+                    placeholder: fieldRef.placeholder || '',
+                    required: fieldRef.required === true || fieldRef.required === 'true' || false,
+                    options: options.map(opt => typeof opt === 'object' ? opt.value || opt : opt),
+                    nestedFields: {},
+                    isLeadColumn: fieldRef.isLeadColumn === true || fieldRef.isLeadColumn === 'true' || false,
+                    validation: validation,
+                    _processedOptions: options.map(opt => ({
+                      value: typeof opt === 'object' ? opt.value || opt : opt,
+                      label: typeof opt === 'object' ? opt.label || opt.value || opt : opt,
+                      nestedFields: []
+                    }))
+                  }
+
+                  subFields.push(parsedSubField)
+                  groupFieldIds.add(fieldRef.id)
+                }
+              })
+            }
+
+            // Create the group field object
+            const groupField = {
+              id: group.id,
+              name: group.name,
+              type: 'group',
+              label: group.label || group.name || 'Group',
+              required: group.required === true || group.required === 'true' || false,
+              subFields: subFields
+            }
+
+            // Add the group field to parsedFields
+            parsedFields.push(groupField)
+          })
+
+          // Remove fields that belong to groups from the main parsedFields array
+          // (they should only appear inside their group)
+          const fieldsNotInGroups = parsedFields.filter(f =>
+            f.type === 'group' || !groupFieldIds.has(f.id) && !groupFieldIds.has(f.originalId)
+          )
+
+          // Replace parsedFields with the filtered version
+          parsedFields.length = 0
+          parsedFields.push(...fieldsNotInGroups)
+        }
+      }
+
       const parsedForm = {
         form_name: apiForm.form_name || apiForm.name || 'Untitled Form',
         description: apiForm.description || '',
@@ -2202,183 +2372,6 @@ export default function PublicFormPage() {
       throw new Error('Failed to parse form data: ' + error.message)
     }
   }
-
-  // const fetchFormData = async () => {
-  //   try {
-  //     const baseUrl = `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`
-
-  //     let result
-  //     let usedVersionEndpoint = null
-
-  //     if (versionParam) {
-  //       // Try primary query-param endpoint first
-  //       const primaryUrl = `${baseUrl}?version=${versionParam}`
-  //       try {
-  //         const resp = await axios.get(primaryUrl, {
-  //           headers: {
-  //             'Authorization': authUtils.getAuthHeader(),
-  //             'Content-Type': 'application/json',
-  //           }
-  //         })
-  //         if (resp.data?.success && resp.data?.data) {
-  //           result = resp.data.data
-  //           usedVersionEndpoint = primaryUrl
-  //         } else {
-  //           throw new Error('Versioned form not returned')
-  //         }
-  //       } catch (e1) {
-  //         // Try alternative endpoints
-  //         const alternatives = [
-  //           `${API_BASE_URL}/api/forms/version/${formId}/${versionParam}`,
-  //           `${API_BASE_URL}/api/forms/${formId}/version/${versionParam}`,
-  //           `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${formId}/version/${versionParam}`,
-  //           `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}/version/${versionParam}`
-  //         ]
-  //         for (const alt of alternatives) {
-  //           try {
-  //             const altResp = await axios.get(alt, {
-  //               headers: {
-  //                 'Authorization': authUtils.getAuthHeader(),
-  //                 'Content-Type': 'application/json',
-  //               }
-  //             })
-  //             if (altResp.data?.success && altResp.data?.data) {
-  //               result = altResp.data.data
-  //               usedVersionEndpoint = alt
-  //               break
-  //             }
-  //           } catch {}
-  //         }
-  //       }
-  //     }
-
-  //     // Fallback to latest if no version or version-specific fetch failed
-  //     if (!result) {
-  //       const response = await axios.get(baseUrl, {
-  //         headers: {
-  //           'Authorization': authUtils.getAuthHeader(),
-  //           'Content-Type': 'application/json',
-  //         }
-  //       })
-  //       result = response.data
-  //     }
-
-  //     if (result.success && result.data) {
-  //       if (versionParam) {
-  //         console.log('Form version load:', { requestedVersion: versionParam, usedVersionEndpoint })
-  //       }
-  //       try {
-  //         // Also fetch latest to determine read-only state when a specific version is requested
-  //         const latestResp = await axios.get(baseUrl, {
-  //           headers: {
-  //             'Authorization': authUtils.getAuthHeader(),
-  //             'Content-Type': 'application/json',
-  //           }
-  //         })
-  //         const latestRes = latestResp.data
-  //         if (latestRes.success && latestRes.data) {
-  //           const latestVer = latestRes.data.version || null
-  //           setLatestVersion(latestVer)
-  //           if (versionParam && latestVer && Number(versionParam) < Number(latestVer)) {
-  //             setIsVersionReadOnly(true)
-  //           } else {
-  //             setIsVersionReadOnly(false)
-  //           }
-  //         }
-  //       } catch (e) {
-  //         console.warn('Unable to fetch latest form version for comparison:', e?.message)
-  //       }
-  //       // Check if form is archived/inactive
-  //       if (result.data.archived || result.data.status === false) {
-  //         console.log('⚠️ Form is archived/inactive:', result.form.archived, result.form.status)
-  //         setFormData({
-  //           form_name: result.data.form_name || 'Form Unavailable',
-  //           description: 'This form is currently inactive and cannot accept submissions.',
-  //           retry_count: result.data.retry_count || '2',
-  //           fields: [],
-  //           archived: true
-  //         })
-  //         return
-  //       }
-
-  //       try {
-  //         const parsedForm = parseFormData(result.data)
-  //         setFormData(parsedForm)
-
-  //         // Check if version has changed and clear FORM_SUBMITTED if it has
-  //         const currentFormVersion = String(result.data.version || versionParam || '1')
-  //         const savedFormId = localStorage.getItem("FORM_ID")
-  //         const savedVersion = localStorage.getItem("FORM_VERSION")
-
-  //         if (savedFormId === formId && savedVersion) {
-  //           const storedVersion = String(savedVersion)
-  //           if (currentFormVersion !== storedVersion) {
-  //             console.log(`Version changed: current=${currentFormVersion}, stored=${storedVersion}. Clearing FORM_SUBMITTED for previous version.`)
-  //             // Clear FORM_SUBMITTED for previous version
-  //             localStorage.removeItem("FORM_SUBMITTED")
-  //             localStorage.removeItem("SUBMISSION_ID")
-  //             localStorage.removeItem("EDIT_TOKEN")
-  //             localStorage.removeItem("FORM_VERSION")
-  //           }
-  //         }
-  //       } catch (parseError) {
-  //         console.error('❌ Error parsing form data:', parseError)
-  //         toast.error('Failed to parse form data. The form may be corrupted.')
-  //         setFormData({
-  //           form_name: 'Error Loading Form',
-  //           description: 'Unable to load form data',
-  //           retry_count: '2',
-  //           fields: []
-  //         })
-  //       }
-  //     } else {
-  //       throw new Error('Form not found in response: ' + JSON.stringify(result))
-  //     }
-
-  //   } catch (error) {
-  //     console.error('❌ Error fetching form:', error)
-
-  //     if (error.response?.status === 404) {
-  //       toast.error(`Form not found. The form with ID "${formId}" does not exist or has been deleted.`)
-  //       setFormData({
-  //         form_name: 'Form Not Found',
-  //         description: 'The requested form could not be found.',
-  //         retry_count: '2',
-  //         fields: []
-  //       })
-  //     } else if (error.response?.status === 401) {
-  //       toast.error('Authentication failed. Please check your authentication token.')
-  //       setFormData({
-  //         form_name: 'Authentication Error',
-  //         description: 'Unable to access this form due to authentication issues.',
-  //         retry_count: '2',
-  //         fields: []
-  //       })
-  //     } else if (error.response?.status === 403) {
-  //       toast.error('Access forbidden. You do not have permission to access this form.')
-  //       setFormData({
-  //         form_name: 'Access Denied',
-  //         description: 'You do not have permission to access this form.',
-  //         retry_count: '2',
-  //         fields: []
-  //       })
-  //     } else {
-  //       toast.error(`Failed to load form: ${error.message}`)
-  //       setFormData({
-  //         form_name: 'Error Loading Form',
-  //         description: 'An error occurred while loading the form.',
-  //         retry_count: '2',
-  //         fields: []
-  //       })
-  //     }
-
-  //   } finally {
-  //     setLoading(false)
-  //   }
-  // }
-
-  // Get default values for form initialization
-
 
   const fetchFormData = async () => {
     try {
@@ -2596,6 +2589,9 @@ export default function PublicFormPage() {
       } else if (field.type === "file") {
         acc[fieldId] = null
       } else if (field.type === "location" || field.type === "phone") {
+        acc[fieldId] = {}
+      } else if (field.type === "group") {
+        // Initialize group fields as empty object to store subField values
         acc[fieldId] = {}
       } else {
         acc[fieldId] = ""
