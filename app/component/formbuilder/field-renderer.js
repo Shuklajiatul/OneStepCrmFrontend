@@ -1906,7 +1906,10 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
   }
 }
 
-export function FieldRenderer({ field, value, onChange, disabled = false, invalid = false, error, hideFieldTypes = false, isBuilder = false, onSelectField, onUpdateSubField, selectedSubFieldId }) {
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { SortableSubFieldItem } from "./sortable-subfield-item"
+
+export function FieldRenderer({ field, value, onChange, disabled = false, invalid = false, error, hideFieldTypes = false, isBuilder = false, onSelectField, onUpdateSubField, selectedSubFieldId, onDeleteSubField }) {
   const safeOnChange = onChange || (() => { })
   const [countries, setCountries] = useState([])
   const [phoneCountries, setPhoneCountries] = useState([])
@@ -3178,51 +3181,67 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
               }`}
           >
             {field.subFields && field.subFields.length > 0 ? (
-              field.subFields.map((subField) => {
-                const subFieldValue = value?.[subField.id]
-                const handleSubFieldChange = (newValue) => {
-                  const newData = { ...value, [subField.id]: newValue }
-                  onChange?.(newData)
-                }
+              isBuilder ? (
+                <SortableContext
+                  items={field.subFields.map(f => f.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {field.subFields.map((subField) => {
+                    const subFieldValue = value?.[subField.id]
+                    const handleSubFieldChange = (newValue) => {
+                      const newData = { ...value, [subField.id]: newValue }
+                      onChange?.(newData)
+                    }
 
-                const isSubFieldSelected = selectedSubFieldId === subField.id
+                    return (
+                      <SortableSubFieldItem
+                        key={subField.id}
+                        subField={subField}
+                        value={subFieldValue}
+                        onChange={handleSubFieldChange}
+                        disabled={disabled}
+                        isBuilder={isBuilder}
+                        onSelectSubField={onSelectField}
+                        selectedSubFieldId={selectedSubFieldId}
+                        parentId={field.id}
+                        onDeleteSubField={onDeleteSubField}
+                        renderInput={() => renderNestedFieldInput(
+                          subField,
+                          subFieldValue,
+                          handleSubFieldChange,
+                          disabled,
+                          false,
+                          null,
+                          locationData
+                        )}
+                      />
+                    )
+                  })}
+                </SortableContext>
+              ) : (
+                field.subFields.map((subField) => {
+                  const subFieldValue = value?.[subField.id]
+                  const handleSubFieldChange = (newValue) => {
+                    const newData = { ...value, [subField.id]: newValue }
+                    onChange?.(newData)
+                  }
 
-                return (
-                  <div
-                    key={subField.id}
-                    className={`space-y-2 p-3 rounded-md transition-all cursor-pointer ${isBuilder
-                        ? isSubFieldSelected
-                          ? 'ring-2 ring-primary bg-primary/5 border border-primary/30'
-                          : 'hover:bg-gray-100/80 hover:ring-1 hover:ring-gray-300'
-                        : ''
-                      }`}
-                    onClick={(e) => {
-                      if (isBuilder && onSelectField) {
-                        e.stopPropagation()
-                        onSelectField(subField, field.id)
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <Label className={isSubFieldSelected ? 'text-primary font-medium' : ''}>{subField.label}</Label>
-                      {isBuilder && (
-                        <Badge variant={isSubFieldSelected ? "default" : "secondary"} className="text-xs">
-                          {subField.type}
-                        </Badge>
+                  return (
+                    <div key={subField.id} className="space-y-2">
+                      <Label>{subField.label}</Label>
+                      {renderNestedFieldInput(
+                        subField,
+                        subFieldValue,
+                        handleSubFieldChange,
+                        disabled,
+                        false,
+                        null,
+                        locationData
                       )}
                     </div>
-                    {renderNestedFieldInput(
-                      subField,
-                      subFieldValue,
-                      handleSubFieldChange,
-                      disabled,
-                      false,
-                      null,
-                      locationData
-                    )}
-                  </div>
-                )
-              })
+                  )
+                })
+              )
             ) : (
               <div className="text-sm text-muted-foreground border border-dashed p-4 text-center rounded-md">
                 {isGroupOver ? 'Drop field here' : 'Empty Group. Drag and drop fields here.'}

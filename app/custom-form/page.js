@@ -593,6 +593,44 @@ export default function CustomFormPage() {
     }
   }, [selectedSubFieldParentId, selectedSubField, fields, isEditMode, editFormData])
 
+  // Handler for deleting a subfield inside a group
+  const deleteSubField = useCallback((subFieldId, parentGroupId) => {
+    setFields(prev => prev.map(field => {
+      if (field.id === parentGroupId && field.subFields) {
+        return {
+          ...field,
+          subFields: field.subFields.filter(sf => sf.id !== subFieldId)
+        }
+      }
+      return field
+    }))
+
+    // If the deleted subfield was selected, clear selection
+    if (selectedSubField && selectedSubField.id === subFieldId) {
+      setSelectedSubField(null)
+      setSelectedSubFieldParentId(null)
+    }
+
+    // Save to localStorage if in edit mode
+    if (isEditMode && editFormData) {
+      const updatedFields = fields.map(field => {
+        if (field.id === parentGroupId && field.subFields) {
+          return {
+            ...field,
+            subFields: field.subFields.filter(sf => sf.id !== subFieldId)
+          }
+        }
+        return field
+      })
+      const formBuilderData = {
+        ...editFormData,
+        fields: updatedFields
+      }
+      localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
+      window.dispatchEvent(new CustomEvent('formBuilderDataUpdated'))
+    }
+  }, [selectedSubField, fields, isEditMode, editFormData])
+
   const moveField = useCallback((fromIndex, toIndex) => {
     setFields(prev => {
       const newFields = [...prev]
@@ -959,6 +997,7 @@ export default function CustomFormPage() {
                       activeId={activeId}
                       onSelectSubField={handleSelectSubField}
                       selectedSubFieldId={selectedSubField?.id}
+                      onDeleteSubField={deleteSubField}
                     />
                   </div>
 
@@ -1061,6 +1100,7 @@ export default function CustomFormPage() {
                     activeId={activeId}
                     onSelectSubField={handleSelectSubField}
                     selectedSubFieldId={selectedSubField?.id}
+                    onDeleteSubField={deleteSubField}
                   />
                 </div>
 

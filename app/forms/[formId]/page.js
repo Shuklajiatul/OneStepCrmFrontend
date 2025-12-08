@@ -2329,8 +2329,11 @@ export default function PublicFormPage() {
                   // Find the matching field in parsedFields by ID
                   const matchingField = parsedFields.find(f => f.id === fieldRef || f.originalId === fieldRef)
                   if (matchingField) {
+                    // console.log('✅ Found matching subfield:', fieldRef, matchingField.label)
                     subFields.push(matchingField)
                     groupFieldIds.add(fieldRef)
+                  } else {
+                    console.warn('⚠️ Could not find matching field for group ref:', fieldRef)
                   }
                 }
                 // Check if fieldRef is a full field object (has type property)

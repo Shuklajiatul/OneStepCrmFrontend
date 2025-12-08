@@ -10,7 +10,7 @@ import { Trash2, GripVertical } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { FieldRenderer } from "./field-renderer"
 
-const SortableFieldItemComponent = function SortableFieldItem({ field, selectedField, onSelectField, onDeleteField, onUpdateField, isActive, onSelectSubField, selectedSubFieldId }) {
+const SortableFieldItemComponent = function SortableFieldItem({ field, selectedField, onSelectField, onDeleteField, onUpdateField, isActive, onSelectSubField, selectedSubFieldId, onDeleteSubField }) {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const {
@@ -83,9 +83,10 @@ const SortableFieldItemComponent = function SortableFieldItem({ field, selectedF
               <FieldRenderer
                 field={field}
                 isBuilder={true}
-                onUpdateField={onUpdateField}
-                onSelectField={onSelectSubField}
+                onSelectField={onSelectField}
+                onUpdateSubField={onUpdateField}
                 selectedSubFieldId={selectedSubFieldId}
+                onDeleteSubField={onDeleteSubField}
               />
             </div>
 

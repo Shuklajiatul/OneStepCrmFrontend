@@ -311,6 +311,8 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         acc[fieldKey] = null
       } else if (field.type === "location" || field.type === "phone") {
         acc[fieldKey] = {}
+      } else if (field.type === "group") {
+        acc[fieldKey] = {}
       } else {
         acc[fieldKey] = ""
       }
