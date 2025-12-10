@@ -1909,7 +1909,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { SortableSubFieldItem } from "./sortable-subfield-item"
 
-export function FieldRenderer({ field, value, onChange, disabled = false, invalid = false, error, hideFieldTypes = false, isBuilder = false, onSelectField, onUpdateSubField, selectedSubFieldId, onDeleteSubField }) {
+export function FieldRenderer({ field, value, onChange, disabled = false, invalid = false, error, hideFieldTypes = false, isBuilder = false, onSelectField, onSelectSubField, onUpdateSubField, selectedSubFieldId, onDeleteSubField }) {
   const safeOnChange = onChange || (() => { })
   const [countries, setCountries] = useState([])
   const [phoneCountries, setPhoneCountries] = useState([])
@@ -3201,7 +3201,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                         onChange={handleSubFieldChange}
                         disabled={disabled}
                         isBuilder={isBuilder}
-                        onSelectSubField={onSelectField}
+                        onSelectSubField={onSelectSubField}
                         selectedSubFieldId={selectedSubFieldId}
                         parentId={field.id}
                         onDeleteSubField={onDeleteSubField}

@@ -188,41 +188,17 @@ export default function FormPreviewPage() {
         const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
         const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 
-        // Recursive function to process nested fields
-        const processNestedFields = (nestedFields, parentIndex = null) => {
-          if (!nestedFields || !Array.isArray(nestedFields)) return []
+        // Separate fields by type
+        const groupFieldsList = latestFields.filter(field => field.type === 'group')
+        const regularFormFields = latestFields.filter(field => field.type !== 'group' && !field.tableColumnId)
+        const tableColumnFields = latestFields.filter(field => field.tableColumnId)
 
-          return nestedFields.map((nestedField, nestedIndex) => {
-            // Process options for this nested field if it has them
-            let nestedOptions = []
-            if (nestedField.options && Array.isArray(nestedField.options)) {
-              nestedOptions = nestedField.options.map((nestedOption, nestedOptionIndex) => {
-                const nestedOptionObj = {
-                  value: typeof nestedOption === 'string' ? nestedOption : nestedOption.value,
-                  label: typeof nestedOption === 'string' ? nestedOption : nestedOption.label,
-                  nestedFields: []
-                }
+        // Recursive function to process nested fields for API payload
+        const processNestedFieldsForAPI = (nestedFields) => {
+          if (!Array.isArray(nestedFields)) return []
 
-                // Check for nested fields in the option itself (for deep table column nesting)
-                if (nestedOption.nestedFields && Array.isArray(nestedOption.nestedFields)) {
-                  nestedOptionObj.nestedFields = processNestedFields(
-                    nestedOption.nestedFields,
-                    nestedOptionIndex
-                  )
-                }
-                // Fallback: check nested fields in the field structure (for form builder fields)
-                else if (nestedField.nestedFields && nestedField.nestedFields[nestedOptionIndex]) {
-                  nestedOptionObj.nestedFields = processNestedFields(
-                    nestedField.nestedFields[nestedOptionIndex],
-                    nestedOptionIndex
-                  )
-                }
-
-                return nestedOptionObj
-              })
-            }
-
-            // Strip "field-" prefix from nested field ID before sending to backend
+          return nestedFields.map(nestedField => {
+            // Strip "field-" prefix from nested field ID
             let cleanNestedFieldId = nestedField.id
             if (typeof cleanNestedFieldId === 'string' && cleanNestedFieldId.startsWith('field-')) {
               cleanNestedFieldId = cleanNestedFieldId.replace('field-', '')
@@ -230,14 +206,34 @@ export default function FormPreviewPage() {
 
             const processedNestedField = {
               id: cleanNestedFieldId,
-              name: nestedField.label?.toLowerCase().replace(/\s+/g, '_') || `nested_${nestedIndex}`,
+              name: nestedField.name || nestedField.label?.toLowerCase().replace(/\s+/g, '_'),
               label: nestedField.label,
               type: nestedField.type,
               required: nestedField.required || false,
               validations: nestedField.validation || nestedField.validations || {},
               hasNested: false,
-              options: nestedOptions,
+              options: [],
               isLeadColumn: nestedField.isLeadColumn || false
+            }
+
+            // Process options for this nested field if it has them
+            if (nestedField.options && Array.isArray(nestedField.options)) {
+              processedNestedField.options = nestedField.options.map(option => {
+                // Handle both string options and object options
+                if (typeof option === 'string') {
+                  return {
+                    value: option,
+                    label: option,
+                    nestedFields: []
+                  }
+                } else {
+                  return {
+                    value: option.value || '',
+                    label: option.label || option.value || '',
+                    nestedFields: processNestedFieldsForAPI(option.nestedFields || [])
+                  }
+                }
+              })
             }
 
             // Check if this nested field has nested fields
@@ -249,8 +245,102 @@ export default function FormPreviewPage() {
           })
         }
 
-        // Process fields the same way as generate link does
-        const processFieldForAPI = (field) => {
+        // Helper function to process field data with string formatting
+        const processFieldData = (field) => {
+          // Ensure options is always an array
+          const processedOptions = Array.isArray(field.options) ? field.options : []
+
+          // Strip "field-" prefix from field ID
+          let cleanFieldId = field.id
+          if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
+            cleanFieldId = cleanFieldId.replace('field-', '')
+          }
+
+          const processedField = {
+            id: cleanFieldId,
+            name: field.name || field.label?.toLowerCase().replace(/\s+/g, '_'),
+            label: field.label,
+            type: field.type,
+            required: field.required ? "true" : "false",
+            validations: JSON.stringify(field.validations || field.validation || {}),
+            hasNested: field.hasNested ? "true" : "false",
+            isLeadColumn: field.isLeadColumn ? "true" : "false",
+            options: JSON.stringify(processedOptions.map(option => ({
+              value: typeof option === 'string' ? option : option.value,
+              label: typeof option === 'string' ? option : option.label,
+              nestedFields: processNestedFieldsForAPI(option.nestedFields || [])
+            })))
+          }
+
+          return processedField
+        }
+
+        // Helper function to process subFields inside group fields
+        const processSubFieldForAPI = (subField) => {
+          // Strip "field-" prefix from subfield ID
+          let cleanSubFieldId = subField.id
+          if (typeof cleanSubFieldId === 'string' && cleanSubFieldId.startsWith('field-')) {
+            cleanSubFieldId = cleanSubFieldId.replace('field-', '')
+          }
+
+          let optionsArray = []
+          if (subField.options && Array.isArray(subField.options)) {
+            optionsArray = subField.options.map(option => ({
+              value: typeof option === 'string' ? option : option.value,
+              label: typeof option === 'string' ? option : option.label,
+              nestedFields: []
+            }))
+          }
+
+          return {
+            id: cleanSubFieldId,
+            name: subField.label?.toLowerCase().replace(/\s+/g, '_') || subField.name,
+            label: subField.label,
+            type: subField.type,
+            required: subField.required ? "true" : "false",
+            validations: JSON.stringify(subField.validation || subField.validations || {}),
+            hasNested: "false",
+            options: JSON.stringify(optionsArray),
+            isLeadColumn: subField.isLeadColumn ? "true" : "false"
+          }
+        }
+
+        // Extract fields from groups and collect field IDs for group references
+        const groupSubFieldsForMainArray = []
+        const processGroupFieldData = (groupField) => {
+          // Strip "field-" prefix from group field ID
+          let cleanGroupId = groupField.id
+          if (typeof cleanGroupId === 'string' && cleanGroupId.startsWith('field-')) {
+            cleanGroupId = cleanGroupId.replace('field-', '')
+          }
+
+          // Process all subFields inside the group and collect their IDs
+          const fieldIds = []
+          if (groupField.subFields && Array.isArray(groupField.subFields)) {
+            groupField.subFields.forEach(subField => {
+              // Process the subField as a full field object
+              const processedSubField = processSubFieldForAPI(subField)
+              // Add to the main fields array
+              groupSubFieldsForMainArray.push(processedSubField)
+              // Collect the field ID for the group reference
+              fieldIds.push(processedSubField.id)
+            })
+          }
+
+          return {
+            id: cleanGroupId,
+            name: groupField.label?.toLowerCase().replace(/\s+/g, '_') || groupField.name,
+            label: groupField.label,
+            type: "group",
+            fields: fieldIds
+          }
+        }
+
+        // Process group fields
+        const processedGroupFields = groupFieldsList.map(processGroupFieldData)
+
+        // Process table column fields and extra fields
+        const tableFields = tableColumnFields.map(field => {
           let optionsArray = []
 
           if (field.options && Array.isArray(field.options)) {
@@ -261,14 +351,12 @@ export default function FormPreviewPage() {
                 nestedFields: []
               }
 
-              // Process nested fields for this option - check both structures
-              // First check if option already has nestedFields (for table columns)
+              // Process nested fields for this option
               if (option.nestedFields && Array.isArray(option.nestedFields)) {
-                optionObj.nestedFields = processNestedFields(option.nestedFields, index)
+                optionObj.nestedFields = processNestedFieldsForAPI(option.nestedFields)
               }
-              // Then check if field has nestedFields[index] (for form builder fields)
               else if (field.nestedFields && field.nestedFields[index]) {
-                optionObj.nestedFields = processNestedFields(field.nestedFields[index], index)
+                optionObj.nestedFields = processNestedFieldsForAPI(field.nestedFields[index])
               }
 
               return optionObj
@@ -279,29 +367,75 @@ export default function FormPreviewPage() {
             option.nestedFields && option.nestedFields.length > 0
           )
 
-          // Strip "field-" prefix from main field ID before sending to backend
+          let cleanFieldId = field.tableColumnId || field.id
+          if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
+            cleanFieldId = cleanFieldId.replace('field-', '')
+          }
+
+          return {
+            id: cleanFieldId,
+            name: field.tableColumnName || field.label?.toLowerCase().replace(/\s+/g, '_'),
+            label: field.label,
+            type: field.type,
+            required: field.required ? "true" : "false",
+            validations: JSON.stringify(field.validation || field.validations || {}),
+            hasNested: hasNestedFields ? "true" : "false",
+            options: JSON.stringify(optionsArray),
+            isLeadColumn: field.isLeadColumn ? "true" : "false"
+          }
+        })
+
+        // Prepare extra fields
+        const extraFields = regularFormFields.map(field => {
+          let optionsArray = []
+
+          if (field.options && Array.isArray(field.options)) {
+            optionsArray = field.options.map((option, index) => {
+              const optionObj = {
+                value: typeof option === 'string' ? option : option.value,
+                label: typeof option === 'string' ? option : option.label,
+                nestedFields: []
+              }
+
+              // Process nested fields for this option
+              if (option.nestedFields && Array.isArray(option.nestedFields)) {
+                optionObj.nestedFields = processNestedFieldsForAPI(option.nestedFields)
+              }
+              else if (field.nestedFields && field.nestedFields[index]) {
+                optionObj.nestedFields = processNestedFieldsForAPI(field.nestedFields[index])
+              }
+
+              return optionObj
+            })
+          }
+
+          const hasNestedFields = optionsArray.some(option =>
+            option.nestedFields && option.nestedFields.length > 0
+          )
+
+          // Strip "field-" prefix from extra field ID
           let cleanFieldId = field.id
           if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
             cleanFieldId = cleanFieldId.replace('field-', '')
           }
 
-          const fieldObj = {
+          return {
             id: cleanFieldId,
-            name: field.name || field.label?.toLowerCase().replace(/\s+/g, '_') || 'field',
+            name: field.label?.toLowerCase().replace(/\s+/g, '_'),
             label: field.label,
             type: field.type,
-            required: field.required || false,
-            validations: field.validation || field.validations || {},
-            hasNested: hasNestedFields,
-            options: optionsArray,
-            isLeadColumn: field.isLeadColumn || false
+            required: field.required ? "true" : "false",
+            validations: JSON.stringify(field.validation || field.validations || {}),
+            hasNested: hasNestedFields ? "true" : "false",
+            options: JSON.stringify(optionsArray),
+            isLeadColumn: field.isLeadColumn ? "true" : "false"
           }
+        })
 
-          return fieldObj
-        }
-
-        // Combine all fields into a single fields array
-        const allFields = latestFields.map(processFieldForAPI)
+        // Separate fields based on isLeadColumn setting
+        const allFields = [...tableFields, ...extraFields]
+        const regularFields = allFields.filter(field => field.isLeadColumn === "false")
+        const leadDatabaseFields = allFields.filter(field => field.isLeadColumn === "true")
 
         // Prepare the update payload
         const updatePayload = {
@@ -310,9 +444,12 @@ export default function FormPreviewPage() {
           table_id: TABLE_ID,
           form_name: editFormData.formName,
           description: editFormData.description,
-          g_id: latestGId, // Use the g_id from localStorage/user data
-          created_by: userId, // Use user ID from localStorage
-          fields: allFields,
+          g_id: latestGId,
+          created_by: userId,
+          extraFields: leadDatabaseFields,
+          fields: [...regularFields, ...groupSubFieldsForMainArray],
+          group: processedGroupFields,
+          published: true,
           retry_count: latestRetryCount
         }
 

@@ -84,6 +84,7 @@ const SortableFieldItemComponent = function SortableFieldItem({ field, selectedF
                 field={field}
                 isBuilder={true}
                 onSelectField={onSelectField}
+                onSelectSubField={onSelectSubField}
                 onUpdateSubField={onUpdateField}
                 selectedSubFieldId={selectedSubFieldId}
                 onDeleteSubField={onDeleteSubField}
