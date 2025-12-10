@@ -245,26 +245,25 @@ export default function MyFormsPage() {
     }
   }
 
-  // Function to archive/unarchive form
+  // Function to archive/unarchive form - UPDATED
   const toggleArchiveForm = async (formId, currentStatus, version) => {
     try {
-      setArchivingForm(formId)
+      const form = forms.find(f => f.form_id === formId && (f.version || 1) === version)
+      
+      if (form?.hasNewerVersion && currentStatus) {
+        toast.error("Cannot unarchive: A newer version exists")
+        return
+      }
 
-      console.log('Archiving specific form version:', {
-        form_id: formId,
-        version: version || 1,
-        current_status: currentStatus
-      })
+      setArchivingForm(formId)
 
       const archivePayload = {
         organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
         form_id: formId,
         table_id: process.env.NEXT_PUBLIC_TABLE_ID,
-        status: !currentStatus, // Toggle the status
+        status: !currentStatus,
         version: version || 1
       }
-
-      console.log('Archive payload:', archivePayload)
 
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/archieve`,
@@ -278,43 +277,29 @@ export default function MyFormsPage() {
       )
 
       const result = response.data
-      console.log('Archive API Response:', result)
 
       if (result.success) {
-        // Use the archieve_status from API response to update local state
         const newArchiveStatus = result.archieve_status
-        console.log('New archive status:', newArchiveStatus, 'for form:', formId)
-
-        // Update the local state - update the specific version
-        // Handle version comparison carefully (might be undefined, string, or number)
         const targetVersion = version || 1
+        
         setForms(prevForms => {
           const updatedForms = prevForms.map(f => {
             const fVersion = f.version || 1
-            // Match by form_id and version (normalize both to numbers for comparison)
             if (f.form_id === formId && Number(fVersion) === Number(targetVersion)) {
               return {
                 ...f,
                 archived: newArchiveStatus,
-                isarchieved: newArchiveStatus  // Also update the isarchieved property
+                isarchieved: newArchiveStatus
               }
             }
             return f
           })
-          console.log('Updated specific form version:', updatedForms.find(f => f.form_id === formId && (f.version || 1) == targetVersion))
           return updatedForms
         })
 
         const action = newArchiveStatus ? "archived" : "unarchived"
-        // Find form name for toast
         const formName = forms.find(f => f.form_id === formId)?.form_name || "Form"
         toast.success(`Form "${formName}" v-${targetVersion} ${action} successfully!`)
-
-        if (newArchiveStatus) {
-          toast.info("Form is now inactive. Users cannot access it.")
-        } else {
-          toast.info("Form is now active. Users can access it.")
-        }
       } else {
         throw new Error(result.message || 'Failed to update form status')
       }
@@ -408,25 +393,34 @@ export default function MyFormsPage() {
       console.log('API Forms Response:', result)
 
       if (result.success && Array.isArray(result.data)) {
+        // Group forms by form_id to find latest versions
+        const formGroups = {}
+        result.data.forEach(form => {
+          const formId = form.form_id || form.id
+          if (!formGroups[formId]) formGroups[formId] = []
+          formGroups[formId].push(form)
+        })
+
         // Process the forms to add field counts and format dates
         const processedForms = result.data.map(form => {
+          const formId = form.form_id || form.id
+          const currentVersion = form.version || 1
+          const latestVersion = Math.max(...formGroups[formId].map(f => f.version || 1))
+          const hasNewerVersion = currentVersion < latestVersion
 
           return {
             ...form,
-            // Count the number of valid fields
             fieldCount: countFormFields(form),
-            // Format the created date
             created: form.created_at ? new Date(form.created_at).toLocaleDateString() : 'Unknown',
             createdDate: form.created_at ? new Date(form.created_at) : new Date(),
-            form_id: form.form_id || form.id,
-            // Check all possible archive status properties from API
+            form_id: formId,
             archived: form.archived === true || form.archived === 'true' ||
               form.archieve_status === true || form.archieve_status === 'true' ||
-              form.isarchieved === true || form.isarchieved === 'true',
-            // Ensure isarchieved property is also set correctly
+              form.isarchieved === true || form.isarchieved === 'true' || hasNewerVersion,
             isarchieved: form.isarchieved === true || form.isarchieved === 'true' ||
               form.archived === true || form.archived === 'true' ||
-              form.archieve_status === true || form.archieve_status === 'true'
+              form.archieve_status === true || form.archieve_status === 'true' || hasNewerVersion,
+            hasNewerVersion
           }
         })
 
@@ -1320,7 +1314,7 @@ export default function MyFormsPage() {
                                           variant={form.archived ? "default" : "outline"}
                                           size="icon"
                                           onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
-                                          disabled={archivingForm === form.form_id}
+                                          disabled={archivingForm === form.form_id || (form.archived && form.hasNewerVersion)}
                                           className="h-8 w-8"
                                         >
                                           {archivingForm === form.form_id ? (
@@ -1333,7 +1327,7 @@ export default function MyFormsPage() {
                                         </Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        <p>{form.archived ? "Unarchive form" : "Archive form"}</p>
+                                        <p>{form.hasNewerVersion && form.archived ? "Cannot unarchive - newer version exists" : form.archived ? "Unarchive form" : "Archive form"}</p>
                                       </TooltipContent>
                                     </Tooltip>
                                     <Tooltip>
@@ -1471,7 +1465,7 @@ export default function MyFormsPage() {
                                   size="sm"
                                   variant={form.archived ? "default" : "outline"}
                                   onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
-                                  disabled={archivingForm === form.form_id}
+                                  disabled={archivingForm === form.form_id || (form.archived && form.hasNewerVersion)}
                                 >
                                   {archivingForm === form.form_id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1483,7 +1477,7 @@ export default function MyFormsPage() {
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>{form.archived ? "Unarchive form" : "Archive form"}</p>
+                                <p>{form.hasNewerVersion && form.archived ? "Cannot unarchive - newer version exists" : form.archived ? "Unarchive form" : "Archive form"}</p>
                               </TooltipContent>
                             </Tooltip>
                             <Tooltip>
@@ -1617,7 +1611,7 @@ export default function MyFormsPage() {
                                   size="sm"
                                   variant={form.archived ? "default" : "outline"}
                                   onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
-                                  disabled={archivingForm === form.form_id}
+                                  disabled={archivingForm === form.form_id || (form.archived && form.hasNewerVersion)}
                                 >
                                   {archivingForm === form.form_id ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1629,7 +1623,7 @@ export default function MyFormsPage() {
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>{form.archived ? "Unarchive form" : "Archive form"}</p>
+                                <p>{form.hasNewerVersion && form.archived ? "Cannot unarchive - newer version exists" : form.archived ? "Unarchive form" : "Archive form"}</p>
                               </TooltipContent>
                             </Tooltip>
                             <Tooltip>
