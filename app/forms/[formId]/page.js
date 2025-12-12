@@ -490,22 +490,61 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
     return result
   }
 
+  // Find field definitions including group sub-fields
+  const findFieldDefinition = (fieldId) => {
+    // direct match on root fields
+    let foundField = fields.find(f =>
+      f.id === fieldId ||
+      f.originalId === fieldId
+    )
+
+    // try with field- prefix variations
+    if (!foundField && typeof fieldId === 'string') {
+      if (!fieldId.startsWith('field-')) {
+        foundField = fields.find(f => f.id === `field-${fieldId}` || f.originalId === `field-${fieldId}`)
+      } else {
+        const cleanId = fieldId.replace('field-', '')
+        foundField = fields.find(f => f.id === cleanId || f.originalId === cleanId)
+      }
+    }
+
+    if (foundField) {
+      return { field: foundField, parentGroup: null }
+    }
+
+    // search within group subFields
+    for (const groupField of fields) {
+      if (groupField.type === 'group' && Array.isArray(groupField.subFields)) {
+        const subField = groupField.subFields.find(sf => {
+          if (sf.id === fieldId || sf.originalId === fieldId) return true
+          if (typeof fieldId === 'string') {
+            if (!fieldId.startsWith('field-')) {
+              return sf.id === `field-${fieldId}` || sf.originalId === `field-${fieldId}`
+            }
+            const cleanId = fieldId.replace('field-', '')
+            return sf.id === cleanId || sf.originalId === cleanId
+          }
+          return false
+        })
+        if (subField) {
+          return { field: subField, parentGroup: groupField }
+        }
+      }
+    }
+
+    return { field: null, parentGroup: null }
+  }
+
   Object.keys(formValues).forEach(fieldId => {
     const fieldValue = formValues[fieldId]
-    let field = fields.find(f => f.id === fieldId)
-
-    // If not found by exact match, try with "field-" prefix added
-    if (!field && !fieldId.startsWith('field-')) {
-      field = fields.find(f => f.id === `field-${fieldId}`)
-    }
-
-    // If still not found, try with "field-" prefix removed
-    if (!field && fieldId.startsWith('field-')) {
-      const cleanFieldId = fieldId.replace('field-', '')
-      field = fields.find(f => f.id === cleanFieldId)
-    }
+    const { field } = findFieldDefinition(fieldId)
 
     if (!field) return
+
+    // Skip container group values, subfields are handled individually
+    if (field.type === 'group') {
+      return
+    }
 
     // Skip empty values for non-required fields
     if (!field.required && !field.validation?.required) {
@@ -1514,43 +1553,107 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
           subFieldValue = submissionValues[subField.originalId]
         }
 
-        if (subFieldValue !== undefined && subFieldValue !== null) {
-          // Parse JSON string if needed
-          let parsedValue = subFieldValue
-          if (typeof subFieldValue === 'string') {
-            try {
-              parsedValue = JSON.parse(subFieldValue)
-            } catch (e) {
-              parsedValue = subFieldValue
+        // Normalize value for form consumption
+        let parsedValue = subFieldValue
+        if (typeof subFieldValue === 'string') {
+          try {
+            parsedValue = JSON.parse(subFieldValue)
+          } catch (e) {
+            parsedValue = subFieldValue
+          }
+        }
+
+        const normalizeSubFieldValue = () => {
+          if (parsedValue === undefined || parsedValue === null) {
+            if (subField.type === 'phone' || subField.type === 'location') return {}
+            if (subField.type === 'file') return null
+            if (["select", "checkbox", "radio"].includes(subField.type)) {
+              const baseValue = subField.type === 'checkbox' ? [] : ""
+              return { value: baseValue, nestedFields: {} }
+            }
+            return ''
+          }
+
+          // Files coming as base64
+          if (subField.type === 'file') {
+            // Handle direct string base64
+            if (typeof parsedValue === 'string' && parsedValue.startsWith('data:')) {
+              const fileObj = createFileFromBase64(parsedValue, subField.label || subField.name || 'uploaded_file')
+              return fileObj || parsedValue
+            }
+            // Handle object wrapper { value: "data:..." }
+            if (typeof parsedValue === 'object' && parsedValue !== null && typeof parsedValue.value === 'string' && parsedValue.value.startsWith('data:')) {
+              const fileObj = createFileFromBase64(parsedValue.value, subField.label || subField.name || 'uploaded_file')
+              return fileObj || parsedValue.value
+            }
+            return parsedValue
+          }
+
+          // Phone/location keep structure
+          if (subField.type === 'phone' || subField.type === 'location') {
+            return parsedValue
+          }
+
+          if (["select", "radio"].includes(subField.type)) {
+            if (typeof parsedValue === 'object' && parsedValue !== null) {
+              const nestedFields = parsedValue.nestedValues
+                ? transformApiNestedValuesToNestedFields(parsedValue.nestedValues, 0)
+                : parsedValue.nestedFields || {}
+              return { value: parsedValue.value ?? parsedValue, nestedFields }
+            }
+            return { value: parsedValue, nestedFields: {} }
+          }
+
+          if (subField.type === 'checkbox') {
+            if (Array.isArray(parsedValue)) {
+              const checkboxValues = []
+              const checkboxNested = {}
+
+              parsedValue.forEach((item, index) => {
+                if (typeof item === 'object' && item !== null) {
+                  // collect value
+                  const itemValue = item.value !== undefined ? item.value : item
+                  checkboxValues.push(itemValue)
+
+                  // collect nested values if present
+                  if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
+                    checkboxNested[index] = transformApiNestedValuesToNestedFields(item.nestedValues, 0)
+                  }
+                } else {
+                  checkboxValues.push(item)
+                }
+              })
+
+              return { value: checkboxValues, nestedFields: checkboxNested }
+            }
+            if (typeof parsedValue === 'object' && parsedValue !== null) {
+              const nestedFields = parsedValue.nestedValues
+                ? transformApiNestedValuesToNestedFields(parsedValue.nestedValues, 0)
+                : parsedValue.nestedFields || {}
+              return { value: parsedValue.value ?? [], nestedFields }
+            }
+            return { value: parsedValue, nestedFields: {} }
+          }
+
+          // Fix: Unwrap simple values for non-nested fields (text, email, number etc.)
+          if (typeof parsedValue === 'object' && parsedValue !== null && parsedValue.value !== undefined) {
+            if (!parsedValue.nestedValues || Object.keys(parsedValue.nestedValues).length === 0) {
+              // List of fields that might expect an object structure - exclude them
+              const complexTypes = ["select", "checkbox", "radio", "file", "location", "phone"]
+              if (!complexTypes.includes(subField.type)) {
+                return parsedValue.value
+              }
             }
           }
 
-          // Extract the actual value
-          if (typeof parsedValue === 'object' && parsedValue !== null) {
-            if (parsedValue.value !== undefined) {
-              groupValue[subFieldId] = parsedValue.value
-            } else if (parsedValue.countryCode !== undefined || parsedValue.number !== undefined) {
-              // Phone field
-              groupValue[subFieldId] = parsedValue
-            } else if (parsedValue.country !== undefined || parsedValue.state !== undefined) {
-              // Location field
-              groupValue[subFieldId] = parsedValue
-            } else {
-              groupValue[subFieldId] = parsedValue
-            }
-          } else {
-            groupValue[subFieldId] = parsedValue
-          }
-        } else {
-          // Set default based on subfield type
-          if (subField.type === 'phone') {
-            groupValue[subFieldId] = {}
-          } else if (subField.type === 'location') {
-            groupValue[subFieldId] = {}
-          } else {
-            groupValue[subFieldId] = ''
-          }
+          return parsedValue
         }
+
+        const normalizedValue = normalizeSubFieldValue()
+        groupValue[subFieldId] = typeof normalizedValue === 'object' && normalizedValue !== null && normalizedValue.value !== undefined
+          ? normalizedValue.value
+          : normalizedValue
+        transformedValues[subFieldId] = normalizedValue
       })
 
       transformedValues[fieldId] = groupValue
@@ -2652,8 +2755,27 @@ export default function PublicFormPage() {
       } else if (field.type === "location" || field.type === "phone") {
         acc[fieldId] = {}
       } else if (field.type === "group") {
-        // Initialize group fields as empty object to store subField values
+        // Initialize container and all subfields so they register with the form
         acc[fieldId] = {}
+
+        if (Array.isArray(field.subFields)) {
+          field.subFields.forEach(subField => {
+            const subId = subField.id
+            if (["select", "checkbox", "radio"].includes(subField.type)) {
+              if (subField.type === "checkbox" || (subField.type === "select" && subField.validation?.multiple)) {
+                acc[subId] = { value: [], nestedFields: {} }
+              } else {
+                acc[subId] = { value: "", nestedFields: {} }
+              }
+            } else if (subField.type === "file") {
+              acc[subId] = null
+            } else if (subField.type === "location" || subField.type === "phone") {
+              acc[subId] = {}
+            } else {
+              acc[subId] = ""
+            }
+          })
+        }
       } else {
         acc[fieldId] = ""
       }
@@ -2716,6 +2838,27 @@ export default function PublicFormPage() {
         acc[fieldId] = null
       } else if (field.type === "location" || field.type === "phone") {
         acc[fieldId] = {}
+      } else if (field.type === "group") {
+        acc[fieldId] = {}
+
+        if (Array.isArray(field.subFields)) {
+          field.subFields.forEach(subField => {
+            const subId = subField.id
+            if (["select", "checkbox", "radio"].includes(subField.type)) {
+              if (subField.type === "checkbox" || (subField.type === "select" && subField.validation?.multiple)) {
+                acc[subId] = { value: [], nestedFields: {} }
+              } else {
+                acc[subId] = { value: "", nestedFields: {} }
+              }
+            } else if (subField.type === "file") {
+              acc[subId] = null
+            } else if (subField.type === "location" || subField.type === "phone") {
+              acc[subId] = {}
+            } else {
+              acc[subId] = ""
+            }
+          })
+        }
       } else {
         acc[fieldId] = ""
       }
@@ -2914,9 +3057,12 @@ export default function PublicFormPage() {
       console.log('Form values:', value)
 
       setSubmitting(true)
+      console.log('🚀 SUBMIT STARTED - setSubmitting(true)')
       try {
         // Transform form values to match API expected format
+        console.log('🔄 Calling transformFormValues...')
         const transformedValues = transformFormValues(value, formData?.fields || [], phoneCountries)
+        console.log('✅ transformFormValues completed', transformedValues)
 
         if (isEditMode) {
           console.log('=== UPDATE DEBUG ===')
@@ -3529,6 +3675,63 @@ export default function PublicFormPage() {
               >
                 {formData.fields.map((field, index) => {
                   const fieldKey = field.id || generateUniqueFieldId()
+
+                  // Handle group fields specially
+                  if (field.type === 'group' && field.subFields && Array.isArray(field.subFields)) {
+                    return (
+                      <div key={fieldKey} className="space-y-4 p-4 border border-border rounded-lg bg-muted/20">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-semibold">{field.label}</h3>
+                          {field.required && (
+                            <Badge variant="secondary" className="text-xs">Required</Badge>
+                          )}
+                        </div>
+                        <div className="space-y-4">
+                          {field.subFields.map((subField) => {
+                            const subFieldKey = subField.id || generateUniqueFieldId()
+
+                            // Process the subField to ensure options and nested fields are properly structured
+                            const processedSubField = {
+                              ...subField,
+                              options: processFieldOptions(subField)
+                            }
+
+                            return (
+                              <form.Field
+                                key={subFieldKey}
+                                name={subField.id}
+                                validators={{
+                                  onChange: ({ value }) => {
+                                    const errors = validateField(subField, value)
+                                    return errors.length > 0 ? errors[0] : undefined
+                                  },
+                                  onSubmit: ({ value }) => {
+                                    const errors = validateField(subField, value)
+                                    return errors.length > 0 ? errors[0] : undefined
+                                  },
+                                }}
+                              >
+                                {(fieldApi) => {
+                                  return (
+                                    <div className="space-y-2">
+                                      <FieldRenderer
+                                        field={processedSubField}
+                                        value={fieldApi.state.value}
+                                        onChange={fieldApi.handleChange}
+                                        invalid={fieldApi.state.meta.errors.length > 0}
+                                        error={fieldApi.state.meta.errors.length > 0 ? fieldApi.state.meta.errors[0] : undefined}
+                                        hideFieldTypes={true}
+                                      />
+                                    </div>
+                                  )
+                                }}
+                              </form.Field>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  }
 
                   // Process the field to ensure options and nested fields are properly structured
                   const processedField = {
