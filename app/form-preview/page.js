@@ -446,8 +446,8 @@ export default function FormPreviewPage() {
           description: editFormData.description,
           g_id: latestGId,
           created_by: userId,
-          extraFields: leadDatabaseFields,
-          fields: [...regularFields, ...groupSubFieldsForMainArray],
+          extraFields: [...regularFields, ...groupSubFieldsForMainArray],
+          fields: leadDatabaseFields,
           group: processedGroupFields,
           published: true,
           retry_count: latestRetryCount

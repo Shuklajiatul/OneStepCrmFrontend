@@ -538,76 +538,6 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         return
       }
 
-      // Helper function to process subFields inside group fields
-      const processSubFieldForAPI = (subField) => {
-        // Strip "field-" prefix from subfield ID
-        let cleanSubFieldId = subField.id
-        if (typeof cleanSubFieldId === 'string' && cleanSubFieldId.startsWith('field-')) {
-          cleanSubFieldId = cleanSubFieldId.replace('field-', '')
-        }
-
-        let optionsArray = []
-        if (subField.options && Array.isArray(subField.options)) {
-          optionsArray = subField.options.map(option => ({
-            value: typeof option === 'string' ? option : option.value,
-            label: typeof option === 'string' ? option : option.label,
-            nestedFields: []
-          }))
-        }
-
-        return {
-          id: cleanSubFieldId,
-          name: subField.label?.toLowerCase().replace(/\s+/g, '_') || subField.name,
-          label: subField.label,
-          type: subField.type,
-          required: subField.required ? "true" : "false",
-          validations: subField.validation || subField.validations || {},
-          hasNested: false,
-          options: optionsArray,
-          isLeadColumn: subField.isLeadColumn ? "true" : "false"
-        }
-      }
-
-      // Extract fields from groups and collect field IDs for group references
-      const groupSubFieldsForMainArray = []
-      const processGroupFieldData = (groupField) => {
-        // Strip "field-" prefix from group field ID
-        let cleanGroupId = groupField.id
-        if (typeof cleanGroupId === 'string' && cleanGroupId.startsWith('field-')) {
-          cleanGroupId = cleanGroupId.replace('field-', '')
-        }
-
-        // Process all subFields inside the group and collect their IDs
-        const fieldIds = []
-        if (groupField.subFields && Array.isArray(groupField.subFields)) {
-          groupField.subFields.forEach(subField => {
-            // Process the subField as a full field object
-            const processedSubField = processSubFieldForAPI(subField)
-            // Add to the main fields array
-            groupSubFieldsForMainArray.push(processedSubField)
-            // Collect the field ID for the group reference
-            fieldIds.push(processedSubField.id)
-          })
-        }
-
-        return {
-          id: cleanGroupId,
-          name: groupField.label?.toLowerCase().replace(/\s+/g, '_') || groupField.name,
-          label: groupField.label,
-          type: "group",
-          required: groupField.required ? "true" : "false",
-          fields: fieldIds
-        }
-      }
-
-      // Process group fields
-      const processedGroupFields = groupFieldsList.map(processGroupFieldData)
-
-      // Separate fields based on isLeadColumn setting
-      const allFields = [...tableFields, ...extraFields]
-      const regularFields = allFields.filter(field => !field.isLeadColumn)
-      const leadDatabaseFields = allFields.filter(field => field.isLeadColumn)
-
       // Helper function to recursively process nested fields for API payload
       const processNestedFieldsForAPI = (nestedFields) => {
         if (!Array.isArray(nestedFields)) return []
@@ -660,6 +590,83 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         })
       }
 
+      // Helper function to process subFields inside group fields
+      const processSubFieldForAPI = (subField) => {
+        // Strip "field-" prefix from subfield ID
+        let cleanSubFieldId = subField.id
+        if (typeof cleanSubFieldId === 'string' && cleanSubFieldId.startsWith('field-')) {
+          cleanSubFieldId = cleanSubFieldId.replace('field-', '')
+        }
+
+        let optionsArray = []
+        if (subField.options && Array.isArray(subField.options)) {
+          optionsArray = subField.options.map(option => ({
+            value: typeof option === 'string' ? option : option.value,
+            label: typeof option === 'string' ? option : option.label,
+            nestedFields: processNestedFieldsForAPI(option.nestedFields || [])
+          }))
+        }
+
+        // Check if this field has nested fields
+        const hasNested = optionsArray.some(
+          option => option.nestedFields && option.nestedFields.length > 0
+        )
+
+        return {
+          id: cleanSubFieldId,
+          name: subField.label?.toLowerCase().replace(/\s+/g, '_') || subField.name,
+          label: subField.label,
+          type: subField.type,
+          required: subField.required ? "true" : "false",
+          validations: subField.validation || subField.validations || {},
+          hasNested: hasNested,
+          options: optionsArray,
+          isLeadColumn: subField.isLeadColumn ? "true" : "false"
+        }
+      }
+
+      // Extract fields from groups and collect field IDs for group references
+      const groupSubFieldsForMainArray = []
+      const processGroupFieldData = (groupField) => {
+        // Strip "field-" prefix from group field ID
+        let cleanGroupId = groupField.id
+        if (typeof cleanGroupId === 'string' && cleanGroupId.startsWith('field-')) {
+          cleanGroupId = cleanGroupId.replace('field-', '')
+        }
+
+        // Process all subFields inside the group and collect their IDs
+        const fieldIds = []
+        if (groupField.subFields && Array.isArray(groupField.subFields)) {
+          groupField.subFields.forEach(subField => {
+            // Process the subField as a full field object
+            const processedSubField = processSubFieldForAPI(subField)
+            // Add to the main fields array
+            groupSubFieldsForMainArray.push(processedSubField)
+            // Collect the field ID for the group reference
+            fieldIds.push(processedSubField.id)
+          })
+        }
+
+        return {
+          id: cleanGroupId,
+          name: groupField.label?.toLowerCase().replace(/\s+/g, '_') || groupField.name,
+          label: groupField.label,
+          type: "group",
+          required: groupField.required ? "true" : "false",
+          fields: fieldIds
+        }
+      }
+
+      // Process group fields
+      const processedGroupFields = groupFieldsList.map(processGroupFieldData)
+
+      // Separate fields based on isLeadColumn setting
+      const allFields = [...tableFields, ...extraFields]
+      const regularFields = allFields.filter(field => !field.isLeadColumn)
+      const leadDatabaseFields = allFields.filter(field => field.isLeadColumn)
+
+
+
       // Helper function to process field data
       const processFieldData = (field) => {
         // Ensure options is always an array
@@ -698,8 +705,8 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         description: formDescription,
         g_id: mappedGene,
         created_by: userId,
-        extraFields: leadDatabaseFields.map(processFieldData),
-        fields: [...regularFields.map(processFieldData), ...groupSubFieldsForMainArray],
+        extraFields: [...regularFields.map(processFieldData), ...groupSubFieldsForMainArray],
+        fields: leadDatabaseFields.map(processFieldData),
         group: JSON.stringify(processedGroupFields),
         published: true,
         retry_count: retryCount
@@ -1233,72 +1240,152 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
               }}
               className="space-y-6"
             >
-              {previewFields.map((field) => (
-                <form.Field
-                  key={field.id}
-                  name={field.id}
-                  validators={{
-                    onChange: ({ value }) => {
-                      const errors = validateField(field, value)
-                      return errors.length > 0 ? errors[0] : undefined
-                    },
-                    onSubmit: ({ value }) => {
-                      const errors = validateField(field, value)
-                      return errors.length > 0 ? errors[0] : undefined
-                    },
-                  }}
-                >
-                  {(fieldApi) => {
-                    //Process the field to ensure options and nested fields are properly structured
-                    const processedField = {
-                      ...field,
-                      options: processFieldOptions(field),
-                      //Preserve the original nestedFields structure for FieldRenderer
-                      nestedFields: field.nestedFields || {}
-                    }
-
-                    //Auto-select the first option that has nested field for preview
-                    const currentValue = fieldApi.state.value
-                    if (!currentValue && processedField.options && processedField.options.length > 0) {
-                      const firstOptionWithNestedFields = processedField.options.find(option =>
-                        option.nestedFields && option.nestedFields.length > 0
-                      )
-                      if (firstOptionWithNestedFields) {
-                        // Auto-select the first option with nested fields
-                        setTimeout(() => {
-                          // Handle different field types for auto-selection
-                          if (processedField.type === 'checkbox' || (processedField.type === 'select' && processedField.validation?.multiple)) {
-                            // For checkbox and multi-select fields, use array format
-                            fieldApi.handleChange({
-                              value: [firstOptionWithNestedFields.value],
-                              nestedFields: {}
-                            })
-                          } else {
-                            // For single select, radio, and other fields, use single value
-                            fieldApi.handleChange({
-                              value: firstOptionWithNestedFields.value,
-                              nestedFields: {}
-                            })
-                          }
-                        }, 0)
-                      }
-                    }
-
-                    return (
-                      <div className="space-y-1">
-                        <FieldRenderer
-                          field={processedField}
-                          value={fieldApi.state.value}
-                          onChange={fieldApi.handleChange}
-                          invalid={fieldApi.state.meta.errors.length > 0}
-                          error={fieldApi.state.meta.errors.length > 0 ? fieldApi.state.meta.errors[0] : undefined}
-                          hideFieldTypes={true}
-                        />
+              {previewFields.map((field) => {
+                // Handle group fields specially
+                if (field.type === 'group' && field.subFields && Array.isArray(field.subFields)) {
+                  return (
+                    <div key={field.id} className="space-y-4 p-4 border border-border rounded-lg bg-muted/20">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold">{field.label}</h3>
+                        {field.required && (
+                          <Badge variant="secondary" className="text-xs">Required</Badge>
+                        )}
                       </div>
-                    )
-                  }}
-                </form.Field>
-              ))}
+                      <div className="space-y-4">
+                        {field.subFields.map((subField) => (
+                          <form.Field
+                            key={subField.id}
+                            name={subField.id}
+                            validators={{
+                              onChange: ({ value }) => {
+                                const errors = validateField(subField, value)
+                                return errors.length > 0 ? errors[0] : undefined
+                              },
+                              onSubmit: ({ value }) => {
+                                const errors = validateField(subField, value)
+                                return errors.length > 0 ? errors[0] : undefined
+                              },
+                            }}
+                          >
+                            {(fieldApi) => {
+                              // Process the subField to ensure options and nested fields are properly structured
+                              const processedSubField = {
+                                ...subField,
+                                options: processFieldOptions(subField),
+                                nestedFields: subField.nestedFields || {}
+                              }
+
+                              // Auto-select the first option that has nested field for preview
+                              const currentValue = fieldApi.state.value
+                              if (!currentValue && processedSubField.options && processedSubField.options.length > 0) {
+                                const firstOptionWithNestedFields = processedSubField.options.find(option =>
+                                  option.nestedFields && option.nestedFields.length > 0
+                                )
+                                if (firstOptionWithNestedFields) {
+                                  setTimeout(() => {
+                                    if (processedSubField.type === 'checkbox' || (processedSubField.type === 'select' && processedSubField.validation?.multiple)) {
+                                      fieldApi.handleChange({
+                                        value: [firstOptionWithNestedFields.value],
+                                        nestedFields: {}
+                                      })
+                                    } else {
+                                      fieldApi.handleChange({
+                                        value: firstOptionWithNestedFields.value,
+                                        nestedFields: {}
+                                      })
+                                    }
+                                  }, 0)
+                                }
+                              }
+
+                              return (
+                                <div className="space-y-1">
+                                  <FieldRenderer
+                                    field={processedSubField}
+                                    value={fieldApi.state.value}
+                                    onChange={fieldApi.handleChange}
+                                    invalid={fieldApi.state.meta.errors.length > 0}
+                                    error={fieldApi.state.meta.errors.length > 0 ? fieldApi.state.meta.errors[0] : undefined}
+                                    hideFieldTypes={true}
+                                  />
+                                </div>
+                              )
+                            }}
+                          </form.Field>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }
+
+                // Handle regular fields
+                return (
+                  <form.Field
+                    key={field.id}
+                    name={field.id}
+                    validators={{
+                      onChange: ({ value }) => {
+                        const errors = validateField(field, value)
+                        return errors.length > 0 ? errors[0] : undefined
+                      },
+                      onSubmit: ({ value }) => {
+                        const errors = validateField(field, value)
+                        return errors.length > 0 ? errors[0] : undefined
+                      },
+                    }}
+                  >
+                    {(fieldApi) => {
+                      //Process the field to ensure options and nested fields are properly structured
+                      const processedField = {
+                        ...field,
+                        options: processFieldOptions(field),
+                        //Preserve the original nestedFields structure for FieldRenderer
+                        nestedFields: field.nestedFields || {}
+                      }
+
+                      //Auto-select the first option that has nested field for preview
+                      const currentValue = fieldApi.state.value
+                      if (!currentValue && processedField.options && processedField.options.length > 0) {
+                        const firstOptionWithNestedFields = processedField.options.find(option =>
+                          option.nestedFields && option.nestedFields.length > 0
+                        )
+                        if (firstOptionWithNestedFields) {
+                          // Auto-select the first option with nested fields
+                          setTimeout(() => {
+                            // Handle different field types for auto-selection
+                            if (processedField.type === 'checkbox' || (processedField.type === 'select' && processedField.validation?.multiple)) {
+                              // For checkbox and multi-select fields, use array format
+                              fieldApi.handleChange({
+                                value: [firstOptionWithNestedFields.value],
+                                nestedFields: {}
+                              })
+                            } else {
+                              // For single select, radio, and other fields, use single value
+                              fieldApi.handleChange({
+                                value: firstOptionWithNestedFields.value,
+                                nestedFields: {}
+                              })
+                            }
+                          }, 0)
+                        }
+                      }
+
+                      return (
+                        <div className="space-y-1">
+                          <FieldRenderer
+                            field={processedField}
+                            value={fieldApi.state.value}
+                            onChange={fieldApi.handleChange}
+                            invalid={fieldApi.state.meta.errors.length > 0}
+                            error={fieldApi.state.meta.errors.length > 0 ? fieldApi.state.meta.errors[0] : undefined}
+                            hideFieldTypes={true}
+                          />
+                        </div>
+                      )
+                    }}
+                  </form.Field>
+                )
+              })}
 
               <Separator />
 
