@@ -13,12 +13,12 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
+  TooltipProvider,
 } from "@/components/ui/tooltip"
 import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon, Database } from "lucide-react"
 import { toast } from "sonner"
-import axios from "axios"
+import { formsApi } from "@/lib/api-endpoint"
 import EditFormDialog from "../component/EditForm/edit-form"
 import {
   AlertDialog,
@@ -199,15 +199,7 @@ export default function MyFormsPage() {
   // Function to get form details for editing
   const getFormDetails = async (formId) => {
     try {
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/${process.env.NEXT_PUBLIC_ORGANIZATION_ID}/${process.env.NEXT_PUBLIC_TABLE_ID}/${formId}`,
-        {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json'
-          }
-        }
-      )
+      const response = await formsApi.getById(formId)
       const result = response.data
 
       if (result.success && result.data) {
@@ -225,12 +217,7 @@ export default function MyFormsPage() {
   // Function to update form
   const updateForm = async (formData) => {
     try {
-      const response = await axios.post(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/update`, formData, {
-        headers: {
-          'Authorization': authUtils.getAuthHeader(),
-          'Content-Type': 'application/json'
-        }
-      })
+      const response = await formsApi.update(formData)
       const result = response.data
 
       if (result.success) {
@@ -249,7 +236,7 @@ export default function MyFormsPage() {
   const toggleArchiveForm = async (formId, currentStatus, version) => {
     try {
       const form = forms.find(f => f.form_id === formId && (f.version || 1) === version)
-      
+
       if (form?.hasNewerVersion && currentStatus) {
         toast.error("Cannot unarchive: A newer version exists")
         return
@@ -265,23 +252,14 @@ export default function MyFormsPage() {
         version: version || 1
       }
 
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/archieve`,
-        archivePayload,
-        {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json'
-          }
-        }
-      )
+      const response = await formsApi.archive(archivePayload)
 
       const result = response.data
 
       if (result.success) {
         const newArchiveStatus = result.archieve_status
         const targetVersion = version || 1
-        
+
         setForms(prevForms => {
           const updatedForms = prevForms.map(f => {
             const fVersion = f.version || 1
@@ -330,16 +308,7 @@ export default function MyFormsPage() {
 
       console.log('Delete payload:', deletePayload)
 
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/delete`,
-        deletePayload,
-        {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json'
-          }
-        }
-      )
+      const response = await formsApi.delete(deletePayload)
 
       const result = response.data
       console.log('Delete response:', result)
@@ -380,15 +349,7 @@ export default function MyFormsPage() {
     try {
       setLoading(true)
 
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/all/${process.env.NEXT_PUBLIC_ORGANIZATION_ID}/${process.env.NEXT_PUBLIC_TABLE_ID}`,
-        {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json'
-          }
-        }
-      )
+      const response = await formsApi.getAll()
       const result = response.data
       console.log('API Forms Response:', result)
 
@@ -492,15 +453,7 @@ export default function MyFormsPage() {
 
     try {
       // Fetch the latest version of the form
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/forms/${process.env.NEXT_PUBLIC_ORGANIZATION_ID}/${process.env.NEXT_PUBLIC_TABLE_ID}/${form.form_id}`,
-        {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json'
-          }
-        }
-      )
+      const response = await formsApi.getById(form.form_id)
 
       const result = response.data
       if (result.success && result.form) {

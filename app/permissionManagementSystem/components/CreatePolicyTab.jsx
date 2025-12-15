@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
 import { Loader2 } from "lucide-react"
+import { policiesApi } from "@/lib/api-endpoint"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
@@ -43,7 +43,7 @@ export function CreatePolicyTab({ allFeatures = [], onPolicyCreated }) {
   }, [allFeatures, formData.module])
 
   const handleFeatureToggle = (featureId) => {
-    setSelectedFeatures(prev => 
+    setSelectedFeatures(prev =>
       prev.includes(featureId)
         ? prev.filter(id => id !== featureId)
         : [...prev, featureId]
@@ -58,7 +58,7 @@ export function CreatePolicyTab({ allFeatures = [], onPolicyCreated }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     // Validation
     if (!formData.policy_name.trim()) {
       toast.error("Policy name is required")
@@ -87,16 +87,7 @@ export function CreatePolicyTab({ allFeatures = [], onPolicyCreated }) {
         features: selectedFeatures, // Array of feature IDs
       }
 
-      const policyResponse = await axios.post(
-        `${API_BASE_URL}/api/policies`,
-        policyPayload,
-        {
-          headers: {
-            Authorization: token,
-            "Content-Type": "application/json",
-          },
-        }
-      )
+      const policyResponse = await policiesApi.create(policyPayload)
 
       if (policyResponse.data) {
         toast.success("Policy created successfully")
@@ -104,14 +95,14 @@ export function CreatePolicyTab({ allFeatures = [], onPolicyCreated }) {
         toast.error("Failed to create policy")
         return
       }
-        setFormData({
-          policy_name: "",
+      setFormData({
+        policy_name: "",
         policy_type: "shared",
         module: "",
-          is_active: true,
-        })
+        is_active: true,
+      })
       setSelectedFeatures([])
-        onPolicyCreated()
+      onPolicyCreated()
     } catch (error) {
       console.error("Error creating policy:", error)
       toast.error(error.response?.data?.message || "Failed to create policy. Please try again.")
@@ -285,16 +276,16 @@ export function CreatePolicyTab({ allFeatures = [], onPolicyCreated }) {
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleReset}
               disabled={submitting}
             >
               Reset
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={submitting || !formData.policy_name.trim() || selectedFeatures.length === 0}
             >
               {submitting ? (

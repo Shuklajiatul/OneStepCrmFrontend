@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Database, Loader2, Search, Check, RefreshCw } from "lucide-react"
-import axios from "axios"
+
 import { toast } from "sonner"
 import { v4 as uuidv4 } from 'uuid'
 import { authUtils } from '@/lib/auth-utils'
+import { datatablesApi } from '@/lib/api-endpoint'
 
 export function TableColumnSelector({ field, onUpdateField, existingFields = [] }) {
   const [tableColumns, setTableColumns] = useState([])
@@ -42,19 +43,14 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
   }
 
   // API configuration
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+
   const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 
   // Fetch table columns
   const fetchTableColumns = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/datatables/${TABLE_ID}/columns`, {
-        headers: {
-          'Authorization': authUtils.getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
-      })
+      const response = await datatablesApi.getColumns(TABLE_ID)
       const result = response.data
       console.log('Table columns:', result)
 
@@ -353,8 +349,8 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
                           <TableCell>
                             <div className="flex items-center justify-center">
                               <div className={`w-4 h-4 border rounded flex items-center justify-center ${selectedColumns.some(col => col.column_id === column.column_id)
-                                  ? 'bg-primary border-primary'
-                                  : 'border-border'
+                                ? 'bg-primary border-primary'
+                                : 'border-border'
                                 }`}>
                                 {selectedColumns.some(col => col.column_id === column.column_id) && (
                                   <Check className="h-3 w-3 text-primary-foreground" />

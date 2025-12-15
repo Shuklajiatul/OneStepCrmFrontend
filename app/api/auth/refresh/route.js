@@ -3,12 +3,14 @@ import { NextResponse } from 'next/server';
 export async function POST(request) {
   try {
     const body = await request.json();
-    
-    // Forward the request to your backend
+    const cookies = request.headers.get('cookie');
+
+    // Forward the request to your backend with cookies
     const response = await fetch(`${process.env.BACKEND_URL || 'http://10.10.15.194:3001'}/api/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cookie': cookies || '',
       },
       body: JSON.stringify(body),
     });
@@ -22,7 +24,29 @@ export async function POST(request) {
       );
     }
 
-    return NextResponse.json(data);
+    // Create response with new tokens
+    const nextResponse = NextResponse.json(data);
+
+    // Set cookies if tokens are returned
+    if (data.accessToken) {
+      nextResponse.cookies.set('accessToken', data.accessToken, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60, // 1 day
+      });
+    }
+
+    if (data.refreshToken) {
+      nextResponse.cookies.set('refreshToken', data.refreshToken, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60, // 7 days
+      });
+    }
+
+    return nextResponse;
   } catch (error) {
     console.error('Refresh API error:', error);
     return NextResponse.json(

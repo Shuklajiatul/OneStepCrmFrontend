@@ -30,8 +30,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { toast } from "sonner"
-import axios from "axios"
 import { authUtils } from '@/lib/auth-utils'
+import { usersApi, datatablesApi, recordsApi } from '@/lib/api-endpoint'
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -305,12 +305,7 @@ export default function TableDataView({ table, onBack }) {
   const fetchUsers = async () => {
     try {
       setLoadingUsers(true)
-      const response = await axios.get(`${API_BASE_URL}/api/users`, {
-        headers: {
-          'Authorization': authUtils.getAuthHeader(),
-          'Content-Type': 'application/json',
-        }
-      })
+      const response = await usersApi.getAll()
 
       let usersData = []
       if (Array.isArray(response.data)) {
@@ -336,18 +331,8 @@ export default function TableDataView({ table, onBack }) {
 
     try {
       const [columnsResponse, recordsResponse] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/datatables/${table.table_id}/columns`, {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json',
-          }
-        }),
-        axios.get(`${API_BASE_URL}/api/records/${table.table_id}`, {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json',
-          }
-        })
+        datatablesApi.getColumns(table.table_id),
+        recordsApi.getAll(table.table_id)
       ])
 
       const columnsData = Array.isArray(columnsResponse.data)
@@ -389,12 +374,7 @@ export default function TableDataView({ table, onBack }) {
     setLoading(true)
 
     try {
-      const response = await axios.delete(`${API_BASE_URL}/api/records/${table.table_id}/${recordId}`, {
-        headers: {
-          'Authorization': authUtils.getAuthHeader(),
-          'Content-Type': 'application/json',
-        }
-      })
+      const response = await recordsApi.delete(table.table_id, recordId)
 
       toast.success("Record deleted successfully!")
       setIsDeleteDialogOpen(false)
@@ -510,16 +490,7 @@ export default function TableDataView({ table, onBack }) {
         field_values: fieldValues
       }
 
-      const response = await axios.post(
-        `${API_BASE_URL}/api/records/${table.table_id}`,
-        payload,
-        {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json',
-          }
-        }
-      )
+      const response = await recordsApi.create(table.table_id, payload)
 
       toast.success("Record added successfully!")
       setIsAddRecordDialogOpen(false)
@@ -575,16 +546,7 @@ export default function TableDataView({ table, onBack }) {
         field_values: fieldValues
       }
 
-      const response = await axios.put(
-        `${API_BASE_URL}/api/records/${table.table_id}/${recordToEdit.record_id}`,
-        payload,
-        {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json',
-          }
-        }
-      )
+      const response = await recordsApi.update(table.table_id, recordToEdit.record_id, payload)
 
       toast.success("Record updated successfully!")
       setIsEditRecordDialogOpen(false)

@@ -1,6 +1,5 @@
 "use client"
 
-import { Suspense } from "react"
 import { useState, useCallback, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -11,10 +10,11 @@ import { Loader2, Eye, EyeOff, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { authUtils } from "@/lib/auth-utils"
+import axios from "axios"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.10.15.194:3001'
 
-function LoginForm() {
+export default function LoginPage() {
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
     organization_id: "",
@@ -30,9 +30,21 @@ function LoginForm() {
   const [loginData, setLoginData] = useState(null)
   const [isGoogleLoading, setIsGoogleLoading] = useState(false)
   const [isMicrosoftLoading, setIsMicrosoftLoading] = useState(false)
+  const [otpTimer, setOtpTimer] = useState(0)
+  const [canResend, setCanResend] = useState(true)
 
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Parse OTP timer from env (default 1 minute)
+  const getOtpTimeInSeconds = () => {
+    const otpTime = process.env.NEXT_PUBLIC_OTP_TIME || '1m'
+    const match = otpTime.match(/^(\d+)([smh])$/)
+    if (!match) return 60
+    const [, value, unit] = match
+    const multipliers = { s: 1, m: 60, h: 3600 }
+    return parseInt(value) * multipliers[unit]
+  }
 
   // Check for OAuth errors in URL
   useEffect(() => {
@@ -48,6 +60,24 @@ function LoginForm() {
     }
   }, [searchParams])
 
+  // OTP Timer effect
+  useEffect(() => {
+    let interval
+    if (otpTimer > 0) {
+      setCanResend(false)
+      interval = setInterval(() => {
+        setOtpTimer(prev => {
+          if (prev <= 1) {
+            setCanResend(true)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+    return () => clearInterval(interval)
+  }, [otpTimer])
+
   // Check if user is already logged in
   // useEffect(() => {
   //   checkAuthStatus()
@@ -55,13 +85,10 @@ function LoginForm() {
 
   // const checkAuthStatus = async () => {
   //   try {
-  //     const response = await fetch(`/api/auth/check-session`, {
-  //       method: 'GET',
-  //       credentials: 'include'
-  //     })
+  //     const response = await apiClient.get(`/api/auth/check-session`)
 
-  //     if (response.ok) {
-  //       const data = await response.json()
+  //     if (response.status === 200) {
+  //       const data = response.data
   //       if (data.authenticated) {
   //         router.push('/')
   //       }
@@ -120,31 +147,27 @@ function LoginForm() {
     setError("")
 
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          organization_id: formData.organization_id,
-          email: formData.email,
-          password: formData.password,
-        }),
+      // Forward to Next.js API route to handle HttpOnly cookies
+      const response = await axios.post('/api/auth/login', {
+        organization_id: formData.organization_id,
+        email: formData.email,
+        password: formData.password,
       })
 
-      const data = await response.json()
-      console.log('Login response::::::::', data);
-      console.log('All cookies:::::::::::', document.cookie);
-      if (!response.ok) {
+      const data = response.data
+      console.log('Login response:', data);
+
+      if (response.status !== 200) {
         throw new Error(data.message || "Login failed")
       }
 
       setLoginData(data)
       setSuccess("OTP has been sent to your email and phone number")
+      setOtpTimer(getOtpTimeInSeconds())
       setStep(3)
     } catch (err) {
-      setError(err.message)
+      console.error('Login error:', err)
+      setError(err.response?.data?.message || err.message || "Login failed")
     } finally {
       setIsLoading(false)
     }
@@ -160,31 +183,25 @@ function LoginForm() {
     setError("")
 
     try {
-      const response = await fetch(`${API_URL}/api/auth/verify-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          organization_id: formData.organization_id,
-          email: formData.email,
-          otp: formData.otp,
-          session_id: loginData?.session_id,
-        }),
+      const response = await axios.post('/api/auth/verify-otp', {
+        organization_id: formData.organization_id,
+        email: formData.email,
+        otp: formData.otp,
+        session_id: loginData?.session_id,
       })
 
-      const data = await response.json()
+      const data = response.data
 
-      if (!response.ok) {
+      if (response.status !== 200) {
         throw new Error(data.message || "OTP verification failed")
       }
-      console.log('OTP verification response::::::::', data);
+
+      console.log('OTP verification response:', data);
       authUtils.setTokens(data)
-      console.log('All cookies:::::::::::', document.cookie);
+      console.log('Cookies after verification:', document.cookie);
       router.push("/")
     } catch (err) {
-      setError(err.message)
+      setError(err.response?.data?.message || err.message || "OTP verification failed")
     } finally {
       setIsVerifying(false)
     }
@@ -206,34 +223,32 @@ function LoginForm() {
     setStep(2)
     setError("")
     setSuccess("")
+    setOtpTimer(0)
+    setCanResend(true)
     setFormData((prev) => ({ ...prev, otp: "" }))
   }, [])
 
   const handleResendOTP = async () => {
+    if (!canResend) return
+
     setError("")
     try {
-      const response = await fetch(`${API_URL}/api/auth/resend-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          organization_id: formData.organization_id,
-          email: formData.email,
-          session_id: loginData?.session_id,
-        }),
+      const response = await axios.post('/api/auth/resend-otp', {
+        organization_id: formData.organization_id,
+        email: formData.email,
+        session_id: loginData?.session_id,
       })
 
-      const data = await response.json()
+      const data = response.data
 
-      if (!response.ok) {
+      if (response.status !== 200) {
         throw new Error(data.message || "Failed to resend OTP")
       }
 
       setSuccess("OTP has been resent to your email and phone number")
+      setOtpTimer(getOtpTimeInSeconds())
     } catch (err) {
-      setError(err.message)
+      setError(err.response?.data?.message || err.message || "Failed to resend OTP")
     }
   }
 
@@ -380,7 +395,7 @@ function LoginForm() {
 
                 <div className="text-center">
                   <Link href="/register" className="text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors">
-                    Don&apos;t have an account? Register here
+                    Don't have an account? Register here
                   </Link>
                 </div>
               </div>
@@ -525,12 +540,18 @@ function LoginForm() {
                   )}
                 </Button>
 
-                <div className="text-center">
+                <div className="text-center space-y-2">
+                  {otpTimer > 0 && (
+                    <p className="text-sm text-gray-600">
+                      Resend OTP in {Math.floor(otpTimer / 60)}:{(otpTimer % 60).toString().padStart(2, '0')}
+                    </p>
+                  )}
                   <Button
                     type="button"
                     variant="link"
                     onClick={handleResendOTP}
-                    className="text-purple-600 hover:text-purple-700"
+                    disabled={!canResend}
+                    className={`${canResend ? 'text-purple-600 hover:text-purple-700' : 'text-gray-400 cursor-not-allowed'}`}
                   >
                     Resend OTP
                   </Button>
@@ -541,13 +562,5 @@ function LoginForm() {
         </div>
       </div>
     </div>
-  )
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-purple-600" /></div>}>
-      <LoginForm />
-    </Suspense>
   )
 }

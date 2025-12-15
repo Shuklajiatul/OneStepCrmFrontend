@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react"
 import { Plus, Lock, Loader2 } from "lucide-react"
-import axios from "axios"
 import { cn } from "@/lib/utils"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
+import { featuresApi, policiesApi, policyMappingApi } from "@/lib/api-endpoint"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
+
 
 // API utility functions
 const fetchAllData = async () => {
@@ -39,17 +39,11 @@ const fetchAllData = async () => {
   try {
     const [featuresRes, policiesRes, mappingsRes] = await Promise.all([
       //Fetch all features
-      axios.get(`${API_BASE_URL}/api/features`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      }),
+      featuresApi.getAll(),
       //Fetch all policies
-      axios.get(`${API_BASE_URL}/api/policies`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      }),
+      policiesApi.getAll(),
       //Fetch policy feature mappings
-      axios.post(`${API_BASE_URL}/api/policyMapping/list`, {}, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      }),
+      policyMappingApi.getAll(),
     ])
 
     // Extract data from response, handling both direct array and wrapped structures
@@ -107,9 +101,7 @@ const fetchSinglePolicy = async (policyId) => {
   }
 
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}`, {
-      headers: { Authorization: token, "Content-Type": "application/json" },
-    })
+    const response = await policiesApi.getById(policyId)
 
     return response.data?.data || response.data || null
   } catch (error) {
@@ -139,9 +131,7 @@ const fetchUserCountsForPolicies = async (policies) => {
 
     try {
       // Use the same endpoint that PolicyMappedUsersTab uses to get users
-      const response = await axios.get(`${API_BASE_URL}/api/policies/userByPolicy/${policyId}`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      })
+      const response = await policiesApi.getUsersByPolicy(policyId)
 
       // Extract user data from response
       const userData = Array.isArray(response.data)
@@ -318,12 +308,7 @@ export default function PermissionManagement() {
         return
       }
 
-      await axios.delete(`${API_BASE_URL}/api/policies/${policyId}`, {
-        headers: {
-          Authorization: token,
-          "Content-Type": "application/json",
-        },
-      })
+      await policiesApi.delete(policyId)
 
       toast.success("Policy deleted successfully")
       setDeleteDialogOpen(false)

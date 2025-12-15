@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { User, Loader2, AlertCircle, RefreshCw, Network, Users, ArrowLeft, ChevronDown, Eye, Mail, Badge as BadgeIcon, Award } from "lucide-react"
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import axios from 'axios';
 import { authUtils } from '@/lib/auth-utils';
+import { genesApi, rolesApi, usersApi } from '@/lib/api-endpoint';
 import ReactFlow, {
   Controls,
   Background,
@@ -191,20 +191,9 @@ const RolePriorityTree = () => {
         return;
       }
 
-      const geneDetailsUrl = `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneDetails}/${gId}`;
-      console.log('Fetching gene details from:', geneDetailsUrl);
+      console.log('Fetching gene details for:', gId);
 
-      const response = await axios.get(
-        geneDetailsUrl,
-        {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          timeout: 30000
-        }
-      );
+      const response = await genesApi.getDetails(gId);
 
       console.log('Gene Details Response:', response.data);
       if (response.data.success && response.data.data) {
@@ -231,20 +220,9 @@ const RolePriorityTree = () => {
         return;
       }
 
-      const rolesUrl = `${API_CONSTANTS.BASE_URL}/api/roles`;
-      console.log('Fetching roles from:', rolesUrl);
+      console.log('Fetching roles');
 
-      const response = await axios.get(
-        rolesUrl,
-        {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          timeout: 30000
-        }
-      );
+      const response = await rolesApi.getAll();
 
       console.log('Roles Response:', response.data);
       if (response.data) {
@@ -283,17 +261,7 @@ const RolePriorityTree = () => {
       let rawUsers = [];
 
       try {
-        const response = await axios.get(
-          fullUrl,
-          {
-            headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            timeout: 30000
-          }
-        );
+        const response = await genesApi.getById(gId);
 
         const resp = response.data || {};
         console.log('API Response:', resp);
@@ -313,17 +281,7 @@ const RolePriorityTree = () => {
       if (!rawUsers || rawUsers.length === 0) {
         console.log('Using fallback: fetching all users and filtering by g_ids');
         try {
-          const allUsersResponse = await axios.get(
-            `${baseUrl}/api/users`,
-            {
-              headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              },
-              timeout: 30000
-            }
-          );
+          const allUsersResponse = await usersApi.getAll();
 
           let allUsers = [];
           if (Array.isArray(allUsersResponse.data)) {

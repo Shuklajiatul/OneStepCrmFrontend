@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { ArrowLeft, FileText } from "lucide-react"
 import { authUtils } from '@/lib/auth-utils'
+import { formsApi } from '@/lib/api-endpoint'
 
 export default function FormPreviewPage() {
   const [fields, setFields] = useState([])
@@ -17,23 +18,20 @@ export default function FormPreviewPage() {
   const [userData, setUserData] = useState(null)
   const router = useRouter()
 
-  // Get user data from localStorage
+  // Get user data from authUtils
   const getUserData = () => {
-    if (typeof window !== 'undefined') {
-      const userData = localStorage.getItem('user')
-      return userData ? JSON.parse(userData) : null
-    }
-    return null
+    const tokens = authUtils.getTokens()
+    return tokens?.user || null
   }
 
-  // Get user ID from localStorage
+  // Get user ID from authUtils
   const getUserId = () => {
     const userData = getUserData()
     return userData?.user_id || null
   }
 
   useEffect(() => {
-    // Load user data from localStorage
+    // Load user data from authUtils
     const userData = getUserData()
     setUserData(userData)
 
@@ -456,16 +454,9 @@ export default function FormPreviewPage() {
         console.log('📤 Update Payload:', updatePayload)
 
         // Send update request
-        const response = await fetch(`${API_BASE_URL}/api/forms/update`, {
-          method: 'POST',
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(updatePayload)
-        })
+        const response = await formsApi.update(updatePayload)
 
-        const result = await response.json()
+        const result = response.data
         console.log('✅ Update API Response:', result)
 
         if (result.success) {

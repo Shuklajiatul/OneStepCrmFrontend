@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import axios from "axios"
 import { cn } from "@/lib/utils"
-import { authUtils } from "@/lib/auth-utils"
+// authUtils removed as it was only used for manual headers
+import { featuresApi } from "@/lib/api-endpoint"
 import {
   Shield,
   ShieldPlus,
@@ -55,8 +55,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 
-// API Base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
+
 
 export default function FeaturePage() {
   const [features, setFeatures] = useState([])
@@ -84,33 +83,12 @@ export default function FeaturePage() {
     fetchFeatures()
   }, [])
 
-  // FIXED: Use authUtils to get token from cookies
-  const getAuthToken = () => {
-    if (typeof window === "undefined") return null
-    const tokens = authUtils.getTokens()
-    console.log("Tokens:::::::::::", tokens);
-    return tokens?.accessToken || null
-  }
 
-
-  const getAuthHeaders = () => {
-    const token = getAuthToken()
-    console.log("Tokens:::::::::::", token);
-
-    return {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...(token && { Authorization: `Bearer ${token}` }),
-    }
-  }
 
   const fetchFeatures = async () => {
     try {
       setLoading(true)
-      const response = await axios.get(`${API_BASE_URL}/api/features`, {
-        headers: getAuthHeaders(),
-        timeout: 30000,
-      })
+      const response = await featuresApi.getAll()
 
       if (response.data) {
         const featureData = Array.isArray(response.data)
@@ -138,10 +116,7 @@ export default function FeaturePage() {
 
   const fetchFeatureDetails = async (featureId) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/features/${featureId}`, {
-        headers: getAuthHeaders(),
-        timeout: 30000,
-      })
+      const response = await featuresApi.getById(featureId)
 
       if (response.data) {
         const featureData = response.data.data || response.data
@@ -188,10 +163,7 @@ export default function FeaturePage() {
         is_active: formData.is_active !== undefined ? formData.is_active : true,
       }
 
-      const response = await axios.post(`${API_BASE_URL}/api/features`, payload, {
-        headers: getAuthHeaders(),
-        timeout: 30000,
-      })
+      const response = await featuresApi.create(payload)
 
       if (response.data) {
         toast.success("Feature created successfully")
@@ -221,14 +193,7 @@ export default function FeaturePage() {
         is_active: newStatus,
       }
 
-      const response = await axios.put(
-        `${API_BASE_URL}/api/features/${featureId}`,
-        payload,
-        {
-          headers: getAuthHeaders(),
-          timeout: 30000,
-        }
-      )
+      const response = await featuresApi.update(featureId, payload)
 
       if (response.data) {
         toast.success(`Feature ${newStatus ? "activated" : "deactivated"} successfully`)
@@ -273,14 +238,7 @@ export default function FeaturePage() {
         is_active: formData.is_active !== undefined ? formData.is_active : true,
       }
 
-      const response = await axios.put(
-        `${API_BASE_URL}/api/features/${featureId}`,
-        payload,
-        {
-          headers: getAuthHeaders(),
-          timeout: 30000,
-        }
-      )
+      const response = await featuresApi.update(featureId, payload)
 
       if (response.data) {
         toast.success("Feature updated successfully")
@@ -307,10 +265,7 @@ export default function FeaturePage() {
     try {
       setSubmitting(true)
 
-      const response = await axios.delete(`${API_BASE_URL}/api/features/${featureId}`, {
-        headers: getAuthHeaders(),
-        timeout: 30000,
-      })
+      const response = await featuresApi.delete(featureId)
 
       if (response.status === 200 || response.status === 204 || response.data) {
         toast.success("Feature deleted successfully")

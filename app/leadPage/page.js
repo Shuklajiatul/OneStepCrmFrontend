@@ -32,9 +32,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
-import axios from "axios"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { authUtils } from '@/lib/auth-utils'
+import { datatablesApi } from '@/lib/api-endpoint'
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -256,12 +256,7 @@ function LeadsPageContent() {
     setError(null)
 
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/datatables`, {
-        headers: {
-          'Authorization': authUtils.getAuthHeader(),
-          'Content-Type': 'application/json',
-        }
-      })
+      const response = await datatablesApi.getAll()
 
       // Handle different response formats
       let tablesData = []
@@ -291,12 +286,7 @@ function LeadsPageContent() {
     setLoading(true)
 
     try {
-      const response = await axios.delete(`${API_BASE_URL}/api/datatables/${tableId}`, {
-        headers: {
-          'Authorization': authUtils.getAuthHeader(),
-          'Content-Type': 'application/json',
-        }
-      })
+      const response = await datatablesApi.delete(tableId)
 
       toast.success("Table deleted successfully!")
       setIsDeleteDialogOpen(false)

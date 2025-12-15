@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import RolesClient from './client'
+import { ROLE_ENDPOINTS } from '@/lib/api-endpoint'
 
 async function getData() {
   const cookieStore = await cookies()
@@ -14,7 +15,7 @@ async function getData() {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
   try {
-    const res = await fetch(`${baseUrl}/api/roles`, {
+    const res = await fetch(`${baseUrl}${ROLE_ENDPOINTS.LIST}`, {
       headers,
       next: { revalidate: 3600 } // Cache roles for 1 hour
     })

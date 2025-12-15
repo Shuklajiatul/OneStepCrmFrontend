@@ -8,9 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Loader2, FileText, Copy, Edit, Plus } from "lucide-react"
-import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
+import { policiesApi, policyMappingApi } from "@/lib/api-endpoint"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
@@ -34,7 +34,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
       if (!token) return
 
       const policyId = mapping.p_id || mapping.policy_id || mapping.id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
-      
+
       // Try to fetch mapping details - might need to use policy ID to get mapping
       // For now, use the mapping object directly
       setMappingDetails(mapping)
@@ -47,17 +47,15 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
   const fetchMappingFeatures = async (forceRefresh = false) => {
     try {
       setLoading(true)
-      
+
       const policyId = mapping.p_id || mapping.policy_id || mapping.id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
       const token = authUtils.getAuthHeader()
-      
+
       // Always fetch from API if forceRefresh is true (after update) or if token is available
       if (forceRefresh || token) {
         if (token && policyId) {
           try {
-            const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}/features`, {
-              headers: { Authorization: token, "Content-Type": "application/json" },
-            })
+            const response = await policiesApi.getFeaturesByPolicy(policyId)
 
             const featureData = Array.isArray(response.data)
               ? response.data
@@ -71,7 +69,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
           }
         }
       }
-      
+
       // Use features from mapping object (already transformed from API) as fallback
       // Features can be in features array or featuresObject
       if (mapping.features && Array.isArray(mapping.features)) {
@@ -106,7 +104,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
       }
 
       const policyId = mapping.p_id || mapping.policy_id || mapping.id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
-      
+
       if (!policyId) {
         toast.error("Policy ID is required")
         return
@@ -114,16 +112,10 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
 
       const cloneName = `${policyName}_clone`
 
-      const response = await axios.post(
-        `${API_BASE_URL}/api/policyMapping/clonePolicyfeatureMapping`,
-        {
-          id: policyId,
-          clone_policy_name: cloneName,
-        },
-        {
-          headers: { Authorization: token, "Content-Type": "application/json" },
-        }
-      )
+      const response = await policyMappingApi.cloneMapping({
+        id: policyId,
+        clone_policy_name: cloneName,
+      })
 
       if (response.data) {
         toast.success("Policy mapping cloned successfully")
@@ -156,14 +148,14 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
   // Get features available to add (not already mapped, filtered by selected module)
   const availableFeaturesToAdd = useMemo(() => {
     const mappedFeatureIds = features.map(f => f.feature_id || f.id)
-    let available = allFeatures.filter(f => 
+    let available = allFeatures.filter(f =>
       !mappedFeatureIds.includes(f.feature_id || f.id)
     )
-    
+
     if (selectedModule) {
       available = available.filter(f => f.module === selectedModule)
     }
-    
+
     return available
   }, [allFeatures, features, selectedModule])
 
@@ -182,7 +174,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
   }
 
   const handleToggleRemoveFeature = (featureId) => {
-    setFeaturesToRemove(prev => 
+    setFeaturesToRemove(prev =>
       prev.includes(featureId)
         ? prev.filter(id => id !== featureId)
         : [...prev, featureId]
@@ -190,7 +182,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
   }
 
   const handleToggleAddFeature = (featureId) => {
-    setFeaturesToAdd(prev => 
+    setFeaturesToAdd(prev =>
       prev.includes(featureId)
         ? prev.filter(id => id !== featureId)
         : [...prev, featureId]
@@ -213,21 +205,12 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
       }
 
       // Use PUT API to update policy feature mapping
-      const response = await axios.put(
-        `${API_BASE_URL}/api/policyMapping/update/${policyId}`,
-        {
-          updateData: {
-            features_to_add: featuresToAdd,
-            features_to_remove: featuresToRemove,
-          },
+      const response = await policyMappingApi.updateFeatures(policyId, {
+        updateData: {
+          features_to_add: featuresToAdd,
+          features_to_remove: featuresToRemove,
         },
-        {
-          headers: {
-            Authorization: token,
-            "Content-Type": "application/json",
-          },
-        }
-      )
+      })
 
       if (response.data) {
         toast.success("Policy mapping updated successfully")
@@ -235,10 +218,10 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
         setFeaturesToRemove([])
         setFeaturesToAdd([])
         setSelectedModule("")
-        
+
         // Refresh features - force API fetch to get updated list
         await fetchMappingFeatures(true)
-        
+
         if (onUpdate) {
           onUpdate()
         }
@@ -253,24 +236,24 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
 
   return (
     <div className="space-y-6">
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-4">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={onBack} className="flex items-center gap-2 -ml-2">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex-1">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex-1">
               <div className="flex items-center gap-3">
                 <CardTitle className="text-xl">{policyName}</CardTitle>
                 <Badge variant={isActive ? "default" : "secondary"}>
                   Active Mapping
-              </Badge>
-            </div>
+                </Badge>
+              </div>
               <CardDescription className="mt-1">Policy Feature Mapping Details</CardDescription>
+            </div>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent>
+        </CardHeader>
+        <CardContent>
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <Card>
@@ -349,7 +332,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
           {showUpdateSection && (
             <div className="mb-6 p-6 border rounded-lg bg-muted/30">
               <h3 className="text-lg font-semibold mb-4">Update Policy Features</h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 {/* Remove Features Column */}
                 <div className="flex flex-col">
@@ -478,11 +461,11 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
               <h3 className="text-lg font-semibold">Mapped Features ({features.length})</h3>
             </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="ml-3 text-muted-foreground">Loading features...</p>
-          </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-3 text-muted-foreground">Loading features...</p>
+              </div>
             ) : features.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <p>No features mapped to this policy</p>
@@ -504,7 +487,7 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
                       </TableHeader>
                       <TableBody>
                         {features.map((feature) => (
-                          <TableRow 
+                          <TableRow
                             key={feature.feature_id || feature.id}
                             className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
                           >
@@ -533,9 +516,9 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
                               )}
                             </TableCell>
                             <TableCell className="py-4">
-                          <Badge variant={feature.is_active !== false ? "default" : "secondary"}>
-                            {feature.is_active !== false ? "Active" : "Inactive"}
-                          </Badge>
+                              <Badge variant={feature.is_active !== false ? "default" : "secondary"}>
+                                {feature.is_active !== false ? "Active" : "Inactive"}
+                              </Badge>
                             </TableCell>
                             <TableCell className="py-4">
                               <span className="font-mono text-xs text-muted-foreground">
@@ -546,13 +529,13 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
                         ))}
                       </TableBody>
                     </Table>
-                        </div>
-                      </div>
-                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
     </div>
   )
 }

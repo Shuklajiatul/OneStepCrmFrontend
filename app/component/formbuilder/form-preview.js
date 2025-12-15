@@ -8,12 +8,13 @@ import { Separator } from "@/components/ui/separator"
 import { AlertCircle, CheckCircle2, Settings } from "lucide-react"
 import { FieldRenderer } from "./field-renderer"
 import { useState, useEffect, useMemo, useCallback, memo } from "react"
-import axios from "axios"
+
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
 import { useRouter } from 'next/navigation'
+import { genesApi, formsApi } from '@/lib/api-endpoint'
 
 // Helper function to process field options with nested structure
 const processFieldOptions = (field) => {
@@ -168,7 +169,6 @@ const processNestedFieldsRecursively = (nestedFields) => {
 }
 
 // API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
 const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 
@@ -190,13 +190,10 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
     }
   }, [router])
 
-  // Get user data from localStorage
+  // Get user data from authUtils
   const getUserData = () => {
-    if (typeof window !== 'undefined') {
-      const userData = localStorage.getItem('user')
-      return userData ? JSON.parse(userData) : null
-    }
-    return null
+    const tokens = authUtils.getTokens()
+    return tokens?.user || null
   }
 
   // Get user ID from localStorage
@@ -209,12 +206,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
   const fetchGenes = useCallback(async () => {
     setIsLoadingGenes(true)
     try {
-      const response = await axios.get('http://10.10.15.194:3001/api/genes', {
-        headers: {
-          'Authorization': authUtils.getAuthHeader(),
-          'Content-Type': 'application/json',
-        },
-      })
+      const response = await genesApi.getAll();
 
       if (response.data.success) {
         const userData = getUserData()
@@ -712,15 +704,11 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         retry_count: retryCount
       }
 
-      const endpoint = `${API_BASE_URL}/api/forms`
-
       try {
-        const response = await axios.post(endpoint, formPayload, {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json',
-          },
-        })
+        // Use formsApi.create but mapping logic might be needed if endpoint differs
+        // Original code used POST /api/forms, formsApi uses /api/forms/create
+        // We will try using formsApi.create. If the backend strictly expects /api/forms, we might need to adjust api-endpoint.
+        const response = await formsApi.create(formPayload);
 
         const result = response.data
         console.log('✅ API Success Response:', result)

@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ArrowLeft, Loader2, Users, CheckCircle2, XCircle, Shield, Download, Eye, UserMinus } from "lucide-react"
-import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
+import { rolesApi, policiesApi, usersApi } from "@/lib/api-endpoint"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,9 +50,7 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
       const token = authUtils.getAuthHeader()
       if (!token) return
 
-      const response = await axios.get(`${API_BASE_URL}/api/roles`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      })
+      const response = await rolesApi.getAll()
 
       const roleData = Array.isArray(response.data)
         ? response.data
@@ -74,9 +72,7 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
       if (!token) return
 
       const policyId = policy.p_id || policy.policy_id || policy.id
-      const response = await axios.get(`${API_BASE_URL}/api/policies/userByPolicy/${policyId}`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      })
+      const response = await policiesApi.getUsersByPolicy(policyId)
 
       const userData = Array.isArray(response.data)
         ? response.data
@@ -100,9 +96,7 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
       const token = authUtils.getAuthHeader()
       if (!token) return
 
-      const response = await axios.get(`${API_BASE_URL}/api/users`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      })
+      const response = await usersApi.getAll()
 
       const userData = Array.isArray(response.data)
         ? response.data
@@ -111,14 +105,14 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
       // Use fresh mapped users if provided, otherwise get current mapped users
       let mappedUserData = freshMappedUsers
       if (!mappedUserData) {
-        mappedUserData = mappedUsers.length > 0 
-          ? mappedUsers 
+        mappedUserData = mappedUsers.length > 0
+          ? mappedUsers
           : await fetchMappedUsers(false)
       }
-      
+
       const mappedUserIds = mappedUserData.map(u => u.user_id || u.id)
       const available = userData.filter(u => !mappedUserIds.includes(u.user_id || u.id))
-      
+
       setAvailableUsers(available)
     } catch (error) {
       console.error("Error fetching available users:", error)
@@ -167,28 +161,19 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
       }
 
       // API call to remove user from policy using policyMapToUser endpoint
-      await axios.post(
-        `${API_BASE_URL}/api/users/policyMapToUser`,
-        {
-          userId: userId,
-          policyMapRemove: [policyId]
-        },
-        {
-          headers: { 
-            Authorization: token, 
-            "Content-Type": "application/json" 
-          },
-        }
-      )
+      await usersApi.mapPolicyToUser({
+        userId: userId,
+        policyMapRemove: [policyId]
+      })
 
       toast.success("User removed from policy successfully")
       setDeleteDialogOpen(false)
       setUserToRemove(null)
-      
+
       // First fetch updated mapped users, then use that data to update available users
       const updatedMappedUsers = await fetchMappedUsers(false) // Silent update
       await fetchAvailableUsers(updatedMappedUsers) // Pass fresh data to avoid stale state
-      
+
       // Notify parent to refresh user counts (without full page reload)
       if (onUserUpdate) {
         onUserUpdate()
@@ -256,7 +241,7 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
         return role.role_name || role.name || "-"
       }
     }
-    
+
     // Check for direct role fields
     if (user.role_name) {
       return user.role_name
@@ -277,19 +262,19 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
         return user.roles
       }
     }
-    
+
     return "-"
   }
 
   return (
     <div className="space-y-6">
       {/* Policy Header */}
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-4">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={onBack} className="flex items-center gap-2 -ml-2">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div className="flex-1">
               <div className="flex items-center gap-3">
                 <CardTitle className="text-xl">{policyName} - User Management</CardTitle>
@@ -299,9 +284,9 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
               </div>
               <CardDescription className="mt-1">Policy Type: {policyType}</CardDescription>
             </div>
-        </div>
-      </CardHeader>
-      <CardContent>
+          </div>
+        </CardHeader>
+        <CardContent>
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <Card>
@@ -374,89 +359,89 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
                 />
               </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="ml-3 text-muted-foreground">Loading users...</p>
-          </div>
-              ) : filteredMappedUsers.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No users mapped to this policy</p>
-            </div>
-          ) : (
-            <div className="rounded-md border overflow-hidden w-full">
-              <div className="overflow-x-auto w-full">
-                <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
-                  <Table className="w-full table-auto">
-                    <TableHeader>
-                      <TableRow className="bg-muted/50 hover:bg-muted/50">
-                        <TableHead className="font-semibold text-foreground">User Details</TableHead>
-                        <TableHead className="font-semibold text-foreground">Role</TableHead>
-                        <TableHead className="font-semibold text-foreground">Status</TableHead>
-                        <TableHead className="font-semibold text-foreground">User ID</TableHead>
-                        <TableHead className="w-[140px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredMappedUsers.map((user) => (
-                        <TableRow 
-                          key={user.user_id || user.id} 
-                          className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
-                        >
-                          <TableCell className="py-4">
-                            <div className="flex items-center space-x-3">
-                              <Avatar className="h-10 w-10">
-                                <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0">
-                                <p className="font-medium text-primary truncate text-sm md:text-base transition-colors">
-                                  {getUserDisplayName(user)}
-                                </p>
-                                <p className="text-sm text-muted-foreground truncate">{user.email || "-"}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <span className="text-sm text-muted-foreground">{getUserRole(user)}</span>
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <Badge variant={user.is_active !== false ? "default" : "secondary"}>
-                              {user.is_active !== false ? "Active" : "Inactive"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="py-4 font-mono text-xs">
-                            <span className="text-muted-foreground">
-                              {String(user.user_id || user.id || "").substring(0, 8)}...
-                            </span>
-                          </TableCell>
-                          <TableCell className="w-[140px] whitespace-nowrap text-center py-4">
-                            <div className="flex items-center justify-center space-x-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={() => {/* View user details */}}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleRemoveUser(user)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <UserMinus className="h-4 w-4 mr-2" />
-                                Remove
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <p className="ml-3 text-muted-foreground">Loading users...</p>
                 </div>
-              </div>
-            </div>
+              ) : filteredMappedUsers.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>No users mapped to this policy</p>
+                </div>
+              ) : (
+                <div className="rounded-md border overflow-hidden w-full">
+                  <div className="overflow-x-auto w-full">
+                    <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
+                      <Table className="w-full table-auto">
+                        <TableHeader>
+                          <TableRow className="bg-muted/50 hover:bg-muted/50">
+                            <TableHead className="font-semibold text-foreground">User Details</TableHead>
+                            <TableHead className="font-semibold text-foreground">Role</TableHead>
+                            <TableHead className="font-semibold text-foreground">Status</TableHead>
+                            <TableHead className="font-semibold text-foreground">User ID</TableHead>
+                            <TableHead className="w-[140px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredMappedUsers.map((user) => (
+                            <TableRow
+                              key={user.user_id || user.id}
+                              className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                            >
+                              <TableCell className="py-4">
+                                <div className="flex items-center space-x-3">
+                                  <Avatar className="h-10 w-10">
+                                    <AvatarFallback>{getUserInitials(user)}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <p className="font-medium text-primary truncate text-sm md:text-base transition-colors">
+                                      {getUserDisplayName(user)}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground truncate">{user.email || "-"}</p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-4">
+                                <span className="text-sm text-muted-foreground">{getUserRole(user)}</span>
+                              </TableCell>
+                              <TableCell className="py-4">
+                                <Badge variant={user.is_active !== false ? "default" : "secondary"}>
+                                  {user.is_active !== false ? "Active" : "Inactive"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="py-4 font-mono text-xs">
+                                <span className="text-muted-foreground">
+                                  {String(user.user_id || user.id || "").substring(0, 8)}...
+                                </span>
+                              </TableCell>
+                              <TableCell className="w-[140px] whitespace-nowrap text-center py-4">
+                                <div className="flex items-center justify-center space-x-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => {/* View user details */ }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleRemoveUser(user)}
+                                    className="text-destructive hover:text-destructive"
+                                  >
+                                    <UserMinus className="h-4 w-4 mr-2" />
+                                    Remove
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </div>
               )}
             </TabsContent>
 
@@ -492,7 +477,7 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
                         </TableHeader>
                         <TableBody>
                           {availableUsers.map((user) => (
-                            <TableRow 
+                            <TableRow
                               key={user.user_id || user.id}
                               className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
                             >
@@ -542,26 +527,17 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
                                         }
 
                                         // API call to add user to policy using policyMapToUser endpoint
-                                        await axios.post(
-                                          `${API_BASE_URL}/api/users/policyMapToUser`,
-                                          {
-                                            userId: userId,
-                                            policyMap: [policyId]
-                                          },
-                                          { 
-                                            headers: { 
-                                              Authorization: token, 
-                                              "Content-Type": "application/json" 
-                                            } 
-                                          }
-                                        )
+                                        await usersApi.mapPolicyToUser({
+                                          userId: userId,
+                                          policyMap: [policyId]
+                                        })
 
                                         toast.success("User added to policy successfully")
-                                        
+
                                         // First fetch updated mapped users, then use that data to update available users
                                         const updatedMappedUsers = await fetchMappedUsers(false) // Silent update
                                         await fetchAvailableUsers(updatedMappedUsers) // Pass fresh data to avoid stale state
-                                        
+
                                         // Notify parent to refresh user counts (without full page reload)
                                         if (onUserUpdate) {
                                           onUserUpdate()
@@ -586,50 +562,50 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
               )}
             </TabsContent>
           </Tabs>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
 
-    {/* Remove User Confirmation Dialog */}
-    <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Remove User from Policy?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to remove{" "}
-            <span className="font-semibold">
-              {userToRemove ? getUserDisplayName(userToRemove) : "this user"}
-            </span>{" "}
-            from the policy{" "}
-            <span className="font-semibold">{policyName}</span>?
-            <br />
-            <br />
-            This action will revoke the user's access to this policy. This action cannot be undone.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={removingUser}>
-            Cancel
-          </AlertDialogCancel>
-          <AlertDialogAction
-            onClick={confirmRemoveUser}
-            disabled={removingUser}
-            className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {removingUser ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Deleting...
-              </>
-            ) : (
-              <>
-                <UserMinus className="h-4 w-4 mr-2" />
-                Delete
-              </>
-            )}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      {/* Remove User Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove User from Policy?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove{" "}
+              <span className="font-semibold">
+                {userToRemove ? getUserDisplayName(userToRemove) : "this user"}
+              </span>{" "}
+              from the policy{" "}
+              <span className="font-semibold">{policyName}</span>?
+              <br />
+              <br />
+              This action will revoke the user's access to this policy. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removingUser}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRemoveUser}
+              disabled={removingUser}
+              className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {removingUser ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <UserMinus className="h-4 w-4 mr-2" />
+                  Delete
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

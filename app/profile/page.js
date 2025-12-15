@@ -12,15 +12,14 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2, Eye, EyeOff, User, Mail, Lock, CheckCircle2, AlertCircle, Settings, Shield } from "lucide-react"
 import { authUtils } from "@/lib/auth-utils"
-import axios from "axios"
 import { toast } from "sonner"
+import { usersApi } from "@/lib/api-endpoint"
 import Sidebar from "../component/sidebar"
 import Topbar from "../component/topbar"
 import { cn } from "@/lib/utils"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
-// API Base URL
-const API_BASE_URL = "http://10.10.15.194:3001"
+
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -30,21 +29,21 @@ export default function ProfilePage() {
   const [user, setUser] = useState(null)
   const [userId, setUserId] = useState(null)
   const [activeTab, setActiveTab] = useState("profile")
-  
+
   // Profile form state
   const [profileForm, setProfileForm] = useState({
     first_name: "",
     last_name: "",
     email: "",
   })
-  
+
   // Password form state
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   })
-  
+
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -58,7 +57,7 @@ export default function ProfilePage() {
     try {
       setLoading(true)
       const tokens = authUtils.getTokens()
-      
+
       if (!tokens?.user) {
         toast.error("Please login to view your profile")
         router.push("/login")
@@ -83,14 +82,7 @@ export default function ProfilePage() {
 
       // Fetch fresh user data from API
       const token = tokens.accessToken || localStorage.getItem("accessToken") || localStorage.getItem("token")
-      const response = await axios.get(`${API_BASE_URL}/api/users/${currentUserId}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        timeout: 30000,
-      })
+      const response = await usersApi.getById(currentUserId)
 
       if (response.data) {
         const userData = response.data.data || response.data
@@ -142,7 +134,7 @@ export default function ProfilePage() {
     try {
       setUpdatingProfile(true)
       const payload = {}
-      
+
       if (profileForm.first_name !== (user?.first_name || "")) {
         payload.first_name = profileForm.first_name
       }
@@ -158,14 +150,7 @@ export default function ProfilePage() {
         return
       }
 
-      const response = await axios.patch(
-        `${API_BASE_URL}/api/users/${userId}`,
-        payload,
-        {
-          headers: getAuthHeaders(),
-          timeout: 30000,
-        }
-      )
+      const response = await usersApi.update(userId, payload)
 
       if (response.data) {
         toast.success("Profile updated successfully")
@@ -235,14 +220,7 @@ export default function ProfilePage() {
         password: passwordForm.newPassword,
       }
 
-      const response = await axios.patch(
-        `${API_BASE_URL}/api/users/${userId}`,
-        payload,
-        {
-          headers: getAuthHeaders(),
-          timeout: 30000,
-        }
-      )
+      const response = await usersApi.update(userId, payload)
 
       if (response.data) {
         toast.success("Password changed successfully")
@@ -328,16 +306,16 @@ export default function ProfilePage() {
   return (
     <main className="min-h-screen bg-background">
       {!isCollapsed && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden"
           onClick={() => setIsCollapsed(true)}
         />
       )}
-      
+
       <div className="flex min-h-screen">
-        <Sidebar 
-          activeTab="profile" 
-          setActiveTab={() => {}}
+        <Sidebar
+          activeTab="profile"
+          setActiveTab={() => { }}
           isCollapsed={isCollapsed}
           setIsCollapsed={setIsCollapsed}
         />
@@ -346,8 +324,8 @@ export default function ProfilePage() {
           isCollapsed ? "md:ml-0" : "md:ml-0"
         )}>
           <div className="p-4 border-b border-border bg-card/50">
-            <Topbar 
-              darkMode={darkMode} 
+            <Topbar
+              darkMode={darkMode}
               toggleDarkMode={toggleDarkMode}
               toggleSidebar={toggleSidebar}
             />

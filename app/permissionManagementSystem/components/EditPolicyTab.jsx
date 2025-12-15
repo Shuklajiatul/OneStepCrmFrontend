@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
-import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
 import { Loader2 } from "lucide-react"
+import { policiesApi } from "@/lib/api-endpoint"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
@@ -56,23 +56,23 @@ export function EditPolicyTab({ policy, onPolicyUpdated, onCancel }) {
 
       // Compare current formData with original data and only include changed fields
       const apiPayload = {}
-      
+
       if (originalData) {
         // Check if policy_name changed
         if (formData.policy_name !== originalData.policy_name) {
           apiPayload.p_name = formData.policy_name
         }
-        
+
         // Check if policy_type changed
         if (formData.policy_type !== originalData.policy_type) {
           apiPayload.type = formData.policy_type
         }
-        
+
         // Check if is_active changed
         if (formData.is_active !== originalData.is_active) {
           apiPayload.is_active = formData.is_active
         }
-        
+
         // Check if description changed (only include if it exists and changed)
         if (formData.description !== (originalData.description || "")) {
           apiPayload.description = formData.description
@@ -94,16 +94,7 @@ export function EditPolicyTab({ policy, onPolicyUpdated, onCancel }) {
         return
       }
 
-      const response = await axios.put(
-        `${API_BASE_URL}/api/policies/${policyId}`,
-        apiPayload,
-        {
-          headers: {
-            Authorization: token,
-            "Content-Type": "application/json",
-          },
-        }
-      )
+      const response = await policiesApi.update(policyId, apiPayload)
 
       if (response.data) {
         toast.success("Policy updated successfully")
@@ -126,78 +117,78 @@ export function EditPolicyTab({ policy, onPolicyUpdated, onCancel }) {
   return (
     <div className="space-y-4">
       <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="policy_name">Policy Name *</Label>
-            <Input
-              id="policy_name"
-              value={formData.policy_name}
-              onChange={(e) => setFormData({ ...formData, policy_name: e.target.value })}
-              required
-              placeholder="Enter policy name"
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="policy_name">Policy Name *</Label>
+          <Input
+            id="policy_name"
+            value={formData.policy_name}
+            onChange={(e) => setFormData({ ...formData, policy_name: e.target.value })}
+            required
+            placeholder="Enter policy name"
+          />
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="policy_type">Policy Type *</Label>
-            <Select
-              value={formData.policy_type}
-              onValueChange={(value) => setFormData({ ...formData, policy_type: value })}
-            >
-              <SelectTrigger id="policy_type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="internal">Internal</SelectItem>
-                <SelectItem value="shared">Shared</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="policy_type">Policy Type *</Label>
+          <Select
+            value={formData.policy_type}
+            onValueChange={(value) => setFormData({ ...formData, policy_type: value })}
+          >
+            <SelectTrigger id="policy_type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="internal">Internal</SelectItem>
+              <SelectItem value="shared">Shared</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Enter policy description"
-              rows={4}
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="description">Description</Label>
+          <Textarea
+            id="description"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="Enter policy description"
+            rows={4}
+          />
+        </div>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="is_active"
-              checked={formData.is_active}
-              onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-            />
-            <Label htmlFor="is_active" className="cursor-pointer">
-              Active
-            </Label>
-          </div>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="is_active"
+            checked={formData.is_active}
+            onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+          />
+          <Label htmlFor="is_active" className="cursor-pointer">
+            Active
+          </Label>
+        </div>
 
-          <div className="flex gap-3 pt-4">
-            <Button type="submit" disabled={submitting}>
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                "Update Policy"
-              )}
-            </Button>
-            {onCancel && (
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={onCancel}
-                disabled={submitting}
-              >
-                Cancel
-              </Button>
+        <div className="flex gap-3 pt-4">
+          <Button type="submit" disabled={submitting}>
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              "Update Policy"
             )}
-          </div>
-        </form>
+          </Button>
+          {onCancel && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+          )}
+        </div>
+      </form>
     </div>
   )
 }

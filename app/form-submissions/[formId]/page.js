@@ -33,8 +33,8 @@ import {
 } from "@/components/ui/pagination"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
+import { formsApi, submissionsApi } from "@/lib/api-endpoint"
 import { useParams, useRouter, usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { formatDateTimeDisplay } from "@/lib/utils"
@@ -81,12 +81,7 @@ export default function FormSubmissionsPage() {
     setError(null)
 
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`, {
-        headers: {
-          Authorization: authUtils.getAuthHeader(),
-          "Content-Type": "application/json",
-        },
-      })
+      const response = await formsApi.getById(formId)
 
       if (response.data.success && response.data.data) {
         setFormDetails(response.data.data)
@@ -108,12 +103,7 @@ export default function FormSubmissionsPage() {
     setError(null)
 
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/submit/all/${ORGANIZATION_ID}/${formId}`, {
-        headers: {
-          Authorization: authUtils.getAuthHeader(),
-          "Content-Type": "application/json",
-        },
-      })
+      const response = await submissionsApi.getAll(ORGANIZATION_ID, formId)
 
       if (response.data.success && Array.isArray(response.data.data)) {
         const mappedSubmissions = response.data.data.map((submission) => ({

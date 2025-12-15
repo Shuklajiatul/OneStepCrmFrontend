@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ArrowLeft, Loader2, FileText } from "lucide-react"
-import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
+import { featuresApi } from "@/lib/api-endpoint"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
@@ -25,9 +25,7 @@ export function ModuleDetailTab({ moduleName, onBack }) {
       const token = authUtils.getAuthHeader()
       if (!token) return
 
-      const response = await axios.get(`${API_BASE_URL}/api/features?module=${moduleName}`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      })
+      const response = await featuresApi.getByModule(moduleName)
 
       const featureData = Array.isArray(response.data)
         ? response.data
@@ -138,7 +136,7 @@ export function ModuleDetailTab({ moduleName, onBack }) {
                       {features.map((feature) => {
                         const featureId = feature.feature_id || feature.id
                         return (
-                          <TableRow 
+                          <TableRow
                             key={featureId}
                             className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
                           >

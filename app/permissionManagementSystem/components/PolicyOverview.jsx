@@ -9,9 +9,9 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
-import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
+import { policiesApi } from "@/lib/api-endpoint"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
@@ -84,16 +84,7 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
         return
       }
 
-      await axios.put(
-        `${API_BASE_URL}/api/policies/${policyId}`,
-        { is_active: newStatus },
-        {
-          headers: {
-            Authorization: token,
-            "Content-Type": "application/json",
-          },
-        }
-      )
+      await policiesApi.update(policyId, { is_active: newStatus })
 
       toast.success(`Policy ${newStatus ? "activated" : "deactivated"} successfully`)
 
@@ -181,7 +172,7 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
             </div>
           ) : (
             <div className="relative">
-              <Carousel 
+              <Carousel
                 className="w-full"
                 opts={{
                   align: "start",
@@ -223,7 +214,7 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                     </CarouselItem>
                   ))}
                 </CarouselContent>
-                
+
                 {/* Navigation arrows inside Carousel */}
                 <div className="absolute top-1/2 left-0 right-0 flex justify-between -translate-y-1/2 pointer-events-none z-10">
                   <div className="pointer-events-auto">

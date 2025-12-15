@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import OrganizationsClient from './client'
+import { ORGANIZATION_ENDPOINTS } from '@/lib/api-endpoint'
 
 async function getData() {
   const cookieStore = await cookies()
@@ -14,7 +15,7 @@ async function getData() {
   const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
   try {
-    const res = await fetch(`${baseUrl}/api/organizations`, {
+    const res = await fetch(`${baseUrl}${ORGANIZATION_ENDPOINTS.LIST}`, {
       headers,
       next: { revalidate: 3600 } // Cache organizations for 1 hour
     })

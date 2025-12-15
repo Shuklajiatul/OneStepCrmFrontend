@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
-import axios from 'axios';
 import { authUtils } from '@/lib/auth-utils';
+import { authApi } from '@/lib/api-endpoint';
 
 export default function ProxyPage() {
     const [loading, setLoading] = useState(true);
@@ -43,14 +43,8 @@ export default function ProxyPage() {
                 setStatus("Processing authentication...");
 
                 // Use axios with credentials to handle cookies
-                const response = await axios.post("/api/auth/proxy-backend", 
-                    { code, state },
-                    { 
-                        withCredentials: true,
-                        credentials: "include",
-                        headers: { "Content-Type": "application/json" }
-                    }
-                );
+                // Use authApi to handle the request
+                const response = await authApi.proxyBackend({ code, state });
 
                 console.log("OAuth Response:", response.data);
 
@@ -81,14 +75,14 @@ export default function ProxyPage() {
                     // console.log("Final authentication check:", isAuthenticated);
 
                     // if (isAuthenticated) {
-                        setProgress(100);
-                        setStatus("Success! Redirecting to dashboard...");
-                        
-                        setTimeout(() => {
-                            window.location.href = response.data.redirectUrl || "/";
-                        }, 1000);
+                    setProgress(100);
+                    setStatus("Success! Redirecting to dashboard...");
+
+                    setTimeout(() => {
+                        window.location.href = response.data.redirectUrl || "/";
+                    }, 1000);
                     // } else {
-                        // setError("Authentication failed. Please try again.");
+                    // setError("Authentication failed. Please try again.");
                     //     setTimeout(() => {
                     //         window.location.href = "/login?error=auth_failed";
                     //     }, 2000);

@@ -9,13 +9,14 @@ import { CheckCircle2, Send, ArrowLeft, Building, User, Save, Edit, FileText, Tr
 import { FieldRenderer } from "../../component/formbuilder/field-renderer"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
-import axios from "axios"
+import { authUtils } from "@/lib/auth-utils"
+import { formsApi, submissionsApi } from "@/lib/api-endpoint"
 import Link from "next/link"
 import Image from "next/image"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { fetchPhoneCountries } from "@/lib/constants/location-api"
 import { v4 as uuidv4 } from 'uuid';
-import { authUtils } from '@/lib/auth-utils'
+
 
 // API configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -1802,12 +1803,7 @@ export default function PublicFormPage() {
       if (!formId || !isEditMode || !formData?.version) return
       try {
         const baseUrl = `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`
-        const latestResp = await axios.get(baseUrl, {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json',
-          }
-        })
+        const latestResp = await formsApi.getById(formId)
         const latestRes = latestResp.data
         if (latestRes?.success && latestRes?.data) {
           const latestVer = latestRes.data.version || null
@@ -1913,20 +1909,12 @@ export default function PublicFormPage() {
 
     try {
 
-      const response = await axios.post(
-        `${API_BASE_URL}/api/submit/edit?token=${token}`,
-        {
-          organization_id: ORGANIZATION_ID,
-          form_id: formId,
-          reference_id: finalUserId,
-          submission_id: submissionId
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      )
+      const response = await submissionsApi.getForEdit(token, {
+        organization_id: ORGANIZATION_ID,
+        form_id: formId,
+        reference_id: finalUserId,
+        submission_id: submissionId
+      })
       const result = response.data
 
       console.log('Full editFormHandler API response:', result)
@@ -1976,14 +1964,7 @@ export default function PublicFormPage() {
             try {
 
               // Try the most common API pattern: query parameter
-              const versionResponse = await axios.get(
-                `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}?version=${result.form_version}`,
-                {
-                  headers: {
-                    'Content-Type': 'application/json',
-                  }
-                }
-              )
+              const versionResponse = await formsApi.getById(formId, result.form_version)
 
               if (versionResponse.data.success && versionResponse.data.data) {
                 const originalFormData = parseFormData(versionResponse.data.data)
@@ -2008,15 +1989,17 @@ export default function PublicFormPage() {
 
               for (const endpoint of alternativeEndpoints) {
                 try {
-                  const altResponse = await axios.get(endpoint, {
+                  const altResponse = await fetch(endpoint, {
+                    method: 'GET',
                     headers: {
                       'Authorization': authUtils.getAuthHeader(),
                       'Content-Type': 'application/json',
                     }
                   })
+                  const altData = await altResponse.json()
 
-                  if (altResponse.data.success && altResponse.data.form) {
-                    const originalFormData = parseFormData(altResponse.data.form)
+                  if (altData.success && altData.form) {
+                    const originalFormData = parseFormData(altData.form)
                     setFormData(originalFormData)
                     setLoading(false)
                     toast.success(`Submission loaded - Using original form v${result.form_version}`)
@@ -2548,12 +2531,7 @@ export default function PublicFormPage() {
         // Try primary query-param endpoint first
         const primaryUrl = `${baseUrl}?version=${versionParam}`
         try {
-          const resp = await axios.get(primaryUrl, {
-            headers: {
-              'Authorization': authUtils.getAuthHeader(),
-              'Content-Type': 'application/json',
-            }
-          })
+          const resp = await formsApi.getById(formId, versionParam)
           // Handle both response formats - with wrapper and without
           if (resp.data) {
             result = resp.data.success ? resp.data.data : resp.data
@@ -2571,14 +2549,16 @@ export default function PublicFormPage() {
           ]
           for (const alt of alternatives) {
             try {
-              const altResp = await axios.get(alt, {
+              const altResp = await fetch(alt, {
+                method: 'GET',
                 headers: {
                   'Authorization': authUtils.getAuthHeader(),
                   'Content-Type': 'application/json',
                 }
               })
-              if (altResp.data) {
-                result = altResp.data.success ? altResp.data.data : altResp.data
+              const altData = await altResp.json()
+              if (altData) {
+                result = altData.success ? altData.data : altData
                 usedVersionEndpoint = alt
                 break
               }
@@ -2589,12 +2569,7 @@ export default function PublicFormPage() {
 
       // Fallback to latest if no version or version-specific fetch failed
       if (!result) {
-        const response = await axios.get(baseUrl, {
-          headers: {
-            'Authorization': authUtils.getAuthHeader(),
-            'Content-Type': 'application/json',
-          }
-        })
+        const response = await formsApi.getById(formId)
         // Handle both response formats
         result = response.data.success ? response.data.data : response.data
       }
@@ -2607,12 +2582,7 @@ export default function PublicFormPage() {
 
         try {
           // Also fetch latest to determine read-only state when a specific version is requested
-          const latestResp = await axios.get(baseUrl, {
-            headers: {
-              'Authorization': authUtils.getAuthHeader(),
-              'Content-Type': 'application/json',
-            }
-          })
+          const latestResp = await formsApi.getById(formId)
           const latestRes = latestResp.data
           const latestData = latestRes.success ? latestRes.data : latestRes
           if (latestData) {
@@ -3101,11 +3071,7 @@ export default function PublicFormPage() {
 
           console.log('Form update data:', updateData)
 
-          const response = await axios.post(`${API_BASE_URL}/api/submit/update?token=${token}`, updateData, {
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          })
+          const response = await submissionsApi.update(token, updateData)
 
           const result = response.data
           console.log('Update successful:', result)
@@ -3128,11 +3094,7 @@ export default function PublicFormPage() {
 
           console.log('Form submission data:', submissionData)
 
-          const response = await axios.post(`${API_BASE_URL}/api/submit`, submissionData, {
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          })
+          const response = await submissionsApi.create(submissionData)
 
           const result = response.data
           console.log('Submission successful:', result)

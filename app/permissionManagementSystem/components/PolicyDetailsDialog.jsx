@@ -5,9 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, X, Edit, Trash2, Users, Calendar, FileText, Tag } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import axios from "axios"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
+import { policiesApi } from "@/lib/api-endpoint"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
 
@@ -44,9 +44,7 @@ export function PolicyDetailsDialog({ policy, open, onOpenChange, onEdit, onDele
         return
       }
 
-      const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      })
+      const response = await policiesApi.getById(policyId)
 
       // Handle response structure: { success: true, data: {...} }
       const details = response.data?.data || response.data || null
@@ -71,9 +69,7 @@ export function PolicyDetailsDialog({ policy, open, onOpenChange, onEdit, onDele
       const token = authUtils.getAuthHeader()
       if (!token) return
 
-      const response = await axios.get(`${API_BASE_URL}/api/policies/${policyId}/users/count`, {
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      })
+      const response = await policiesApi.getUserCount(policyId)
 
       const count = response.data?.count || response.data?.data?.count || 0
       setUserCount(count)

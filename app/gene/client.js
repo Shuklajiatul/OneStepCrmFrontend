@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { authUtils } from '@/lib/auth-utils';
+import { genesApi, usersApi, organizationsApi } from '@/lib/api-endpoint';
 import {
   Eye, Edit, Trash2, Plus, Search, Upload, Table2, List, LayoutGrid,
   Loader2, AlertCircle, RefreshCw, X, CheckCircle2, Building,
@@ -48,15 +48,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// API Constants
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
-const API_CONSTANTS = {
-  BASE_URL: API_BASE_URL,
-  geneList: '/api/genes',
-  geneCreate: '/api/genes',
-  geneUpdate: '/api/genes', // Will append /{g_id} in the request
-  geneDelete: '/api/genes', // Will append /{g_id} in the request
-};
+
 
 export default function GeneClient({ initialGenes = [], initialPagination = null }) {
   const router = useRouter();
@@ -142,18 +134,9 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
         return;
       }
 
-      const fullUrl = `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneList}`;
+      console.log("Making API call to get all genes");
 
-      console.log("Making API call to:", fullUrl);
-
-      const response = await axios.get(fullUrl, {
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        timeout: 30000
-      });
+      const response = await genesApi.getAll();
 
       console.log('Full API Response:', response.data);
 
@@ -175,14 +158,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
               sessionStorage.getItem('token') ||
               sessionStorage.getItem('accessToken');
             if (token) {
-              const usersResponse = await axios.get(`${API_CONSTANTS.BASE_URL}/api/users`, {
-                headers: {
-                  Accept: 'application/json',
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
-                timeout: 30000
-              });
+              const usersResponse = await usersApi.getAll();
               if (usersResponse.data && Array.isArray(usersResponse.data)) {
                 usersResponse.data.forEach(user => {
                   userMap[user.user_id || user.id] = user.first_name && user.last_name
@@ -325,16 +301,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
         return;
       }
 
-      const response = await axios.get(
-        `${API_CONSTANTS.BASE_URL}/api/organizations`,
-        {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      const response = await organizationsApi.getAll();
 
       // Handle different response formats
       let orgsData = [];
@@ -373,16 +340,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
         return;
       }
 
-      const response = await axios.get(
-        `${API_CONSTANTS.BASE_URL}/api/users`,
-        {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      const response = await usersApi.getAll();
 
       // Handle different response formats
       let usersData = [];
@@ -482,16 +440,8 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
       console.log('Toggling status for gene with ID:', geneId);
 
       // Call the toggle API endpoint
-      const response = await axios.patch(
-        `${API_CONSTANTS.BASE_URL}/api/genes/${geneId}/toggle-active`,
-        {},
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      // Call the toggle API endpoint
+      const response = await genesApi.toggleActive(geneId);
 
       if (response.data.success) {
         const newStatus = !currentStatus;
@@ -579,16 +529,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
       }
 
       // Fetch the specific gene details to get the users
-      const response = await axios.get(
-        `${API_CONSTANTS.BASE_URL}/api/genes/by-geneId/${gene.g_id || gene.id}`,
-        {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      const response = await genesApi.getById(gene.g_id || gene.id);
 
       if (response.data.success && response.data.data) {
         const geneDetails = response.data.data;
@@ -744,16 +685,8 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
         console.log('Update Gene Payload:', payload);
 
         // Update endpoint uses PUT with g_id in the URL path
-        const response = await axios.put(
-          `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneUpdate}/${geneData.g_id}`,
-          payload,
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
-          }
-        );
+        // Update endpoint uses PUT with g_id in the URL path
+        const response = await genesApi.update(geneData.g_id, payload);
 
         if (response.data.success) {
           toast.success(response.data.message || `Gene "${geneData.name}" updated successfully!`, {
@@ -789,16 +722,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
 
         console.log('Create Gene Payload:', payload);
 
-        const response = await axios.post(
-          `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneCreate}`,
-          payload,
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            }
-          }
-        );
+        const response = await genesApi.create(payload);
 
         if (response.data.success) {
           toast.success(response.data.message || `Gene "${geneData.name}" created successfully with ${level_depth} levels!`, {
@@ -934,15 +858,8 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
       console.log('Deleting gene with ID:', geneToDelete);
 
       // Delete endpoint uses DELETE with g_id in the URL path
-      const response = await axios.delete(
-        `${API_CONSTANTS.BASE_URL}${API_CONSTANTS.geneDelete}/${geneToDelete}`,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      // Delete endpoint uses DELETE with g_id in the URL path
+      const response = await genesApi.delete(geneToDelete);
 
       if (response.data.success) {
         toast.success(response.data.message || 'Gene deleted successfully!', {

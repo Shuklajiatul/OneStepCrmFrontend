@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import UsersClient from './client'
+import { USER_ENDPOINTS, ROLE_ENDPOINTS, GENE_ENDPOINTS, POLICY_ENDPOINTS } from '@/lib/api-endpoint'
 
 async function getData() {
   const cookieStore = await cookies()
@@ -15,19 +16,19 @@ async function getData() {
 
   try {
     const [usersRes, rolesRes, genesRes, policiesRes] = await Promise.all([
-      fetch(`${baseUrl}/api/users`, {
+      fetch(`${baseUrl}${USER_ENDPOINTS.LIST}`, {
         headers,
         next: { revalidate: 60 } // Cache users for 60 seconds
       }),
-      fetch(`${baseUrl}/api/roles`, {
+      fetch(`${baseUrl}${ROLE_ENDPOINTS.LIST}`, {
         headers,
         next: { revalidate: 3600 } // Cache roles for 1 hour
       }),
-      fetch(`${baseUrl}/api/genes`, {
+      fetch(`${baseUrl}${GENE_ENDPOINTS.LIST}`, {
         headers,
         next: { revalidate: 3600 } // Cache genes for 1 hour
       }),
-      fetch(`${baseUrl}/api/policies`, {
+      fetch(`${baseUrl}${POLICY_ENDPOINTS.LIST}`, {
         headers,
         next: { revalidate: 3600 } // Cache policies for 1 hour
       })

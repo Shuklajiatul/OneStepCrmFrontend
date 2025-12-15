@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { 
-  X, Plus, Trash2, Users, Loader2, Search, Layers, 
-  CheckCircle2, AlertCircle, Network 
+import {
+  X, Plus, Trash2, Users, Loader2, Search, Layers,
+  CheckCircle2, AlertCircle, Network
 } from 'lucide-react';
-import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { authUtils } from '@/lib/auth-utils';
+import { genesApi, usersApi } from '@/lib/api-endpoint';
 
 // Shadcn UI Components
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -36,10 +36,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 
-// API Constants
-const API_CONSTANTS = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001',
-};
+
 
 export default function GeneModal({
   showModal,
@@ -80,30 +77,30 @@ export default function GeneModal({
   useEffect(() => {
     if (editingGene && geneData.users) {
       const userIds = geneData.users.split(',').filter(id => id.trim() !== '').map(id => id.trim());
-      
+
       console.log('Initializing selected users with IDs:', userIds);
       console.log('Available users:', users);
-      
+
       if (users.length > 0 && userIds.length > 0) {
         // Improved user matching - handle different ID formats and cases
         const userObjects = users.filter(user => {
           const userId = user.id || user.user_id;
-          
+
           // Try multiple matching strategies
           return userIds.some(id => {
             // Direct string comparison
             if (String(userId) === String(id)) return true;
-            
+
             // Case-insensitive comparison
             if (String(userId).toLowerCase() === String(id).toLowerCase()) return true;
-            
+
             // Handle UUID variations
             if (String(userId).replace(/-/g, '') === String(id).replace(/-/g, '')) return true;
-            
+
             return false;
           });
         });
-        
+
         console.log('Matched user objects:', userObjects);
         setSelectedUsers(userObjects);
       } else if (userIds.length > 0) {
@@ -113,16 +110,16 @@ export default function GeneModal({
           // Try to find user in the users array even if not fully loaded
           const foundUser = users.find(user => {
             const userId = user.id || user.user_id;
-            return String(userId) === String(id) || 
-                  String(userId).toLowerCase() === String(id).toLowerCase();
+            return String(userId) === String(id) ||
+              String(userId).toLowerCase() === String(id).toLowerCase();
           });
-          
+
           if (foundUser) {
             return foundUser;
           }
-          
+
           // Fallback: create minimal user object
-          return { 
+          return {
             id: id.toString(),
             user_id: id.toString(),
             // Add placeholder name that will be updated when users load
@@ -142,19 +139,19 @@ export default function GeneModal({
   const handleSubmit = async () => {
     // Mark that user attempted to submit
     setSubmitAttempted(true);
-    
+
     // Check if form is valid
     const isValid = geneData.name &&
-                   geneData.name.trim() !== '' &&
-                   geneData.levels.length > 0 &&
-                   !geneData.levels.some(level => !level.title || level.title.trim() === '');
-    
+      geneData.name.trim() !== '' &&
+      geneData.levels.length > 0 &&
+      !geneData.levels.some(level => !level.title || level.title.trim() === '');
+
     if (!isValid) {
       // Mark all fields as touched to show errors
       setTouchedFields({ name: true, levels: true });
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       await onSubmit({
@@ -167,7 +164,7 @@ export default function GeneModal({
   };
 
   const handleClose = () => {
-    setGeneData({ name: '', levels: [], is_active: true, users: ''});
+    setGeneData({ name: '', levels: [], is_active: true, users: '' });
     setSelectedUsers([]);
     setSearchTerm('');
     setOpenUserPopover(false);
@@ -189,34 +186,24 @@ export default function GeneModal({
     try {
       setLoadingUsers(true);
       setError(null);
-      
+
       const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken || 
-                   localStorage.getItem('token') || 
-                   localStorage.getItem('accessToken') ||
-                   sessionStorage.getItem('token') ||
-                   sessionStorage.getItem('accessToken');
-      
+      const token = tokens?.accessToken ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        sessionStorage.getItem('token') ||
+        sessionStorage.getItem('accessToken');
+
       if (!token) {
         setError('Authentication token not found. Please ensure you are logged in.');
         setLoadingUsers(false);
         return;
       }
 
-      const baseUrl = API_CONSTANTS.BASE_URL;
-      const response = await axios.get(
-        `${baseUrl}/api/users`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      const response = await usersApi.getAll();
 
       console.log('All Users Response:', response.data);
-      
+
       // Handle different response formats
       let usersData = [];
       if (Array.isArray(response.data)) {
@@ -230,7 +217,7 @@ export default function GeneModal({
       } else if (response.data.users && Array.isArray(response.data.users)) {
         usersData = response.data.users;
       }
-      
+
       // Normalize user objects
       const normalizedUsers = usersData.map(user => ({
         ...user,
@@ -238,9 +225,9 @@ export default function GeneModal({
         username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
         name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
       }));
-      
+
       setUsers(normalizedUsers);
-       
+
       if (selectedUsers.length > 0 && selectedUsers[0].username === undefined) {
         const updatedSelectedUsers = normalizedUsers.filter(user =>
           selectedUsers.some(selected => selected.id === user.id || selected.id === user.user_id)
@@ -269,14 +256,14 @@ export default function GeneModal({
     try {
       setLoadingUsers(true);
       setError(null);
-      
+
       const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken || 
-                   localStorage.getItem('token') || 
-                   localStorage.getItem('accessToken') ||
-                   sessionStorage.getItem('token') ||
-                   sessionStorage.getItem('accessToken');
-      
+      const token = tokens?.accessToken ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        sessionStorage.getItem('token') ||
+        sessionStorage.getItem('accessToken');
+
       if (!token) {
         setError('Authentication token not found. Please ensure you are logged in.');
         setLoadingUsers(false);
@@ -289,20 +276,10 @@ export default function GeneModal({
         return;
       }
 
-      const baseUrl = API_CONSTANTS.BASE_URL;
-      const response = await axios.get(
-        `${baseUrl}/api/genes/by-geneId/${editingGene.g_id}`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      const response = await genesApi.getById(editingGene.g_id);
 
       console.log('Gene Users Response:', response.data);
-      
+
       // Handle different response formats for gene users
       let geneUsersData = [];
       if (response.data.success && response.data.data) {
@@ -350,34 +327,24 @@ export default function GeneModal({
   const fetchUsersForSelection = async () => {
     try {
       setLoadingUsers(true);
-      
+
       const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken || 
-                   localStorage.getItem('token') || 
-                   localStorage.getItem('accessToken') ||
-                   sessionStorage.getItem('token') ||
-                   sessionStorage.getItem('accessToken');
-      
+      const token = tokens?.accessToken ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        sessionStorage.getItem('token') ||
+        sessionStorage.getItem('accessToken');
+
       if (!token) {
         setError('Authentication token not found.');
         setLoadingUsers(false);
         return;
       }
 
-      const baseUrl = API_CONSTANTS.BASE_URL;
-      const response = await axios.get(
-        `${baseUrl}/api/users`,
-        {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      const response = await usersApi.getAll();
 
       console.log('Users for Selection Response:', response.data);
-      
+
       // Handle different response formats
       let usersData = [];
       if (Array.isArray(response.data)) {
@@ -389,7 +356,7 @@ export default function GeneModal({
       } else if (response.data.users && Array.isArray(response.data.users)) {
         usersData = response.data.users;
       }
-      
+
       // Normalize user objects
       const normalizedUsers = usersData.map(user => ({
         ...user,
@@ -397,9 +364,9 @@ export default function GeneModal({
         username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
         name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
       }));
-      
+
       setUsers(normalizedUsers);
-      
+
     } catch (err) {
       console.error('Fetch users for selection error:', err);
       if (err.response?.status === 401) {
@@ -439,22 +406,22 @@ export default function GeneModal({
 
   const filteredUsers = users.filter(user => {
     const userId = user.id || user.user_id;
-    
+
     // Only show active users
     const isActive = user.is_active !== false;
     if (!isActive) {
       return false;
     }
-    
+
     const searchLower = searchTerm.toLowerCase();
-    const matchesSearch = 
+    const matchesSearch =
       user.username?.toLowerCase().includes(searchLower) ||
       user.email?.toLowerCase().includes(searchLower) ||
       user.name?.toLowerCase().includes(searchLower) ||
       user.first_name?.toLowerCase().includes(searchLower) ||
       user.last_name?.toLowerCase().includes(searchLower) ||
       `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase().includes(searchLower);
-    
+
     const isSelected = selectedUsers.some(selected => {
       const selectedId = selected.id || selected.user_id;
       return selectedId === userId;
@@ -464,9 +431,9 @@ export default function GeneModal({
 
   // Check if form is valid
   const isFormValid = geneData.name &&
-                     geneData.name.trim() !== '' &&
-                     geneData.levels.length > 0 &&
-                     !geneData.levels.some(level => !level.title || level.title.trim() === '');
+    geneData.name.trim() !== '' &&
+    geneData.levels.length > 0 &&
+    !geneData.levels.some(level => !level.title || level.title.trim() === '');
 
   return (
     <Dialog open={showModal} onOpenChange={handleClose}>
@@ -493,7 +460,7 @@ export default function GeneModal({
                 type="text"
                 value={geneData.name || ''}
                 onChange={(e) => {
-                  setGeneData({...geneData, name: e.target.value});
+                  setGeneData({ ...geneData, name: e.target.value });
                   setTouchedFields(prev => ({ ...prev, name: true }));
                 }}
                 onBlur={() => setTouchedFields(prev => ({ ...prev, name: true }))}
@@ -515,189 +482,189 @@ export default function GeneModal({
 
             {/* Users Multi-Select Dropdown */}
             <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-semibold">Assign Users</Label>
-                  {selectedUsers.length > 0 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearAllUsers}
-                    >
-                      Clear All
-                    </Button>
-                  )}
-                </div>
-               
-                {/* Selected Users Display */}
-                <Popover open={openUserPopover} onOpenChange={handlePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full justify-between min-h-[52px] h-auto py-2 px-3"
-                    >
-                      <div className="flex-1 flex items-center min-w-0">
-                        {selectedUsers.length === 0 ? (
-                          <span className="text-muted-foreground text-sm">Select users...</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5 w-full">
-                            {selectedUsers.map((user) => {
-                              const userId = user.id || user.user_id;
-                              
-                              // Improved display name logic that handles temporary user objects
-                              let displayName = 'Unknown User';
-                              
-                              if (user.username && user.username.trim() && !user.username.startsWith('User ')) {
-                                displayName = user.username;
-                              } else if (user.name && user.name.trim() && !user.name.startsWith('User ')) {
-                                displayName = user.name;
-                              } else if (user.first_name || user.last_name) {
-                                const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
-                                if (fullName) displayName = fullName;
-                              } else if (user.email && user.email.trim()) {
-                                displayName = user.email;
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Assign Users</Label>
+                {selectedUsers.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearAllUsers}
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </div>
+
+              {/* Selected Users Display */}
+              <Popover open={openUserPopover} onOpenChange={handlePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-full justify-between min-h-[52px] h-auto py-2 px-3"
+                  >
+                    <div className="flex-1 flex items-center min-w-0">
+                      {selectedUsers.length === 0 ? (
+                        <span className="text-muted-foreground text-sm">Select users...</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5 w-full">
+                          {selectedUsers.map((user) => {
+                            const userId = user.id || user.user_id;
+
+                            // Improved display name logic that handles temporary user objects
+                            let displayName = 'Unknown User';
+
+                            if (user.username && user.username.trim() && !user.username.startsWith('User ')) {
+                              displayName = user.username;
+                            } else if (user.name && user.name.trim() && !user.name.startsWith('User ')) {
+                              displayName = user.name;
+                            } else if (user.first_name || user.last_name) {
+                              const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+                              if (fullName) displayName = fullName;
+                            } else if (user.email && user.email.trim()) {
+                              displayName = user.email;
+                            } else {
+                              // Check if this is a temporary placeholder name
+                              const tempName = user.username || user.name;
+                              if (tempName && tempName.startsWith('User ')) {
+                                displayName = tempName;
                               } else {
-                                // Check if this is a temporary placeholder name
-                                const tempName = user.username || user.name;
-                                if (tempName && tempName.startsWith('User ')) {
-                                  displayName = tempName;
-                                } else {
-                                  displayName = `User ${userId.substring(0, 8)}...`;
-                                }
+                                displayName = `User ${userId.substring(0, 8)}...`;
                               }
-                              
-                              return (
-                                <Badge
-                                  key={userId}
-                                  variant="secondary"
-                                  className="flex items-center gap-1 text-xs"
+                            }
+
+                            return (
+                              <Badge
+                                key={userId}
+                                variant="secondary"
+                                className="flex items-center gap-1 text-xs"
+                              >
+                                {displayName}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeUser(userId);
+                                  }}
+                                  className="ml-1 hover:bg-destructive/20 rounded-full p-0.5 -mr-1"
                                 >
-                                  {displayName}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removeUser(userId);
-                                    }}
-                                    className="ml-1 hover:bg-destructive/20 rounded-full p-0.5 -mr-1"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </Badge>
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <Users className="ml-2 h-4 w-4 shrink-0 opacity-50 flex-shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[var(--radix-popover-trigger-width)] p-0"
+                  align="start"
+                  sideOffset={4}
+                >
+                  <div
+                    className="max-h-[300px] overflow-y-auto cursor-pointer scrollbar-area"
+                    onClick={(e) => {
+                      e.currentTarget.focus();
+                      e.stopPropagation();
+                    }}
+                    onWheel={(e) => e.stopPropagation()}
+                    tabIndex={0}
+                    style={{
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))'
+                    }}
+                  >
+                    <Command>
+                      <CommandInput
+                        placeholder="Search users..."
+                        value={searchTerm}
+                        onValueChange={setSearchTerm}
+                        className="h-9 border-b sticky top-0 bg-background z-10"
+                      />
+                      <CommandList className="max-h-[250px]">
+                        {loadingUsers ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                            <span className="text-sm text-muted-foreground">Loading users...</span>
+                          </div>
+                        ) : error ? (
+                          <div className="p-4 text-center">
+                            <Alert variant="destructive" className="py-2">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertDescription className="text-xs">
+                                {error}
+                              </AlertDescription>
+                            </Alert>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={editingGene ? fetchUsersForSelection : fetchAllUsers}
+                              className="mt-2"
+                            >
+                              Retry
+                            </Button>
+                          </div>
+                        ) : filteredUsers.length === 0 ? (
+                          <div className="py-6 text-center text-sm text-muted-foreground">
+                            <CommandEmpty>
+                              {searchTerm ? 'No active users found' : users.length === 0 ? 'No users available' : 'All active users are selected'}
+                            </CommandEmpty>
+                          </div>
+                        ) : (
+                          <CommandGroup>
+                            {filteredUsers.map((user) => {
+                              const userId = user.id || user.user_id;
+                              const fullName = user.first_name && user.last_name
+                                ? `${user.first_name} ${user.last_name}`.trim()
+                                : null;
+                              const displayName = (user.name && user.name.trim()) ||
+                                (user.username && user.username.trim()) ||
+                                fullName ||
+                                (user.email && user.email.trim()) ||
+                                `User ${userId}`;
+                              const showEmail = user.email && user.email.trim() && user.email !== displayName;
+                              return (
+                                <CommandItem
+                                  key={userId}
+                                  value={`${displayName} ${user.email || ''}`}
+                                  onSelect={() => {
+                                    handleUserSelect(user);
+                                  }}
+                                  className="cursor-pointer py-2 px-3 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                      <Users className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                      <span className="font-medium truncate text-sm" title={displayName}>
+                                        {displayName}
+                                      </span>
+                                      {showEmail && (
+                                        <span className="text-xs text-muted-foreground truncate" title={user.email}>
+                                          {user.email}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className={cn(
+                                    "w-2 h-2 rounded-full shrink-0",
+                                    user.is_active !== false ? 'bg-green-500' : 'bg-gray-300'
+                                  )} />
+                                </CommandItem>
                               );
                             })}
-                          </div>
+                          </CommandGroup>
                         )}
-                      </div>
-                      <Users className="ml-2 h-4 w-4 shrink-0 opacity-50 flex-shrink-0" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent 
-                    className="w-[var(--radix-popover-trigger-width)] p-0" 
-                    align="start"
-                    sideOffset={4}
-                  >
-                    <div 
-                      className="max-h-[300px] overflow-y-auto cursor-pointer scrollbar-area"
-                      onClick={(e) => {
-                        e.currentTarget.focus();
-                        e.stopPropagation();
-                      }}
-                      onWheel={(e) => e.stopPropagation()}
-                      tabIndex={0}
-                      style={{ 
-                        scrollbarWidth: 'thin',
-                        scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))'
-                      }}
-                    >
-                      <Command>
-                        <CommandInput 
-                          placeholder="Search users..." 
-                          value={searchTerm}
-                          onValueChange={setSearchTerm}
-                          className="h-9 border-b sticky top-0 bg-background z-10"
-                        />
-                        <CommandList className="max-h-[250px]">
-                          {loadingUsers ? (
-                            <div className="flex items-center justify-center py-8">
-                              <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
-                              <span className="text-sm text-muted-foreground">Loading users...</span>
-                            </div>
-                          ) : error ? (
-                            <div className="p-4 text-center">
-                              <Alert variant="destructive" className="py-2">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertDescription className="text-xs">
-                                  {error}
-                                </AlertDescription>
-                              </Alert>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={editingGene ? fetchUsersForSelection : fetchAllUsers}
-                                className="mt-2"
-                              >
-                                Retry
-                              </Button>
-                            </div>
-                          ) : filteredUsers.length === 0 ? (
-                            <div className="py-6 text-center text-sm text-muted-foreground">
-                              <CommandEmpty>
-                                {searchTerm ? 'No active users found' : users.length === 0 ? 'No users available' : 'All active users are selected'}
-                              </CommandEmpty>
-                            </div>
-                          ) : (
-                            <CommandGroup>
-                              {filteredUsers.map((user) => {
-                                const userId = user.id || user.user_id;
-                                const fullName = user.first_name && user.last_name 
-                                  ? `${user.first_name} ${user.last_name}`.trim()
-                                  : null;
-                                const displayName = (user.name && user.name.trim()) || 
-                                                  (user.username && user.username.trim()) ||
-                                                  fullName ||
-                                                  (user.email && user.email.trim()) ||
-                                                  `User ${userId}`;
-                                const showEmail = user.email && user.email.trim() && user.email !== displayName;
-                                return (
-                                  <CommandItem
-                                    key={userId}
-                                    value={`${displayName} ${user.email || ''}`}
-                                    onSelect={() => {
-                                      handleUserSelect(user);
-                                    }}
-                                    className="cursor-pointer py-2 px-3 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                        <Users className="h-4 w-4 text-primary" />
-                                      </div>
-                                      <div className="flex flex-col min-w-0 flex-1">
-                                        <span className="font-medium truncate text-sm" title={displayName}>
-                                          {displayName}
-                                        </span>
-                                        {showEmail && (
-                                          <span className="text-xs text-muted-foreground truncate" title={user.email}>
-                                            {user.email}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className={cn(
-                                      "w-2 h-2 rounded-full shrink-0",
-                                      user.is_active !== false ? 'bg-green-500' : 'bg-gray-300'
-                                    )} />
-                                  </CommandItem>
-                                );
-                              })}
-                            </CommandGroup>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                      </CommandList>
+                    </Command>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             <Separator />

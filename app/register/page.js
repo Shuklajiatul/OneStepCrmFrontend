@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { authUtils } from '@/lib/auth-utils';
+import { authApi } from '@/lib/api-endpoint';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -69,13 +70,7 @@ export default function RegisterPage() {
     try {
       const { confirmPassword, ...submitData } = formData;
 
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submitData),
-      });
+      const response = await authApi.register(submitData);
 
       const data = await response.json();
 
