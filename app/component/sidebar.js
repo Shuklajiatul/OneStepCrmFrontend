@@ -48,6 +48,7 @@ const menuItems = [
         ]
     },
     { label: "Custom Table", icon: Table, href: "/custom-table-builder" },
+    { label: "Migrator", icon: Network, href: "/migrator" },
     { label: "Report", icon: ClipboardMinus, href: "/report" },
     { label: "Setting", icon: Settings, href: "/setting" },
     { label: "Help", icon: HelpCircle, href: "/help" },
