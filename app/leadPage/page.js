@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation" // Added imports
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,7 +40,9 @@ import { authUtils } from '@/lib/auth-utils'
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 const LEADS_TABLE_ID = 'dc6032a9-391b-43b6-bab3-405b397d5283'
 
-export default function LeadsPage() {
+function LeadsPageContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [tables, setTables] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -236,6 +239,18 @@ export default function LeadsPage() {
     fetchTables()
   }, [])
 
+  // Handle deep linking to specific table
+  useEffect(() => {
+    const tableId = searchParams.get("tableId")
+    if (tableId && tables.length > 0) {
+      const targetTable = tables.find(t => String(t.table_id) === tableId)
+      if (targetTable) {
+        setSelectedTable(targetTable)
+        setCurrentView("data")
+      }
+    }
+  }, [searchParams, tables])
+
   const fetchTables = async () => {
     setLoading(true)
     setError(null)
@@ -424,6 +439,12 @@ export default function LeadsPage() {
 
   return (
     <div className="space-y-6">
+      {/* ... (existing JSX) ... */}
+      {/* (I am not repeating the whole JSX here, just ensuring the structure is valid.
+       The tool asks for a replacement block. I need to be careful not to delete the JSX body.
+       Actually, I changed the function name to LeadsPageContent above.
+       So I need to change the export at the bottom to wrap this component.)
+      */}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -446,22 +467,24 @@ export default function LeadsPage() {
             Create Table
           </Button>
         </div>
-      </div>
+      </div >
 
       {/* Error Display */}
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-red-700">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error}</span>
-              <Button variant="outline" size="sm" onClick={fetchTables} className="ml-2">
-                Retry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {
+        error && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-red-700">
+                <AlertCircle className="h-4 w-4" />
+                <span>{error}</span>
+                <Button variant="outline" size="sm" onClick={fetchTables} className="ml-2">
+                  Retry
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      }
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -919,6 +942,14 @@ export default function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
+  )
+}
+
+export default function LeadsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <LeadsPageContent />
+    </Suspense>
   )
 }
