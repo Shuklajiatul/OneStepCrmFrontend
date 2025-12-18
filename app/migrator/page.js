@@ -37,7 +37,7 @@ import { Progress } from '@/components/ui/progress';
 import { ArrowLeft, Rocket, RefreshCcw, CheckCircle2, Home, Table } from 'lucide-react';
 
 const App = () => {
-    const router = useRouter(); // Initialize router
+    const router = useRouter();
     const [step, setStep] = useState(1);
     const [sourceType, setSourceType] = useState(null);
     const [config, setConfig] = useState({});

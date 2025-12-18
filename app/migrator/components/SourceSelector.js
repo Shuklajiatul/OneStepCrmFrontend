@@ -3,7 +3,7 @@ import { Database, FileText, Cloud, Server, Code, HardDrive } from 'lucide-react
 
 const SOURCE_OPTIONS = [
   { id: 'mongodb', label: 'MongoDB', icon: Database, description: 'Import from Mongo Atlas or local instance.' },
-  { id: 'sql', label: 'SQL Database', icon: Server, description: 'MySQL, PostgreSQL, MSSQL support.' },
+  { id: 'mysql', label: 'SQL Database', icon: Server, description: 'MySQL, PostgreSQL, MSSQL support.' },
   { id: 'csv', label: 'CSV File', icon: FileText, description: 'Upload or link to a CSV file.' },
   { id: 'api', label: 'REST API', icon: Code, description: 'Fetch data from an external JSON endpoint.' },
   { id: 's3', label: 'Amazon S3', icon: Cloud, description: 'Import files from S3 buckets.' },
@@ -24,8 +24,8 @@ const SourceSelector = ({ selected, onSelect }) => {
             onClick={() => onSelect(option.id)}
             className={`
               relative flex flex-col items-start p-6 rounded-xl border cursor-pointer transition-all duration-200
-              ${isSelected 
-                ? 'border-slate-900 ring-1 ring-slate-900 bg-slate-50' 
+              ${isSelected
+                ? 'border-slate-900 ring-1 ring-slate-900 bg-slate-50'
                 : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'}
             `}
           >

@@ -75,7 +75,7 @@ const ConfigForm = ({ sourceType, initialConfig, onSubmit, isLoading, onCancel }
             </div>
           </div>
         );
-      case 'sql':
+      case 'mysql':
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -86,9 +86,21 @@ const ConfigForm = ({ sourceType, initialConfig, onSubmit, isLoading, onCancel }
                   name="host"
                   value={config.host || ''}
                   onChange={handleChange}
-                  placeholder="localhost"
+                  placeholder="127.0.0.1"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="port">Port</Label>
+                <Input
+                  id="port"
+                  name="port"
+                  value={config.port || ''}
+                  onChange={handleChange}
+                  placeholder="3306"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="database">Database</Label>
                 <Input
@@ -99,15 +111,26 @@ const ConfigForm = ({ sourceType, initialConfig, onSubmit, isLoading, onCancel }
                   placeholder="database_name"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="table">Table</Label>
+                <Input
+                  id="table"
+                  name="table"
+                  value={config.table || ''}
+                  onChange={handleChange}
+                  placeholder="table_name"
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="user">User</Label>
                 <Input
-                  id="username"
-                  name="username"
-                  value={config.username || ''}
+                  id="user"
+                  name="user"
+                  value={config.user || ''}
                   onChange={handleChange}
+                  placeholder="root"
                 />
               </div>
               <div className="space-y-2">
