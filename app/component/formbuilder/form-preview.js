@@ -693,10 +693,27 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         return processedField
       }
 
-      // Combine all regular fields into one array for the 'fields' key
+      // Split regular fields based on isLeadColumn
+      // isLeadColumn: true -> extraFields (to be added to DB)
+      // isLeadColumn: false -> fields (just form fields)
+
+      // Note: extraFields variable here contains regular form fields (source!='table')
+      const regularLeadFields = extraFields.filter(f => f.isLeadColumn)
+      const regularNonLeadFields = extraFields.filter(f => !f.isLeadColumn)
+
+      const processedLeadFields = regularLeadFields.map(processFieldData)
+      const processedNonLeadFields = regularNonLeadFields.map(processFieldData)
+      const processedTableFields = tableFields.map(processFieldData)
+
+      // Split group subfields based on isLeadColumn
+      const groupSubFieldsLead = groupSubFieldsForMainArray.filter(f => f.isLeadColumn === "true" || f.isLeadColumn === true)
+      const groupSubFieldsNonLead = groupSubFieldsForMainArray.filter(f => f.isLeadColumn !== "true" && f.isLeadColumn !== true)
+
+      // Combine for the 'fields' key (Table Columns + Non-Lead Regular Fields + Non-Lead Group Subfields)
       const allFieldsPayload = [
-        ...tableFields.map(processFieldData),
-        ...extraFields.map(processFieldData)
+        ...processedTableFields,
+        ...processedNonLeadFields,
+        ...groupSubFieldsNonLead
       ]
 
       // Prepare the form data for API
@@ -707,17 +724,14 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         description: formDescription,
         g_id: mappedGene,
         created_by: userId,
-        extraFields: [],
-        fields: [...allFieldsPayload, ...groupSubFieldsForMainArray],
+        extraFields: [...processedLeadFields, ...groupSubFieldsLead],
+        fields: allFieldsPayload,
         group: JSON.stringify(processedGroupFields),
         published: true,
         retry_count: retryCount
       }
 
       try {
-        // Use formsApi.create but mapping logic might be needed if endpoint differs
-        // Original code used POST /api/forms, formsApi uses /api/forms/create
-        // We will try using formsApi.create. If the backend strictly expects /api/forms, we might need to adjust api-endpoint.
         const response = await formsApi.create(formPayload);
 
         const result = response.data
@@ -762,6 +776,16 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
   const validateNestedField = (nestedField, value) => {
     const errors = []
+
+    // Required validation
+    const isRequired = nestedField.required || nestedField.validation?.required || nestedField.isLeadColumn === true || nestedField.isLeadColumn === "true"
+
+    if (isRequired) {
+      if (!value || (typeof value === "string" && value.trim() === "")) {
+        errors.push("This field is required")
+      }
+      // Add other type specific empty checks if needed, but usually nested fields are simple inputs
+    }
 
     // File type validation
     if (nestedField.type === "file" && value) {
@@ -887,8 +911,9 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
   const validateField = (field, value) => {
     const errors = []
 
-    // Required validation - check both field.required and validation.required
-    const isRequired = field.required || field.validation?.required
+    // Required validation - check both field.required, validation.required, and isLeadColumn
+    // Lead columns are always required
+    const isRequired = field.required || field.validation?.required || field.isLeadColumn === true || field.isLeadColumn === "true"
     if (isRequired) {
       if (field.type === "select") {
         if (field.validation?.multiple) {
