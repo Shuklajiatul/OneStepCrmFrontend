@@ -2412,12 +2412,12 @@ export default function PublicFormPage() {
               group.fields.forEach(fieldRef => {
                 // Check if fieldRef is a string (field ID reference)
                 if (typeof fieldRef === 'string') {
-                  // Find the matching field in parsedFields by ID
-                  const matchingField = parsedFields.find(f => f.id === fieldRef || f.originalId === fieldRef)
+                  // Find the matching field in parsedFields by ID (ensure strict string comparison)
+                  const matchingField = parsedFields.find(f => String(f.id) === String(fieldRef) || String(f.originalId) === String(fieldRef))
                   if (matchingField) {
                     // console.log('✅ Found matching subfield:', fieldRef, matchingField.label)
                     subFields.push(matchingField)
-                    groupFieldIds.add(fieldRef)
+                    groupFieldIds.add(String(fieldRef))
                   } else {
                     console.warn('⚠️ Could not find matching field for group ref:', fieldRef)
                   }
@@ -2472,7 +2472,7 @@ export default function PublicFormPage() {
                   }
 
                   subFields.push(parsedSubField)
-                  groupFieldIds.add(fieldRef.id)
+                  groupFieldIds.add(String(fieldRef.id))
                 }
               })
             }
@@ -2494,7 +2494,7 @@ export default function PublicFormPage() {
           // Remove fields that belong to groups from the main parsedFields array
           // (they should only appear inside their group)
           const fieldsNotInGroups = parsedFields.filter(f =>
-            f.type === 'group' || !groupFieldIds.has(f.id) && !groupFieldIds.has(f.originalId)
+            f.type === 'group' || (!groupFieldIds.has(String(f.id)) && !groupFieldIds.has(String(f.originalId)))
           )
 
           // Replace parsedFields with the filtered version
