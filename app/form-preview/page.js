@@ -265,6 +265,7 @@ export default function FormPreviewPage() {
             validations: JSON.stringify(field.validations || field.validation || {}),
             hasNested: field.hasNested ? "true" : "false",
             isLeadColumn: field.isLeadColumn ? "true" : "false",
+            isNew: field.isNew,
             options: JSON.stringify(processedOptions.map(option => ({
               value: typeof option === 'string' ? option : option.value,
               label: typeof option === 'string' ? option : option.label,
@@ -302,7 +303,10 @@ export default function FormPreviewPage() {
             validations: JSON.stringify(subField.validation || subField.validations || {}),
             hasNested: "false",
             options: JSON.stringify(optionsArray),
-            isLeadColumn: subField.isLeadColumn ? "true" : "false"
+            hasNested: "false",
+            options: JSON.stringify(optionsArray),
+            isLeadColumn: subField.isLeadColumn ? "true" : "false",
+            isNew: subField.isNew
           }
         }
 
@@ -431,35 +435,47 @@ export default function FormPreviewPage() {
             validations: JSON.stringify(field.validation || field.validations || {}),
             hasNested: hasNestedFields ? "true" : "false",
             options: JSON.stringify(optionsArray),
-            isLeadColumn: field.isLeadColumn ? "true" : "false"
+            options: JSON.stringify(optionsArray),
+            isLeadColumn: field.isLeadColumn ? "true" : "false",
+            isNew: field.isNew
           }
         })
 
-        // Combine all fields into one array for the 'fields' key
-        // Note: We are now moving regular fields (that were in extraFields) to fields
-        // and keeping extraFields empty or minimal if needed.
-        const allFieldsPayload = [
+        // Process fields for the 'fields' array (Table Columns + Non-Lead Regular Fields + Existing Lead Regular Fields)
+        // Logic: Go to 'fields' if it's NOT (New AND Lead)
+        const processedNonLeadFields = processedRegularFields.filter(f => !(f.isNew && f.isLeadColumn === "true"))
+
+        // Process fields for the 'extraFields' array (Only New Lead Regular Fields)
+        const processedExtraFields = processedRegularFields.filter(f => f.isNew && f.isLeadColumn === "true")
+
+        // Split group subfields based on isLeadColumn AND isNew
+        const groupSubFieldsLead = groupSubFieldsForMainArray.filter(f => f.isNew && (f.isLeadColumn === "true" || f.isLeadColumn === true))
+        const groupSubFieldsNonLead = groupSubFieldsForMainArray.filter(f => !(f.isNew && (f.isLeadColumn === "true" || f.isLeadColumn === true)))
+
+        // Combine for the main 'fields' array
+        const allMainFields = [
           ...processedTableFields,
-          ...processedRegularFields
+          ...processedNonLeadFields,
+          ...groupSubFieldsNonLead
         ]
 
         // Prepare the update payload
         const updatePayload = {
-          organization_id: ORGANIZATION_ID,
           form_id: editFormData.formId,
+          organization_id: ORGANIZATION_ID,
           table_id: TABLE_ID,
           form_name: editFormData.formName,
           description: editFormData.description,
           g_id: latestGId,
           created_by: userId,
-          extraFields: [],
-          fields: [...allFieldsPayload, ...groupSubFieldsForMainArray],
-          group: processedGroupFields,
+          extraFields: [...processedExtraFields, ...groupSubFieldsLead],
+          fields: allMainFields,
+          group: JSON.stringify(processedGroupFields),
           published: true,
           retry_count: latestRetryCount
         }
 
-        console.log('📤 Update Payload:', updatePayload)
+        console.log('📤 Update Payload:', JSON.stringify(updatePayload))
 
         // Send update request
         const response = await formsApi.update(updatePayload)

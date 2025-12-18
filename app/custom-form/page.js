@@ -466,8 +466,10 @@ export default function CustomFormPage() {
         placeholder: "",
         required: false,
         options: ["select", "checkbox", "radio"].includes(type) ? ["Option 1", "Option 2", "Option 3"] : undefined,
+        options: ["select", "checkbox", "radio"].includes(type) ? ["Option 1", "Option 2", "Option 3"] : undefined,
         validation: {},
         nestedFields: {},
+        isNew: true, // Mark as new field
       }
       setFields(prev => {
         const newFields = [...prev, newField]
@@ -686,8 +688,10 @@ export default function CustomFormPage() {
           placeholder: "",
           required: false,
           options: ["select", "checkbox", "radio"].includes(fieldType) ? ["Option 1", "Option 2", "Option 3"] : undefined,
+          options: ["select", "checkbox", "radio"].includes(fieldType) ? ["Option 1", "Option 2", "Option 3"] : undefined,
           validation: {},
           nestedFields: {},
+          isNew: true, // Mark as new field
         }
 
         // Add to group
