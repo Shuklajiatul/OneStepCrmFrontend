@@ -462,6 +462,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
           name: field.tableColumnName || field.label.toLowerCase().replace(/\s+/g, '_'),
           label: field.label,
           type: field.type,
+          placeholder: field.placeholder || "",
           required: field.required || false,
           validations: field.validation || {},
           hasNested: hasNestedFields,
@@ -513,6 +514,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
           name: field.label.toLowerCase().replace(/\s+/g, '_'),
           label: field.label,
           type: field.type,
+          placeholder: field.placeholder || "",
           required: field.required || false,
           validations: field.validation || {},
           hasNested: hasNestedFields,
@@ -546,6 +548,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
             name: nestedField.name || nestedField.label?.toLowerCase().replace(/\s+/g, '_'),
             label: nestedField.label,
             type: nestedField.type,
+            placeholder: nestedField.placeholder || "",
             required: nestedField.required || false,
             validations: nestedField.validation || nestedField.validations || {},
             hasNested: false,
@@ -609,6 +612,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
           name: subField.label?.toLowerCase().replace(/\s+/g, '_') || subField.name,
           label: subField.label,
           type: subField.type,
+          placeholder: subField.placeholder || "",
           required: subField.required ? "true" : "false",
           validations: subField.validation || subField.validations || {},
           hasNested: hasNested,
@@ -674,6 +678,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
           name: field.name,
           label: field.label,
           type: field.type,
+          placeholder: field.placeholder || "",
           required: field.required ? "true" : "false",
           validations: field.validations || {},
           hasNested: field.hasNested || false,
@@ -688,6 +693,12 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         return processedField
       }
 
+      // Combine all regular fields into one array for the 'fields' key
+      const allFieldsPayload = [
+        ...tableFields.map(processFieldData),
+        ...extraFields.map(processFieldData)
+      ]
+
       // Prepare the form data for API
       const formPayload = {
         organization_id: ORGANIZATION_ID,
@@ -696,8 +707,8 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         description: formDescription,
         g_id: mappedGene,
         created_by: userId,
-        extraFields: [...extraFields.map(processFieldData), ...groupSubFieldsForMainArray],
-        fields: tableFields.map(processFieldData),
+        extraFields: [],
+        fields: [...allFieldsPayload, ...groupSubFieldsForMainArray],
         group: JSON.stringify(processedGroupFields),
         published: true,
         retry_count: retryCount

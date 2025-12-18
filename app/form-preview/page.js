@@ -207,6 +207,7 @@ export default function FormPreviewPage() {
               name: nestedField.name || nestedField.label?.toLowerCase().replace(/\s+/g, '_'),
               label: nestedField.label,
               type: nestedField.type,
+              placeholder: nestedField.placeholder || "",
               required: nestedField.required || false,
               validations: nestedField.validation || nestedField.validations || {},
               hasNested: false,
@@ -259,6 +260,7 @@ export default function FormPreviewPage() {
             name: field.name || field.label?.toLowerCase().replace(/\s+/g, '_'),
             label: field.label,
             type: field.type,
+            placeholder: field.placeholder || "",
             required: field.required ? "true" : "false",
             validations: JSON.stringify(field.validations || field.validation || {}),
             hasNested: field.hasNested ? "true" : "false",
@@ -295,6 +297,7 @@ export default function FormPreviewPage() {
             name: subField.label?.toLowerCase().replace(/\s+/g, '_') || subField.name,
             label: subField.label,
             type: subField.type,
+            placeholder: subField.placeholder || "",
             required: subField.required ? "true" : "false",
             validations: JSON.stringify(subField.validation || subField.validations || {}),
             hasNested: "false",
@@ -337,8 +340,8 @@ export default function FormPreviewPage() {
         // Process group fields
         const processedGroupFields = groupFieldsList.map(processGroupFieldData)
 
-        // Process table column fields and extra fields
-        const tableFields = tableColumnFields.map(field => {
+        // Process table column fields
+        const processedTableFields = tableColumnFields.map(field => {
           let optionsArray = []
 
           if (field.options && Array.isArray(field.options)) {
@@ -375,6 +378,7 @@ export default function FormPreviewPage() {
             name: field.tableColumnName || field.label?.toLowerCase().replace(/\s+/g, '_'),
             label: field.label,
             type: field.type,
+            placeholder: field.placeholder || "",
             required: field.required ? "true" : "false",
             validations: JSON.stringify(field.validation || field.validations || {}),
             hasNested: hasNestedFields ? "true" : "false",
@@ -383,8 +387,8 @@ export default function FormPreviewPage() {
           }
         })
 
-        // Prepare extra fields
-        const extraFields = regularFormFields.map(field => {
+        // Process regular form fields (previously called extraFields but now merged into fields)
+        const processedRegularFields = regularFormFields.map(field => {
           let optionsArray = []
 
           if (field.options && Array.isArray(field.options)) {
@@ -422,6 +426,7 @@ export default function FormPreviewPage() {
             name: field.label?.toLowerCase().replace(/\s+/g, '_'),
             label: field.label,
             type: field.type,
+            placeholder: field.placeholder || "",
             required: field.required ? "true" : "false",
             validations: JSON.stringify(field.validation || field.validations || {}),
             hasNested: hasNestedFields ? "true" : "false",
@@ -430,7 +435,13 @@ export default function FormPreviewPage() {
           }
         })
 
-        // Fields are already separated into tableFields (existing) and extraFields (new)
+        // Combine all fields into one array for the 'fields' key
+        // Note: We are now moving regular fields (that were in extraFields) to fields
+        // and keeping extraFields empty or minimal if needed.
+        const allFieldsPayload = [
+          ...processedTableFields,
+          ...processedRegularFields
+        ]
 
         // Prepare the update payload
         const updatePayload = {
@@ -441,8 +452,8 @@ export default function FormPreviewPage() {
           description: editFormData.description,
           g_id: latestGId,
           created_by: userId,
-          extraFields: [...extraFields, ...groupSubFieldsForMainArray],
-          fields: tableFields,
+          extraFields: [],
+          fields: [...allFieldsPayload, ...groupSubFieldsForMainArray],
           group: processedGroupFields,
           published: true,
           retry_count: latestRetryCount
