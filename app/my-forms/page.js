@@ -774,13 +774,23 @@ export default function MyFormsPage() {
 
               // Process options for nested fields
               if ((nestedField.type === 'select' || nestedField.type === 'checkbox' || nestedField.type === 'radio') && nestedField.options) {
-                processedNestedField.options = nestedField.options.map((opt, idx) => ({
-                  value: typeof opt === 'string' ? opt : opt.value,
-                  label: typeof opt === 'string' ? opt : opt.label,
-                  nestedFields: nestedField.nestedFields && nestedField.nestedFields[idx]
-                    ? processNestedFieldsForAPI({ [idx]: nestedField.nestedFields[idx] })
-                    : []
-                }))
+                processedNestedField.options = nestedField.options.map((opt, idx) => {
+                  const optionObj = {
+                    value: typeof opt === 'string' ? opt : opt.value,
+                    label: typeof opt === 'string' ? opt : opt.label,
+                    nestedFields: []
+                  }
+
+                  // Check for nested fields in the option
+                  if (opt.nestedFields && Array.isArray(opt.nestedFields)) {
+                    optionObj.nestedFields = processNestedFieldsForAPI({ [idx]: opt.nestedFields })
+                  } else if (nestedField.nestedFields && nestedField.nestedFields[idx]) {
+                    optionObj.nestedFields = processNestedFieldsForAPI({ [idx]: nestedField.nestedFields[idx] })
+                  }
+
+                  return optionObj
+                })
+
                 processedNestedField.hasNested = processedNestedField.options.some(opt =>
                   opt.nestedFields && opt.nestedFields.length > 0
                 )
@@ -793,7 +803,95 @@ export default function MyFormsPage() {
         return result
       }
 
-      // Prepare the data for API
+      // Helper function to process a single field for API
+      const processFieldForAPI = (field) => {
+        // Process options with nested fields
+        let processedOptions = []
+        if ((field.type === "select" || field.type === "checkbox" || field.type === "radio") && field.options) {
+          processedOptions = (Array.isArray(field.options) ? field.options : []).map((option, optionIndex) => {
+            const optionObj = {
+              value: typeof option === 'string' ? option : option.value,
+              label: typeof option === 'string' ? option : option.label,
+              nestedFields: []
+            }
+
+            // Check both structures for nested fields
+            // 1. Check if option already has nestedFields array (from table columns or option structure)
+            if (option.nestedFields && Array.isArray(option.nestedFields)) {
+              optionObj.nestedFields = processNestedFieldsForAPI({ [optionIndex]: option.nestedFields })
+            }
+            // 2. Check if field has nestedFields[optionIndex] (from form builder)
+            else if (field.nestedFields && field.nestedFields[optionIndex]) {
+              optionObj.nestedFields = processNestedFieldsForAPI({ [optionIndex]: field.nestedFields[optionIndex] })
+            }
+
+            return optionObj
+          })
+        }
+
+        // Check if field has nested fields
+        const hasNested = processedOptions.some(option =>
+          option.nestedFields && option.nestedFields.length > 0
+        )
+
+        // Strip "field-" prefix from field ID
+        let cleanFieldId = field.id
+        if (typeof cleanFieldId === 'string' && cleanFieldId.startsWith('field-')) {
+          cleanFieldId = cleanFieldId.replace('field-', '')
+        }
+
+        // Get field name - prioritize tableColumnName, then label, then name
+        let fieldName = field.tableColumnName || field.name
+        if (!fieldName && field.label) {
+          fieldName = field.label.toLowerCase().replace(/\s+/g, '_')
+        }
+
+        const fieldObj = {
+          id: cleanFieldId,
+          name: fieldName || 'field',
+          type: field.type,
+          required: field.required ? "true" : "false",
+          label: field.label || field.name || 'Field',
+          placeholder: field.placeholder || "",
+          isLeadColumn: field.isLeadColumn ? "true" : "false",
+          hasNested: hasNested ? "true" : "false"
+        }
+
+        // Handle options - convert processed options array to JSON string
+        if ((field.type === "select" || field.type === "checkbox" || field.type === "radio") && field.options) {
+          fieldObj.options = JSON.stringify(processedOptions)
+        } else {
+          fieldObj.options = "[]"
+        }
+
+        // Handle validation
+        const validation = {
+          required: field.required || false,
+          multiple: field.validation?.multiple || false,
+          min: field.validation?.min,
+          max: field.validation?.max,
+          accept: field.validation?.accept,
+          pattern: field.validation?.pattern
+        }
+
+        // Remove undefined values
+        Object.keys(validation).forEach(key => {
+          if (validation[key] === undefined) {
+            delete validation[key]
+          }
+        })
+
+        fieldObj.validations = JSON.stringify(field.validation || validation)
+
+        return fieldObj
+      }
+
+      // Process all fields into a single array (matching create response structure)
+      const allFields = updatedData.fields
+        .filter(field => field.type !== 'group') // Exclude group fields from main fields array
+        .map(processFieldForAPI)
+
+      // Prepare the data for API - sending all fields in one array
       const apiData = {
         form_id: editingForm.form_id,
         table_id: process.env.NEXT_PUBLIC_TABLE_ID,
@@ -801,80 +899,129 @@ export default function MyFormsPage() {
         form_name: updatedData.form_name,
         description: updatedData.description,
         retry_count: updatedData.retry_count || editingForm.retry_count || editingForm.max_retry_count || "2",
-        fields: updatedData.fields.map(field => {
-          // Process options with nested fields
+        fields: allFields,
+        extraFields: [], // Keep as empty array for compatibility
+        group: "[]" // Initialize as empty
+      }
+
+      // Process group fields separately
+      const groupFieldsList = updatedData.fields.filter(field => field.type === 'group')
+
+      if (groupFieldsList.length > 0) {
+        // Helper function to process subFields inside group fields
+        const processSubFieldForAPI = (subField) => {
+          // Strip "field-" prefix from subfield ID
+          let cleanSubFieldId = subField.id
+          if (typeof cleanSubFieldId === 'string' && cleanSubFieldId.startsWith('field-')) {
+            cleanSubFieldId = cleanSubFieldId.replace('field-', '')
+          }
+
           let processedOptions = []
-          if ((field.type === "select" || field.type === "checkbox" || field.type === "radio") && field.options) {
-            processedOptions = (Array.isArray(field.options) ? field.options : []).map((option, optionIndex) => {
+          if (subField.options && Array.isArray(subField.options)) {
+            processedOptions = subField.options.map((option, idx) => {
               const optionObj = {
                 value: typeof option === 'string' ? option : option.value,
                 label: typeof option === 'string' ? option : option.label,
                 nestedFields: []
               }
 
-              // Check both structures for nested fields
-              // 1. Check if option already has nestedFields array (from table columns or option structure)
+              // Check for nested fields
               if (option.nestedFields && Array.isArray(option.nestedFields)) {
-                optionObj.nestedFields = option.nestedFields
-              }
-              // 2. Check if field has nestedFields[optionIndex] (from form builder)
-              else if (field.nestedFields && field.nestedFields[optionIndex]) {
-                optionObj.nestedFields = processNestedFieldsForAPI({ [optionIndex]: field.nestedFields[optionIndex] })
+                optionObj.nestedFields = processNestedFieldsForAPI({ [idx]: option.nestedFields })
+              } else if (subField.nestedFields && subField.nestedFields[idx]) {
+                optionObj.nestedFields = processNestedFieldsForAPI({ [idx]: subField.nestedFields[idx] })
               }
 
               return optionObj
             })
           }
 
-          // Check if field has nested fields
-          const hasNested = processedOptions.some(option =>
-            option.nestedFields && option.nestedFields.length > 0
+          // Check if this field has nested fields
+          const hasNested = processedOptions.some(
+            option => option.nestedFields && option.nestedFields.length > 0
           )
 
-          const fieldObj = {
-            name: field.name || field.id,
-            type: field.type,
-            required: field.required ? "true" : "false",
-            label: field.label || field.name || 'Field',
-            placeholder: field.placeholder || "",
-            isLeadColumn: field.isLeadColumn ? "true" : "false",
-            hasNested: hasNested
+          // Get field name
+          let fieldName = subField.name
+          if (!fieldName && subField.label) {
+            fieldName = subField.label.toLowerCase().replace(/\s+/g, '_')
           }
 
-          // Handle options - convert processed options array to JSON string
-          if ((field.type === "select" || field.type === "checkbox" || field.type === "radio") && field.options) {
-            fieldObj.options = JSON.stringify(processedOptions)
-          } else {
-            fieldObj.options = "[]"
+          const processedSubField = {
+            id: cleanSubFieldId,
+            name: fieldName || 'field',
+            label: subField.label,
+            type: subField.type,
+            required: subField.required ? "true" : "false",
+            validations: JSON.stringify(subField.validation || subField.validations || {}),
+            hasNested: hasNested ? "true" : "false",
+            options: JSON.stringify(processedOptions),
+            isLeadColumn: subField.isLeadColumn ? "true" : "false"
           }
 
-          // Handle validation - include ALL validation properties
-          const validation = {
-            multiple: field.validation?.multiple || false,
-            required: field.required || false,
-            min: field.validation?.min,
-            max: field.validation?.max,
-            accept: field.validation?.accept,
-            pattern: field.validation?.pattern
+          return processedSubField
+        }
+
+        // Extract fields from groups and collect field IDs for group references
+        const groupSubFieldsForMainArray = []
+        const processedGroupFields = groupFieldsList.map(groupField => {
+          // Strip "field-" prefix from group field ID
+          let cleanGroupId = groupField.id
+          if (typeof cleanGroupId === 'string' && cleanGroupId.startsWith('field-')) {
+            cleanGroupId = cleanGroupId.replace('field-', '')
           }
 
-          // Remove undefined values
-          Object.keys(validation).forEach(key => {
-            if (validation[key] === undefined) {
-              delete validation[key]
-            }
-          })
-
-          // Use the field's validation object if available
-          if (field.validation) {
-            fieldObj.validations = JSON.stringify(field.validation)
-          } else {
-            fieldObj.validations = JSON.stringify(validation)
+          // Process all subFields inside the group and collect their IDs
+          const fieldIds = []
+          if (groupField.subFields && Array.isArray(groupField.subFields)) {
+            groupField.subFields.forEach(subField => {
+              // Process the subField as a full field object
+              const processedSubField = processSubFieldForAPI(subField)
+              // Add to the main fields array
+              groupSubFieldsForMainArray.push(processedSubField)
+              // Collect the field ID for the group reference
+              fieldIds.push(processedSubField.id)
+            })
           }
 
-          return fieldObj
+          return {
+            id: cleanGroupId,
+            name: groupField.label?.toLowerCase().replace(/\s+/g, '_') || groupField.name,
+            label: groupField.label,
+            type: "group",
+            required: groupField.required ? "true" : "false",
+            fields: fieldIds
+          }
         })
+
+        // Add group subfields to the main fields array
+        apiData.fields.push(...groupSubFieldsForMainArray)
+
+        // Set group data
+        apiData.group = JSON.stringify(processedGroupFields)
       }
+
+      // Add mapped_gene if it exists in editingForm
+      if (editingForm.mapped_gene) {
+        apiData.g_id = editingForm.mapped_gene
+      }
+
+      // Add created_by if it exists in editingForm
+      if (editingForm.created_by) {
+        apiData.created_by = editingForm.created_by
+      }
+
+      // Add published status
+      apiData.published = editingForm.published !== false
+
+      console.log('Update payload structure:', {
+        form_id: apiData.form_id,
+        table_id: apiData.table_id,
+        form_name: apiData.form_name,
+        total_fields: apiData.fields.length,
+        has_group: apiData.group !== "[]",
+        retry_count: apiData.retry_count
+      })
 
       const result = await updateForm(apiData)
 

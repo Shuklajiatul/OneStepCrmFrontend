@@ -652,10 +652,9 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
       // Process group fields
       const processedGroupFields = groupFieldsList.map(processGroupFieldData)
 
-      // Separate fields based on isLeadColumn setting
-      const allFields = [...tableFields, ...extraFields]
-      const regularFields = allFields.filter(field => !field.isLeadColumn)
-      const leadDatabaseFields = allFields.filter(field => field.isLeadColumn)
+      // Separate fields based on source (Table Columns vs New Fields)
+      // tableFields contains source='table'
+      // extraFields contains source!='table' && source!='group'
 
 
 
@@ -697,8 +696,8 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
         description: formDescription,
         g_id: mappedGene,
         created_by: userId,
-        extraFields: [...regularFields.map(processFieldData), ...groupSubFieldsForMainArray],
-        fields: leadDatabaseFields.map(processFieldData),
+        extraFields: [...extraFields.map(processFieldData), ...groupSubFieldsForMainArray],
+        fields: tableFields.map(processFieldData),
         group: JSON.stringify(processedGroupFields),
         published: true,
         retry_count: retryCount

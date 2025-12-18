@@ -431,8 +431,9 @@ export default function CustomFormPage() {
         nestedFields: {},
         onAddTableColumns: (newFields) => {
           if (Array.isArray(newFields) && newFields.length > 0) {
-            // Ensure all field IDs are unique before adding
-            const fieldsWithUniqueIds = ensureUniqueFieldIds(newFields)
+            // Ensure all field IDs are unique and source is set to 'table'
+            const fieldsWithSource = newFields.map(f => ({ ...f, source: 'table' }))
+            const fieldsWithUniqueIds = ensureUniqueFieldIds(fieldsWithSource)
             setFields(prev => {
               const updatedFields = [...prev, ...fieldsWithUniqueIds]
 

@@ -188,8 +188,8 @@ export default function FormPreviewPage() {
 
         // Separate fields by type
         const groupFieldsList = latestFields.filter(field => field.type === 'group')
-        const regularFormFields = latestFields.filter(field => field.type !== 'group' && !field.tableColumnId)
-        const tableColumnFields = latestFields.filter(field => field.tableColumnId)
+        const regularFormFields = latestFields.filter(field => field.type !== 'group' && !field.tableColumnId && field.source !== 'table')
+        const tableColumnFields = latestFields.filter(field => field.tableColumnId || field.source === 'table')
 
         // Recursive function to process nested fields for API payload
         const processNestedFieldsForAPI = (nestedFields) => {
@@ -430,10 +430,7 @@ export default function FormPreviewPage() {
           }
         })
 
-        // Separate fields based on isLeadColumn setting
-        const allFields = [...tableFields, ...extraFields]
-        const regularFields = allFields.filter(field => field.isLeadColumn === "false")
-        const leadDatabaseFields = allFields.filter(field => field.isLeadColumn === "true")
+        // Fields are already separated into tableFields (existing) and extraFields (new)
 
         // Prepare the update payload
         const updatePayload = {
@@ -444,8 +441,8 @@ export default function FormPreviewPage() {
           description: editFormData.description,
           g_id: latestGId,
           created_by: userId,
-          extraFields: [...regularFields, ...groupSubFieldsForMainArray],
-          fields: leadDatabaseFields,
+          extraFields: [...extraFields, ...groupSubFieldsForMainArray],
+          fields: tableFields,
           group: processedGroupFields,
           published: true,
           retry_count: latestRetryCount
