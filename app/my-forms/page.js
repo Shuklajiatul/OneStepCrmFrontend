@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// The old Pagination component is no longer used, but the import remains for now
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
 // Import Tooltip components
 import {
@@ -673,7 +672,8 @@ export default function MyFormsPage() {
                 } else {
                   // It's a field ID reference - find the matching field in parsedFields
                   const fieldId = typeof fieldRef === 'string' ? fieldRef : fieldRef.id
-                  const matchingField = parsedFields.find(f => f.id === fieldId || f.name === fieldId)
+                  // Ensure strict string comparison for IDs to avoid type mismatches (number vs string)
+                  const matchingField = parsedFields.find(f => String(f.id) === String(fieldId) || f.name === fieldId)
                   if (matchingField) {
                     subFields.push(matchingField)
                   }
@@ -699,10 +699,10 @@ export default function MyFormsPage() {
               group.fields.forEach(fieldRef => {
                 // Only add to removal set if it's an ID reference
                 if (typeof fieldRef === 'string') {
-                  groupFieldIds.add(fieldRef)
+                  groupFieldIds.add(String(fieldRef))
                 } else if (fieldRef.id && !fieldRef.type) {
                   // It's an object with just id (reference)
-                  groupFieldIds.add(fieldRef.id)
+                  groupFieldIds.add(String(fieldRef.id))
                 }
               })
             }
@@ -710,7 +710,7 @@ export default function MyFormsPage() {
 
           // Filter out fields that belong to groups (only those that were ID references)
           const fieldsNotInGroups = parsedFields.filter(f =>
-            !groupFieldIds.has(f.id) && !groupFieldIds.has(f.name)
+            !groupFieldIds.has(String(f.id)) && !groupFieldIds.has(f.name)
           )
 
           // Combine non-group fields with group fields
