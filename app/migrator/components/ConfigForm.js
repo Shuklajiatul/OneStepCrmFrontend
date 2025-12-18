@@ -46,7 +46,18 @@ const ConfigForm = ({ sourceType, initialConfig, onSubmit, isLoading, onCancel }
                 required
               />
             </div>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="collection">Collection Name</Label>
+              <Input
+                id="collection"
+                name="collection"
+                value={config.collection || ''}
+                onChange={handleChange}
+                placeholder="my_collection"
+                required
+              />
+            </div>
+          </div >
         );
       case 'csv':
         return (
