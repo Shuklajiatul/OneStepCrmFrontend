@@ -99,7 +99,8 @@ const MappingInterface = ({
       onMappingChange(sourceField, {
         sourceField,
         destinationColumnId: 'new',
-        newColumnName: sourceField
+        newColumnName: sourceField,
+        newColumnType: 'string' // Default to string
       });
     } else {
       onMappingChange(sourceField, {
@@ -116,18 +117,25 @@ const MappingInterface = ({
     }
   };
 
+  const handleNewDataTypeChange = (sourceField, newType) => {
+    const current = mappings[sourceField];
+    if (current && current.destinationColumnId === 'new') {
+      onMappingChange(sourceField, { ...current, newColumnType: newType });
+    }
+  };
+
   // If no table is selected, show table selection
   if (!selectedTableId) {
     return (
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-slate-900">Select Destination Table</h3>
+        <h3 className="text-lg font-semibold text-slate-900 border-l-4 border-primary pl-3">Select Destination Table</h3>
 
         {isLoadingTables ? (
-          <div className="flex justify-center p-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="flex justify-center p-12">
+            <Loader2 className="h-10 w-10 animate-spin text-primary/80" />
           </div>
         ) : availableTables.length === 0 ? (
-          <div className="text-center p-8 border rounded-lg bg-slate-50 text-slate-500">
+          <div className="text-center p-10 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 text-slate-500">
             No tables found in your organization.
           </div>
         ) : (
@@ -136,13 +144,13 @@ const MappingInterface = ({
               <button
                 key={table.table_id || table.id}
                 onClick={() => onTableSelect(table.table_id || table.id)}
-                className="flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-lg hover:border-slate-400 hover:shadow-sm transition-all text-left group"
+                className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:border-primary hover:ring-1 hover:ring-primary/20 hover:shadow-md transition-all text-left group"
               >
-                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-slate-900 group-hover:text-white transition-colors">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
                   <TableIcon size={20} />
                 </div>
                 <div>
-                  <div className="font-medium text-slate-900">{table.table_name || table.name}</div>
+                  <div className="font-semibold text-slate-900 group-hover:text-primary transition-colors">{table.table_name || table.name}</div>
                   <div className="text-xs text-slate-500">Click to select</div>
                 </div>
               </button>
@@ -158,33 +166,33 @@ const MappingInterface = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200">
-        <div className="flex items-center gap-2">
-          <div className="bg-white p-2 rounded-md border border-slate-200">
-            <TableIcon size={16} className="text-slate-600" />
+      <div className="flex items-center justify-between bg-slate-50/80 p-4 rounded-xl border border-slate-200/60 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm">
+            <TableIcon size={18} className="text-primary" />
           </div>
           <div>
-            <div className="text-xs text-slate-500 font-medium uppercase tracking-wider">Mapping To</div>
-            <div className="font-semibold text-slate-900">{selectedTableName}</div>
+            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Mapping To</div>
+            <div className="font-bold text-slate-900 text-lg">{selectedTableName}</div>
           </div>
         </div>
         <button
           onClick={() => onTableSelect(null)}
-          className="text-xs font-medium text-slate-500 hover:text-slate-900 underline"
+          className="text-xs font-semibold text-primary hover:text-primary/80 hover:underline px-3 py-1.5 bg-primary/5 rounded-md transition-colors"
         >
           Change Table
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-12 bg-slate-50 border-b border-slate-200 p-3 font-medium text-slate-500 text-xs uppercase tracking-wider">
-          <div className="col-span-5 pl-2">Source Field</div>
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="grid grid-cols-12 bg-slate-50/80 border-b border-slate-200 p-3 font-semibold text-slate-500 text-xs uppercase tracking-wider">
+          <div className="col-span-4 pl-3">Source Field</div>
           <div className="col-span-1"></div>
-          <div className="col-span-6">Destination Column</div>
+          <div className="col-span-7 pl-1">Destination Column</div>
         </div>
 
         {isLoadingColumns ? (
-          <div className="flex justify-center p-8">
+          <div className="flex justify-center p-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
@@ -195,29 +203,29 @@ const MappingInterface = ({
               const isMapped = mapping.destinationColumnId && mapping.destinationColumnId !== '';
 
               return (
-                <div key={field} className={`grid grid-cols-12 p-3 items-center transition-colors ${isMapped ? 'bg-white' : 'bg-slate-50/30'}`}>
-                  <div className="col-span-5 font-medium text-slate-700 truncate pl-2" title={field}>
+                <div key={field} className={`grid grid-cols-12 p-3 items-center transition-colors hover:bg-slate-50 ${isMapped ? 'bg-white' : 'bg-slate-50/30'}`}>
+                  <div className="col-span-4 font-medium text-slate-700 truncate pl-3" title={field}>
                     {field}
                   </div>
 
                   <div className="col-span-1 flex justify-center text-slate-300">
-                    <ArrowRight size={14} />
+                    <ArrowRight size={16} className={isMapped ? "text-primary/40" : ""} />
                   </div>
 
-                  <div className="col-span-6 flex gap-2">
-                    <div className="flex-1 relative">
+                  <div className="col-span-7 flex gap-2">
+                    <div className="flex-1 relative min-w-[140px]">
                       <select
                         value={mapping.destinationColumnId || ''}
                         onChange={(e) => handleMappingUpdate(field, e.target.value)}
                         className={`
-                                h-9 w-full rounded-md border text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 bg-transparent px-3
+                                h-10 w-full rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-offset-0 transition-all cursor-pointer bg-transparent px-3
                                 ${isNew
-                            ? 'border-blue-200 bg-blue-50/50 text-blue-700'
-                            : 'border-slate-200 text-slate-700'}
+                            ? 'border-blue-300 bg-blue-50/50 text-blue-700 focus:ring-blue-400/50'
+                            : 'border-slate-200 text-slate-700 focus:ring-primary/20 focus:border-primary'}
                             `}
                       >
-                        <option value="">-- Ignore --</option>
-                        <option value="create_new" className="font-semibold text-blue-600">+ Create New Column</option>
+                        <option value="">-- Ignore Field --</option>
+                        <option value="create_new" className="font-semibold text-blue-600 bg-blue-50">+ Create New Column</option>
                         <optgroup label="Existing Columns">
                           {targetColumns.map(col => (
                             <option key={col.id} value={col.id}>{col.name} ({col.type})</option>
@@ -227,13 +235,28 @@ const MappingInterface = ({
                     </div>
 
                     {isNew && (
-                      <input
-                        type="text"
-                        placeholder="Column Name"
-                        value={mapping.newColumnName || ''}
-                        onChange={(e) => handleNewNameChange(field, e.target.value)}
-                        className="flex-1 h-9 rounded-md border border-blue-200 bg-blue-50 px-3 text-sm text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 placeholder:text-blue-300"
-                      />
+                      <>
+                        <input
+                          type="text"
+                          placeholder="Column Name"
+                          value={mapping.newColumnName || ''}
+                          onChange={(e) => handleNewNameChange(field, e.target.value)}
+                          className="flex-1 h-10 rounded-lg border border-blue-300 bg-blue-50/50 px-3 text-sm text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400/50 placeholder:text-blue-300/70 min-w-[120px]"
+                        />
+                        <select
+                          value={mapping.newColumnType || 'string'}
+                          onChange={(e) => handleNewDataTypeChange(field, e.target.value)}
+                          className="w-[100px] h-10 rounded-lg border border-blue-300 bg-blue-50/50 px-2 text-sm text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400/50 cursor-pointer"
+                        >
+                          <option value="string">Text</option>
+                          <option value="number">Number</option>
+                          <option value="boolean">Boolean</option>
+                          <option value="email">Email</option>
+                          <option value="phone">Phone</option>
+                          <option value="url">URL</option>
+                          <option value="date">Date</option>
+                        </select>
+                      </>
                     )}
                   </div>
                 </div>
