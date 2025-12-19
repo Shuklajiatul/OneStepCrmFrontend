@@ -79,6 +79,7 @@ export function SortableSubFieldItem({
                     )}
                     <Label className={cn("cursor-pointer", isSelected ? 'text-primary font-medium' : '')}>
                         {subField.label}
+                        {subField.required && <span className="text-red-500 ml-1 font-bold">*</span>}
                     </Label>
                 </div>
 

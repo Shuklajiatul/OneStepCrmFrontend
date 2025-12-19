@@ -792,7 +792,7 @@ const renderNestedFields = (field, selectedOptions, onChange, parentValue, disab
               <div className="flex items-center justify-between min-w-0">
                 <Label className="text-sm font-medium truncate">
                   {nestedField.label}
-                  {/* Required asterisk removed for nested fields - only parent form validation applies */}
+                  {nestedField.required && <span className="text-red-500 ml-1 font-bold">*</span>}
                 </Label>
                 {!hideFieldTypes && (
                   <Badge variant="outline" className="text-xs flex-shrink-0 ml-2">
@@ -3228,7 +3228,10 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
 
                   return (
                     <div key={subField.id} className="space-y-2">
-                      <Label>{subField.label}</Label>
+                      <Label>
+                        {subField.label}
+                        {subField.required && <span className="text-red-500 ml-1 font-bold">*</span>}
+                      </Label>
                       {renderNestedFieldInput(
                         subField,
                         subFieldValue,
