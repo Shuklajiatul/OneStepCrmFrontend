@@ -12,9 +12,16 @@ import { useState, useEffect, useMemo, useCallback, memo } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { authUtils } from '@/lib/auth-utils'
 import { useRouter } from 'next/navigation'
-import { genesApi, formsApi } from '@/lib/api-endpoint'
+import { genesApi, formsApi, datatablesApi } from '@/lib/api-endpoint'
 
 // Helper function to process field options with nested structure
 const processFieldOptions = (field) => {
@@ -181,6 +188,9 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
   const [mappedGene, setMappedGene] = useState("")
   const [availableGenes, setAvailableGenes] = useState([])
   const [isLoadingGenes, setIsLoadingGenes] = useState(false)
+  const [availableTables, setAvailableTables] = useState([])
+  const [selectedTable, setSelectedTable] = useState("")
+  const [isLoadingTables, setIsLoadingTables] = useState(false)
 
   // Check authentication
   useEffect(() => {
@@ -239,6 +249,36 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
     }
   }, [isEditMode, formData?.mapped_gene])
 
+  // Fetch tables from API
+  const fetchTables = useCallback(async () => {
+    setIsLoadingTables(true)
+    try {
+      const response = await datatablesApi.getAll();
+      const result = response.data;
+
+      if (Array.isArray(result)) {
+        setAvailableTables(result)
+      } else if (result.success && result.data) {
+        setAvailableTables(result.data)
+      } else if (Array.isArray(result.data)) {
+        setAvailableTables(result.data)
+      }
+
+      // If in edit mode and formData has table_id, set it
+      if (isEditMode && formData?.table_id) {
+        setSelectedTable(prev => prev || formData.table_id)
+      } else if (TABLE_ID) {
+        // Fallback to env var if available
+        setSelectedTable(prev => prev || TABLE_ID)
+      }
+    } catch (error) {
+      console.error('Error fetching tables:', error)
+      toast.error("Failed to load tables list")
+    } finally {
+      setIsLoadingTables(false)
+    }
+  }, [isEditMode, formData?.table_id])
+
   // Populate form metadata when in edit mode
   useEffect(() => {
     if (isEditMode && formData) {
@@ -253,8 +293,9 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
   useEffect(() => {
     if (authUtils.isAuthenticated()) {
       fetchGenes()
+      fetchTables()
     }
-  }, [fetchGenes])
+  }, [fetchGenes, fetchTables])
 
   // Notify parent component when retry count changes
   useEffect(() => {
@@ -335,6 +376,11 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
     if (!mappedGene) {
       toast.error("Please select a mapped gene")
+      return
+    }
+
+    if (!selectedTable) {
+      toast.error("Please select a target table")
       return
     }
 
@@ -719,7 +765,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
       // Prepare the form data for API
       const formPayload = {
         organization_id: ORGANIZATION_ID,
-        table_id: TABLE_ID,
+        table_id: selectedTable,
         form_name: formName,
         description: formDescription,
         g_id: mappedGene,
@@ -1196,21 +1242,26 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
               <Label htmlFor="mapped-gene" className="text-sm font-medium">
                 Map Gene *
               </Label>
-              <select
-                id="mapped-gene"
+              <Select
                 value={mappedGene}
-                onChange={(e) => setMappedGene(e.target.value)}
-                className="w-full px-3 py-2 border border-input rounded-md bg-input text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                required
+                onValueChange={(value) => setMappedGene(value)}
                 disabled={isLoadingGenes}
               >
-                <option value="">Select a gene</option>
-                {availableGenes.map((gene) => (
-                  <option key={gene.g_id} value={gene.g_id}>
-                    {gene.g_name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="mapped-gene" className="w-full bg-input">
+                  <SelectValue placeholder="Select a gene" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableGenes.length > 0 ? (
+                    availableGenes.map((gene) => (
+                      <SelectItem key={gene.g_id} value={gene.g_id}>
+                        {gene.g_name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none" disabled>No genes found</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
               {isLoadingGenes && (
                 <p className="text-xs text-muted-foreground">Loading genes...</p>
               )}
@@ -1221,6 +1272,44 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
               )}
               <p className="text-xs text-muted-foreground">
                 Select the gene this form will be mapped to
+              </p>
+            </div>
+
+            {/* Select Table Field */}
+            <div className="space-y-2">
+              <Label htmlFor="selected-table" className="text-sm font-medium">
+                Select Table *
+              </Label>
+              <Select
+                value={selectedTable}
+                onValueChange={(value) => setSelectedTable(value)}
+                disabled={isLoadingTables}
+              >
+                <SelectTrigger id="selected-table" className="w-full bg-input">
+                  <SelectValue placeholder="Select a table" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTables.length > 0 ? (
+                    availableTables.map((table) => (
+                      <SelectItem key={table.table_id} value={table.table_id}>
+                        {table.table_name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none" disabled>No tables found</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {isLoadingTables && (
+                <p className="text-xs text-muted-foreground">Loading tables...</p>
+              )}
+              {!isLoadingTables && availableTables.length === 0 && (
+                <p className="text-xs text-muted-foreground text-amber-600">
+                  No tables found.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Select the table where form submissions will be stored
               </p>
             </div>
 

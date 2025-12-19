@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Database, Loader2, Search, Check, RefreshCw } from "lucide-react"
 
 import { toast } from "sonner"
@@ -20,14 +27,41 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedColumns, setSelectedColumns] = useState([])
   const [autoFetched, setAutoFetched] = useState(false)
+  const [availableTables, setAvailableTables] = useState([])
+  const [selectedTableId, setSelectedTableId] = useState(process.env.NEXT_PUBLIC_TABLE_ID || "")
+  const [isLoadingTables, setIsLoadingTables] = useState(false)
 
-  // Auto-fetch columns when component mounts
+  // Fetch tables and columns when component mounts
   useEffect(() => {
     if (!autoFetched) {
-      fetchTableColumns()
+      fetchTables()
+      if (selectedTableId) {
+        fetchTableColumns(selectedTableId)
+      }
       setAutoFetched(true)
     }
-  }, [autoFetched])
+  }, [autoFetched, selectedTableId])
+
+  // Fetch all available tables
+  const fetchTables = async () => {
+    setIsLoadingTables(true)
+    try {
+      const response = await datatablesApi.getAll()
+      const result = response.data
+      if (Array.isArray(result)) {
+        setAvailableTables(result)
+      } else if (result.success && result.data) {
+        setAvailableTables(result.data)
+      } else if (Array.isArray(result.data)) {
+        setAvailableTables(result.data)
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch tables:', error)
+      toast.error(`Failed to fetch tables: ${error.message}`)
+    } finally {
+      setIsLoadingTables(false)
+    }
+  }
 
   // Get list of already used column IDs from existing fields
   const getUsedColumnIds = () => {
@@ -44,13 +78,12 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
 
   // API configuration
 
-  const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
-
   // Fetch table columns
-  const fetchTableColumns = async () => {
+  const fetchTableColumns = async (tableId) => {
+    if (!tableId) return
     setLoading(true)
     try {
-      const response = await datatablesApi.getColumns(TABLE_ID)
+      const response = await datatablesApi.getColumns(tableId)
       const result = response.data
       console.log('Table columns:', result)
 
@@ -237,6 +270,7 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
             unique: (column.properties && column.properties.is_primary === "true") || false
           },
           source: 'table',
+          tableId: selectedTableId, // Include selected table ID
           tableColumnId: column.column_id,
           tableColumnName: columnName,
           originalDataType: column.parent_datatype, // Keep original for debugging
@@ -278,6 +312,50 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Table Selection */}
+          <div className="space-y-2">
+            <Label className="text-xs">Target Table</Label>
+            <div className="flex gap-2">
+              <Select
+                value={selectedTableId}
+                onValueChange={(value) => {
+                  if (value === "none") return;
+                  setSelectedTableId(value)
+                  setSelectedColumns([]) // Clear selection when table changes
+                  fetchTableColumns(value)
+                }}
+                disabled={isLoadingTables}
+              >
+                <SelectTrigger className="w-full bg-transparent">
+                  <SelectValue placeholder="Select a table" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTables.length > 0 ? (
+                    availableTables.map((table) => (
+                      <SelectItem key={table.table_id} value={table.table_id}>
+                        {table.table_name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="none" disabled>No tables found</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={fetchTables}
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                disabled={isLoadingTables}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoadingTables ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+            {isLoadingTables && (
+              <p className="text-xs text-muted-foreground">Loading tables...</p>
+            )}
+          </div>
+
           {/* Button Container */}
           <div className="flex justify-between items-center">
             {selectedColumns.length > 0 && (
@@ -293,10 +371,12 @@ export function TableColumnSelector({ field, onUpdateField, existingFields = [] 
 
             <Button
               onClick={() => {
-                fetchTableColumns()
+                if (selectedTableId) {
+                  fetchTableColumns(selectedTableId)
+                }
                 setSelectedColumns([])
               }}
-              disabled={loading}
+              disabled={loading || !selectedTableId}
               size="sm"
               variant="outline"
               className="gap-2"
