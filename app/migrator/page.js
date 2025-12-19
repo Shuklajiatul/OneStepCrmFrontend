@@ -66,7 +66,7 @@ const App = () => {
             initialConf.database = 'testdb';
         }
         if (type === 'csv') {
-            initialConf.filePath = 'src/public/MOCK_DATA.csv';
+            initialConf.filePath = '';
         }
         setConfig(initialConf);
         setIsConfigDialogOpen(true);
