@@ -337,6 +337,7 @@ export default function FormPreviewPage() {
             name: groupField.label?.toLowerCase().replace(/\s+/g, '_') || groupField.name,
             label: groupField.label,
             type: "group",
+            required: groupField.required ? "true" : "false",
             fields: fieldIds
           }
         }

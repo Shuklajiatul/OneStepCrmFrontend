@@ -641,6 +641,7 @@ export default function MyFormsPage() {
                 // Check if fieldRef is a full field object (has type property) or just an ID
                 if (typeof fieldRef === 'object' && fieldRef.type) {
                   // It's a full field object - parse it like we do for regular fields
+                  // ... existing parsing logic ...
                   const parsedSubField = {
                     id: fieldRef.id,
                     name: fieldRef.name || fieldRef.id,
@@ -672,8 +673,12 @@ export default function MyFormsPage() {
                 } else {
                   // It's a field ID reference - find the matching field in parsedFields
                   const fieldId = typeof fieldRef === 'string' ? fieldRef : fieldRef.id
-                  // Ensure strict string comparison for IDs to avoid type mismatches (number vs string)
-                  const matchingField = parsedFields.find(f => String(f.id) === String(fieldId) || f.name === fieldId)
+                  // Improved matching: check ID, name, or if ID includes the reference
+                  const matchingField = parsedFields.find(f =>
+                    String(f.id) === String(fieldId) ||
+                    f.name === fieldId ||
+                    (f.id && String(f.id).includes(String(fieldId)))
+                  )
                   if (matchingField) {
                     subFields.push(matchingField)
                   }
@@ -682,35 +687,26 @@ export default function MyFormsPage() {
             }
 
             return {
-              id: group.id,
-              name: group.name,
+              id: group.id || generateUniqueFieldId('group'),
+              name: group.name || group.label?.toLowerCase().replace(/\s+/g, '_') || 'group',
               type: 'group',
-              label: group.label,
+              label: group.label || group.name || 'Group Field',
               required: group.required === true || group.required === 'true' || false,
               subFields: subFields
             }
           })
 
           // Remove fields that are part of groups from the main parsedFields array
-          // (only if they were ID references, not full objects stored in group)
-          const groupFieldIds = new Set()
-          groupData.forEach(group => {
-            if (group.fields && Array.isArray(group.fields)) {
-              group.fields.forEach(fieldRef => {
-                // Only add to removal set if it's an ID reference
-                if (typeof fieldRef === 'string') {
-                  groupFieldIds.add(String(fieldRef))
-                } else if (fieldRef.id && !fieldRef.type) {
-                  // It's an object with just id (reference)
-                  groupFieldIds.add(String(fieldRef.id))
-                }
-              })
-            }
+          const fieldsInGroups = new Set()
+          groupFields.forEach(group => {
+            group.subFields.forEach(subField => {
+              fieldsInGroups.add(String(subField.id))
+            })
           })
 
-          // Filter out fields that belong to groups (only those that were ID references)
+          // Filter out fields that belong to groups
           const fieldsNotInGroups = parsedFields.filter(f =>
-            !groupFieldIds.has(String(f.id)) && !groupFieldIds.has(f.name)
+            !fieldsInGroups.has(String(f.id)) && !fieldsInGroups.has(f.name)
           )
 
           // Combine non-group fields with group fields

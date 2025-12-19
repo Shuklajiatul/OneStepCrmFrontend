@@ -2453,6 +2453,40 @@ export default function PublicFormPage() {
                     }
                   }
 
+                  // Recursively process nested fields structure for subfields
+                  const processedSubOptions = options.map(option => {
+                    const processedOption = {
+                      value: option.value || option,
+                      label: option.label || option.value || option,
+                      nestedFields: []
+                    }
+
+                    // Recursively process nested fields for this option
+                    if (option.nestedFields && Array.isArray(option.nestedFields)) {
+                      processedOption.nestedFields = parseNestedFields(option.nestedFields)
+                    }
+
+                    return processedOption
+                  })
+
+                  // Build nestedFields structure for backward compatibility with FieldRenderer
+                  const subNestedFields = {}
+                  processedSubOptions.forEach((option, optionIndex) => {
+                    if (option.nestedFields && option.nestedFields.length > 0) {
+                      subNestedFields[optionIndex] = option.nestedFields.map(nestedField => ({
+                        id: nestedField.id,
+                        name: nestedField.name,
+                        type: nestedField.type,
+                        label: nestedField.label,
+                        placeholder: nestedField.placeholder || '',
+                        required: nestedField.required || false,
+                        validation: nestedField.validations || {},
+                        options: nestedField.options || [],
+                        nestedFields: nestedField.nestedFields || {}
+                      }))
+                    }
+                  })
+
                   const parsedSubField = {
                     id: fieldRef.id,
                     name: fieldRef.name || fieldRef.id,
@@ -2460,15 +2494,11 @@ export default function PublicFormPage() {
                     label: fieldRef.label || fieldRef.name || 'Field',
                     placeholder: fieldRef.placeholder || '',
                     required: fieldRef.required === true || fieldRef.required === 'true' || false,
-                    options: options.map(opt => typeof opt === 'object' ? opt.value || opt : opt),
-                    nestedFields: {},
+                    options: processedSubOptions.map(opt => opt.value || opt),
+                    nestedFields: subNestedFields,
                     isLeadColumn: fieldRef.isLeadColumn === true || fieldRef.isLeadColumn === 'true' || false,
                     validation: validation,
-                    _processedOptions: options.map(opt => ({
-                      value: typeof opt === 'object' ? opt.value || opt : opt,
-                      label: typeof opt === 'object' ? opt.label || opt.value || opt : opt,
-                      nestedFields: []
-                    }))
+                    _processedOptions: processedSubOptions
                   }
 
                   subFields.push(parsedSubField)
