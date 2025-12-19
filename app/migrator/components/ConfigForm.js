@@ -88,9 +88,9 @@ const ConfigForm = ({ sourceType, initialConfig, onSubmit, isLoading, onCancel }
                 <Input
                   id="filePath"
                   name="filePath"
-                  value={config.filePath || ''}
+                  value=''
                   onChange={handleChange}
-                  placeholder="src/public/DATA.csv"
+                  placeholder="Enter your file path here e.g src/public/DATA.csv"
                   required
                 />
               </div>
