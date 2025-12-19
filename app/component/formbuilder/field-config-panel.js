@@ -1561,7 +1561,15 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                   id="field-isleadcolumn"
                   checked={field.isLeadColumn || false}
                   onCheckedChange={(checked) => onUpdateField(field.id, {
-                    isLeadColumn: checked
+                    isLeadColumn: checked,
+                    // Automatically set as required if marked as lead column
+                    ...(checked ? {
+                      required: true,
+                      validation: {
+                        ...field.validation,
+                        required: true
+                      }
+                    } : {})
                   })}
                 />
               </div>
