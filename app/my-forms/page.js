@@ -1134,8 +1134,8 @@ export default function MyFormsPage() {
                   Manage and view all your created forms
                 </CardDescription>
               </div>
-              <Button onClick={refreshForms} variant="outline" disabled={loading || loadingTables} size="sm">
-                <RotateCcw className={`h-4 w-4 mr-2 ${(loading || loadingTables) ? "animate-spin" : ""}`} />
+              <Button onClick={refreshForms} variant="outline" disabled={loading} size="sm">
+                <RotateCcw className={`h-4 w-4 mr-2 ${(loading) ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
             </div>
