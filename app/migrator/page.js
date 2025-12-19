@@ -73,13 +73,34 @@ const App = () => {
     };
 
     const handleConfigSubmit = async (newConfig) => {
-        setConfig(newConfig);
+        let finalConfig = { ...newConfig };
         setIsValidating(true);
         setValidationError(null);
 
+        // If it's a CSV upload mode, read the file content
+        if (sourceType === 'csv' && newConfig.csvMode === 'upload' && newConfig.file) {
+            try {
+                const fileContent = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = (e) => reject(new Error("Failed to read file"));
+                    reader.readAsText(newConfig.file);
+                });
+                finalConfig.fileContent = fileContent;
+                // Remove the File object before sending to API if necessary, 
+                // but setting finalConfig is enough as we pass finalConfig to migrationService
+            } catch (error) {
+                setIsValidating(false);
+                toast.error("Error reading file: " + error.message);
+                return;
+            }
+        }
+
+        setConfig(finalConfig);
+
         if (sourceType) {
             try {
-                const result = await migrationService.validateSource(sourceType, newConfig);
+                const result = await migrationService.validateSource(sourceType, finalConfig);
                 setIsValidating(false);
 
                 if (result.success) {
@@ -87,7 +108,7 @@ const App = () => {
                     toast.success("Source validated successfully");
                     // Fetch preview immediately after success
                     console.log("Fetching preview data...");
-                    const previewResult = await migrationService.previewSource(sourceType, newConfig);
+                    const previewResult = await migrationService.previewSource(sourceType, finalConfig);
                     console.log("Preview Result:", previewResult);
 
                     if (previewResult && (previewResult.rows || previewResult.data)) {
