@@ -3230,7 +3230,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                     <div key={subField.id} className="space-y-2">
                       <Label>
                         {subField.label}
-                        {subField.required && <span className="text-red-500 ml-1 font-bold">*</span>}
+                        {(subField.required || subField.isLeadColumn) && <span className="text-red-500 ml-1 font-bold">*</span>}
                       </Label>
                       {renderNestedFieldInput(
                         subField,
@@ -3266,7 +3266,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
     <div className="space-y-2 w-full">
       <Label className={`text-sm font-medium ${invalid ? "text-red-500" : ""}`}>
         {field.label}
-        {field.required && <span className="text-red-500 ml-1 font-bold">*</span>}
+        {(field.required || field.isLeadColumn) && <span className="text-red-500 ml-1 font-bold">*</span>}
       </Label>
       {renderField()}
       {invalid && error && (
