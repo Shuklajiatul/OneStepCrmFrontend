@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip"
-import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon, Database } from "lucide-react"
+import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon, Database, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { formsApi } from "@/lib/api-endpoint"
 import EditFormDialog from "../component/EditForm/edit-form"
@@ -1037,8 +1037,12 @@ export default function MyFormsPage() {
     }
   }
 
-  const refreshForms = () => {
-    fetchForms()
+  const refreshForms = async () => {
+    toast.info("Refreshing data...")
+    await Promise.all([
+      fetchForms(),
+    ])
+    toast.success("Data refreshed!")
   }
 
   // Filter and search functions
@@ -1130,705 +1134,706 @@ export default function MyFormsPage() {
                   Manage and view all your created forms
                 </CardDescription>
               </div>
-              {/* <Button onClick={refreshForms} variant="outline" disabled={loading}>
-                <RotateCcw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              <Button onClick={refreshForms} variant="outline" disabled={loading || loadingTables} size="sm">
+                <RotateCcw className={`h-4 w-4 mr-2 ${(loading || loadingTables) ? "animate-spin" : ""}`} />
                 Refresh
-              </Button> */}
+              </Button>
             </div>
           </CardHeader>
-          <CardContent>
-            {/* Search and Filters */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-4 justify-between items-center">
-              {/* Search */}
-              <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search forms..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-full"
-                />
-              </div>
+          <CardContent className="pt-0">
 
-              {/* Group for right-side controls */}
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                {/* Status Filter */}
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="published">Published</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
+                {/* Search and Filters */}
+                <div className="flex flex-col sm:flex-row gap-4 mb-4 justify-between items-center">
+                  {/* Search */}
+                  <div className="relative w-full sm:w-80">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search forms..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 w-full"
+                    />
+                  </div>
 
-                {/* View Mode Selector */}
-                <div className="flex gap-2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                  {/* Group for right-side controls */}
+                  <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                    {/* Status Filter */}
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="w-full sm:w-[180px]">
+                        <SelectValue placeholder="Filter by status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="published">Published</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="archived">Archived</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* View Mode Selector */}
+                    <div className="flex gap-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={viewMode === "table" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setViewMode("table")}
+                          >
+                            <TableIcon className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Table View</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={viewMode === "list" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setViewMode("list")}
+                          >
+                            <List className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>List View</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={viewMode === "card" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setViewMode("card")}
+                          >
+                            <LayoutGrid className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Card View</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+
+                    {/* Clear Filters Button */}
+                    {(statusFilter !== "all" || searchTerm) && (
                       <Button
-                        variant={viewMode === "table" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setViewMode("table")}
+                        variant="outline"
+                        onClick={() => {
+                          setSearchTerm("")
+                          setStatusFilter("all")
+                        }}
+                        className="whitespace-nowrap"
                       >
-                        <TableIcon className="h-4 w-4" />
+                        Clear Filters
                       </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Table View</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={viewMode === "list" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setViewMode("list")}
-                      >
-                        <List className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>List View</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={viewMode === "card" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setViewMode("card")}
-                      >
-                        <LayoutGrid className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Card View</p>
-                    </TooltipContent>
-                  </Tooltip>
+                    )}
+                  </div>
                 </div>
 
-                {/* Clear Filters Button */}
-                {(statusFilter !== "all" || searchTerm) && (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSearchTerm("")
-                      setStatusFilter("all")
-                    }}
-                    className="whitespace-nowrap"
-                  >
-                    Clear Filters
-                  </Button>
-                )}
-              </div>
-            </div>
+                {/* Forms Content */}
+                {forms.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No forms found</p>
+                  </div>
+                ) : filteredForms.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No matching forms found</p>
+                    <Button
+                      onClick={() => {
+                        setSearchTerm("")
+                        setStatusFilter("all")
+                      }}
+                      variant="outline"
+                      className="mt-2"
+                    >
+                      Clear Filters
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Table View */}
+                    {viewMode === "table" && (
+                      <div className="rounded-md border overflow-hidden w-full">
+                        <div className="overflow-x-auto w-full">
+                          <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
+                            <Table className="w-full table-auto">
+                              <TableHeader>
+                                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                  <TableHead
+                                    className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
+                                    onClick={() => handleSort("form_name")}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Form Name
+                                      <ArrowUpDown className="h-4 w-4" />
+                                    </div>
+                                  </TableHead>
+                                  <TableHead className="font-semibold text-foreground hidden md:table-cell">Description</TableHead>
+                                  <TableHead
+                                    className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
+                                    onClick={() => handleSort("fieldCount")}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Fields
+                                      <ArrowUpDown className="h-4 w-4" />
+                                    </div>
+                                  </TableHead>
+                                  <TableHead
+                                    className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
+                                    onClick={() => handleSort("createdDate")}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Created
+                                      <ArrowUpDown className="h-4 w-4" />
+                                    </div>
+                                  </TableHead>
+                                  <TableHead className="font-semibold text-foreground whitespace-nowrap">Status</TableHead>
+                                  <TableHead className="w-[200px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {paginatedForms.map((form) => (
+                                  <TableRow
+                                    key={`${form.form_id}-v${form.version || 1}`}
+                                    className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                                  >
+                                    <TableCell className="py-4">
+                                      <div>
+                                        <span className="font-medium text-primary truncate text-sm md:text-base transition-colors">
+                                          {form.form_name} v-{form.version || 1}
+                                        </span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-4 hidden md:table-cell">
+                                      <div className="truncate" title={form.description || 'No description'}>
+                                        {form.description || 'No description'}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-4 whitespace-nowrap">
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                        {form.fieldCount || 0} fields
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-4 whitespace-nowrap">
+                                      <div className="flex items-center gap-1">
+                                        <Calendar className="h-4 w-4" />
+                                        {form.created}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                      <div className="flex flex-col gap-1">
+                                        <Badge
+                                          variant={
+                                            form.archived ? "destructive" :
+                                              form.published ? "default" : "secondary"
+                                          }
+                                          className="w-fit"
+                                        >
+                                          {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
+                                        </Badge>
+                                        {form.archived && (
+                                          <span className="text-xs text-muted-foreground hidden sm:block">
+                                            Inactive - Users cannot access
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="w-[200px] whitespace-nowrap text-right py-4">
+                                      <div className="flex items-center justify-end space-x-1">
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleEditForm(form.form_id)}
+                                              disabled={form.archived}
+                                              className="h-8 w-8"
+                                            >
+                                              <Edit className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Edit form</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => copyFormLink(form)}
+                                              disabled={form.archived}
+                                              className="h-8 w-8"
+                                            >
+                                              <Copy className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>{form.archived ? "Form archived - cannot copy link" : `Copy form link (v-${form.version || 1})`}</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => openFormInNewTab(form)}
+                                              disabled={form.archived}
+                                              className="h-8 w-8"
+                                            >
+                                              <ExternalLink className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>{form.archived ? "Form archived - cannot open" : `Open form in new tab (v-${form.version || 1})`}</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                                              disabled={form.archived}
+                                              className="h-8 w-8"
+                                            >
+                                              <Database className="h-4 w-4" />
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>View form submissions</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant={form.archived ? "default" : "outline"}
+                                              size="icon"
+                                              onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
+                                              disabled={archivingForm === form.form_id || (form.archived && form.hasNewerVersion)}
+                                              className="h-8 w-8"
+                                            >
+                                              {archivingForm === form.form_id ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              ) : form.archived ? (
+                                                <ArchiveRestore className="h-4 w-4" />
+                                              ) : (
+                                                <Archive className="h-4 w-4" />
+                                              )}
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>{form.hasNewerVersion && form.archived ? "Cannot unarchive - newer version exists" : form.archived ? "Unarchive form" : "Archive form"}</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="destructive"
+                                              size="icon"
+                                              onClick={() => confirmDelete(form)}
+                                              disabled={deletingForm === form.form_id}
+                                              className="h-8 w-8"
+                                            >
+                                              {deletingForm === form.form_id ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                              ) : (
+                                                <Trash2 className="h-4 w-4" />
+                                              )}
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>Delete form</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-            {/* Forms Content */}
-            {forms.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No forms found</p>
-              </div>
-            ) : filteredForms.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No matching forms found</p>
-                <Button
-                  onClick={() => {
-                    setSearchTerm("")
-                    setStatusFilter("all")
-                  }}
-                  variant="outline"
-                  className="mt-2"
-                >
-                  Clear Filters
-                </Button>
-              </div>
-            ) : (
-              <>
-                {/* Table View */}
-                {viewMode === "table" && (
-                  <div className="rounded-md border overflow-hidden w-full">
-                    <div className="overflow-x-auto w-full">
-                      <div className="w-full [&_[data-slot=table-container]]:w-full [&_[data-slot=table]]:w-full">
-                        <Table className="w-full table-auto">
-                          <TableHeader>
-                            <TableRow className="bg-muted/50 hover:bg-muted/50">
-                              <TableHead
-                                className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
-                                onClick={() => handleSort("form_name")}
-                              >
-                                <div className="flex items-center gap-1">
-                                  Form Name
-                                  <ArrowUpDown className="h-4 w-4" />
+                    {/* List View */}
+                    {viewMode === "list" && (
+                      <div className="space-y-3">
+                        {paginatedForms.map((form) => (
+                          <div
+                            key={`${form.form_id}-v${form.version || 1}`}
+                            className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                                  <h3 className="font-semibold text-base sm:text-lg truncate">{form.form_name}</h3>
+                                  <Badge variant="outline" className="whitespace-nowrap">v-{form.version || 1}</Badge>
+                                  <Badge
+                                    variant={
+                                      form.archived ? "destructive" :
+                                        form.published ? "default" : "secondary"
+                                    }
+                                    className="whitespace-nowrap"
+                                  >
+                                    {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
+                                  </Badge>
                                 </div>
-                              </TableHead>
-                              <TableHead className="font-semibold text-foreground hidden md:table-cell">Description</TableHead>
-                              <TableHead
-                                className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
-                                onClick={() => handleSort("fieldCount")}
-                              >
-                                <div className="flex items-center gap-1">
-                                  Fields
-                                  <ArrowUpDown className="h-4 w-4" />
-                                </div>
-                              </TableHead>
-                              <TableHead
-                                className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 whitespace-nowrap"
-                                onClick={() => handleSort("createdDate")}
-                              >
-                                <div className="flex items-center gap-1">
-                                  Created
-                                  <ArrowUpDown className="h-4 w-4" />
-                                </div>
-                              </TableHead>
-                              <TableHead className="font-semibold text-foreground whitespace-nowrap">Status</TableHead>
-                              <TableHead className="w-[200px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {paginatedForms.map((form) => (
-                              <TableRow
-                                key={`${form.form_id}-v${form.version || 1}`}
-                                className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
-                              >
-                                <TableCell className="py-4">
-                                  <div>
-                                    <span className="font-medium text-primary truncate text-sm md:text-base transition-colors">
-                                      {form.form_name} v-{form.version || 1}
-                                    </span>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="py-4 hidden md:table-cell">
-                                  <div className="truncate" title={form.description || 'No description'}>
-                                    {form.description || 'No description'}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="py-4 whitespace-nowrap">
+                                <p className="text-muted-foreground mb-2 text-sm sm:text-base">
+                                  {form.description || 'No description'}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-muted-foreground">
                                   <div className="flex items-center gap-1">
                                     <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                                     {form.fieldCount || 0} fields
                                   </div>
-                                </TableCell>
-                                <TableCell className="py-4 whitespace-nowrap">
                                   <div className="flex items-center gap-1">
                                     <Calendar className="h-4 w-4" />
                                     {form.created}
                                   </div>
-                                </TableCell>
-                                <TableCell className="py-4">
-                                  <div className="flex flex-col gap-1">
-                                    <Badge
-                                      variant={
-                                        form.archived ? "destructive" :
-                                          form.published ? "default" : "secondary"
-                                      }
-                                      className="w-fit"
-                                    >
-                                      {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
-                                    </Badge>
-                                    {form.archived && (
-                                      <span className="text-xs text-muted-foreground hidden sm:block">
-                                        Inactive - Users cannot access
-                                      </span>
-                                    )}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="w-[200px] whitespace-nowrap text-right py-4">
-                                  <div className="flex items-center justify-end space-x-1">
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => handleEditForm(form.form_id)}
-                                          disabled={form.archived}
-                                          className="h-8 w-8"
-                                        >
-                                          <Edit className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>Edit form</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => copyFormLink(form)}
-                                          disabled={form.archived}
-                                          className="h-8 w-8"
-                                        >
-                                          <Copy className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>{form.archived ? "Form archived - cannot copy link" : `Copy form link (v-${form.version || 1})`}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => openFormInNewTab(form)}
-                                          disabled={form.archived}
-                                          className="h-8 w-8"
-                                        >
-                                          <ExternalLink className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>{form.archived ? "Form archived - cannot open" : `Open form in new tab (v-${form.version || 1})`}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => router.push(`/form-submissions/${form.form_id}`)}
-                                          disabled={form.archived}
-                                          className="h-8 w-8"
-                                        >
-                                          <Database className="h-4 w-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>View form submissions</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant={form.archived ? "default" : "outline"}
-                                          size="icon"
-                                          onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
-                                          disabled={archivingForm === form.form_id || (form.archived && form.hasNewerVersion)}
-                                          className="h-8 w-8"
-                                        >
-                                          {archivingForm === form.form_id ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          ) : form.archived ? (
-                                            <ArchiveRestore className="h-4 w-4" />
-                                          ) : (
-                                            <Archive className="h-4 w-4" />
-                                          )}
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>{form.hasNewerVersion && form.archived ? "Cannot unarchive - newer version exists" : form.archived ? "Unarchive form" : "Archive form"}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="destructive"
-                                          size="icon"
-                                          onClick={() => confirmDelete(form)}
-                                          disabled={deletingForm === form.form_id}
-                                          className="h-8 w-8"
-                                        >
-                                          {deletingForm === form.form_id ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          ) : (
-                                            <Trash2 className="h-4 w-4" />
-                                          )}
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>Delete form</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* List View */}
-                {viewMode === "list" && (
-                  <div className="space-y-3">
-                    {paginatedForms.map((form) => (
-                      <div
-                        key={`${form.form_id}-v${form.version || 1}`}
-                        className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
-                              <h3 className="font-semibold text-base sm:text-lg truncate">{form.form_name}</h3>
-                              <Badge variant="outline" className="whitespace-nowrap">v-{form.version || 1}</Badge>
-                              <Badge
-                                variant={
-                                  form.archived ? "destructive" :
-                                    form.published ? "default" : "secondary"
-                                }
-                                className="whitespace-nowrap"
-                              >
-                                {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
-                              </Badge>
-                            </div>
-                            <p className="text-muted-foreground mb-2 text-sm sm:text-base">
-                              {form.description || 'No description'}
-                            </p>
-                            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                {form.fieldCount || 0} fields
+                                </div>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-4 w-4" />
-                                {form.created}
+                              <div className="flex gap-2 flex-wrap">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleEditForm(form.form_id)}
+                                      disabled={form.archived}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Edit form</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => copyFormLink(form)}
+                                      disabled={form.archived}
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{form.archived ? "Form archived - cannot copy link" : `Copy form link (v-${form.version || 1})`}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => openFormInNewTab(form)}
+                                      disabled={form.archived}
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{form.archived ? "Form archived - cannot open" : `Open form in new tab (v-${form.version || 1})`}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                                      disabled={form.archived}
+                                    >
+                                      <Database className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>View form submissions</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant={form.archived ? "default" : "outline"}
+                                      onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
+                                      disabled={archivingForm === form.form_id || (form.archived && form.hasNewerVersion)}
+                                    >
+                                      {archivingForm === form.form_id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : form.archived ? (
+                                        <ArchiveRestore className="h-4 w-4" />
+                                      ) : (
+                                        <Archive className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{form.hasNewerVersion && form.archived ? "Cannot unarchive - newer version exists" : form.archived ? "Unarchive form" : "Archive form"}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => confirmDelete(form)}
+                                      disabled={deletingForm === form.form_id}
+                                    >
+                                      {deletingForm === form.form_id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Delete form</p>
+                                  </TooltipContent>
+                                </Tooltip>
                               </div>
                             </div>
                           </div>
-                          <div className="flex gap-2 flex-wrap">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleEditForm(form.form_id)}
-                                  disabled={form.archived}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Edit form</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => copyFormLink(form)}
-                                  disabled={form.archived}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{form.archived ? "Form archived - cannot copy link" : `Copy form link (v-${form.version || 1})`}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openFormInNewTab(form)}
-                                  disabled={form.archived}
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{form.archived ? "Form archived - cannot open" : `Open form in new tab (v-${form.version || 1})`}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => router.push(`/form-submissions/${form.form_id}`)}
-                                  disabled={form.archived}
-                                >
-                                  <Database className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>View form submissions</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant={form.archived ? "default" : "outline"}
-                                  onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
-                                  disabled={archivingForm === form.form_id || (form.archived && form.hasNewerVersion)}
-                                >
-                                  {archivingForm === form.form_id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : form.archived ? (
-                                    <ArchiveRestore className="h-4 w-4" />
-                                  ) : (
-                                    <Archive className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{form.hasNewerVersion && form.archived ? "Cannot unarchive - newer version exists" : form.archived ? "Unarchive form" : "Archive form"}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => confirmDelete(form)}
-                                  disabled={deletingForm === form.form_id}
-                                >
-                                  {deletingForm === form.form_id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Delete form</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    )}
 
-                {/* Card View */}
-                {viewMode === "card" && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {paginatedForms.map((form) => (
-                      <Card key={`${form.form_id}-v${form.version || 1}`} className="hover:shadow-lg transition-shadow">
-                        <CardHeader>
-                          <div className="flex items-start justify-between mb-2 gap-2">
-                            <CardTitle className="text-base sm:text-lg leading-tight truncate flex-1">{form.form_name}</CardTitle>
-                            <Badge
-                              variant={
-                                form.archived ? "destructive" :
-                                  form.published ? "default" : "secondary"
-                              }
-                              className="whitespace-nowrap shrink-0"
-                            >
-                              {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Badge variant="outline" className="whitespace-nowrap">v-{form.version || 1}</Badge>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                            {form.description || 'No description'}
-                          </p>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-                            <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                              {form.fieldCount || 0} fields
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              {form.created}
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleEditForm(form.form_id)}
-                                  disabled={form.archived}
-                                  className="flex-1"
+                    {/* Card View */}
+                    {viewMode === "card" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {paginatedForms.map((form) => (
+                          <Card key={`${form.form_id}-v${form.version || 1}`} className="hover:shadow-lg transition-shadow">
+                            <CardHeader>
+                              <div className="flex items-start justify-between mb-2 gap-2">
+                                <CardTitle className="text-base sm:text-lg leading-tight truncate flex-1">{form.form_name}</CardTitle>
+                                <Badge
+                                  variant={
+                                    form.archived ? "destructive" :
+                                      form.published ? "default" : "secondary"
+                                  }
+                                  className="whitespace-nowrap shrink-0"
                                 >
-                                  <Edit className="h-4 w-4 mr-1" />
-                                  Edit
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Edit form</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => copyFormLink(form)}
-                                  disabled={form.archived}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{form.archived ? "Form archived - cannot copy link" : `Copy form link (v-${form.version || 1})`}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => openFormInNewTab(form)}
-                                  disabled={form.archived}
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{form.archived ? "Form archived - cannot open" : `Open form in new tab (v-${form.version || 1})`}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => router.push(`/form-submissions/${form.form_id}`)}
-                                  disabled={form.archived}
-                                >
-                                  <Database className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>View form submissions</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant={form.archived ? "default" : "outline"}
-                                  onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
-                                  disabled={archivingForm === form.form_id || (form.archived && form.hasNewerVersion)}
-                                >
-                                  {archivingForm === form.form_id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : form.archived ? (
-                                    <ArchiveRestore className="h-4 w-4" />
-                                  ) : (
-                                    <Archive className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{form.hasNewerVersion && form.archived ? "Cannot unarchive - newer version exists" : form.archived ? "Unarchive form" : "Archive form"}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() => confirmDelete(form)}
-                                  disabled={deletingForm === form.form_id}
-                                >
-                                  {deletingForm === form.form_id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Delete form</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-
-                {/* Pagination */}
-                {sortedForms.length > 0 && (
-                  <div className="mt-6 px-4 sm:px-0 pb-4 sm:pb-0">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                      <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-                        {/* Items per page selector */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground whitespace-nowrap">Show</span>
-                          <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
-                            <SelectTrigger className="w-20">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="5">5</SelectItem>
-                              <SelectItem value="10">10</SelectItem>
-                              <SelectItem value="20">20</SelectItem>
-                              <SelectItem value="50">50</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <span className="text-sm text-muted-foreground whitespace-nowrap">per page</span>
-                        </div>
-
-                        {/* Page info */}
-                        <div className="text-sm text-muted-foreground whitespace-nowrap">
-                          Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, sortedForms.length)} of {sortedForms.length} forms
-                        </div>
-                      </div>
-
-                      {/* Pagination controls */}
-                      {totalPages > 1 && (
-                        <Pagination>
-                          <PaginationContent>
-                            <PaginationItem>
-                              <PaginationPrevious
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                              />
-                            </PaginationItem>
-
-                            {/* Show limited page numbers for better UX */}
-                            {(() => {
-                              const pages = [];
-                              const maxVisiblePages = 5;
-                              let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-                              let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-                              // Adjust start page if we're near the end
-                              if (endPage - startPage + 1 < maxVisiblePages) {
-                                startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                              }
-
-                              for (let i = startPage; i <= endPage; i++) {
-                                pages.push(
-                                  <PaginationItem key={i}>
-                                    <PaginationLink
-                                      onClick={() => setCurrentPage(i)}
-                                      isActive={currentPage === i}
-                                      className="cursor-pointer"
+                                  {form.archived ? "Archived" : form.published ? "Published" : "Draft"}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline" className="whitespace-nowrap">v-{form.version || 1}</Badge>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                                {form.description || 'No description'}
+                              </p>
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  {form.fieldCount || 0} fields
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {form.created}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleEditForm(form.form_id)}
+                                      disabled={form.archived}
+                                      className="flex-1"
                                     >
-                                      {i}
-                                    </PaginationLink>
-                                  </PaginationItem>
-                                );
-                              }
-                              return pages;
-                            })()}
+                                      <Edit className="h-4 w-4 mr-1" />
+                                      Edit
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Edit form</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => copyFormLink(form)}
+                                      disabled={form.archived}
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{form.archived ? "Form archived - cannot copy link" : `Copy form link (v-${form.version || 1})`}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => openFormInNewTab(form)}
+                                      disabled={form.archived}
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{form.archived ? "Form archived - cannot open" : `Open form in new tab (v-${form.version || 1})`}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                                      disabled={form.archived}
+                                    >
+                                      <Database className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>View form submissions</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant={form.archived ? "default" : "outline"}
+                                      onClick={() => toggleArchiveForm(form.form_id, form.archived, form.version)}
+                                      disabled={archivingForm === form.form_id || (form.archived && form.hasNewerVersion)}
+                                    >
+                                      {archivingForm === form.form_id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : form.archived ? (
+                                        <ArchiveRestore className="h-4 w-4" />
+                                      ) : (
+                                        <Archive className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{form.hasNewerVersion && form.archived ? "Cannot unarchive - newer version exists" : form.archived ? "Unarchive form" : "Archive form"}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => confirmDelete(form)}
+                                      disabled={deletingForm === form.form_id}
+                                    >
+                                      {deletingForm === form.form_id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Delete form</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
 
-                            <PaginationItem>
-                              <PaginationNext
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                              />
-                            </PaginationItem>
-                          </PaginationContent>
-                        </Pagination>
-                      )}
-                    </div>
-                  </div>
+                    {/* Pagination */}
+                    {sortedForms.length > 0 && (
+                      <div className="mt-6 px-4 sm:px-0 pb-4 sm:pb-0">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                          <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                            {/* Items per page selector */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">Show</span>
+                              <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                                <SelectTrigger className="w-20">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="5">5</SelectItem>
+                                  <SelectItem value="10">10</SelectItem>
+                                  <SelectItem value="20">20</SelectItem>
+                                  <SelectItem value="50">50</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">per page</span>
+                            </div>
+
+                            {/* Page info */}
+                            <div className="text-sm text-muted-foreground whitespace-nowrap">
+                              Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, sortedForms.length)} of {sortedForms.length} forms
+                            </div>
+                          </div>
+
+                          {/* Pagination controls */}
+                          {totalPages > 1 && (
+                            <Pagination>
+                              <PaginationContent>
+                                <PaginationItem>
+                                  <PaginationPrevious
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                  />
+                                </PaginationItem>
+
+                                {/* Show limited page numbers for better UX */}
+                                {(() => {
+                                  const pages = [];
+                                  const maxVisiblePages = 5;
+                                  let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                                  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+                                  // Adjust start page if we're near the end
+                                  if (endPage - startPage + 1 < maxVisiblePages) {
+                                    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                                  }
+
+                                  for (let i = startPage; i <= endPage; i++) {
+                                    pages.push(
+                                      <PaginationItem key={i}>
+                                        <PaginationLink
+                                          onClick={() => setCurrentPage(i)}
+                                          isActive={currentPage === i}
+                                          className="cursor-pointer"
+                                        >
+                                          {i}
+                                        </PaginationLink>
+                                      </PaginationItem>
+                                    );
+                                  }
+                                  return pages;
+                                })()}
+
+                                <PaginationItem>
+                                  <PaginationNext
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                  />
+                                </PaginationItem>
+                              </PaginationContent>
+                            </Pagination>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
-              </>
-            )}
           </CardContent>
         </Card>
 
