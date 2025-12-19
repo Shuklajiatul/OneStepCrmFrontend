@@ -114,7 +114,7 @@ const SortableFieldItemComponent = function SortableFieldItem({ field, selectedF
                 </Badge>
                 {/* <span>•</span> */}
                 {/* <span>ID: {field.id}</span> */}
-                {field.required && (
+                {(field.required || field.isLeadColumn) && (
                   <>
                     <span>•</span>
                     <Badge variant="outline" className="text-xs">
