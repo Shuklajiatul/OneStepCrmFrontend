@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation'; // Added import
+import { useRouter } from 'next/navigation';
 import * as migrationService from './services/migrationService';
 import StepIndicator from './components/StepIndicator';
 import SourceSelector from './components/SourceSelector';
@@ -77,58 +77,48 @@ const App = () => {
         setIsValidating(true);
         setValidationError(null);
 
-        // If it's a CSV upload mode, read the file content
-        if (sourceType === 'csv' && newConfig.csvMode === 'upload' && newConfig.file) {
-            try {
-                const fileContent = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.onerror = (e) => reject(new Error("Failed to read file"));
-                    reader.readAsText(newConfig.file);
-                });
-                finalConfig.fileContent = fileContent;
-                // Remove the File object before sending to API if necessary, 
-                // but setting finalConfig is enough as we pass finalConfig to migrationService
-            } catch (error) {
-                setIsValidating(false);
-                toast.error("Error reading file: " + error.message);
-                return;
-            }
+        // If it's a CSV upload mode, just pass the file object
+        if (sourceType === 'csv' || sourceType === 'excel' && newConfig.file) {
+            finalConfig.file = newConfig.file;
         }
 
         setConfig(finalConfig);
 
         if (sourceType) {
             try {
+                console.log(`[Migrator] Starting validation for ${sourceType}...`, finalConfig);
                 const result = await migrationService.validateSource(sourceType, finalConfig);
+                console.log("[Migrator] Validation result:", result);
                 setIsValidating(false);
 
                 if (result.success) {
                     setIsConfigDialogOpen(false);
                     toast.success("Source validated successfully");
                     // Fetch preview immediately after success
-                    console.log("Fetching preview data...");
+                    console.log("[Migrator] Source validated. Fetching preview data...");
                     const previewResult = await migrationService.previewSource(sourceType, finalConfig);
-                    console.log("Preview Result:", previewResult);
+                    console.log("[Migrator] Preview results received:", previewResult);
 
                     if (previewResult && (previewResult.rows || previewResult.data)) {
                         const rows = previewResult.rows || previewResult.data;
-                        console.log("Row count:", rows.length);
+                        console.log(`[Migrator] Preview successful. Loaded ${rows.length} rows.`);
                         setPreviewData(rows);
                         setStep(2); // Go to Preview Step
                         toast.success("Data preview loaded");
                     } else {
-                        console.warn("No rows found in preview result");
+                        console.warn("[Migrator] Preview returned no data:", previewResult);
                         toast.warning("No data found for preview");
                     }
                 } else {
                     const msg = result.message || "Validation failed. Please check your credentials.";
+                    console.error("[Migrator] Validation failed:", msg);
                     setValidationError(msg);
                     toast.error(msg);
                 }
             } catch (error) {
                 setIsValidating(false);
                 const msg = error.message || "Connection failed. Please check your configuration.";
+                console.error("[Migrator] Error during validation/preview flow:", error);
                 setValidationError(msg);
                 toast.error(msg);
             }
@@ -136,6 +126,7 @@ const App = () => {
     };
 
     const handleStartMapping = () => {
+        console.log("[Migrator] Transitioning to step 3 (Field Mapping)");
         setStep(3);
     };
 
@@ -229,11 +220,10 @@ const App = () => {
                 mapping: mappingPayload
             };
 
-            // Double check keys against user object
-            console.log("Migration Debug - User Object:", user);
-            console.log("Migration Debug - Full Payload:", payload);
+            console.log("[Migrator] Starting final migration process with payload:", payload);
 
             const result = await migrationService.startMigration(payload);
+            console.log("[Migrator] Final migration result:", result);
             setIsMigrating(false);
             setMigrationResult(result);
             setStep(4);
