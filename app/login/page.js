@@ -90,7 +90,7 @@ export default function LoginPage() {
   //     if (response.status === 200) {
   //       const data = response.data
   //       if (data.authenticated) {
-  //         router.push('/')
+  //         router.push('/dashboard')
   //       }
   //     }
   //   } catch (error) {
@@ -199,7 +199,7 @@ export default function LoginPage() {
       console.log('OTP verification response:', data);
       authUtils.setTokens(data)
       console.log('Cookies after verification:', document.cookie);
-      router.push("/")
+      router.push("/dashboard")
     } catch (err) {
       setError(err.response?.data?.message || err.message || "OTP verification failed")
     } finally {

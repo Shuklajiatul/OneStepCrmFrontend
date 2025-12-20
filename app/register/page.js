@@ -82,7 +82,7 @@ export default function RegisterPage() {
       authUtils.setTokens(data);
 
       // Redirect to dashboard or home page
-      router.push('/');
+      router.push('/dashboard');
     } catch (err) {
       setError(err.message);
     } finally {
