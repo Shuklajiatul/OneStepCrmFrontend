@@ -423,8 +423,8 @@ export default function DashboardPage() {
                         </CardHeader>
                         <CardContent className="grid grid-cols-2 gap-3 pt-0">
                             {[
-                                { name: 'Forms', href: '/forms', icon: FileText, color: 'bg-emerald-100 text-emerald-600' },
-                                { name: 'Tables', href: '/custom-table', icon: Database, color: 'bg-amber-100 text-amber-600' },
+                                { name: 'Forms', href: '/my-forms', icon: FileText, color: 'bg-emerald-100 text-emerald-600' },
+                                { name: 'Tables', href: '/custom-table-builder', icon: Database, color: 'bg-amber-100 text-amber-600' },
                                 { name: 'Users', href: '/users', icon: Users, color: 'bg-blue-100 text-blue-600' },
                                 { name: 'Security', href: '/roles', icon: Shield, color: 'bg-slate-100 text-slate-600' },
                             ].map((item, i) => (
