@@ -461,8 +461,8 @@ export default function DashboardPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {recentForms.map((form) => (
-                                    <TableRow key={form.form_id}>
+                                {recentForms.map((form,index) => (
+                                    <TableRow key={index}>
                                         <TableCell className="pl-6 py-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
