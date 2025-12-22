@@ -287,20 +287,6 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   const fetchOrganizations = async () => {
     try {
       setLoadingOrganizations(true);
-
-      // Get token from auth utils, localStorage, or sessionStorage
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        sessionStorage.getItem('token') ||
-        sessionStorage.getItem('accessToken');
-
-      if (!token) {
-        console.warn('No token available for fetching organizations');
-        return;
-      }
-
       const response = await organizationsApi.getAll();
 
       // Handle different response formats
@@ -328,18 +314,6 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   const fetchUsers = async () => {
     try {
       setLoadingUsers(true);
-
-      // Get token from auth utils, localStorage, or sessionStorage
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken');
-
-      if (!token) {
-        console.warn('No token available for fetching users');
-        return;
-      }
-
       const response = await usersApi.getAll();
 
       // Handle different response formats
@@ -415,27 +389,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
         )
       );
 
-      // Get token from auth utils, localStorage, or sessionStorage
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        sessionStorage.getItem('token') ||
-        sessionStorage.getItem('accessToken');
-
-      if (!token) {
-        // Revert optimistic update
-        setGenes(prevGenes =>
-          prevGenes.map(gene =>
-            gene.g_id === geneId || gene.id === geneId
-              ? { ...gene, is_active: currentStatus }
-              : gene
-          )
-        );
-        toast.error('Authentication required. Please login again.', { id: loadingToast });
-        router.push('/login');
-        return;
-      }
+      console.log('Toggling status for gene with ID:', geneId);
 
       console.log('Toggling status for gene with ID:', geneId);
 
@@ -516,18 +470,6 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
     setEditingGene(gene);
 
     try {
-      // Get token from auth utils, localStorage, or sessionStorage
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken');
-
-      if (!token) {
-        toast.error('Authentication required. Please login again.');
-        router.push('/login');
-        return;
-      }
-
       // Fetch the specific gene details to get the users
       const response = await genesApi.getById(gene.g_id || gene.id);
 
@@ -754,30 +696,14 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
     setSelectedGene(gene);
     setShowViewModal(true);
     setLoadingGeneDetails(true);
-
     try {
-      // Get token from auth utils, localStorage, or sessionStorage
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        sessionStorage.getItem('token') ||
-        sessionStorage.getItem('accessToken');
-
-      if (!token) {
-        console.warn('No token available for fetching gene details');
-        setLoadingGeneDetails(false);
-        return;
-      }
-
       // Fetch detailed gene information with users and organizations
       const response = await axios.get(
         `${API_CONSTANTS.BASE_URL}/api/genes/by-geneId/${gene.g_id || gene.id}`,
         {
           headers: {
             Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'application/json'
           }
         }
       );
@@ -841,23 +767,8 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
     const loadingToast = toast.loading('Deleting gene...');
 
     try {
-      // Get token from auth utils, localStorage, or sessionStorage
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        sessionStorage.getItem('token') ||
-        sessionStorage.getItem('accessToken');
-
-      if (!token) {
-        toast.error('Authentication required. Please login again.', { id: loadingToast });
-        router.push('/login');
-        return;
-      }
-
       console.log('Deleting gene with ID:', geneToDelete);
 
-      // Delete endpoint uses DELETE with g_id in the URL path
       // Delete endpoint uses DELETE with g_id in the URL path
       const response = await genesApi.delete(geneToDelete);
 
@@ -919,20 +830,6 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
     const loadingToast = toast.loading('Importing genes from CSV...');
 
     try {
-      // Get token from auth utils, localStorage, or sessionStorage
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        sessionStorage.getItem('token') ||
-        sessionStorage.getItem('accessToken');
-
-      if (!token) {
-        toast.error('Authentication required. Please login again.', { id: loadingToast });
-        router.push('/login');
-        return;
-      }
-
       const baseUrl = API_CONSTANTS.BASE_URL;
 
       const response = await axios.post(
@@ -940,8 +837,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
         formData,
         {
           headers: {
-            'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${token}`
+            'Content-Type': 'multipart/form-data'
           }
         }
       );
