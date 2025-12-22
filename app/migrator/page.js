@@ -99,14 +99,23 @@ const App = () => {
                     const previewResult = await migrationService.previewSource(sourceType, finalConfig);
                     console.log("[Migrator] Preview results received:", previewResult);
 
-                    if (previewResult && (previewResult.rows || previewResult.data)) {
-                        const rows = previewResult.rows || previewResult.data;
+                    // Robust data extraction
+                    let rows = null;
+                    if (previewResult) {
+                        if (Array.isArray(previewResult.rows)) rows = previewResult.rows;
+                        else if (Array.isArray(previewResult.data)) rows = previewResult.data;
+                        else if (previewResult.data && Array.isArray(previewResult.data.rows)) rows = previewResult.data.rows;
+                        else if (previewResult.data && Array.isArray(previewResult.data.data)) rows = previewResult.data.data;
+                        else if (Array.isArray(previewResult)) rows = previewResult;
+                    }
+
+                    if (rows && rows.length > 0) {
                         console.log(`[Migrator] Preview successful. Loaded ${rows.length} rows.`);
                         setPreviewData(rows);
                         setStep(2); // Go to Preview Step
                         toast.success("Data preview loaded");
                     } else {
-                        console.warn("[Migrator] Preview returned no data:", previewResult);
+                        console.warn("[Migrator] Preview returned no rows or unexpected format:", previewResult);
                         toast.warning("No data found for preview");
                     }
                 } else {

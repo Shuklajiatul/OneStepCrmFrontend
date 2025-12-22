@@ -2,7 +2,7 @@
 import React from 'react';
 
 const PreviewTable = ({ data }) => {
-    if (!data || data.length === 0) return null;
+    if (!data || !Array.isArray(data) || data.length === 0) return null;
 
     const headers = Object.keys(data[0]);
 
