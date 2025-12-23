@@ -73,6 +73,8 @@ export default function DashboardPage() {
     const [activities, setActivities] = useState([])
     const [genes, setGenes] = useState([])
     const [policies, setPolicies] = useState([])
+    const [roles, setRoles] = useState([])
+    const [teamMembers, setTeamMembers] = useState([])
     const [loading, setLoading] = useState(true)
     const [currentUser, setCurrentUser] = useState(null)
     const [chartData, setChartData] = useState([])
@@ -120,7 +122,9 @@ export default function DashboardPage() {
                         uMap[userId] = {
                             name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'Unknown',
                             avatar: user.avatar_url,
-                            email: user.email
+                            email: user.email,
+                            role_id: user.role_id,
+                            reporting_id: user.reporting_id
                         }
                     }
                 })
@@ -135,8 +139,29 @@ export default function DashboardPage() {
                 const tablesCount = tablesData.length
                 const sortedTables = [...tablesData].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5)
 
-                // Process Roles
-                const rolesCount = rolesRes.data?.data?.length || 0
+                // Process Roles with user assignments
+                const rolesDataRaw = rolesRes.data?.data || rolesRes.data?.roles || []
+                const rolesData = Array.isArray(rolesDataRaw) ? rolesDataRaw : []
+                const rolesCount = rolesData.length
+
+                // Map users to roles
+                const rolesWithUsers = rolesData.map(role => {
+                    const roleId = role.role_id || role.id
+                    const usersInRole = usersData.filter(user =>
+                        (user.role_id || user.roles?.[0]) === roleId
+                    )
+                    return {
+                        ...role,
+                        userCount: usersInRole.length,
+                        users: usersInRole
+                    }
+                })
+
+                // Get team members (users reporting to current user)
+                const currentUserId = tokens?.user?.user_id || tokens?.user?.id
+                const myTeam = usersData.filter(user =>
+                    user.reporting_id === currentUserId
+                )
 
                 // Fetch Leads from specific table
                 let leadsData = []
@@ -220,6 +245,8 @@ export default function DashboardPage() {
                 setUserMap(uMap)
                 setGenes(genesRes.data?.data || [])
                 setPolicies(policiesRes.data?.data || [])
+                setRoles(rolesWithUsers)
+                setTeamMembers(myTeam)
                 setChartData(activityData)
 
             } catch (error) {
@@ -523,7 +550,126 @@ export default function DashboardPage() {
                 </div>
             </div>
 
+            {/* Role Overview & My Team Section */}
+            <div className="grid gap-4 md:grid-cols-2">
+                {/* Role Overview Card */}
+                <Card className="rounded-xl shadow-sm overflow-hidden">
+                    <CardHeader className="border-b py-3 px-4 bg-muted/10 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
+                                <Shield className="h-4 w-4 text-primary" />
+                                Role Overview
+                            </CardTitle>
+                            <CardDescription className="text-[10px]">User distribution across roles</CardDescription>
+                        </div>
+                        <Link href="/roles">
+                            <Button variant="ghost" size="sm" className="text-[10px] h-7">
+                                Manage <ArrowUpRight className="ml-1 h-3 w-3" />
+                            </Button>
+                        </Link>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <ScrollArea className="h-[210px]">
+                            <div className="divide-y">
+                                {roles.length === 0 ? (
+                                    <div className="p-8 text-center text-xs text-muted-foreground">
+                                        No roles configured yet.
+                                    </div>
+                                ) : (
+                                    roles.map((role) => (
+                                        <div key={role.role_id || role.id} className="p-3 flex items-center justify-between hover:bg-accent/5 transition-colors group">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center text-violet-600 border border-violet-100 group-hover:bg-violet-100 transition-colors">
+                                                    <Shield className="h-3.5 w-3.5" />
+                                                </div>
+                                                <div>
+                                                    <div className="font-semibold text-xs">{role.role_name || role.name}</div>
+                                                    <div className="text-[9px] text-muted-foreground">
+                                                        {role.description || 'No description'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant="secondary" className="text-[9px] h-5 px-2 gap-1">
+                                                    <Users className="h-2.5 w-2.5" />
+                                                    {role.userCount || 0}
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </ScrollArea>
+                    </CardContent>
+                </Card>
+
+                {/* My Team Card */}
+                <Card className="rounded-xl shadow-sm overflow-hidden">
+                    <CardHeader className="border-b py-3 px-4 bg-muted/10 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
+                                <UserCheck className="h-4 w-4 text-primary" />
+                                My Team
+                            </CardTitle>
+                            <CardDescription className="text-[10px]">Users reporting to you</CardDescription>
+                        </div>
+                        <Badge variant="outline" className="text-[10px]">{teamMembers.length} Members</Badge>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <ScrollArea className="h-[210px]">
+                            <div className="divide-y">
+                                {teamMembers.length === 0 ? (
+                                    <div className="p-8 text-center text-xs text-muted-foreground">
+                                        No team members assigned to you yet.
+                                    </div>
+                                ) : (
+                                    teamMembers.map((member) => {
+                                        const userId = member.user_id || member.id
+                                        const userName = `${member.first_name || ''} ${member.last_name || ''}`.trim() || member.email || 'Unknown'
+                                        const userRole = roles.find(r => (r.role_id || r.id) === member.role_id)
+
+                                        return (
+                                            <div key={userId} className="p-3 flex items-center justify-between hover:bg-accent/5 transition-colors group">
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-8 w-8 border">
+                                                        <AvatarImage src={member.avatar_url} />
+                                                        <AvatarFallback className="text-[10px] font-bold">
+                                                            {getInitials(userName)}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <div className="font-semibold text-xs">{userName}</div>
+                                                        <div className="text-[9px] text-muted-foreground">{member.email}</div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {userRole && (
+                                                        <Badge variant="outline" className="text-[9px] h-5 px-2">
+                                                            {userRole.role_name || userRole.name}
+                                                        </Badge>
+                                                    )}
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className={`text-[9px] h-5 px-2 ${member.is_active !== false
+                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                            : 'bg-gray-50 text-gray-600 border-gray-200'
+                                                            }`}
+                                                    >
+                                                        {member.is_active !== false ? 'Active' : 'Inactive'}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                        )
+                                    })
+                                )}
+                            </div>
+                        </ScrollArea>
+                    </CardContent>
+                </Card>
+            </div>
+
             {/* System Architecture & Access Section */}
+
             <div className="grid gap-4 md:grid-cols-2">
                 {/* System Blueprint (Genes) */}
                 <Card className="rounded-xl shadow-sm overflow-hidden">
