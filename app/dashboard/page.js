@@ -461,7 +461,11 @@ export default function DashboardPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
+<<<<<<< Updated upstream
                                 {recentForms.map((form,index) => (
+=======
+                                {recentForms.map((form, index) => (
+>>>>>>> Stashed changes
                                     <TableRow key={index}>
                                         <TableCell className="pl-6 py-4">
                                             <div className="flex items-center gap-3">
