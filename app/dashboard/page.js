@@ -19,7 +19,14 @@ import {
     AlertCircle,
     Server,
     Zap,
-    History
+    History,
+    PieChart,
+    CalendarCheck,
+    Flag,
+    TrendingUp,
+    Fingerprint,
+    Boxes,
+    Cpu
 } from "lucide-react"
 import {
     Table,
@@ -31,10 +38,13 @@ import {
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { usersApi, formsApi, datatablesApi, rolesApi, recordsApi } from "@/lib/api-endpoint"
+import { usersApi, formsApi, datatablesApi, rolesApi, recordsApi, genesApi, featuresApi, policiesApi } from "@/lib/api-endpoint"
 import { authUtils } from "@/lib/auth-utils"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 import {
     BarChart,
     Bar,
@@ -51,16 +61,30 @@ export default function DashboardPage() {
         users: 0,
         forms: 0,
         tables: 0,
-        roles: 0
+        roles: 0,
+        genes: 0,
+        features: 0
     })
     const [recentForms, setRecentForms] = useState([])
     const [recentTables, setRecentTables] = useState([])
     const [recentLeads, setRecentLeads] = useState([])
     const [userMap, setUserMap] = useState({})
     const [alerts, setAlerts] = useState([])
+    const [activities, setActivities] = useState([])
+    const [genes, setGenes] = useState([])
+    const [policies, setPolicies] = useState([])
     const [loading, setLoading] = useState(true)
     const [currentUser, setCurrentUser] = useState(null)
     const [chartData, setChartData] = useState([])
+
+    const pipelineData = [
+        { status: 'New', count: 45, color: 'bg-blue-500', percent: 45 },
+        { status: 'Contacted', count: 32, color: 'bg-amber-500', percent: 32 },
+        { status: 'In Progress', count: 18, color: 'bg-emerald-500', percent: 18 },
+        { status: 'Qualified', count: 12, color: 'bg-violet-500', percent: 12 },
+    ]
+
+
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -72,11 +96,14 @@ export default function DashboardPage() {
                 }
 
                 // Fetch all data in parallel
-                const [usersRes, formsRes, tablesRes, rolesRes] = await Promise.all([
+                const [usersRes, formsRes, tablesRes, rolesRes, genesRes, featuresRes, policiesRes] = await Promise.all([
                     usersApi.getAll(),
                     formsApi.getAll(),
                     datatablesApi.getAll(),
-                    rolesApi.getAll()
+                    rolesApi.getAll(),
+                    genesApi.getAll(),
+                    featuresApi.getAll(),
+                    policiesApi.getAll()
                 ])
 
                 // Process Users
@@ -111,15 +138,14 @@ export default function DashboardPage() {
                 // Process Roles
                 const rolesCount = rolesRes.data?.data?.length || 0
 
-                // Fetch Leads (from the first available table if exists)
+                // Fetch Leads from specific table
                 let leadsData = []
-                if (tablesData.length > 0) {
-                    try {
-                        const leadsRes = await recordsApi.getAll(tablesData[0].table_id)
-                        leadsData = (leadsRes.data?.data || leadsRes.data || []).slice(0, 5)
-                    } catch (e) {
-                        console.warn("Failed to fetch leads for dashboard:", e)
-                    }
+                const LATEST_LEAD_TABLE_ID = "f3afc7d5-f3f5-443c-a5d9-3c25d736b456"
+                try {
+                    const leadsRes = await recordsApi.getAll(LATEST_LEAD_TABLE_ID)
+                    leadsData = (leadsRes.data?.data || leadsRes.data || []).slice(0, 5)
+                } catch (e) {
+                    console.warn("Failed to fetch leads for dashboard:", e)
                 }
 
                 // Prepare Chart Data
@@ -128,6 +154,7 @@ export default function DashboardPage() {
                     { name: 'Forms', value: formsCount, color: '#10b981' },
                     { name: 'Tables', value: tablesCount, color: '#f59e0b' },
                     { name: 'Roles', value: rolesCount, color: '#8b5cf6' },
+                    { name: 'Genes', value: (genesRes.data?.data || []).length, color: '#ec4899' },
                 ]
 
                 // Mock Alerts (based on activity)
@@ -137,17 +164,62 @@ export default function DashboardPage() {
                     { id: 3, title: 'User Access', desc: 'New role "Manager" added to system', time: '3 hours ago', icon: Shield, color: 'text-blue-500', bg: 'bg-blue-50' },
                 ]
 
+                // Aggregate Recent Activities
+                const allActivities = [
+                    ...usersData.slice(0, 5).map(u => ({
+                        id: `user-${u.user_id || u.id}`,
+                        title: 'New User',
+                        desc: `${u.first_name || 'A user'} joined the platform`,
+                        time: u.created_at || new Date().toISOString(),
+                        icon: UserPlus,
+                        color: 'text-blue-500',
+                        bg: 'bg-blue-50'
+                    })),
+                    ...formsData.slice(0, 5).map(f => ({
+                        id: `form-${f.form_id}`,
+                        title: 'Form Created',
+                        desc: `New form "${f.form_name}" is now live`,
+                        time: f.created_at || new Date().toISOString(),
+                        icon: FileText,
+                        color: 'text-emerald-500',
+                        bg: 'bg-emerald-50'
+                    })),
+                    ...tablesData.slice(0, 5).map(t => ({
+                        id: `table-${t.table_id}`,
+                        title: 'Table Added',
+                        desc: `Schema "${t.table_name}" was initialized`,
+                        time: t.created_at || new Date().toISOString(),
+                        icon: Database,
+                        color: 'text-amber-500',
+                        bg: 'bg-amber-50'
+                    })),
+                    ...leadsData.slice(0, 5).map(l => ({
+                        id: `lead-${l.record_id}`,
+                        title: 'Lead Captured',
+                        desc: `New record received in ${recentTables.find(t => t.table_id === l.table_id)?.table_name || 'Table'}`,
+                        time: l.created_at || new Date().toISOString(),
+                        icon: Zap,
+                        color: 'text-indigo-500',
+                        bg: 'bg-indigo-50'
+                    }))
+                ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 10)
+
                 setStats({
                     users: usersCount,
                     forms: formsCount,
                     tables: tablesCount,
-                    roles: rolesCount
+                    roles: rolesCount,
+                    genes: (genesRes.data?.data || []).length,
+                    features: (featuresRes.data?.data || []).length
                 })
                 setRecentForms(sortedForms)
                 setRecentTables(sortedTables)
                 setRecentLeads(leadsData)
                 setAlerts(mockAlerts)
+                setActivities(allActivities)
                 setUserMap(uMap)
+                setGenes(genesRes.data?.data || [])
+                setPolicies(policiesRes.data?.data || [])
                 setChartData(activityData)
 
             } catch (error) {
@@ -179,9 +251,9 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-[1600px] mx-auto">
+        <div className="p-4 md:p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-[1600px] mx-auto">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-card p-6 rounded-2xl border shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 rounded-xl border shadow-sm">
                 <div className="space-y-1">
                     <h2 className="text-3xl font-bold tracking-tight">
                         Welcome back, <span className="text-primary">{currentUser?.first_name || 'Admin'}</span>
@@ -205,36 +277,37 @@ export default function DashboardPage() {
                 </div>
             </div>
 
+            {/* Quick Stats Grid - Full Width */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {[
+                    { title: 'System Users', value: stats.users, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100' },
+                    { title: 'Total Forms', value: stats.forms, icon: FileText, color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-100' },
+                    { title: 'Data Tables', value: stats.tables, icon: Database, color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-100' },
+                    { title: 'Global Roles', value: stats.roles, icon: Shield, color: 'text-violet-500', bg: 'bg-violet-50', border: 'border-violet-100' },
+                    { title: 'Active Genes', value: stats.genes, icon: Boxes, color: 'text-pink-500', bg: 'bg-pink-50', border: 'border-pink-100' },
+                    { title: 'Features', value: stats.features, icon: Cpu, color: 'text-indigo-500', bg: 'bg-indigo-50', border: 'border-indigo-100' },
+                ].map((stat, i) => (
+                    <Card key={i} className={`border-none ${stat.bg} ${stat.border} rounded-xl`}>
+                        <CardHeader className="flex flex-row items-center justify-between pb-1 px-4 pt-4">
+                            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase opacity-80">{stat.title}</CardTitle>
+                            <div className={`p-1.5 rounded-lg bg-white shadow-sm ${stat.color}`}>
+                                <stat.icon className="h-3.5 w-3.5" />
+                            </div>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4">
+                            <div className="text-2xl font-bold">{stat.value}</div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
             {/* Main Content Layout */}
-            <div className="grid gap-6 lg:grid-cols-12">
-
+            <div className="grid gap-4 lg:grid-cols-12">
                 {/* Left Content Area (8 Columns) */}
-                <div className="lg:col-span-8 space-y-8">
-
-                    {/* Quick Stats Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {[
-                            { title: 'System Users', value: stats.users, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100' },
-                            { title: 'Total Forms', value: stats.forms, icon: FileText, color: 'text-emerald-500', bg: 'bg-emerald-50', border: 'border-emerald-100' },
-                            { title: 'Data Tables', value: stats.tables, icon: Database, color: 'text-amber-500', bg: 'bg-amber-50', border: 'border-amber-100' },
-                            { title: 'Global Roles', value: stats.roles, icon: Shield, color: 'text-violet-500', bg: 'bg-violet-50', border: 'border-violet-100' },
-                        ].map((stat, i) => (
-                            <Card key={i} className={`border-none ${stat.bg} ${stat.border}`}>
-                                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-                                    <div className={`p-2 rounded-lg bg-white shadow-sm ${stat.color}`}>
-                                        <stat.icon className="h-4 w-4" />
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-3xl font-bold">{stat.value}</div>
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+                <div className="lg:col-span-8 space-y-6">
 
                     {/* Analytics Chart */}
-                    <Card className="rounded-2xl overflow-hidden shadow-sm">
+                    <Card className="rounded-xl overflow-hidden shadow-sm">
                         <CardHeader className="bg-muted/30 pb-8">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -267,7 +340,7 @@ export default function DashboardPage() {
                     </Card>
 
                     {/* Latest 5 Leads */}
-                    <Card className="rounded-2xl shadow-sm overflow-hidden">
+                    <Card className="rounded-xl shadow-sm overflow-hidden">
                         <CardHeader className="flex flex-row items-center justify-between pb-4 border-b">
                             <div>
                                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -336,103 +409,112 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Right Sidebar Area (4 Columns) */}
-                <div className="lg:col-span-4 space-y-6">
+                <div className="lg:col-span-4 flex flex-col gap-4">
 
-                    {/* System Quick View */}
-                    <Card className="rounded-2xl bg-slate-900 text-white border-none shadow-xl overflow-hidden">
+                    {/* Lead Pipeline Summary */}
+                    <Card className="rounded-xl shadow-sm overflow-hidden border-none bg-gradient-to-br from-indigo-600 to-violet-700 text-white">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
-                                <Activity className="h-4 w-4" />
-                                System Quick View
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-90">
+                                <PieChart className="h-4 w-4" />
+                                Lead Pipeline
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-6 pt-2">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                                    <div className="text-xs opacity-60 mb-1">API Status</div>
-                                    <div className="flex items-center gap-1.5 font-semibold text-emerald-400">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                        Operational
+                        <CardContent className="space-y-2">
+                            <div className="flex items-end justify-between">
+                                <div>
+                                    <div className="text-2xl font-bold">107</div>
+                                    <div className="text-[10px] opacity-70 flex items-center gap-1">
+                                        <TrendingUp className="h-2.5 w-2.5" />
+                                        +12% from last week
                                     </div>
                                 </div>
-                                <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                                    <div className="text-xs opacity-60 mb-1">Active Orgs</div>
-                                    <div className="font-semibold">01 Unit</div>
+                                <div className="text-right">
+                                    <div className="text-xs font-medium">Qualified</div>
+                                    <div className="text-xl font-bold">12%</div>
                                 </div>
                             </div>
 
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between text-xs">
-                                    <span className="opacity-60">Storage Usage</span>
-                                    <span className="font-mono">12% / 10GB</span>
-                                </div>
-                                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                                    <div className="h-full bg-primary w-[12%]" />
-                                </div>
-                            </div>
-
-                            <div className="pt-2">
-                                <Button className="w-full bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-bold py-5">
-                                    Open Admin Console
-                                </Button>
+                            <div className="space-y-2 pt-1">
+                                {pipelineData.map((item, i) => (
+                                    <div key={i} className="space-y-0.5">
+                                        <div className="flex justify-between text-[9px] opacity-80 uppercase font-semibold">
+                                            <span>{item.status}</span>
+                                            <span>{item.count} Leads</span>
+                                        </div>
+                                        <Progress value={item.percent} className="h-1 bg-white/10" indicatorClassName={item.color} />
+                                    </div>
+                                ))}
                             </div>
                         </CardContent>
                     </Card>
 
-                    {/* Recent Alerts */}
-                    <Card className="rounded-2xl shadow-sm">
-                        <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
-                            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                                <Bell className="h-5 w-5 text-primary" />
-                                Recent Alerts
+
+
+                    {/* Recent Activity Log */}
+                    <Card className="rounded-xl shadow-sm">
+                        <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
+                                <Activity className="h-4 w-4 text-primary" />
+                                Recent Activity
                             </CardTitle>
-                            <Badge className="bg-primary/10 text-primary border-none">{alerts.length}</Badge>
+                            <Badge className="bg-primary/10 text-primary border-none text-[10px] h-5 px-1.5">{activities.length}</Badge>
                         </CardHeader>
                         <CardContent className="p-0">
-                            <div className="divide-y">
-                                {alerts.map((alert) => (
-                                    <div key={alert.id} className="p-4 flex gap-4 hover:bg-accent/5 transition-colors cursor-pointer group">
-                                        <div className={`mt-1 h-10 w-10 flex-shrink-0 rounded-xl ${alert.bg} flex items-center justify-center`}>
-                                            <alert.icon className={`h-5 w-5 ${alert.color}`} />
+                            <ScrollArea className="h-[180px]">
+                                <div className="divide-y">
+                                    {activities.length === 0 ? (
+                                        <div className="p-8 text-center text-xs text-muted-foreground">
+                                            No recent activity detected.
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between mb-0.5">
-                                                <span className="font-semibold text-sm truncate">{alert.title}</span>
-                                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{alert.time}</span>
+                                    ) : (
+                                        activities.map((activity) => (
+                                            <div key={activity.id} className="p-2 flex gap-3 hover:bg-accent/5 transition-colors cursor-pointer group">
+                                                <div className={`mt-0.5 h-7 w-7 flex-shrink-0 rounded-lg ${activity.bg} flex items-center justify-center`}>
+                                                    <activity.icon className={`h-3.5 w-3.5 ${activity.color}`} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between mb-0.5">
+                                                        <span className="font-semibold text-[11px] truncate group-hover:text-primary transition-colors">{activity.title}</span>
+                                                        <span className="text-[8px] text-muted-foreground whitespace-nowrap">
+                                                            {new Date(activity.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[10px] text-muted-foreground line-clamp-1">{activity.desc}</p>
+                                                </div>
                                             </div>
-                                            <p className="text-xs text-muted-foreground line-clamp-2">{alert.desc}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="p-3 border-t">
-                                <Button variant="ghost" className="w-full text-xs text-muted-foreground h-8">
-                                    <History className="mr-2 h-3 w-3" /> Clear History
+                                        ))
+                                    )}
+                                </div>
+                            </ScrollArea>
+                            <Separator />
+                            <div className="p-2">
+                                <Button variant="ghost" className="w-full text-[10px] text-muted-foreground h-7 hover:bg-transparent hover:text-primary">
+                                    <History className="mr-2 h-3 w-3" /> View Full Audit Log
                                 </Button>
                             </div>
                         </CardContent>
                     </Card>
 
                     {/* Quick Access Grid (Consolidated) */}
-                    <Card className="rounded-2xl shadow-sm">
-                        <CardHeader>
-                            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                                <LayoutDashboard className="h-5 w-5 text-primary" />
+                    <Card className="rounded-xl shadow-sm flex-1 flex flex-col">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
+                                <LayoutDashboard className="h-4 w-4 text-primary" />
                                 Quick Shortcuts
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="grid grid-cols-2 gap-3 pt-0">
+                        <CardContent className="grid grid-cols-2 gap-2 pt-0 pb-2 px-4 flex-1 content-center">
                             {[
                                 { name: 'Forms', href: '/my-forms', icon: FileText, color: 'bg-emerald-100 text-emerald-600' },
                                 { name: 'Tables', href: '/custom-table-builder', icon: Database, color: 'bg-amber-100 text-amber-600' },
                                 { name: 'Users', href: '/users', icon: Users, color: 'bg-blue-100 text-blue-600' },
                                 { name: 'Security', href: '/roles', icon: Shield, color: 'bg-slate-100 text-slate-600' },
                             ].map((item, i) => (
-                                <Link key={i} href={item.href} className="flex flex-col items-center gap-2 p-4 rounded-xl border hover:border-primary/50 hover:bg-primary/5 transition-all text-center group">
-                                    <div className={`w-10 h-10 rounded-lg ${item.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                                        <item.icon className="h-5 w-5" />
+                                <Link key={i} href={item.href} className="flex flex-col items-center gap-1 p-2 rounded-xl border hover:border-primary/50 hover:bg-primary/5 transition-all text-center group">
+                                    <div className={`w-7 h-7 rounded-lg ${item.color} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                                        <item.icon className="h-3.5 w-3.5" />
                                     </div>
-                                    <span className="font-semibold text-xs">{item.name}</span>
+                                    <span className="font-semibold text-[9px] uppercase tracking-wider">{item.name}</span>
                                 </Link>
                             ))}
                         </CardContent>
@@ -441,42 +523,129 @@ export default function DashboardPage() {
                 </div>
             </div>
 
+            {/* System Architecture & Access Section */}
+            <div className="grid gap-4 md:grid-cols-2">
+                {/* System Blueprint (Genes) */}
+                <Card className="rounded-xl shadow-sm overflow-hidden">
+                    <CardHeader className="border-b py-3 px-4 bg-muted/10 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
+                                <Boxes className="h-4 w-4 text-primary" />
+                                System Blueprint
+                            </CardTitle>
+                            <CardDescription className="text-[10px]">Active modular genes in the core</CardDescription>
+                        </div>
+                        <Badge variant="outline" className="text-[10px]">{genes.length} Total</Badge>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <ScrollArea className="h-[210px]">
+                            <div className="divide-y">
+                                {genes.map((gene) => (
+                                    <div key={gene.id} className="p-3 flex items-center justify-between hover:bg-accent/5 transition-colors group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center text-pink-600 border border-pink-100 group-hover:bg-pink-100 transition-colors">
+                                                <Zap className="h-3.5 w-3.5" />
+                                            </div>
+                                            <div>
+                                                <div className="font-semibold text-xs">{gene.g_name || gene.name}</div>
+                                                <div className="text-[9px] text-muted-foreground uppercase font-mono">{gene.g_id || 'ID-UNKNOWN'}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {gene.users && gene.users.length > 0 && (
+                                                <Badge variant="ghost" className="text-[9px] h-5 px-1.5 border gap-1">
+                                                    <Users className="h-2.5 w-2.5" />
+                                                    {gene.users.length}
+                                                </Badge>
+                                            )}
+                                            <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-none text-[9px] h-5 px-1.5">
+                                                Active
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    </CardContent>
+                </Card>
+
+                {/* User Access Mapping (Policies) */}
+                <Card className="rounded-xl shadow-sm overflow-hidden">
+                    <CardHeader className="border-b py-3 px-4 bg-muted/10 flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
+                                <Fingerprint className="h-4 w-4 text-primary" />
+                                Access Mapping
+                            </CardTitle>
+                            <CardDescription className="text-[10px]">Policy distribution and user reach</CardDescription>
+                        </div>
+                        <Badge variant="outline" className="text-[10px]">{policies.length} Policies</Badge>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <ScrollArea className="h-[210px]">
+                            <div className="divide-y">
+                                {policies.map((policy) => (
+                                    <div key={policy.id} className="p-3 flex items-center justify-between hover:bg-accent/5 transition-colors group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100 group-hover:bg-indigo-100 transition-colors">
+                                                <Shield className="h-3.5 w-3.5" />
+                                            </div>
+                                            <div className="font-semibold text-xs">{policy.p_name || policy.name}</div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-1 rounded-lg">
+                                            <Users className="h-3 w-3 text-muted-foreground" />
+                                            <span className="text-[10px] font-bold">{policy.type === 'shared' ? 'Shared' : 'Private'} Access</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    </CardContent>
+                </Card>
+            </div>
+
             {/* Bottom Section: Forms & Tables */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                 {/* Recent Forms Table */}
-                <Card className="col-span-full lg:col-span-4 rounded-2xl shadow-sm overflow-hidden">
-                    <CardHeader className="flex flex-row items-center justify-between pb-4 border-b">
+                <Card className="col-span-full lg:col-span-4 rounded-xl shadow-sm overflow-hidden">
+                    <CardHeader className="flex flex-row items-center justify-between py-4 border-b">
                         <div>
                             <CardTitle className="text-lg font-semibold">Latest Forms</CardTitle>
-                            <CardDescription>Recently updated form templates</CardDescription>
+                            <CardDescription className="text-xs">Recently updated form templates</CardDescription>
                         </div>
                     </CardHeader>
                     <CardContent className="p-0">
                         <Table className="w-full">
                             <TableHeader>
-                                <TableRow className="bg-muted/30">
-                                    <TableHead className="pl-6">Form Identity</TableHead>
-                                    <TableHead>Author</TableHead>
-                                    <TableHead className="text-right pr-6">Management</TableHead>
+                                <TableRow className="bg-muted/10">
+                                    <TableHead className="pl-6 h-10 text-[10px] uppercase font-bold tracking-wider">Form Identity</TableHead>
+                                    <TableHead className="h-10 text-[10px] uppercase font-bold tracking-wider">Author</TableHead>
+                                    <TableHead className="h-10 text-[10px] uppercase font-bold tracking-wider">Created At</TableHead>
+                                    <TableHead className="text-right pr-6 h-10 text-[10px] uppercase font-bold tracking-wider">Management</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {recentForms.map((form,index) => (
-                                    <TableRow key={index}>
-                                        <TableCell className="pl-6 py-4">
+                                {recentForms.map((form, index) => (
+                                    <TableRow key={index} className="h-14">
+                                        <TableCell className="pl-6 py-2">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
                                                     <FileText className="h-4 w-4" />
                                                 </div>
-                                                <span className="font-medium truncate max-w-[140px]">{form.form_name}</span>
+                                                <span className="font-medium text-sm truncate max-w-[140px]">{form.form_name}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="py-2">
                                             <span className="text-sm">{userMap[form.created_by]?.name || 'Admin'}</span>
                                         </TableCell>
-                                        <TableCell className="text-right pr-6">
+                                        <TableCell className="py-2">
+                                            <span className="text-sm text-muted-foreground">
+                                                {new Date(form.created_at || Date.now()).toLocaleDateString()}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="text-right pr-6 py-2">
                                             <Link href={`/forms/${form.form_id}`}>
-                                                <Button variant="ghost" size="sm" className="h-8">Modify</Button>
+                                                <Button variant="ghost" size="sm" className="h-8 text-xs">Modify</Button>
                                             </Link>
                                         </TableCell>
                                     </TableRow>
@@ -487,23 +656,23 @@ export default function DashboardPage() {
                 </Card>
 
                 {/* Recent Tables Feed */}
-                <Card className="col-span-full lg:col-span-3 rounded-2xl shadow-sm border-t-4 border-t-amber-500">
-                    <CardHeader className="pb-4">
+                <Card className="col-span-full lg:col-span-3 rounded-xl shadow-sm border-t-4 border-t-amber-500">
+                    <CardHeader className="py-4">
                         <CardTitle className="text-lg font-semibold italic">Core Data Structures</CardTitle>
-                        <CardDescription>Recently added schemas</CardDescription>
+                        <CardDescription className="text-xs">Recently added schemas</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-2 pb-6 px-4">
                         {recentTables.map((table) => (
                             <Link
                                 key={table.table_id || table.id || table._id}
                                 href={`/leadPage?tableId=${table.table_id || table.id || table._id}`}
-                                className="flex items-center justify-between p-3 rounded-xl border border-transparent hover:border-amber-200 hover:bg-amber-50 transition-all"
+                                className="flex items-center justify-between p-2.5 rounded-lg border border-transparent hover:border-amber-200 hover:bg-amber-50 transition-all"
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
+                                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
                                         <Database className="h-4 w-4" />
                                     </div>
-                                    <div className="min-w-0 font-medium text-sm truncate">{table.table_name || table.name}</div>
+                                    <div className="min-w-0 font-medium text-xs truncate">{table.table_name || table.name}</div>
                                 </div>
                                 <ArrowUpRight className="h-4 w-4 opacity-40" />
                             </Link>
