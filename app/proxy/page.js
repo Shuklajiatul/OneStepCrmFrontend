@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -15,6 +15,7 @@ export default function ProxyPage() {
     const [status, setStatus] = useState('Initializing connection...');
     const [progress, setProgress] = useState(0);
     const [error, setError] = useState(null);
+    const router = useRouter();
     const searchParams = useSearchParams();
 
     useEffect(() => {
@@ -42,14 +43,11 @@ export default function ProxyPage() {
                 setProgress(50);
                 setStatus("Processing authentication...");
 
-                // Use axios with credentials to handle cookies
-                // Use authApi to handle the request
                 const response = await authApi.proxyBackend({ code, state });
 
                 console.log("OAuth Response:", response.data);
 
                 if (response.data.success) {
-                    // Map backend response to your auth utils format
                     const tokensData = {
                         accessToken: response.data.access_token,
                         refreshToken: response.data.refresh_token,
@@ -59,7 +57,7 @@ export default function ProxyPage() {
 
                     console.log("Mapped tokens data:", tokensData);
 
-                    // Store tokens using authUtils
+                    // Store tokens
                     if (tokensData.accessToken) {
                         authUtils.setTokens(tokensData);
                     }
@@ -67,19 +65,14 @@ export default function ProxyPage() {
                     setProgress(80);
                     setStatus("Finalizing authentication...");
 
-                    // Wait a bit for cookies to be set
                     await new Promise(r => setTimeout(r, 500));
-
-                    // Verify authentication
-                    // const isAuthenticated = authUtils.isAuthenticated();
-                    // console.log("Final authentication check:", isAuthenticated);
 
                     // if (isAuthenticated) {
                     setProgress(100);
                     setStatus("Success! Redirecting to dashboard...");
 
                     setTimeout(() => {
-                        window.location.href = response.data.redirectUrl || "/";
+                        router.push(response.data.redirectUrl || "/dashboard");
                     }, 1000);
                     // } else {
                     // setError("Authentication failed. Please try again.");
@@ -90,7 +83,7 @@ export default function ProxyPage() {
                 } else {
                     setError("Authentication rejected. Please login again.");
                     setTimeout(() => {
-                        window.location.href = "/login?error=sso_failed";
+                        router.push("/login?error=sso_failed");
                     }, 2000);
                 }
 
@@ -105,7 +98,7 @@ export default function ProxyPage() {
                 }
 
                 setTimeout(() => {
-                    window.location.href = "/login?error=auth_failed";
+                    router.push("/login?error=auth_failed");
                 }, 3000);
             } finally {
                 setLoading(false);
@@ -113,13 +106,13 @@ export default function ProxyPage() {
         };
 
         handleOAuthCallback();
-    }, [searchParams]);
+    }, [searchParams, router]);
 
     const handleRetry = () => {
         setError(null);
         setLoading(true);
         setProgress(0);
-        window.location.reload();
+        router.refresh();
     };
 
     return (

@@ -686,8 +686,8 @@ export default function DashboardPage() {
                     <CardContent className="p-0">
                         <ScrollArea className="h-[210px]">
                             <div className="divide-y">
-                                {genes.map((gene) => (
-                                    <div key={gene.id} className="p-3 flex items-center justify-between hover:bg-accent/5 transition-colors group">
+                                {genes.map((gene, index) => (
+                                    <div key={gene.g_id || gene.id || index} className="p-3 flex items-center justify-between hover:bg-accent/5 transition-colors group">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center text-pink-600 border border-pink-100 group-hover:bg-pink-100 transition-colors">
                                                 <Zap className="h-3.5 w-3.5" />
@@ -730,8 +730,8 @@ export default function DashboardPage() {
                     <CardContent className="p-0">
                         <ScrollArea className="h-[210px]">
                             <div className="divide-y">
-                                {policies.map((policy) => (
-                                    <div key={policy.id} className="p-3 flex items-center justify-between hover:bg-accent/5 transition-colors group">
+                                {policies.map((policy, index) => (
+                                    <div key={policy.p_id || policy.id || index} className="p-3 flex items-center justify-between hover:bg-accent/5 transition-colors group">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100 group-hover:bg-indigo-100 transition-colors">
                                                 <Shield className="h-3.5 w-3.5" />

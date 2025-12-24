@@ -67,20 +67,6 @@ export default function ProtectedRoute({ children }) {
     }
   }, [router]);
 
-  // Periodic auth check (every 5 minutes)
-  useEffect(() => {
-    if (isPublicRoute(pathname)) return;
-
-    const interval = setInterval(() => {
-      if (!authUtils.isAuthenticated()) {
-        setIsAuthenticated(false);
-        authUtils.clearTokens();
-        router.push('/login?error=session_expired');
-      }
-    }, 5 * 60 * 1000); // 5 minutes
-
-    return () => clearInterval(interval);
-  }, [pathname, router]);
 
   // Show loading state
   if (isLoading) {
