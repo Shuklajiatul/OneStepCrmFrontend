@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { authUtils } from '@/lib/auth-utils';
 import { authApi } from '@/lib/api-endpoint';
 
-export default function ProxyPage() {
+function ProxyContent() {
     const [loading, setLoading] = useState(true);
     const [status, setStatus] = useState('Initializing connection...');
     const [progress, setProgress] = useState(0);
@@ -196,5 +196,17 @@ export default function ProxyPage() {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+export default function ProxyPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+                <RefreshCw className="h-8 w-8 text-blue-600 animate-spin" />
+            </div>
+        }>
+            <ProxyContent />
+        </Suspense>
     );
 }

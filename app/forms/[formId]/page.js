@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { CheckCircle2, Send, ArrowLeft, Building, User, Save, Edit, FileText, Trash2, Lock, Pause } from "lucide-react"
 import { FieldRenderer } from "../../component/formbuilder/field-renderer"
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { toast } from "sonner"
 import { authUtils } from "@/lib/auth-utils"
 import { formsApi, submissionsApi } from "@/lib/api-endpoint"
@@ -1716,7 +1716,7 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
   return transformedValues
 }
 
-export default function PublicFormPage() {
+function PublicFormContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -3856,5 +3856,22 @@ export default function PublicFormPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function PublicFormPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <Card className="w-full max-w-md mx-4">
+          <CardContent className="p-8 text-center">
+            <div className="w-12 h-12 mx-auto mb-4 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-muted-foreground">Loading form...</p>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <PublicFormContent />
+    </Suspense>
   )
 }

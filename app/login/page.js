@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,7 +14,7 @@ import axios from "axios"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.10.15.194:3001'
 
-export default function LoginPage() {
+function LoginContent() {
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
     organization_id: "",
@@ -562,5 +562,17 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#f4effe' }}>
+        <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }
