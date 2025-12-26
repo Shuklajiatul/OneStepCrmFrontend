@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Settings, HelpCircle, BookCopy, ClipboardMinus, FileChartColumnIncreasing, X, ChevronLeft, ChevronRight, ChevronDown, FormInput, BarChart3, List, Table, Users, Network, Layers, UserCog, Shield, Building, Lock } from "lucide-react"
+import { Home, Settings, HelpCircle, BookCopy, ClipboardMinus, FileChartColumnIncreasing, X, ChevronLeft, ChevronRight, ChevronDown, FormInput, BarChart3, List, Table, Users, Network, Layers, UserCog, Shield, Building, Lock, CalendarCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -17,6 +17,7 @@ const menuItems = [
         icon: Users,
         href: "/leadPage"
     },
+    { label: "Activities", icon: CalendarCheck, href: "/activities" },
     {
         label: "Forms",
         icon: BookCopy,

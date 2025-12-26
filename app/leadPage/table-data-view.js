@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -24,7 +25,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  ListTodo,
+  CalendarPlus
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -32,6 +35,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
 import { usersApi, datatablesApi, recordsApi } from '@/lib/api-endpoint'
+import CreateActivityDialog from "@/components/activities/create-activity-dialog"
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -247,6 +251,7 @@ const normalizeFieldValueForForm = (rawValue, column) => {
 }
 
 export default function TableDataView({ table, onBack }) {
+  const router = useRouter()
   const [columns, setColumns] = useState([])
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(false)
@@ -284,6 +289,12 @@ export default function TableDataView({ table, onBack }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [totalPages, setTotalPages] = useState(1)
+
+  // Create Activity Modal State
+  const [isCreateActivityOpen, setIsCreateActivityOpen] = useState(false)
+  const [activityInitialData, setActivityInitialData] = useState({})
+
+  const { table_id: tableId } = table
 
   // Fetch columns and records on component mount
   useEffect(() => {
@@ -2949,6 +2960,35 @@ export default function TableDataView({ table, onBack }) {
                                   >
                                     <Eye className="h-4 w-4" />
                                   </Button>
+
+                                  {/* Activity Actions */}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600"
+                                    title="Create Activity"
+                                    onClick={() => {
+                                      setActivityInitialData({
+                                        related_table_id: table.table_id,
+                                        related_record_id: record.record_id
+                                      })
+                                      setIsCreateActivityOpen(true)
+                                    }}
+                                  >
+                                    <CalendarPlus className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600"
+                                    title="View Activities"
+                                    onClick={() => {
+                                      router.push(`/activities?related_table_id=${table.table_id}&related_record_id=${record.record_id}`)
+                                    }}
+                                  >
+                                    <ListTodo className="h-4 w-4" />
+                                  </Button>
+
                                   {/* <Button
                                     variant="ghost"
                                     size="sm"
@@ -3241,6 +3281,13 @@ export default function TableDataView({ table, onBack }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CreateActivityDialog
+        open={isCreateActivityOpen}
+        onOpenChange={setIsCreateActivityOpen}
+        initialData={activityInitialData}
+        currentUser={authUtils.getTokens()?.user}
+      />
 
       {/* Nested Data Modal */}
       <Dialog open={isNestedModalOpen} onOpenChange={setIsNestedModalOpen}>

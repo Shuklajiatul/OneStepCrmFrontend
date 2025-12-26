@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { usersApi, formsApi, datatablesApi, rolesApi, recordsApi, genesApi, featuresApi, policiesApi } from "@/lib/api-endpoint"
+import { usersApi, formsApi, datatablesApi, rolesApi, recordsApi, genesApi, featuresApi, policiesApi, activitiesApi } from "@/lib/api-endpoint"
 import { authUtils } from "@/lib/auth-utils"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -78,6 +78,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true)
     const [currentUser, setCurrentUser] = useState(null)
     const [chartData, setChartData] = useState([])
+    const [upcomingActivities, setUpcomingActivities] = useState([])
 
     const pipelineData = [
         { status: 'New', count: 45, color: 'bg-blue-500', percent: 45 },
@@ -98,14 +99,15 @@ export default function DashboardPage() {
                 }
 
                 // Fetch all data in parallel
-                const [usersRes, formsRes, tablesRes, rolesRes, genesRes, featuresRes, policiesRes] = await Promise.all([
+                const [usersRes, formsRes, tablesRes, rolesRes, genesRes, featuresRes, policiesRes, activitiesRes] = await Promise.all([
                     usersApi.getAll(),
                     formsApi.getAll(),
                     datatablesApi.getAll(),
                     rolesApi.getAll(),
                     genesApi.getAll(),
                     featuresApi.getAll(),
-                    policiesApi.getAll()
+                    policiesApi.getAll(),
+                    activitiesApi.getByOrganization().catch(() => ({ data: [] }))
                 ])
 
                 // Process Users
@@ -229,6 +231,13 @@ export default function DashboardPage() {
                     }))
                 ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 10)
 
+                // Process Activities
+                const activitiesData = activitiesRes.data?.data || activitiesRes.data || []
+                const upcoming = activitiesData
+                    .filter(a => !a.completed && new Date(a.due_date) >= new Date())
+                    .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
+                    .slice(0, 5)
+
                 setStats({
                     users: usersCount,
                     forms: formsCount,
@@ -248,6 +257,7 @@ export default function DashboardPage() {
                 setRoles(rolesWithUsers)
                 setTeamMembers(myTeam)
                 setChartData(activityData)
+                setUpcomingActivities(upcoming)
 
             } catch (error) {
                 console.error("Failed to fetch dashboard data:", error)
@@ -518,6 +528,79 @@ export default function DashboardPage() {
                                 <Button variant="ghost" className="w-full text-[10px] text-muted-foreground h-7 hover:bg-transparent hover:text-primary">
                                     <History className="mr-2 h-3 w-3" /> View Full Audit Log
                                 </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Upcoming Activities */}
+                    <Card className="rounded-xl shadow-sm">
+                        <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
+                                <CalendarCheck className="h-4 w-4 text-primary" />
+                                Upcoming Activities
+                            </CardTitle>
+                            <Badge className="bg-primary/10 text-primary border-none text-[10px] h-5 px-1.5">{upcomingActivities.length}</Badge>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <ScrollArea className="h-[180px]">
+                                <div className="divide-y">
+                                    {upcomingActivities.length === 0 ? (
+                                        <div className="p-8 text-center text-xs text-muted-foreground">
+                                            No upcoming activities.
+                                        </div>
+                                    ) : (
+                                        upcomingActivities.map((activity) => {
+                                            const activityIcons = {
+                                                task: Flag,
+                                                call: Activity,
+                                                meeting: CalendarCheck,
+                                                email: Bell
+                                            }
+                                            const ActivityIcon = activityIcons[activity.activity_type] || Flag
+                                            const activityColors = {
+                                                task: 'bg-blue-50 text-blue-600',
+                                                call: 'bg-green-50 text-green-600',
+                                                meeting: 'bg-purple-50 text-purple-600',
+                                                email: 'bg-amber-50 text-amber-600'
+                                            }
+                                            const colorClass = activityColors[activity.activity_type] || 'bg-gray-50 text-gray-600'
+
+                                            return (
+                                                <div key={activity.activity_id} className="p-2 flex gap-3 hover:bg-accent/5 transition-colors cursor-pointer group">
+                                                    <div className={`mt-0.5 h-7 w-7 flex-shrink-0 rounded-lg ${colorClass} flex items-center justify-center`}>
+                                                        <ActivityIcon className="h-3.5 w-3.5" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between mb-0.5">
+                                                            <span className="font-semibold text-[11px] truncate group-hover:text-primary transition-colors">{activity.title}</span>
+                                                            <span className="text-[8px] text-muted-foreground whitespace-nowrap">
+                                                                {new Date(activity.due_date).toLocaleDateString()}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <Avatar className="h-4 w-4 border">
+                                                                <AvatarFallback className="text-[8px]">
+                                                                    {getInitials(userMap[activity.assigned_to]?.name)}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="text-[10px] text-muted-foreground truncate">
+                                                                {userMap[activity.assigned_to]?.name || 'Unassigned'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })
+                                    )}
+                                </div>
+                            </ScrollArea>
+                            <Separator />
+                            <div className="p-2">
+                                <Link href="/activities">
+                                    <Button variant="ghost" className="w-full text-[10px] text-muted-foreground h-7 hover:bg-transparent hover:text-primary">
+                                        <CalendarCheck className="mr-2 h-3 w-3" /> View All Activities
+                                    </Button>
+                                </Link>
                             </div>
                         </CardContent>
                     </Card>
