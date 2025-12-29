@@ -94,6 +94,7 @@ function ActivitiesPageContent() {
     const [filterStatus, setFilterStatus] = useState("all")
     const [currentPage, setCurrentPage] = useState(1)
     const [itemsPerPage, setItemsPerPage] = useState(10)
+    const [filterTable, setFilterTable] = useState("all")
 
     // Related Records State
     const [relatedRecords, setRelatedRecords] = useState([])
@@ -255,14 +256,19 @@ function ActivitiesPageContent() {
             )
         }
 
+        // Filter by table
+        if (filterTable !== "all") {
+            filtered = filtered.filter(activity => String(activity.related_table_id) === String(filterTable))
+        }
+
         setFilteredActivities(filtered)
-    }, [activities, filterType, filterStatus, searchQuery, searchParams])
+    }, [activities, filterType, filterStatus, searchQuery, searchParams, filterTable])
 
 
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1)
-    }, [searchQuery, filterType, filterStatus])
+    }, [searchQuery, filterType, filterStatus, filterTable])
 
     // Calculate pagination
     const totalPages = Math.ceil(filteredActivities.length / itemsPerPage)
@@ -426,10 +432,10 @@ function ActivitiesPageContent() {
     }
 
     const stats = {
-        total: activities.length,
-        pending: activities.filter(a => !a.completed && new Date(a.due_date) >= new Date()).length,
-        overdue: activities.filter(a => !a.completed && new Date(a.due_date) < new Date()).length,
-        completed: activities.filter(a => a.completed).length,
+        total: filteredActivities.length,
+        pending: filteredActivities.filter(a => !a.completed && new Date(a.due_date) >= new Date()).length,
+        overdue: filteredActivities.filter(a => !a.completed && new Date(a.due_date) < new Date()).length,
+        completed: filteredActivities.filter(a => a.completed).length,
     }
 
     if (loading) {
@@ -537,6 +543,19 @@ function ActivitiesPageContent() {
                                 <SelectItem value="pending">Pending</SelectItem>
                                 <SelectItem value="overdue">Overdue</SelectItem>
                                 <SelectItem value="completed">Completed</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select value={filterTable} onValueChange={setFilterTable}>
+                            <SelectTrigger className="w-full md:w-[180px]">
+                                <SelectValue placeholder="Filter by table" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Tables</SelectItem>
+                                {tables.map((table) => (
+                                    <SelectItem key={table.table_id} value={table.table_id}>
+                                        {table.table_name}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
                     </div>
