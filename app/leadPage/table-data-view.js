@@ -27,10 +27,14 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ListTodo,
-  CalendarPlus
+  CalendarPlus,
+  History,
+  Clock
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { activitiesApi } from '@/lib/api-endpoint'
 
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
@@ -294,6 +298,14 @@ export default function TableDataView({ table, onBack }) {
   const [isCreateActivityOpen, setIsCreateActivityOpen] = useState(false)
   const [activityInitialData, setActivityInitialData] = useState({})
 
+  // History state
+  const [recordHistory, setRecordHistory] = useState([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  // Activities state
+  const [recordActivities, setRecordActivities] = useState([])
+  const [loadingActivities, setLoadingActivities] = useState(false)
+
   const { table_id: tableId } = table
 
   // Fetch columns and records on component mount
@@ -457,8 +469,68 @@ export default function TableDataView({ table, onBack }) {
     setIsEditRecordDialogOpen(true)
   }
 
+  const fetchRecordHistory = async (recordId) => {
+    try {
+      setLoadingHistory(true)
+      const response = await recordsApi.getHistory(table.table_id, recordId)
+      setRecordHistory(response.data?.data || response.data || [])
+    } catch (err) {
+      console.error("Error fetching history:", err)
+      setRecordHistory([])
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
+
+  const fetchRecordActivities = async (recordId) => {
+    try {
+      setLoadingActivities(true)
+      const response = await activitiesApi.getByOrganization()
+      const allActivities = response.data?.data || response.data || []
+      const filtered = allActivities.filter(activity =>
+        String(activity.related_table_id) === String(table.table_id) &&
+        String(activity.related_record_id) === String(recordId)
+      )
+      setRecordActivities(filtered)
+    } catch (err) {
+      console.error("Error fetching activities:", err)
+      setRecordActivities([])
+    } finally {
+      setLoadingActivities(false)
+    }
+  }
+
+  const parseHistoryValue = (val) => {
+    if (val === null || val === undefined || val === "") return "-";
+    if (typeof val !== 'string') return String(val);
+    if (!val.trim().startsWith('{') && !val.trim().startsWith('[')) return val;
+
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => (typeof item === 'object' ? (item.value || JSON.stringify(item)) : item)).join(", ");
+      }
+      if (typeof parsed === 'object' && parsed !== null) {
+        if (parsed.value !== undefined) {
+          if (typeof parsed.value === 'object' && parsed.value !== null && parsed.value.number) {
+            return `${parsed.value.countryCode || ''} ${parsed.value.number}`.trim();
+          }
+          return String(parsed.value);
+        }
+        return JSON.stringify(parsed);
+      }
+      return String(parsed);
+    } catch (e) {
+      return val;
+    }
+  };
+
   const openViewRecordDialog = (record) => {
     setRecordToView(record)
+    setRecordHistory([]) // Clear previous history
+    setRecordActivities([]) // Clear previous activities
+    fetchRecordHistory(record.record_id)
+    fetchRecordActivities(record.record_id)
     setIsViewRecordDialogOpen(true)
   }
 
@@ -4277,115 +4349,334 @@ export default function TableDataView({ table, onBack }) {
 
       {/* View Record Dialog */}
       <Dialog open={isViewRecordDialogOpen} onOpenChange={setIsViewRecordDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-6 py-4 border-b shrink-0">
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Eye className="h-5 w-5 text-primary" />
-              Record Details
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              Complete information for this record
-            </DialogDescription>
+        <DialogContent className="w-[98vw] sm:max-w-[1600px] h-[92vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 py-4 border-b shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+                  <Eye className="h-6 w-6 text-primary" />
+                  Record Details
+                </DialogTitle>
+                <DialogDescription className="text-base">
+                  Complete information and activity history for this record
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          {/* Scrollable Content Area */}
-          <div className="flex-1 min-h-0 overflow-auto">
-            <div className="p-6 space-y-6">
-              {/* Record Metadata */}
-              <Card className="border-l-4 border-l-primary">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Database className="h-5 w-5 text-primary" />
-                    Record Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-                      <Label className="text-sm font-semibold text-muted-foreground">Record ID</Label>
-                      <p className="text-sm font-mono bg-background p-2 rounded border break-all">{recordToView?.record_id || '-'}</p>
-                    </div>
-                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-                      <Label className="text-sm font-semibold text-muted-foreground">Created At</Label>
-                      <p className="text-sm bg-background p-2 rounded border">
-                        {recordToView?.created_at ? new Date(recordToView.created_at).toLocaleString() : '-'}
-                      </p>
-                    </div>
-                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-                      <Label className="text-sm font-semibold text-muted-foreground">Created By</Label>
-                      <p className="text-sm bg-background p-2 rounded border">
-                        {(() => {
-                          const createdBy = recordToView?.created_by
-                          if (!createdBy) return '-'
-                          const user = users.find(u => (u.user_id || u.id) === createdBy)
-                          return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : createdBy
-                        })()}
-                      </p>
-                    </div>
-                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-                      <Label className="text-sm font-semibold text-muted-foreground">Updated At</Label>
-                      <p className="text-sm bg-background p-2 rounded border">
-                        {recordToView?.updated_at ? new Date(recordToView.updated_at).toLocaleString() : '-'}
-                      </p>
-                    </div>
-                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-                      <Label className="text-sm font-semibold text-muted-foreground">Updated By</Label>
-                      <p className="text-sm bg-background p-2 rounded border">
-                        {(() => {
-                          const updatedBy = recordToView?.updated_by
-                          if (!updatedBy) return '-'
-                          const user = users.find(u => (u.user_id || u.id) === updatedBy)
-                          return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : updatedBy
-                        })()}
-                      </p>
-                    </div>
-                    <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-                      <Label className="text-sm font-semibold text-muted-foreground">Assigned To</Label>
-                      <p className="text-sm bg-background p-2 rounded border">
-                        {(() => {
-                          const assignedTo = recordToView?.assigned_to
-                          if (!assignedTo || assignedTo === 'NA') return 'Not assigned'
-                          const user = users.find(u => (u.user_id || u.id) === assignedTo)
-                          return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : assignedTo
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          {/* Main Content - Two Column Layout */}
+          <div className="flex-1 min-h-0 overflow-hidden bg-muted/5">
+            <div className="grid grid-cols-1 lg:grid-cols-12 h-full gap-0">
 
-              {/* Field Values - Only render if recordToView exists */}
-              {recordToView && (
-                <Card className="border-l-4 border-l-blue-500">
+              {/* Left Column: Details (Scrollable) */}
+              <div className="lg:col-span-7 h-full overflow-y-auto border-r p-6 space-y-6">
+                {/* Record Metadata */}
+                <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="pb-4">
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <Settings className="h-5 w-5 text-blue-500" />
-                      Field Values
+                      <Database className="h-5 w-5 text-primary" />
+                      Record Information
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {columns.map((column) => {
-                      const fieldValue = getFieldValue(recordToView, column.column_id, column)
-                      const displayDataType = getColumnFieldType(column)
-                      const formattedValue = formatFieldValue(fieldValue, displayDataType, column, recordToView)
-
-                      return (
-                        <div key={column.column_id} className="space-y-2 p-4 bg-muted/20 rounded-lg border">
-                          <div className="flex items-center gap-2">
-                            <Label className="text-sm font-semibold text-foreground">{column.column_name}</Label>
-                            <Badge variant="outline" className="text-xs">
-                              {displayDataType || 'text'}
-                            </Badge>
-                          </div>
-                          <div className="text-sm bg-background p-3 rounded border min-h-[44px] break-words">
-                            {formattedValue || <span className="text-muted-foreground italic">No value</span>}
-                          </div>
-                        </div>
-                      )
-                    })}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Record ID</Label>
+                        <p className="text-sm font-mono bg-background p-2 rounded border break-all shadow-sm">{recordToView?.record_id || '-'}</p>
+                      </div>
+                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Assigned To</Label>
+                        <p className="text-sm bg-background p-2 rounded border font-medium shadow-sm flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                          {(() => {
+                            const assignedTo = recordToView?.assigned_to
+                            if (!assignedTo || assignedTo === 'NA') return 'Not assigned'
+                            const user = users.find(u => (u.user_id || u.id) === assignedTo)
+                            return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : assignedTo
+                          })()}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Created At</Label>
+                        <p className="text-sm bg-background p-2 rounded border shadow-sm">
+                          {recordToView?.created_at ? new Date(recordToView.created_at).toLocaleString() : '-'}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Created By</Label>
+                        <p className="text-sm bg-background p-2 rounded border shadow-sm">
+                          {(() => {
+                            const createdBy = recordToView?.created_by
+                            if (!createdBy) return '-'
+                            const user = users.find(u => (u.user_id || u.id) === createdBy)
+                            return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : createdBy
+                          })()}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Updated At</Label>
+                        <p className="text-sm bg-background p-2 rounded border shadow-sm">
+                          {recordToView?.updated_at ? new Date(recordToView.updated_at).toLocaleString() : '-'}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Updated By</Label>
+                        <p className="text-sm bg-background p-2 rounded border shadow-sm">
+                          {(() => {
+                            const updatedBy = recordToView?.updated_by
+                            if (!updatedBy) return '-'
+                            const user = users.find(u => (u.user_id || u.id) === updatedBy)
+                            return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : updatedBy
+                          })()}
+                        </p>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
-              )}
+
+                {/* Field Values */}
+                {recordToView && (
+                  <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Settings className="h-5 w-5 text-blue-500" />
+                        Custom Fields
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {columns.map((column) => {
+                          const fieldValue = getFieldValue(recordToView, column.column_id, column)
+                          const displayDataType = getColumnFieldType(column)
+                          const formattedValue = formatFieldValue(fieldValue, displayDataType, column, recordToView)
+
+                          return (
+                            <div key={column.column_id} className="space-y-1.5 p-4 bg-muted/20 rounded-lg border group hover:border-blue-200 transition-colors">
+                              <div className="flex items-center justify-between gap-2">
+                                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{column.column_name}</Label>
+                                <Badge variant="outline" className="text-[10px] bg-background">
+                                  {displayDataType || 'text'}
+                                </Badge>
+                              </div>
+                              <div className="text-sm bg-background p-3 rounded border min-h-[44px] break-words shadow-sm flex items-center">
+                                {formattedValue || <span className="text-muted-foreground italic">No value</span>}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Right Column: Dynamic Content (Tabs) */}
+              <div className="lg:col-span-5 h-full overflow-hidden flex flex-col bg-background border-l">
+                <Tabs defaultValue="history" className="flex-1 flex flex-col overflow-hidden">
+                  <div className="p-4 border-b bg-muted/10 shrink-0">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="history" className="flex items-center gap-2">
+                        <History className="h-4 w-4" />
+                        Audit History
+                      </TabsTrigger>
+                      <TabsTrigger value="activities" className="flex items-center gap-2">
+                        <ListTodo className="h-4 w-4" />
+                        Recent Activities
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  {/* History Tab Content */}
+                  <TabsContent value="history" className="flex-1 overflow-y-auto m-0 p-4">
+                    <div className="space-y-1 mb-4">
+                      <h3 className="text-sm font-bold flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-amber-500" />
+                        Change Timeline
+                      </h3>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Audit trail of all record modifications</p>
+                    </div>
+
+                    {loadingHistory ? (
+                      <div className="flex flex-col items-center justify-center h-40 space-y-3">
+                        <RefreshCw className="h-8 w-8 text-primary animate-spin" />
+                        <p className="text-sm text-muted-foreground">Loading history...</p>
+                      </div>
+                    ) : recordHistory.length > 0 ? (
+                      <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
+                        {(() => {
+                          // Group history by user and timestamp (within 2 seconds)
+                          const sorted = [...recordHistory].sort((a, b) => new Date(b.event_timestamp) - new Date(a.event_timestamp));
+                          const grouped = [];
+                          sorted.forEach(item => {
+                            const last = grouped[grouped.length - 1];
+                            const timestamp = new Date(item.event_timestamp).getTime();
+                            const lastTimestamp = last ? new Date(last.event_timestamp).getTime() : 0;
+
+                            if (last && last.user_id === item.user_id && Math.abs(lastTimestamp - timestamp) < 2000) {
+                              last.changes.push(item);
+                            } else {
+                              grouped.push({ ...item, changes: [item] });
+                            }
+                          });
+
+                          return grouped.map((group, index) => {
+                            const userName = (() => {
+                              const userId = group.user_id
+                              if (!userId) return 'System'
+                              const user = users.find(u => (u.user_id || u.id) === userId)
+                              return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : userId
+                            })()
+
+                            return (
+                              <div key={index} className="relative flex items-start gap-4 group">
+                                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-background border-2 border-primary z-10 shrink-0 shadow-sm group-hover:scale-110 transition-transform">
+                                  <Clock className="h-5 w-5 text-primary" />
+                                </div>
+                                <div className="flex-1 bg-muted/20 p-4 rounded-xl border border-transparent group-hover:border-primary/20 group-hover:bg-muted/40 transition-all shadow-sm">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="font-bold text-sm text-primary">{userName}</span>
+                                    <time className="text-[10px] text-muted-foreground bg-background px-2 py-0.5 rounded-full border">
+                                      {new Date(group.event_timestamp).toLocaleString()}
+                                    </time>
+                                  </div>
+                                  <div className="text-sm text-muted-foreground space-y-2">
+                                    <div className="space-y-1.5">
+                                      <p className="text-xs font-medium text-foreground text-opacity-80">
+                                        {group.event_type === 'CREATE' ? 'Record created' : 'Modified record data'}
+                                      </p>
+                                      <div className="space-y-1">
+                                        {group.changes.map((change, i) => {
+                                          const col = columns.find(c => c.column_id === change.changed_field);
+                                          const colName = col ? col.column_name : 'Unknown Field';
+
+                                          return (
+                                            <div key={i} className="text-xs pl-2 border-l-2 border-primary/20 py-1">
+                                              <span className="font-semibold block mb-0.5 text-foreground/70">{colName}:</span>
+                                              <div className="flex items-center flex-wrap gap-1">
+                                                <span className="text-red-500 line-through opacity-60 bg-red-50 px-1 rounded">
+                                                  {parseHistoryValue(change.old_value)}
+                                                </span>
+                                                <span className="text-muted-foreground">→</span>
+                                                <span className="text-green-600 font-medium bg-green-50 px-1 rounded">
+                                                  {parseHistoryValue(change.new_value)}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-40 text-center space-y-2">
+                        <div className="p-3 bg-muted rounded-full">
+                          <History className="h-6 w-6 text-muted-foreground opacity-50" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">No history found</p>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* Activities Tab Content */}
+                  <TabsContent value="activities" className="flex-1 overflow-y-auto m-0 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="space-y-1">
+                        <h3 className="text-sm font-bold flex items-center gap-2">
+                          <ListTodo className="h-4 w-4 text-blue-500" />
+                          Recent Activities
+                        </h3>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Scheduled tasks and interactions</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs gap-1.5 border-dashed hover:border-solid"
+                        onClick={() => {
+                          setActivityInitialData({
+                            related_table_id: table.table_id,
+                            related_record_id: recordToView?.record_id
+                          })
+                          setIsCreateActivityOpen(true)
+                        }}
+                      >
+                        <CalendarPlus className="h-3.5 w-3.5" />
+                        New Activity
+                      </Button>
+                    </div>
+
+                    {loadingActivities ? (
+                      <div className="flex flex-col items-center justify-center h-40 space-y-3">
+                        <RefreshCw className="h-8 w-8 text-primary animate-spin" />
+                        <p className="text-sm text-muted-foreground">Loading activities...</p>
+                      </div>
+                    ) : recordActivities.length > 0 ? (
+                      <div className="space-y-3">
+                        {recordActivities.map((activity, index) => (
+                          <div
+                            key={index}
+                            className="bg-muted/10 p-4 rounded-xl border border-transparent hover:border-blue-200 hover:bg-muted/30 transition-all cursor-pointer group shadow-sm"
+                            onClick={() => router.push(`/activities?id=${activity.activity_id}`)}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="space-y-1 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-sm font-semibold text-foreground group-hover:text-blue-600 transition-colors">
+                                    {activity.title}
+                                  </h4>
+                                  <Badge variant={activity.completed ? "default" : "secondary"} className="text-[10px] px-1.5 py-0 h-4">
+                                    {activity.completed ? "Completed" : "Pending"}
+                                  </Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground line-clamp-2">{activity.description || 'No description'}</p>
+                              </div>
+                            </div>
+                            <div className="mt-3 pt-3 border-t flex items-center justify-between text-[10px] text-muted-foreground">
+                              <div className="flex items-center gap-3">
+                                <span className="flex items-center gap-1 uppercase tracking-wider font-medium">
+                                  <Clock className="h-3 w-3" />
+                                  Due: {new Date(activity.due_date).toLocaleDateString()}
+                                </span>
+                                <Badge variant="outline" className="text-[9px] uppercase tracking-tighter bg-background">
+                                  {activity.activity_type}
+                                </Badge>
+                              </div>
+                              <span className="font-mono text-primary opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-40 text-center space-y-2">
+                        <div className="p-3 bg-muted rounded-full">
+                          <ListTodo className="h-6 w-6 text-muted-foreground opacity-50" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">No activities scheduled</p>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            setActivityInitialData({
+                              related_table_id: table.table_id,
+                              related_record_id: recordToView?.record_id
+                            })
+                            setIsCreateActivityOpen(true)
+                          }}
+                        >
+                          Create one now
+                        </Button>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+
             </div>
           </div>
 
@@ -4394,7 +4685,7 @@ export default function TableDataView({ table, onBack }) {
               <Eye className="h-4 w-4" />
               Close View
             </Button>
-            {recordToView && (
+            {/* {recordToView && (
               <Button onClick={() => {
                 setIsViewRecordDialogOpen(false)
                 openEditRecordDialog(recordToView)
@@ -4402,7 +4693,7 @@ export default function TableDataView({ table, onBack }) {
                 <Edit className="h-4 w-4" />
                 Edit Record
               </Button>
-            )}
+            )} */}
           </DialogFooter>
         </DialogContent>
       </Dialog>
