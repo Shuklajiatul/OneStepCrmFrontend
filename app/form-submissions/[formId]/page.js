@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { RefreshCw, AlertCircle, Search, FileText, Send, ArrowLeft } from "lucide-react"
+import { RefreshCw, AlertCircle, Search, FileText, Send, ArrowLeft, Eye } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -1002,6 +1002,9 @@ export default function FormSubmissionsPage() {
                           <TableHead className="font-semibold text-foreground whitespace-nowrap">
                             Edit Attempts
                           </TableHead>
+                          <TableHead className="font-semibold text-foreground whitespace-nowrap">
+                            Actions
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1068,6 +1071,21 @@ export default function FormSubmissionsPage() {
                                   ? submission.edit_count
                                   : 0}
                               </Badge>
+                            </TableCell>
+
+                            {/* Actions Column */}
+                            <TableCell className="py-4">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  router.push(`/form-submissions/submission-details?form_id=${formId}&submission_id=${submission.submission_id}&table_id=${formDetails?.table_id}`)
+                                }}
+                                className="h-8 flex items-center gap-2 hover:bg-primary hover:text-primary-foreground transition-colors"
+                              >
+                                <Eye className="h-4 w-4" />
+                                View Details
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))}
