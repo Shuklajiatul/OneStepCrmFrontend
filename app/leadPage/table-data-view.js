@@ -29,7 +29,13 @@ import {
   ListTodo,
   CalendarPlus,
   History,
-  Clock
+  Clock,
+  LayoutGrid,
+  List,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -262,6 +268,10 @@ export default function TableDataView({ table, onBack }) {
   const [error, setError] = useState(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [recordToDelete, setRecordToDelete] = useState(null)
+  const [viewMode, setViewMode] = useState('table') // 'table' or 'grid'
+
+  // Ref for the table container to implement sticky header logic if needed
+  // or just use CSS sticky
   const [searchTerm, setSearchTerm] = useState("")
   const [isNestedModalOpen, setIsNestedModalOpen] = useState(false)
   const [nestedData, setNestedData] = useState(null)
@@ -284,10 +294,188 @@ export default function TableDataView({ table, onBack }) {
   const [isSubmittingRecord, setIsSubmittingRecord] = useState(false)
   const [users, setUsers] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(false)
-  const [isViewRecordDialogOpen, setIsViewRecordDialogOpen] = useState(false)
-  const [recordToView, setRecordToView] = useState(null)
+
   const [activeOptionPopover, setActiveOptionPopover] = useState(null)
   const [nestedModalContext, setNestedModalContext] = useState('record')
+
+  // Helper for deep state updates in recordFormData
+  const updateNestedState = (obj, path, value) => {
+    if (path.length === 0) return value
+    const [head, ...tail] = path
+    const res = Array.isArray(obj) ? [...obj] : { ...obj }
+    res[head] = updateNestedState(obj[head], tail, value)
+    return res
+  }
+
+  const handleRecursiveFieldChange = (fieldId, newValue, path = []) => {
+    setRecordFormData(prev => updateNestedState(prev, [...path, fieldId], newValue))
+  }
+
+  const handleRecursiveCheckboxToggle = (fieldId, optionValue, path = []) => {
+    setRecordFormData(prev => {
+      // Traverse to find current container
+      let currentData = prev
+      for (const key of path) {
+        currentData = currentData?.[key]
+      }
+
+      const currentValues = Array.isArray(currentData?.[fieldId]) ? currentData[fieldId] : []
+      const index = currentValues.findIndex(item => (typeof item === 'object' ? item.value : item) === optionValue)
+
+      let newFieldVal
+      if (index > -1) {
+        newFieldVal = [...currentValues]
+        newFieldVal.splice(index, 1)
+      } else {
+        newFieldVal = [...currentValues, { value: optionValue, nestedValues: {} }]
+      }
+
+      return updateNestedState(prev, [...path, fieldId], newFieldVal)
+    })
+  }
+
+  const renderFormFieldsRecursive = (fields, currentData, path = [], depth = 0) => {
+    if (!fields || !Array.isArray(fields)) return null
+
+    return fields.map((field) => {
+      const fieldId = field.id || field.column_id
+      const fieldType = getColumnFieldType(field)
+      const fieldName = field.column_name || field.label || field.name
+      const storedValue = currentData?.[fieldId]
+      const columnOptions = getColumnOptions(field)
+
+      const primitiveValue = (fieldType === 'select' || fieldType === 'radio')
+        ? (storedValue?.value || '')
+        : (typeof storedValue === 'object' ? JSON.stringify(storedValue) : String(storedValue || ''))
+
+      const checkboxSelections = (fieldType === 'checkbox' && Array.isArray(storedValue))
+        ? storedValue.map(item => typeof item === 'object' ? item.value : item).filter(Boolean)
+        : []
+
+      // Special handling for phone
+      if (fieldType === 'phone') {
+        let phoneData = { countryCode: '', number: '' }
+        if (typeof storedValue === 'string') {
+          try { phoneData = JSON.parse(storedValue) } catch (e) { }
+        } else if (storedValue && typeof storedValue === 'object') {
+          phoneData = { ...phoneData, ...storedValue }
+        }
+
+        return (
+          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
+            <Label className="text-sm font-semibold">{fieldName}</Label>
+            <div className="grid grid-cols-12 gap-2">
+              <Input
+                className="col-span-4 h-10"
+                placeholder="+91"
+                value={phoneData.countryCode}
+                onChange={e => handleRecursiveFieldChange(fieldId, JSON.stringify({ ...phoneData, countryCode: e.target.value }), path)}
+              />
+              <Input
+                className="col-span-8 h-10"
+                placeholder="Number"
+                value={phoneData.number}
+                onChange={e => handleRecursiveFieldChange(fieldId, JSON.stringify({ ...phoneData, number: e.target.value }), path)}
+              />
+            </div>
+          </div>
+        )
+      }
+
+      // Handle Select/Radio
+      if ((fieldType === 'select' || fieldType === 'radio') && columnOptions.length > 0) {
+        const selectedOption = columnOptions.find(opt => (opt.value || opt.label) === primitiveValue)
+        const nestedFields = selectedOption?.nestedFields || []
+
+        return (
+          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
+            <Label className="text-sm font-semibold">{fieldName}</Label>
+            <Select
+              value={primitiveValue}
+              onValueChange={val => handleRecursiveFieldChange(fieldId, { value: val, nestedValues: {} }, path)}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder={`Select ${fieldName}`} />
+              </SelectTrigger>
+              <SelectContent>
+                {columnOptions.map((opt, i) => (
+                  <SelectItem key={i} value={opt.value || opt.label || String(opt)}>{opt.label || opt.value || String(opt)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {nestedFields.length > 0 && primitiveValue && (
+              <div className="mt-2 text-xs font-medium text-muted-foreground flex items-center gap-2">
+                <Plus className="h-3 w-3" /> Nested Fields for {primitiveValue}
+              </div>
+            )}
+            {nestedFields.length > 0 && primitiveValue && (
+              <div className="mt-2">
+                {renderFormFieldsRecursive(nestedFields, storedValue?.nestedValues || {}, [...path, fieldId, 'nestedValues'], depth + 1)}
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      // Handle Checkbox
+      if (fieldType === 'checkbox' && columnOptions.length > 0) {
+        return (
+          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
+            <Label className="text-sm font-semibold">{fieldName}</Label>
+            <div className="space-y-2">
+              {columnOptions.map((opt, i) => {
+                const optVal = opt.value || opt.label || String(opt)
+                const isChecked = checkboxSelections.includes(optVal)
+                const selectionIdx = isChecked ? (storedValue || []).findIndex(s => (s.value || s) === optVal) : -1
+
+                return (
+                  <div key={i} className="space-y-2">
+                    <div
+                      onClick={() => handleRecursiveCheckboxToggle(fieldId, optVal, path)}
+                      className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors"
+                    >
+                      <div className={`h-4 w-4 rounded border flex items-center justify-center ${isChecked ? 'bg-primary border-primary' : 'border-muted-foreground'}`}>
+                        {isChecked && <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                      <span className="text-sm">{opt.label || opt.value || String(opt)}</span>
+                    </div>
+                    {isChecked && opt.nestedFields && opt.nestedFields.length > 0 && selectionIdx !== -1 && (
+                      <div className="mt-2">
+                        {renderFormFieldsRecursive(opt.nestedFields, (storedValue || [])[selectionIdx]?.nestedValues || {}, [...path, fieldId, selectionIdx, 'nestedValues'], depth + 1)}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      }
+
+      // Regular inputs
+      return (
+        <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
+          <Label className="text-sm font-semibold">{fieldName}</Label>
+          {fieldType === 'textarea' ? (
+            <Textarea
+              className="min-h-[80px]"
+              value={primitiveValue}
+              onChange={e => handleRecursiveFieldChange(fieldId, e.target.value, path)}
+              placeholder={`Enter ${fieldName}`}
+            />
+          ) : (
+            <Input
+              className="h-10"
+              type={fieldType === 'number' ? 'number' : fieldType === 'email' ? 'email' : fieldType === 'date' ? 'date' : fieldType === 'datetime' ? 'datetime-local' : 'text'}
+              value={primitiveValue}
+              onChange={e => handleRecursiveFieldChange(fieldId, e.target.value, path)}
+              placeholder={`Enter ${fieldName}`}
+            />
+          )}
+        </div>
+      )
+    })
+  }
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -299,12 +487,10 @@ export default function TableDataView({ table, onBack }) {
   const [activityInitialData, setActivityInitialData] = useState({})
 
   // History state
-  const [recordHistory, setRecordHistory] = useState([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
+
 
   // Activities state
-  const [recordActivities, setRecordActivities] = useState([])
-  const [loadingActivities, setLoadingActivities] = useState(false)
+
 
   const { table_id: tableId } = table
 
@@ -469,70 +655,7 @@ export default function TableDataView({ table, onBack }) {
     setIsEditRecordDialogOpen(true)
   }
 
-  const fetchRecordHistory = async (recordId) => {
-    try {
-      setLoadingHistory(true)
-      const response = await recordsApi.getHistory(table.table_id, recordId)
-      setRecordHistory(response.data?.data || response.data || [])
-    } catch (err) {
-      console.error("Error fetching history:", err)
-      setRecordHistory([])
-    } finally {
-      setLoadingHistory(false)
-    }
-  }
 
-  const fetchRecordActivities = async (recordId) => {
-    try {
-      setLoadingActivities(true)
-      const response = await activitiesApi.getByOrganization()
-      const allActivities = response.data?.data || response.data || []
-      const filtered = allActivities.filter(activity =>
-        String(activity.related_table_id) === String(table.table_id) &&
-        String(activity.related_record_id) === String(recordId)
-      )
-      setRecordActivities(filtered)
-    } catch (err) {
-      console.error("Error fetching activities:", err)
-      setRecordActivities([])
-    } finally {
-      setLoadingActivities(false)
-    }
-  }
-
-  const parseHistoryValue = (val) => {
-    if (val === null || val === undefined || val === "") return "-";
-    if (typeof val !== 'string') return String(val);
-    if (!val.trim().startsWith('{') && !val.trim().startsWith('[')) return val;
-
-    try {
-      const parsed = JSON.parse(val);
-      if (Array.isArray(parsed)) {
-        return parsed.map(item => (typeof item === 'object' ? (item.value || JSON.stringify(item)) : item)).join(", ");
-      }
-      if (typeof parsed === 'object' && parsed !== null) {
-        if (parsed.value !== undefined) {
-          if (typeof parsed.value === 'object' && parsed.value !== null && parsed.value.number) {
-            return `${parsed.value.countryCode || ''} ${parsed.value.number}`.trim();
-          }
-          return String(parsed.value);
-        }
-        return JSON.stringify(parsed);
-      }
-      return String(parsed);
-    } catch (e) {
-      return val;
-    }
-  };
-
-  const openViewRecordDialog = (record) => {
-    setRecordToView(record)
-    setRecordHistory([]) // Clear previous history
-    setRecordActivities([]) // Clear previous activities
-    fetchRecordHistory(record.record_id)
-    fetchRecordActivities(record.record_id)
-    setIsViewRecordDialogOpen(true)
-  }
 
   const handleAddRecord = async () => {
     setIsSubmittingRecord(true)
@@ -550,7 +673,10 @@ export default function TableDataView({ table, onBack }) {
         }
       }
 
-      if (!gId) {
+      const gIds = authUtils.getGIds()
+      const pIds = authUtils.getPIds()
+
+      if (!gId && (!gIds || gIds.length === 0)) {
         toast.error("User g_id not found. Please ensure you are properly logged in.")
         setIsSubmittingRecord(false)
         return
@@ -568,7 +694,9 @@ export default function TableDataView({ table, onBack }) {
       const finalAssignedTo = assignedToValue === "none" || !assignedToValue ? null : assignedToValue
 
       const payload = {
-        g_id: gId,
+        g_id: gId || (gIds && gIds[0]),
+        g_ids: gIds,
+        p_id: pIds,
         assigned_to: finalAssignedTo,
         field_values: fieldValues
       }
@@ -606,7 +734,10 @@ export default function TableDataView({ table, onBack }) {
         }
       }
 
-      if (!gId) {
+      const gIds = authUtils.getGIds()
+      const pIds = authUtils.getPIds()
+
+      if (!gId && (!gIds || gIds.length === 0)) {
         toast.error("User g_id not found. Please ensure you are properly logged in.")
         setIsSubmittingRecord(false)
         return
@@ -624,7 +755,9 @@ export default function TableDataView({ table, onBack }) {
       const finalAssignedTo = assignedToValue === "none" || !assignedToValue ? null : assignedToValue
 
       const payload = {
-        g_id: gId,
+        g_id: gId || (gIds && gIds[0]),
+        g_ids: gIds,
+        p_id: pIds,
         assigned_to: finalAssignedTo,
         field_values: fieldValues
       }
@@ -776,27 +909,22 @@ export default function TableDataView({ table, onBack }) {
   }
 
   const formatPhoneDisplay = (value) => {
-    if (value && typeof value === 'object') {
-      const countryCode = value.countryCode || value.code || ''
-      const number = value.number || value.value || ''
-      const country = value.country || ''
-      const line = [countryCode, number].filter(Boolean).join(' ').trim()
-      return (
-        <div className="text-sm">
-          {line && <div className="font-medium">{line}</div>}
-          {country && <div className="text-xs text-muted-foreground">{country}</div>}
-        </div>
-      )
-    }
+    if (!value) return null
 
-    if (typeof value === 'string') {
-      try {
-        const parsed = JSON.parse(value)
-        if (parsed && typeof parsed === 'object') {
-          const countryCode = parsed.countryCode || parsed.code || ''
-          const number = parsed.number || parsed.value || ''
-          const country = parsed.country || ''
-          const line = [countryCode, number].filter(Boolean).join(' ').trim()
+    // Try parsing if it's a string
+    const parsed = parseJsonSafely(value)
+
+    if (parsed && typeof parsed === 'object') {
+      // Handle { value: { countryCode: '...', number: '...' } } or just { countryCode: '...', number: '...' }
+      const actualValue = (parsed.value !== undefined) ? parsed.value : parsed
+
+      if (actualValue && typeof actualValue === 'object') {
+        const countryCode = actualValue.countryCode || actualValue.code || ''
+        const number = actualValue.number || actualValue.value || ''
+        const country = actualValue.country || ''
+        const line = [countryCode, number].filter(Boolean).join(' ').trim()
+
+        if (line || country) {
           return (
             <div className="text-sm">
               {line && <div className="font-medium">{line}</div>}
@@ -804,13 +932,21 @@ export default function TableDataView({ table, onBack }) {
             </div>
           )
         }
-      } catch (e) {
-        return (
-          <a href={`tel:${value}`} className="text-blue-600 hover:underline">
-            {String(value)}
-          </a>
-        )
       }
+
+      // If actualValue is not an object but somehow nested
+      if (actualValue !== undefined && actualValue !== null) {
+        return <span className="truncate max-w-[200px]">{String(actualValue)}</span>
+      }
+    }
+
+    // Default string display with tel link
+    if (value && typeof value !== 'object') {
+      return (
+        <a href={`tel:${value}`} className="text-blue-600 hover:underline">
+          {String(value)}
+        </a>
+      )
     }
 
     return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
@@ -1535,7 +1671,11 @@ export default function TableDataView({ table, onBack }) {
       setCurrentRecordId(recordId)
       setCurrentColumnId(column.column_id)
       setNestedModalContext(source)
-      setIsEditMode(source === 'record' ? false : true)
+
+      // Auto-enable edit mode if field is empty or from form
+      const isEmpty = !fieldValue || (typeof fieldValue === 'string' && (fieldValue === "" || fieldValue === "{}" || fieldValue === "[]"))
+      setIsEditMode(source === 'record' ? (isEmpty ? true : false) : true)
+
       setIsNestedModalOpen(true)
     }
   }
@@ -1546,46 +1686,50 @@ export default function TableDataView({ table, onBack }) {
     }
 
     const fieldType = getColumnFieldType(column) || dataType || 'text'
+    const parsed = parseJsonSafely(rawValue)
 
-    if (typeof rawValue === 'object' && rawValue !== null && rawValue.value !== undefined) {
-      const simpleValue = String(rawValue.value)
-      const hasNested = rawValue.nestedValues &&
-        typeof rawValue.nestedValues === 'object' &&
-        Object.keys(rawValue.nestedValues).length > 0
+    // Robustly extract the value to display
+    let valueToDisplay = rawValue
+    if (parsed && typeof parsed === 'object' && parsed.value !== undefined) {
+      valueToDisplay = parsed.value
+    } else if (parsed !== undefined) {
+      valueToDisplay = parsed
+    }
 
-      if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
-        const displayNode = (
-          <div className="flex items-center gap-2">
-            <span className="truncate max-w-[200px]">{simpleValue}</span>
-            {hasNested && (
-              <Badge variant="secondary" className="text-xs">
-                +Nested
-              </Badge>
-            )}
-          </div>
-        )
+    // Handle Phone and Location types early
+    if (fieldType === 'phone') {
+      return formatPhoneDisplay(rawValue)
+    }
+    if (fieldType === 'location') {
+      return formatLocationDisplay(rawValue)
+    }
 
-        return renderOptionsDropdown(
-          displayNode,
-          column,
-          simpleValue,
-          hasNested
-            ? () =>
-              openNestedModal({
-                fieldValue: rawValue,
-                column,
-                recordId: record?.record_id,
-                source: 'record',
-              })
-            : undefined,
-          record,
-          rawValue
-        )
-      }
-
+    // Handle Arrays (Multi-select)
+    if (Array.isArray(valueToDisplay)) {
       return (
+        <div className="flex flex-wrap gap-1">
+          {valueToDisplay.map((item, i) => {
+            const displayItem = (typeof item === 'object' && item !== null) ? (item.label || item.value || JSON.stringify(item)) : String(item)
+            return (
+              <Badge key={i} variant="secondary" className="text-[10px]">
+                {displayItem}
+              </Badge>
+            )
+          })}
+        </div>
+      )
+    }
+
+    // Handle interactive dropdowns for select/radio/checkbox with nested data
+    const hasNested = (parsed && typeof parsed === 'object' && parsed.nestedValues &&
+      Object.keys(parsed.nestedValues).length > 0)
+
+    if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
+      const displayNode = (
         <div className="flex items-center gap-2">
-          <span className="truncate max-w-[200px]">{simpleValue}</span>
+          <span className="truncate max-w-[200px]">
+            {typeof valueToDisplay === 'object' ? JSON.stringify(valueToDisplay) : String(valueToDisplay)}
+          </span>
           {hasNested && (
             <Badge variant="secondary" className="text-xs">
               +Nested
@@ -1593,124 +1737,74 @@ export default function TableDataView({ table, onBack }) {
           )}
         </div>
       )
-    }
 
-    if (fieldType === 'phone' && typeof rawValue === 'object' && rawValue !== null) {
-      return formatPhoneDisplay(rawValue)
-    }
-
-    if (typeof rawValue === 'string') {
-      if (rawValue.trim().startsWith('{') && rawValue.trim().endsWith('}')) {
-        try {
-          const parsed = JSON.parse(rawValue)
-          if (parsed && typeof parsed === 'object' && (parsed.countryCode || parsed.number)) {
-            return formatPhoneDisplay(parsed)
-          }
-          if (parsed && typeof parsed === 'object' && parsed.value !== undefined) {
-            const simpleValue = String(parsed.value)
-            const hasNested = parsed.nestedValues &&
-              typeof parsed.nestedValues === 'object' &&
-              Object.keys(parsed.nestedValues).length > 0
-
-            if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
-              const displayNode = (
-                <div className="flex items-center gap-2">
-                  <span className="truncate max-w-[200px]">{simpleValue}</span>
-                  {hasNested && (
-                    <Badge variant="secondary" className="text-xs">
-                      +Nested
-                    </Badge>
-                  )}
-                </div>
-              )
-
-              return renderOptionsDropdown(
-                displayNode,
-                column,
-                simpleValue,
-                hasNested
-                  ? () =>
-                    openNestedModal({
-                      fieldValue: rawValue,
-                      column,
-                      recordId: record?.record_id,
-                      source: 'record',
-                    })
-                  : undefined,
-                record,
-                parsed
-              )
-            }
-            return (
-              <div className="flex items-center gap-2">
-                <span className="truncate max-w-[200px]">{simpleValue}</span>
-                {hasNested && (
-                  <Badge variant="secondary" className="text-xs">
-                    +Nested
-                  </Badge>
-                )}
-              </div>
-            )
-          }
-        } catch (e) {
-          console.warn('Failed to parse JSON value:', e)
-        }
-      }
-    }
-
-    if (fieldType === 'select' || fieldType === 'radio' || fieldType === 'checkbox') {
-      const displayNode = (
-        <span className="truncate max-w-[200px]">{String(rawValue)}</span>
-      )
       return renderOptionsDropdown(
         displayNode,
         column,
-        String(rawValue),
-        undefined,
+        String(typeof valueToDisplay === 'object' ? (valueToDisplay.value || valueToDisplay.label || JSON.stringify(valueToDisplay)) : valueToDisplay),
+        hasNestedData(column)
+          ? () =>
+            openNestedModal({
+              fieldValue: rawValue,
+              column,
+              recordId: record?.record_id,
+              source: 'record',
+            })
+          : undefined,
         record,
-        null
+        parsed
       )
     }
 
+    // Fallback switch for other types
     switch (fieldType) {
       case 'email':
         return (
-          <a href={`mailto:${rawValue}`} className="text-blue-600 hover:underline">
-            {String(rawValue)}
+          <a href={`mailto:${valueToDisplay}`} className="text-blue-600 hover:underline">
+            {String(valueToDisplay)}
           </a>
         )
-      case 'phone': {
-        let phoneData = rawValue
-        if (typeof rawValue === 'string') {
-          try {
-            phoneData = JSON.parse(rawValue)
-          } catch (e) {
-            phoneData = rawValue
-          }
-        }
-        return formatPhoneDisplay(phoneData)
-      }
       case 'boolean':
         return (
-          <Badge variant={String(rawValue) === 'true' || rawValue === true ? 'default' : 'secondary'}>
-            {String(rawValue) === 'true' || rawValue === true ? 'Yes' : 'No'}
+          <Badge variant={String(valueToDisplay) === 'true' || valueToDisplay === true ? 'default' : 'secondary'}>
+            {String(valueToDisplay) === 'true' || valueToDisplay === true ? 'Yes' : 'No'}
           </Badge>
         )
       case 'date':
       case 'datetime': {
-        const formatted = formatDateOnly(rawValue)
-        if (formatted) {
-          return <span>{formatted}</span>
-        }
-        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
+        const formatted = formatDateOnly(valueToDisplay)
+        return <span>{formatted || String(valueToDisplay)}</span>
       }
+      case 'file':
+        if (typeof valueToDisplay === "string" && valueToDisplay.startsWith("data:")) {
+          const fileName = inferFilenameFromDataUrl(valueToDisplay, column)
+          return (
+            <button
+              onClick={() => openFileModal(valueToDisplay, column)}
+              className="text-blue-600 hover:underline text-sm font-medium"
+              title="Click to preview/download"
+            >
+              {fileName}
+            </button>
+          )
+        }
+        return <span className="truncate max-w-[200px]">{String(valueToDisplay)}</span>
       case 'number':
-        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
       case 'textarea':
-        return <span className="truncate max-w-[200px] whitespace-pre-wrap">{String(rawValue)}</span>
       case 'text':
       default:
-        return <span className="truncate max-w-[200px]">{String(rawValue)}</span>
+        // Final avoid [object Object] check
+        if (typeof valueToDisplay === 'object' && valueToDisplay !== null) {
+          // Try to format as phone or location if structure matches
+          if (valueToDisplay.countryCode || valueToDisplay.number) {
+            return formatPhoneDisplay(valueToDisplay)
+          }
+          if (valueToDisplay.address || valueToDisplay.city || valueToDisplay.state || valueToDisplay.country) {
+            return formatLocationDisplay(valueToDisplay)
+          }
+          return <span className="truncate max-w-[200px]">{JSON.stringify(valueToDisplay)}</span>
+        }
+        return <span className="truncate max-w-[200px]">{String(valueToDisplay)}</span>
     }
   }
 
@@ -1845,22 +1939,27 @@ export default function TableDataView({ table, onBack }) {
       const apiData = convertFormDataToAPIFormat(editableFormData)
       const fieldValueString = JSON.stringify(apiData)
 
+      // Get g_ids and p_id from cookies (User requested this in update payload too)
+      const gIds = authUtils.getGIds()
+      const pId = authUtils.getPIds()
+      const gId = authUtils.getGId()
+
       const payload = {
+        g_id: gId,
+        g_ids: gIds,
+        p_id: pId,
         field_values: {
           [currentColumnId]: fieldValueString
         }
       }
 
+      console.log('Saving nested data with payload:', payload)
+
       if (nestedModalContext === 'record') {
-        const response = await axios.put(
-          `${API_BASE_URL}/api/records/${table.table_id}/${currentRecordId}/nested`,
-          payload,
-          {
-            headers: {
-              'Authorization': authUtils.getAuthHeader(),
-              'Content-Type': 'application/json'
-            }
-          }
+        const response = await recordsApi.updateNested(
+          table.table_id,
+          currentRecordId,
+          payload
         )
 
         if (response.data) {
@@ -2808,7 +2907,7 @@ export default function TableDataView({ table, onBack }) {
   }
 
   return (
-    <div className="space-y-6 w-full">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -2994,7 +3093,7 @@ export default function TableDataView({ table, onBack }) {
             return (
               <>
                 {/* Horizontal Scroll Container */}
-                <div className="rounded-md border overflow-auto w-full relative mb-4">
+                <div className="rounded-md border overflow-x-auto w-full relative mb-4">
                   <Table className="w-full min-w-max">
                     <TableHeader>
                       <TableRow className="bg-muted/50">
@@ -3028,7 +3127,9 @@ export default function TableDataView({ table, onBack }) {
                                     size="sm"
                                     className="h-8 w-8 p-0 hover:bg-primary/10"
                                     title="View record details"
-                                    onClick={() => openViewRecordDialog(record)}
+                                    onClick={() => {
+                                      router.push(`/leadPage/record-details?table_id=${table.table_id}&record_id=${record.record_id}`)
+                                    }}
                                   >
                                     <Eye className="h-4 w-4" />
                                   </Button>
@@ -3698,257 +3799,7 @@ export default function TableDataView({ table, onBack }) {
 
                 {/* REST OF THE COLUMNS */}
                 <div className="space-y-6">
-                  {columns.map((column) => {
-                    const fieldType = getColumnFieldType(column)
-                    const storedValue = recordFormData[column.column_id]
-                    const primitiveValue =
-                      typeof storedValue === 'number'
-                        ? String(storedValue)
-                        : typeof storedValue === 'string'
-                          ? storedValue
-                          : ''
-
-                    // Derive choice values
-                    const choiceValue =
-                      fieldType === 'select' || fieldType === 'radio'
-                        ? typeof storedValue === 'object' && storedValue !== null && !Array.isArray(storedValue)
-                          ? storedValue.value || ''
-                          : typeof storedValue === 'string'
-                            ? storedValue
-                            : ''
-                        : ''
-
-                    const checkboxSelections =
-                      fieldType === 'checkbox'
-                        ? Array.isArray(storedValue)
-                          ? storedValue
-                            .map(item =>
-                              typeof item === 'object' && item !== null ? item.value : item
-                            )
-                            .filter(Boolean)
-                          : []
-                        : []
-
-                    // Get column options if available
-                    const columnOptions = getColumnOptions(column)
-
-                    // Special handling for phone numbers
-                    if (fieldType === 'phone') {
-                      let phoneData = { countryCode: '', number: '' }
-
-                      // Parse the phone data from JSON string if it exists
-                      if (storedValue) {
-                        try {
-                          const parsed = JSON.parse(storedValue)
-                          phoneData = {
-                            countryCode: parsed.countryCode || '',
-                            number: parsed.number || ''
-                          }
-                        } catch (e) {
-                          console.warn('Failed to parse phone data:', e)
-                        }
-                      }
-
-                      return (
-                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
-                          <Label htmlFor={`add-${column.column_id}`} className="text-base font-semibold">
-                            {column.column_name}
-                          </Label>
-                          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                            <div className="md:col-span-4 space-y-2">
-                              <Label htmlFor={`add-${column.column_id}-countryCode`} className="text-sm font-medium">
-                                Country Code
-                              </Label>
-                              <Input
-                                id={`add-${column.column_id}-countryCode`}
-                                type="text"
-                                value={phoneData.countryCode}
-                                onChange={(e) => {
-                                  const newCountryCode = e.target.value
-                                  const newPhoneData = {
-                                    ...phoneData,
-                                    countryCode: newCountryCode
-                                  }
-                                  setRecordFormData(prev => ({
-                                    ...prev,
-                                    [column.column_id]: JSON.stringify(newPhoneData)
-                                  }))
-                                }}
-                                placeholder="+91"
-                                className="h-12 text-base"
-                              />
-                            </div>
-                            <div className="md:col-span-8 space-y-2">
-                              <Label htmlFor={`add-${column.column_id}-number`} className="text-sm font-medium">
-                                Phone Number
-                              </Label>
-                              <Input
-                                id={`add-${column.column_id}-number`}
-                                type="tel"
-                                value={phoneData.number}
-                                onChange={(e) => {
-                                  const newNumber = e.target.value
-                                  const newPhoneData = {
-                                    ...phoneData,
-                                    number: newNumber
-                                  }
-                                  setRecordFormData(prev => ({
-                                    ...prev,
-                                    [column.column_id]: JSON.stringify(newPhoneData)
-                                  }))
-                                }}
-                                placeholder="1234567890"
-                                className="h-12 text-base"
-                              />
-                            </div>
-                          </div>
-                          <p className="text-sm text-muted-foreground bg-blue-50 p-2 rounded">
-                            💡 Enter country code (e.g., +91) and phone number separately
-                          </p>
-                        </div>
-                      )
-                    }
-
-                    // Handle select fields with options
-                    if ((fieldType === 'select' || fieldType === 'radio') && columnOptions.length > 0) {
-                      return (
-                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
-                          <Label htmlFor={`add-${column.column_id}`} className="text-base font-semibold">
-                            {column.column_name}
-                          </Label>
-                          <Select
-                            value={choiceValue || ''}
-                            onValueChange={(newValue) => handleSelectOrRadioChange(column, newValue)}
-                          >
-                            <SelectTrigger id={`add-${column.column_id}`} className="h-12 text-base">
-                              <SelectValue placeholder={`Select ${column.column_name}`} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {columnOptions.map((option, idx) => {
-                                const optionLabel = option.label || option.value || String(option)
-                                const optionValue = option.value || optionLabel
-                                return (
-                                  <SelectItem key={idx} value={optionValue} className="text-base">
-                                    {optionLabel}
-                                  </SelectItem>
-                                )
-                              })}
-                            </SelectContent>
-                          </Select>
-                          {hasNestedData(column) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={!choiceValue}
-                              onClick={() => handleOpenNestedManagerFromForm(column, 'add-form')}
-                            >
-                              Manage nested data
-                            </Button>
-                          )}
-                        </div>
-                      )
-                    }
-
-                    // Handle checkbox fields with options
-                    if (fieldType === 'checkbox' && columnOptions.length > 0) {
-                      return (
-                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
-                          <Label className="text-base font-semibold">
-                            {column.column_name}
-                          </Label>
-                          <div className="space-y-2">
-                            {columnOptions.map((option, idx) => {
-                              const optionLabel = option.label || option.value || String(option)
-                              const optionValue = option.value || optionLabel
-                              const isChecked = checkboxSelections.includes(optionValue)
-
-                              return (
-                                <div
-                                  key={idx}
-                                  onClick={() => handleCheckboxToggle(column, optionValue)}
-                                  className="flex items-center gap-3 p-3 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors"
-                                >
-                                  <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${isChecked ? 'bg-primary border-primary' : 'border-muted-foreground'
-                                    }`}>
-                                    {isChecked && (
-                                      <svg className="w-3.5 h-3.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                    )}
-                                  </div>
-                                  <span className="text-sm font-medium">{optionLabel}</span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                          {hasNestedData(column) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={checkboxSelections.length === 0}
-                              onClick={() => handleOpenNestedManagerFromForm(column, 'add-form')}
-                            >
-                              Manage nested data
-                            </Button>
-                          )}
-                        </div>
-                      )
-                    }
-
-                    // Regular field types
-                    return (
-                      <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
-                        <Label htmlFor={`add-${column.column_id}`} className="text-base font-semibold">
-                          {column.column_name}
-                        </Label>
-                        {fieldType === 'textarea' ? (
-                          <Textarea
-                            id={`add-${column.column_id}`}
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="min-h-[120px] text-base resize-vertical"
-                          />
-                        ) : fieldType === 'number' ? (
-                          <Input
-                            id={`add-${column.column_id}`}
-                            type="number"
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="h-12 text-base"
-                          />
-                        ) : fieldType === 'email' ? (
-                          <Input
-                            id={`add-${column.column_id}`}
-                            type="email"
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="h-12 text-base"
-                          />
-                        ) : fieldType === 'date' || fieldType === 'datetime' ? (
-                          <Input
-                            id={`add-${column.column_id}`}
-                            type={fieldType === 'date' ? 'date' : 'datetime-local'}
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="h-12 text-base"
-                          />
-                        ) : (
-                          <Input
-                            id={`add-${column.column_id}`}
-                            type="text"
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="h-12 text-base"
-                          />
-                        )}
-                      </div>
-                    )
-                  })}
+                  {renderFormFieldsRecursive(columns, recordFormData)}
                 </div>
               </div>
             </ScrollArea>
@@ -4037,276 +3888,7 @@ export default function TableDataView({ table, onBack }) {
 
                 {/* REST OF THE COLUMNS */}
                 <div className="space-y-6">
-                  {columns.map((column) => {
-                    const fieldType = getColumnFieldType(column)
-                    const storedValue = recordFormData[column.column_id]
-                    const primitiveValue =
-                      typeof storedValue === 'number'
-                        ? String(storedValue)
-                        : typeof storedValue === 'string'
-                          ? storedValue
-                          : ''
-                    const choiceValue =
-                      fieldType === 'select' || fieldType === 'radio'
-                        ? typeof storedValue === 'object' && storedValue !== null && !Array.isArray(storedValue)
-                          ? storedValue.value || ''
-                          : typeof storedValue === 'string'
-                            ? storedValue
-                            : ''
-                        : ''
-                    const checkboxSelections =
-                      fieldType === 'checkbox'
-                        ? Array.isArray(storedValue)
-                          ? storedValue
-                            .map(item =>
-                              typeof item === 'object' && item !== null ? item.value : item
-                            )
-                            .filter(Boolean)
-                          : []
-                        : []
-
-                    // Get column options if available
-                    const columnOptions = getColumnOptions(column)
-
-                    // Special handling for phone numbers
-                    if (fieldType === 'phone') {
-                      let phoneData = { countryCode: '', number: '' }
-
-                      // Parse the phone data from JSON string
-                      if (storedValue) {
-                        try {
-                          const parsed = JSON.parse(storedValue)
-                          phoneData = {
-                            countryCode: parsed.countryCode || '',
-                            number: parsed.number || ''
-                          }
-                        } catch (e) {
-                          console.warn('Failed to parse phone data:', e)
-                        }
-                      }
-
-                      return (
-                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
-                          <Label htmlFor={`edit-${column.column_id}`} className="text-base font-semibold">
-                            {column.column_name}
-                          </Label>
-                          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                            <div className="md:col-span-4 space-y-2">
-                              <Label htmlFor={`edit-${column.column_id}-countryCode`} className="text-sm font-medium">
-                                Country Code
-                              </Label>
-                              <Input
-                                id={`edit-${column.column_id}-countryCode`}
-                                type="text"
-                                value={phoneData.countryCode}
-                                onChange={(e) => {
-                                  const newCountryCode = e.target.value
-                                  const newPhoneData = {
-                                    ...phoneData,
-                                    countryCode: newCountryCode
-                                  }
-                                  setRecordFormData(prev => ({
-                                    ...prev,
-                                    [column.column_id]: JSON.stringify(newPhoneData)
-                                  }))
-                                }}
-                                placeholder="+91"
-                                className="h-12 text-base"
-                              />
-                            </div>
-                            <div className="md:col-span-8 space-y-2">
-                              <Label htmlFor={`edit-${column.column_id}-number`} className="text-sm font-medium">
-                                Phone Number
-                              </Label>
-                              <Input
-                                id={`edit-${column.column_id}-number`}
-                                type="tel"
-                                value={phoneData.number}
-                                onChange={(e) => {
-                                  const newNumber = e.target.value
-                                  const newPhoneData = {
-                                    ...phoneData,
-                                    number: newNumber
-                                  }
-                                  setRecordFormData(prev => ({
-                                    ...prev,
-                                    [column.column_id]: JSON.stringify(newPhoneData)
-                                  }))
-                                }}
-                                placeholder="1234567890"
-                                className="h-12 text-base"
-                              />
-                            </div>
-                          </div>
-                          {phoneData.countryCode || phoneData.number ? (
-                            <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-2 rounded">
-                              <div className="flex items-center gap-1">
-                                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                Current:
-                              </div>
-                              <span className="font-medium">
-                                {phoneData.countryCode} {phoneData.number}
-                              </span>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">
-                              Enter country code (e.g., +91) and phone number
-                            </p>
-                          )}
-                        </div>
-                      )
-                    }
-
-                    // Handle select fields with options
-                    if ((fieldType === 'select' || fieldType === 'radio') && columnOptions.length > 0) {
-                      return (
-                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
-                          <Label htmlFor={`edit-${column.column_id}`} className="text-base font-semibold">
-                            {column.column_name}
-                          </Label>
-                          <Select
-                            value={choiceValue || ''}
-                            onValueChange={(newValue) => handleSelectOrRadioChange(column, newValue)}
-                          >
-                            <SelectTrigger id={`edit-${column.column_id}`} className="h-12 text-base">
-                              <SelectValue placeholder={`Select ${column.column_name}`} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {columnOptions.map((option, idx) => {
-                                const optionLabel = option.label || option.value || String(option)
-                                const optionValue = option.value || optionLabel
-                                return (
-                                  <SelectItem key={idx} value={optionValue} className="text-base">
-                                    {optionLabel}
-                                  </SelectItem>
-                                )
-                              })}
-                            </SelectContent>
-                          </Select>
-                          {hasNestedData(column) && (
-                            <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                              💡 After selecting an option, use &quot;Manage nested data&quot; to edit nested fields.
-                            </p>
-                          )}
-                          {hasNestedData(column) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={!choiceValue}
-                              onClick={() => handleOpenNestedManagerFromForm(column, 'edit-form')}
-                            >
-                              Manage nested data
-                            </Button>
-                          )}
-                        </div>
-                      )
-                    }
-
-                    // Handle checkbox fields with options
-                    if (fieldType === 'checkbox' && columnOptions.length > 0) {
-                      return (
-                        <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
-                          <Label className="text-base font-semibold">
-                            {column.column_name}
-                          </Label>
-                          <div className="space-y-2">
-                            {columnOptions.map((option, idx) => {
-                              const optionLabel = option.label || option.value || String(option)
-                              const optionValue = option.value || optionLabel
-                              const isChecked = checkboxSelections.includes(optionValue)
-
-                              return (
-                                <div
-                                  key={idx}
-                                  onClick={() => handleCheckboxToggle(column, optionValue)}
-                                  className="flex items-center gap-3 p-3 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors"
-                                >
-                                  <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${isChecked ? 'bg-primary border-primary' : 'border-muted-foreground'
-                                    }`}>
-                                    {isChecked && (
-                                      <svg className="w-3.5 h-3.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                    )}
-                                  </div>
-                                  <span className="text-sm font-medium">{optionLabel}</span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                          {hasNestedData(column) && (
-                            <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
-                              💡 After selecting options, use &quot;Manage nested data&quot; to update nested fields.
-                            </p>
-                          )}
-                          {hasNestedData(column) && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={checkboxSelections.length === 0}
-                              onClick={() => handleOpenNestedManagerFromForm(column, 'edit-form')}
-                            >
-                              Manage nested data
-                            </Button>
-                          )}
-                        </div>
-                      )
-                    }
-
-                    // Regular field types
-                    return (
-                      <div key={column.column_id} className="space-y-3 bg-muted/10 p-4 rounded-lg border">
-                        <Label htmlFor={`edit-${column.column_id}`} className="text-base font-semibold">
-                          {column.column_name}
-                        </Label>
-                        {fieldType === 'textarea' ? (
-                          <Textarea
-                            id={`edit-${column.column_id}`}
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="min-h-[120px] text-base resize-vertical"
-                          />
-                        ) : fieldType === 'number' ? (
-                          <Input
-                            id={`edit-${column.column_id}`}
-                            type="number"
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="h-12 text-base"
-                          />
-                        ) : fieldType === 'email' ? (
-                          <Input
-                            id={`edit-${column.column_id}`}
-                            type="email"
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="h-12 text-base"
-                          />
-                        ) : fieldType === 'date' || fieldType === 'datetime' ? (
-                          <Input
-                            id={`edit-${column.column_id}`}
-                            type={fieldType === 'date' ? 'date' : 'datetime-local'}
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="h-12 text-base"
-                          />
-                        ) : (
-                          <Input
-                            id={`edit-${column.column_id}`}
-                            type="text"
-                            value={primitiveValue}
-                            onChange={(e) => setRecordFormData(prev => ({ ...prev, [column.column_id]: e.target.value }))}
-                            placeholder={`Enter ${column.column_name}`}
-                            className="h-12 text-base"
-                          />
-                        )}
-                      </div>
-                    )
-                  })}
+                  {renderFormFieldsRecursive(columns, recordFormData)}
                 </div>
               </div>
             </ScrollArea>
@@ -4346,357 +3928,6 @@ export default function TableDataView({ table, onBack }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* View Record Dialog */}
-      <Dialog open={isViewRecordDialogOpen} onOpenChange={setIsViewRecordDialogOpen}>
-        <DialogContent className="w-[98vw] sm:max-w-[1600px] h-[92vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-                  <Eye className="h-6 w-6 text-primary" />
-                  Record Details
-                </DialogTitle>
-                <DialogDescription className="text-base">
-                  Complete information and activity history for this record
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          {/* Main Content - Two Column Layout */}
-          <div className="flex-1 min-h-0 overflow-hidden bg-muted/5">
-            <div className="grid grid-cols-1 lg:grid-cols-12 h-full gap-0">
-
-              {/* Left Column: Details (Scrollable) */}
-              <div className="lg:col-span-7 h-full overflow-y-auto border-r p-6 space-y-6">
-                {/* Record Metadata */}
-                <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Database className="h-5 w-5 text-primary" />
-                      Record Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Record ID</Label>
-                        <p className="text-sm font-mono bg-background p-2 rounded border break-all shadow-sm">{recordToView?.record_id || '-'}</p>
-                      </div>
-                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Assigned To</Label>
-                        <p className="text-sm bg-background p-2 rounded border font-medium shadow-sm flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                          {(() => {
-                            const assignedTo = recordToView?.assigned_to
-                            if (!assignedTo || assignedTo === 'NA') return 'Not assigned'
-                            const user = users.find(u => (u.user_id || u.id) === assignedTo)
-                            return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : assignedTo
-                          })()}
-                        </p>
-                      </div>
-                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Created At</Label>
-                        <p className="text-sm bg-background p-2 rounded border shadow-sm">
-                          {recordToView?.created_at ? new Date(recordToView.created_at).toLocaleString() : '-'}
-                        </p>
-                      </div>
-                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Created By</Label>
-                        <p className="text-sm bg-background p-2 rounded border shadow-sm">
-                          {(() => {
-                            const createdBy = recordToView?.created_by
-                            if (!createdBy) return '-'
-                            const user = users.find(u => (u.user_id || u.id) === createdBy)
-                            return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : createdBy
-                          })()}
-                        </p>
-                      </div>
-                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Updated At</Label>
-                        <p className="text-sm bg-background p-2 rounded border shadow-sm">
-                          {recordToView?.updated_at ? new Date(recordToView.updated_at).toLocaleString() : '-'}
-                        </p>
-                      </div>
-                      <div className="space-y-1.5 p-3 bg-muted/30 rounded-lg">
-                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Updated By</Label>
-                        <p className="text-sm bg-background p-2 rounded border shadow-sm">
-                          {(() => {
-                            const updatedBy = recordToView?.updated_by
-                            if (!updatedBy) return '-'
-                            const user = users.find(u => (u.user_id || u.id) === updatedBy)
-                            return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : updatedBy
-                          })()}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Field Values */}
-                {recordToView && (
-                  <Card className="border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Settings className="h-5 w-5 text-blue-500" />
-                        Custom Fields
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {columns.map((column) => {
-                          const fieldValue = getFieldValue(recordToView, column.column_id, column)
-                          const displayDataType = getColumnFieldType(column)
-                          const formattedValue = formatFieldValue(fieldValue, displayDataType, column, recordToView)
-
-                          return (
-                            <div key={column.column_id} className="space-y-1.5 p-4 bg-muted/20 rounded-lg border group hover:border-blue-200 transition-colors">
-                              <div className="flex items-center justify-between gap-2">
-                                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{column.column_name}</Label>
-                                <Badge variant="outline" className="text-[10px] bg-background">
-                                  {displayDataType || 'text'}
-                                </Badge>
-                              </div>
-                              <div className="text-sm bg-background p-3 rounded border min-h-[44px] break-words shadow-sm flex items-center">
-                                {formattedValue || <span className="text-muted-foreground italic">No value</span>}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
-              {/* Right Column: Dynamic Content (Tabs) */}
-              <div className="lg:col-span-5 h-full overflow-hidden flex flex-col bg-background border-l">
-                <Tabs defaultValue="history" className="flex-1 flex flex-col overflow-hidden">
-                  <div className="p-4 border-b bg-muted/10 shrink-0">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="history" className="flex items-center gap-2">
-                        <History className="h-4 w-4" />
-                        Audit History
-                      </TabsTrigger>
-                      <TabsTrigger value="activities" className="flex items-center gap-2">
-                        <ListTodo className="h-4 w-4" />
-                        Recent Activities
-                      </TabsTrigger>
-                    </TabsList>
-                  </div>
-
-                  {/* History Tab Content */}
-                  <TabsContent value="history" className="flex-1 overflow-y-auto m-0 p-4">
-                    <div className="space-y-1 mb-4">
-                      <h3 className="text-sm font-bold flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-amber-500" />
-                        Change Timeline
-                      </h3>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Audit trail of all record modifications</p>
-                    </div>
-
-                    {loadingHistory ? (
-                      <div className="flex flex-col items-center justify-center h-40 space-y-3">
-                        <RefreshCw className="h-8 w-8 text-primary animate-spin" />
-                        <p className="text-sm text-muted-foreground">Loading history...</p>
-                      </div>
-                    ) : recordHistory.length > 0 ? (
-                      <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
-                        {(() => {
-                          // Group history by user and timestamp (within 2 seconds)
-                          const sorted = [...recordHistory].sort((a, b) => new Date(b.event_timestamp) - new Date(a.event_timestamp));
-                          const grouped = [];
-                          sorted.forEach(item => {
-                            const last = grouped[grouped.length - 1];
-                            const timestamp = new Date(item.event_timestamp).getTime();
-                            const lastTimestamp = last ? new Date(last.event_timestamp).getTime() : 0;
-
-                            if (last && last.user_id === item.user_id && Math.abs(lastTimestamp - timestamp) < 2000) {
-                              last.changes.push(item);
-                            } else {
-                              grouped.push({ ...item, changes: [item] });
-                            }
-                          });
-
-                          return grouped.map((group, index) => {
-                            const userName = (() => {
-                              const userId = group.user_id
-                              if (!userId) return 'System'
-                              const user = users.find(u => (u.user_id || u.id) === userId)
-                              return user ? `${user.first_name || user.name} ${user.last_name || ''}`.trim() : userId
-                            })()
-
-                            return (
-                              <div key={index} className="relative flex items-start gap-4 group">
-                                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-background border-2 border-primary z-10 shrink-0 shadow-sm group-hover:scale-110 transition-transform">
-                                  <Clock className="h-5 w-5 text-primary" />
-                                </div>
-                                <div className="flex-1 bg-muted/20 p-4 rounded-xl border border-transparent group-hover:border-primary/20 group-hover:bg-muted/40 transition-all shadow-sm">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="font-bold text-sm text-primary">{userName}</span>
-                                    <time className="text-[10px] text-muted-foreground bg-background px-2 py-0.5 rounded-full border">
-                                      {new Date(group.event_timestamp).toLocaleString()}
-                                    </time>
-                                  </div>
-                                  <div className="text-sm text-muted-foreground space-y-2">
-                                    <div className="space-y-1.5">
-                                      <p className="text-xs font-medium text-foreground text-opacity-80">
-                                        {group.event_type === 'CREATE' ? 'Record created' : 'Modified record data'}
-                                      </p>
-                                      <div className="space-y-1">
-                                        {group.changes.map((change, i) => {
-                                          const col = columns.find(c => c.column_id === change.changed_field);
-                                          const colName = col ? col.column_name : 'Unknown Field';
-
-                                          return (
-                                            <div key={i} className="text-xs pl-2 border-l-2 border-primary/20 py-1">
-                                              <span className="font-semibold block mb-0.5 text-foreground/70">{colName}:</span>
-                                              <div className="flex items-center flex-wrap gap-1">
-                                                <span className="text-red-500 line-through opacity-60 bg-red-50 px-1 rounded">
-                                                  {parseHistoryValue(change.old_value)}
-                                                </span>
-                                                <span className="text-muted-foreground">→</span>
-                                                <span className="text-green-600 font-medium bg-green-50 px-1 rounded">
-                                                  {parseHistoryValue(change.new_value)}
-                                                </span>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          });
-                        })()}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-40 text-center space-y-2">
-                        <div className="p-3 bg-muted rounded-full">
-                          <History className="h-6 w-6 text-muted-foreground opacity-50" />
-                        </div>
-                        <p className="text-sm text-muted-foreground">No history found</p>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  {/* Activities Tab Content */}
-                  <TabsContent value="activities" className="flex-1 overflow-y-auto m-0 p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="space-y-1">
-                        <h3 className="text-sm font-bold flex items-center gap-2">
-                          <ListTodo className="h-4 w-4 text-blue-500" />
-                          Recent Activities
-                        </h3>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Scheduled tasks and interactions</p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs gap-1.5 border-dashed hover:border-solid"
-                        onClick={() => {
-                          setActivityInitialData({
-                            related_table_id: table.table_id,
-                            related_record_id: recordToView?.record_id
-                          })
-                          setIsCreateActivityOpen(true)
-                        }}
-                      >
-                        <CalendarPlus className="h-3.5 w-3.5" />
-                        New Activity
-                      </Button>
-                    </div>
-
-                    {loadingActivities ? (
-                      <div className="flex flex-col items-center justify-center h-40 space-y-3">
-                        <RefreshCw className="h-8 w-8 text-primary animate-spin" />
-                        <p className="text-sm text-muted-foreground">Loading activities...</p>
-                      </div>
-                    ) : recordActivities.length > 0 ? (
-                      <div className="space-y-3">
-                        {recordActivities.map((activity, index) => (
-                          <div
-                            key={index}
-                            className="bg-muted/10 p-4 rounded-xl border border-transparent hover:border-blue-200 hover:bg-muted/30 transition-all cursor-pointer group shadow-sm"
-                            onClick={() => router.push(`/activities?id=${activity.activity_id}`)}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="space-y-1 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="text-sm font-semibold text-foreground group-hover:text-blue-600 transition-colors">
-                                    {activity.title}
-                                  </h4>
-                                  <Badge variant={activity.completed ? "default" : "secondary"} className="text-[10px] px-1.5 py-0 h-4">
-                                    {activity.completed ? "Completed" : "Pending"}
-                                  </Badge>
-                                </div>
-                                <p className="text-xs text-muted-foreground line-clamp-2">{activity.description || 'No description'}</p>
-                              </div>
-                            </div>
-                            <div className="mt-3 pt-3 border-t flex items-center justify-between text-[10px] text-muted-foreground">
-                              <div className="flex items-center gap-3">
-                                <span className="flex items-center gap-1 uppercase tracking-wider font-medium">
-                                  <Clock className="h-3 w-3" />
-                                  Due: {new Date(activity.due_date).toLocaleDateString()}
-                                </span>
-                                <Badge variant="outline" className="text-[9px] uppercase tracking-tighter bg-background">
-                                  {activity.activity_type}
-                                </Badge>
-                              </div>
-                              <span className="font-mono text-primary opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-40 text-center space-y-2">
-                        <div className="p-3 bg-muted rounded-full">
-                          <ListTodo className="h-6 w-6 text-muted-foreground opacity-50" />
-                        </div>
-                        <p className="text-sm text-muted-foreground">No activities scheduled</p>
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="text-xs"
-                          onClick={() => {
-                            setActivityInitialData({
-                              related_table_id: table.table_id,
-                              related_record_id: recordToView?.record_id
-                            })
-                            setIsCreateActivityOpen(true)
-                          }}
-                        >
-                          Create one now
-                        </Button>
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              </div>
-
-            </div>
-          </div>
-
-          <DialogFooter className="px-6 py-4 border-t shrink-0 gap-3">
-            <Button variant="outline" onClick={() => setIsViewRecordDialogOpen(false)} className="gap-2">
-              <Eye className="h-4 w-4" />
-              Close View
-            </Button>
-            {/* {recordToView && (
-              <Button onClick={() => {
-                setIsViewRecordDialogOpen(false)
-                openEditRecordDialog(recordToView)
-              }} className="gap-2">
-                <Edit className="h-4 w-4" />
-                Edit Record
-              </Button>
-            )} */}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div >
+    </div>
   )
 }

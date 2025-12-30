@@ -1,0 +1,1008 @@
+"use client"
+
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import {
+    ArrowLeft,
+    Database,
+    RefreshCw,
+    Eye,
+    Settings,
+    History,
+    ListTodo,
+    Clock,
+    Plus,
+    User
+} from "lucide-react"
+import { toast } from "sonner"
+import { authUtils } from '@/lib/auth-utils'
+import { usersApi, datatablesApi, recordsApi, activitiesApi } from '@/lib/api-endpoint'
+import CreateActivityDialog from "@/components/activities/create-activity-dialog"
+
+// Helper functions (Ported from table-data-view.js)
+const inferTypeFromColumnName = (name = '') => {
+    const lower = name.toLowerCase()
+    if (lower.includes('email')) return 'email'
+    if (lower.includes('phone') || lower.includes('mobile')) return 'phone'
+    if (lower.includes('location') || lower.includes('address')) return 'location'
+    if (lower.includes('date') || lower.includes('dob')) return 'date'
+    if (lower.includes('time')) return 'datetime'
+    if (lower.includes('description') || lower.includes('notes') || lower.includes('feedback')) return 'textarea'
+    if (lower.includes('amount') || lower.includes('salary') || lower.includes('price')) return 'number'
+    return null
+}
+
+const getColumnFieldType = (column) => {
+    if (!column) return 'text'
+    return (
+        column.properties?.field_type ||
+        column.properties?.type ||
+        column.data_type ||
+        inferTypeFromColumnName(column.column_name || '') ||
+        'text'
+    )
+}
+
+const formatDateOnly = (input) => {
+    if (input instanceof Date && !Number.isNaN(input.getTime())) {
+        return input.toLocaleDateString()
+    }
+    if (!input) return null
+    const str = String(input).trim()
+    if (!str) return null
+    const direct = new Date(str)
+    if (!Number.isNaN(direct.getTime())) return direct.toLocaleDateString()
+    return null
+}
+
+const formatLocationDisplay = (value) => {
+    if (!value) return null
+    const parsed = (typeof value === 'string') ? safeParseJSON(value) : value
+    if (parsed && typeof parsed === 'object') {
+        const title = parsed.address || parsed.name || ''
+        const subtitle = [parsed.city, parsed.state, parsed.country].filter(Boolean).join(', ')
+        return (
+            <div className="text-sm">
+                {title && <div className="font-medium">{title}</div>}
+                {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+            </div>
+        )
+    }
+    return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
+}
+
+const getFieldValue = (record, columnId, column) => {
+    if (!record || !columnId) return null
+    if (record[columnId] !== undefined) return record[columnId]
+    if (record.field_values && record.field_values[columnId] !== undefined) return record.field_values[columnId]
+    return null
+}
+
+const safeParseJSON = (val) => {
+    if (val === null || val === undefined || val === "") return null;
+    if (typeof val !== 'string') return val;
+    if (!val.trim().startsWith('{') && !val.trim().startsWith('[')) return val;
+    try {
+        return JSON.parse(val);
+    } catch (e) {
+        return val;
+    }
+};
+
+const parseOptionalValuesArray = (optionalValuesInput) => {
+    if (!optionalValuesInput) return []
+
+    const tryParse = (value) => {
+        if (Array.isArray(value)) return value
+        if (typeof value === 'string') {
+            try {
+                const parsed = JSON.parse(value)
+                return Array.isArray(parsed) ? parsed : []
+            } catch {
+                return []
+            }
+        }
+        if (typeof value === 'object') return Array.isArray(value) ? value : []
+        return []
+    }
+
+    if (Array.isArray(optionalValuesInput)) {
+        for (const entry of optionalValuesInput) {
+            const parsed = tryParse(entry)
+            if (parsed.length) return parsed
+        }
+    }
+
+    if (typeof optionalValuesInput === 'string') {
+        return tryParse(optionalValuesInput)
+    }
+
+    return []
+}
+
+function RecordDetailsContent() {
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const tableId = searchParams.get("table_id")
+    const recordId = searchParams.get("record_id")
+
+    const [loading, setLoading] = useState(true)
+    const [record, setRecord] = useState(null)
+    const [columns, setColumns] = useState([])
+    const [users, setUsers] = useState([])
+    const [history, setHistory] = useState([])
+    const [activities, setActivities] = useState([])
+    const [loadingHistory, setLoadingHistory] = useState(false)
+    const [loadingActivities, setLoadingActivities] = useState(false)
+    const [isCreateActivityOpen, setIsCreateActivityOpen] = useState(false)
+    const [currentUser, setCurrentUser] = useState(null)
+    const [isFileModalOpen, setIsFileModalOpen] = useState(false)
+    const [filePreview, setFilePreview] = useState(null)
+    const [isNestedModalOpen, setIsNestedModalOpen] = useState(false)
+    const [nestedData, setNestedData] = useState(null)
+    const [currentField, setCurrentField] = useState(null)
+
+    useEffect(() => {
+        if (tableId && recordId) {
+            fetchData()
+        } else {
+            toast.error("Missing table or record ID")
+            router.push('/leadPage')
+        }
+
+        // Get current user for activity creation
+        const tokens = authUtils.getTokens()
+        if (tokens?.user) {
+            setCurrentUser(tokens.user)
+        }
+    }, [tableId, recordId])
+
+    const fetchData = async () => {
+        setLoading(true)
+        try {
+            const [recordRes, columnsRes, usersRes] = await Promise.all([
+                recordsApi.getById(tableId, recordId),
+                datatablesApi.getColumns(tableId),
+                usersApi.getAll()
+            ])
+
+            setRecord(recordRes.data?.data || recordRes.data)
+            setColumns(columnsRes.data?.data || columnsRes.data || [])
+            setUsers(Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data?.data || []))
+
+            fetchHistory()
+            fetchActivities()
+        } catch (err) {
+            console.error("Error fetching data:", err)
+            toast.error("Failed to load record details")
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const fetchHistory = async () => {
+        setLoadingHistory(true)
+        try {
+            const response = await recordsApi.getHistory(tableId, recordId)
+            setHistory(response.data?.data || response.data || [])
+        } catch (err) {
+            console.error("Error fetching history:", err)
+        } finally {
+            setLoadingHistory(false)
+        }
+    }
+
+    const fetchActivities = async () => {
+        setLoadingActivities(true)
+        try {
+            const response = await activitiesApi.getByOrganization()
+            const allActivities = response.data?.data || response.data || []
+            const filtered = allActivities.filter(activity =>
+                String(activity.related_table_id) === String(tableId) &&
+                String(activity.related_record_id) === String(recordId)
+            )
+            setActivities(filtered)
+        } catch (err) {
+            console.error("Error fetching activities:", err)
+        } finally {
+            setLoadingActivities(false)
+        }
+    }
+
+    const getUserName = (userId) => {
+        if (!userId || userId === 'NA' || userId === 'System') return userId || 'System'
+        const user = users.find(u => (u.user_id || u.id) === userId)
+        if (!user) return userId
+        return `${user.first_name || user.name || ''} ${user.last_name || ''}`.trim() || user.email || userId
+    }
+
+    const inferFilenameFromDataUrl = (dataUrl, column) => {
+        if (!dataUrl) return "file"
+        const extensionMatch = dataUrl.match(/^data:([^;]+);/)
+        const mimeType = extensionMatch ? extensionMatch[1] : ""
+        const extension = mimeType.split("/")[1] || "bin"
+        const baseName = column?.column_name || column?.name || "upload"
+        return `${baseName}.${extension}`
+    }
+
+    const openFileModal = (dataUrl, column) => {
+        setFilePreview({
+            url: dataUrl,
+            name: inferFilenameFromDataUrl(dataUrl, column),
+            type: dataUrl.split(";")[0].split(":")[1],
+        })
+        setIsFileModalOpen(true)
+    }
+
+    const downloadDataUrl = (dataUrl, filename) => {
+        try {
+            const a = document.createElement("a")
+            a.href = dataUrl
+            a.download = filename || "download"
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+        } catch (e) {
+            console.error("Download failed", e)
+        }
+    }
+
+    const parseNestedData = (fieldValue, column) => {
+        try {
+            const parsed = typeof fieldValue === 'string' ? JSON.parse(fieldValue) : fieldValue
+            let options = parseOptionalValuesArray(column.properties?.options || column.options || column.optional_values)
+
+            const normalizeOptionsRecursively = (opts) => {
+                if (!Array.isArray(opts)) return []
+                return opts.map((option) => {
+                    if (typeof option === "object" && option !== null) {
+                        const normalizedOption = { ...option }
+                        if (normalizedOption.nestedFields && Array.isArray(normalizedOption.nestedFields)) {
+                            normalizedOption.nestedFields = normalizedOption.nestedFields.map((nestedField) => {
+                                const normalized = {
+                                    id: nestedField.id,
+                                    name: nestedField.name || nestedField.label || nestedField.id,
+                                    label: nestedField.label || nestedField.name || nestedField.id,
+                                    type: nestedField.type || "text",
+                                    nestedFields: nestedField.nestedFields ? normalizeOptionsRecursively([{ nestedFields: nestedField.nestedFields }])[0].nestedFields : [],
+                                    options: nestedField.options ? normalizeOptionsRecursively(nestedField.options) : [],
+                                }
+                                return normalized
+                            })
+                        }
+                        return normalizedOption
+                    }
+                    return option
+                })
+            }
+
+            options = normalizeOptionsRecursively(options)
+            const isMulti = Array.isArray(parsed)
+
+            const result = {
+                fieldName: column.column_name || column.name,
+                isMulti: isMulti,
+                selectedValue: isMulti ? parsed.map((item) => item.value) : parsed.value,
+                options: options,
+                formData: {},
+            }
+
+            const extractFormData = (nestedValues, parentFields) => {
+                const formData = {}
+                if (!nestedValues || typeof nestedValues !== "object") return formData
+
+                Object.entries(nestedValues).forEach(([fieldId, fieldData]) => {
+                    let fieldDef = null
+                    if (parentFields && Array.isArray(parentFields)) {
+                        fieldDef = parentFields.find((f) => f.id === fieldId)
+                    }
+
+                    if (fieldData && typeof fieldData === "object" && fieldData !== null) {
+                        if (fieldData.value !== undefined) {
+                            let nestedFieldsForThisField = []
+
+                            if (fieldDef) {
+                                if (fieldDef.options && Array.isArray(fieldDef.options)) {
+                                    const selectedOption = fieldDef.options.find(
+                                        (opt) => opt.value === fieldData.value || opt.label === fieldData.value,
+                                    )
+                                    if (selectedOption && selectedOption.nestedFields && Array.isArray(selectedOption.nestedFields)) {
+                                        nestedFieldsForThisField = selectedOption.nestedFields
+                                    }
+                                } else if (fieldDef.nestedFields && Array.isArray(fieldDef.nestedFields)) {
+                                    nestedFieldsForThisField = fieldDef.nestedFields
+                                }
+                            }
+
+                            formData[fieldId] = {
+                                fieldDef: fieldDef || { id: fieldId, label: fieldId, type: "text" },
+                                value: fieldData.value,
+                                nestedData: fieldData.nestedValues
+                                    ? extractFormData(fieldData.nestedValues, nestedFieldsForThisField)
+                                    : {},
+                            }
+                        } else {
+                            // Handle object structure without explicitly named 'value' key (e.g. phone/location)
+                            formData[fieldId] = {
+                                fieldDef: fieldDef || { id: fieldId, label: fieldId, type: "text" },
+                                value: fieldData,
+                                nestedData: {}
+                            }
+                        }
+                    } else if (fieldData !== undefined && fieldData !== null) {
+                        // Handle primitive values (string, number, etc.)
+                        formData[fieldId] = {
+                            fieldDef: fieldDef || { id: fieldId, label: fieldId, type: "text" },
+                            value: fieldData,
+                            nestedData: {}
+                        }
+                    }
+                })
+                return formData
+            }
+
+            if (isMulti) {
+                parsed.forEach((item, index) => {
+                    if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
+                        const selectedOption = options.find((opt) => opt.value === item.value || opt.label === item.value)
+                        const nestedFields = selectedOption?.nestedFields || []
+                        const itemFormData = extractFormData(item.nestedValues, nestedFields)
+
+                        Object.entries(itemFormData).forEach(([fieldId, fieldInfo]) => {
+                            const prefixedFieldId = `${index}_${fieldId}`
+                            result.formData[prefixedFieldId] = {
+                                ...fieldInfo,
+                                _originalFieldId: fieldId,
+                                _selectionIndex: index,
+                                _selectionValue: item.value,
+                            }
+                        })
+                    }
+                })
+            } else {
+                if (parsed.nestedValues) {
+                    const selectedOption = options.find((opt) => opt.value === parsed.value || opt.label === parsed.value)
+                    const nestedFields = selectedOption?.nestedFields || []
+                    result.formData = extractFormData(parsed.nestedValues, nestedFields)
+                }
+            }
+
+            return result
+        } catch (error) {
+            console.error("Error parsing nested data:", error)
+            return null
+        }
+    }
+
+    const openNestedModal = (fieldValue, column) => {
+        const nData = parseNestedData(fieldValue, column)
+        if (nData) {
+            setNestedData(nData)
+            setCurrentField(column)
+            setIsNestedModalOpen(true)
+        }
+    }
+
+    const renderOptionsDropdown = (displayNode, column, selectedValues, onOpenNested) => {
+        const options = Array.isArray(column.properties?.options || column.options) ? (column.properties?.options || column.options) : []
+        const selectedSet = new Set(
+            (Array.isArray(selectedValues) ? selectedValues : [selectedValues]).filter(Boolean).map((v) => String(v)),
+        )
+
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button className="px-2 py-1 rounded border border-border hover:bg-muted/50 transition-colors flex items-center gap-2">
+                        {displayNode}
+                        {onOpenNested && <Settings className="h-3 w-3 text-muted-foreground animate-pulse" />}
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Options</div>
+                    {options.length > 0 ? (
+                        options.map((opt) => {
+                            const label = String(opt?.label ?? opt?.value ?? "")
+                            const value = String(opt?.value ?? label)
+                            const isSelected = selectedSet.has(value) || selectedSet.has(label)
+                            return (
+                                <DropdownMenuItem key={value} className="flex items-center gap-2">
+                                    <span className={isSelected ? "font-medium text-foreground" : "text-muted-foreground"}>{label}</span>
+                                    {isSelected && <Badge variant="default" className="ml-auto h-4 px-1 text-[10px]">Selected</Badge>}
+                                </DropdownMenuItem>
+                            )
+                        })
+                    ) : (
+                        <div className="px-2 py-4 text-center text-xs text-muted-foreground italic">No options defined</div>
+                    )}
+                    {onOpenNested && (
+                        <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={onOpenNested} className="text-primary font-medium focus:text-primary">
+                                View nested details
+                            </DropdownMenuItem>
+                        </>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        )
+    }
+
+    const renderNestedFormFields = (formData, level = 0) => {
+        if (!formData || Object.keys(formData).length === 0) return null
+
+        return (
+            <div className={`space-y-4 ${level > 0 ? "ml-6 pl-4 border-l-2 border-primary/20" : ""}`}>
+                {Object.entries(formData).map(([fieldId, fieldInfo]) => {
+                    const { fieldDef, value, nestedData } = fieldInfo
+
+                    const renderVal = () => {
+                        if (!value && value !== 0) return <span className="text-muted-foreground italic">-</span>
+                        if (typeof value === "string" && value.startsWith("data:")) {
+                            const fileName = inferFilenameFromDataUrl(value, fieldDef)
+                            return (
+                                <button
+                                    onClick={() => openFileModal(value, fieldDef)}
+                                    className="text-blue-600 hover:underline text-sm font-medium"
+                                >
+                                    {fileName}
+                                </button>
+                            )
+                        }
+                        if (Array.isArray(value)) {
+                            return (
+                                <div className="flex flex-wrap gap-1">
+                                    {value.map((v, i) => <Badge key={i} variant="secondary" className="text-[10px]">{String(v)}</Badge>)}
+                                </div>
+                            )
+                        }
+                        return <span className="text-foreground font-medium">{String(value)}</span>
+                    }
+
+                    return (
+                        <div key={fieldId} className="space-y-2 group">
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">
+                                    {fieldDef?.label || fieldDef?.name || fieldId}
+                                </label>
+                                <Badge variant="outline" className="text-[10px] opacity-70">
+                                    {fieldDef?.type || "text"}
+                                </Badge>
+                            </div>
+                            <div className="text-sm min-h-[1.5rem] flex items-center">{renderVal()}</div>
+                            {nestedData && Object.keys(nestedData).length > 0 && (
+                                <Card className="mt-3 bg-gradient-to-br from-primary/5 to-transparent border-primary/10 shadow-sm overflow-hidden">
+                                    <div className="bg-primary/5 px-4 py-2 border-b border-primary/10 text-[10px] font-bold text-primary uppercase">Nested Details</div>
+                                    <CardContent className="px-4 py-4">{renderNestedFormFields(nestedData, level + 1)}</CardContent>
+                                </Card>
+                            )}
+                        </div>
+                    )
+                })}
+            </div>
+        )
+    }
+
+    const formatPhoneDisplay = (value) => {
+        if (!value) return null
+
+        // Try parsing if it's a string
+        const parsed = safeParseJSON(value);
+
+        if (parsed && typeof parsed === 'object') {
+            // Handle { value: { countryCode: '...', number: '...' } } or just { countryCode: '...', number: '...' }
+            const actualValue = (parsed.value !== undefined) ? parsed.value : parsed
+
+            if (actualValue && typeof actualValue === 'object') {
+                const countryCode = actualValue.countryCode || actualValue.code || ''
+                const number = actualValue.number || actualValue.value || ''
+                const country = actualValue.country || ''
+                const line = [countryCode, number].filter(Boolean).join(' ').trim()
+
+                if (line || country) {
+                    return (
+                        <div className="text-sm">
+                            {line && <div className="font-medium">{line}</div>}
+                            {country && <div className="text-xs text-muted-foreground">{country}</div>}
+                        </div>
+                    )
+                }
+            }
+
+            // If actualValue is not an object but somehow nested
+            if (actualValue !== undefined && actualValue !== null) {
+                return <span>{String(actualValue)}</span>
+            }
+        }
+
+        return String(value)
+    }
+
+    const formatFieldValue = (rawValue, dataType, column = null) => {
+        if (rawValue === null || rawValue === undefined || rawValue === "") {
+            return <span className="text-muted-foreground italic">-</span>
+        }
+
+        const fieldType = getColumnFieldType(column) || dataType || 'text'
+        const parsed = safeParseJSON(rawValue);
+
+        // Robustly extract the value to display
+        let valueToDisplay = rawValue
+        if (parsed && typeof parsed === 'object' && parsed.value !== undefined) {
+            valueToDisplay = parsed.value
+        } else if (parsed !== undefined) {
+            valueToDisplay = parsed
+        }
+
+        // Handle Phone and Location types early
+        if (fieldType === 'phone') {
+            return formatPhoneDisplay(rawValue)
+        }
+        if (fieldType === 'location') {
+            return formatLocationDisplay(rawValue)
+        }
+
+        if (Array.isArray(valueToDisplay)) {
+            const hasNested = valueToDisplay.some(
+                (item) => item && typeof item === "object" && item.nestedValues && Object.keys(item.nestedValues).length > 0,
+            )
+            const badgesNode = (
+                <div className="flex flex-wrap gap-1">
+                    {valueToDisplay.map((item, i) => {
+                        const displayItem = (typeof item === 'object' && item !== null) ? (item.label || item.value || JSON.stringify(item)) : String(item)
+                        return (
+                            <Badge key={i} variant="secondary" className="text-[10px]">
+                                {displayItem}
+                            </Badge>
+                        )
+                    })}
+                </div>
+            )
+            const onOpenNested = hasNested ? () => openNestedModal(JSON.stringify(valueToDisplay), column) : undefined
+            return renderOptionsDropdown(badgesNode, column, valueToDisplay.map(v => typeof v === 'object' ? v.value : v), onOpenNested)
+        }
+
+        const hasNested = parsed?.nestedValues && Object.keys(parsed.nestedValues).length > 0
+
+        switch (fieldType) {
+            case 'email':
+                return <a href={`mailto:${valueToDisplay}`} className="text-blue-600 hover:underline">{String(valueToDisplay)}</a>
+            case 'boolean':
+                return <Badge variant={valueToDisplay ? 'default' : 'secondary'}>{valueToDisplay ? 'Yes' : 'No'}</Badge>
+            case 'date':
+            case 'datetime': {
+                const formatted = formatDateOnly(valueToDisplay)
+                return <span>{formatted || String(valueToDisplay)}</span>
+            }
+            case 'select':
+            case 'radio':
+            case 'checkbox': {
+                const displayNode = <span className="truncate max-w-[200px]">{String(valueToDisplay)}</span>
+                const onOpenNested = hasNested ? () => openNestedModal(JSON.stringify(parsed || { value: valueToDisplay }), column) : undefined
+                return renderOptionsDropdown(displayNode, column, valueToDisplay, onOpenNested)
+            }
+            case 'file':
+                if (typeof valueToDisplay === "string" && valueToDisplay.startsWith("data:")) {
+                    const fileName = inferFilenameFromDataUrl(valueToDisplay, column)
+                    return (
+                        <button
+                            onClick={() => openFileModal(valueToDisplay, column)}
+                            className="text-blue-600 hover:underline text-sm font-medium"
+                            title="Click to preview/download"
+                        >
+                            {fileName}
+                        </button>
+                    )
+                }
+                return <span className="truncate max-w-[200px]">{String(valueToDisplay)}</span>
+            default:
+                // Final avoid [object Object] check
+                if (typeof valueToDisplay === 'object' && valueToDisplay !== null) {
+                    // Try to format as phone or location if structure matches
+                    if (valueToDisplay.countryCode || valueToDisplay.number) {
+                        return formatPhoneDisplay(valueToDisplay)
+                    }
+                    if (valueToDisplay.address || valueToDisplay.city || valueToDisplay.state || valueToDisplay.country) {
+                        return formatLocationDisplay(valueToDisplay)
+                    }
+                    if (hasNested) {
+                        const displayNode = <span>{JSON.stringify(valueToDisplay)}</span>
+                        const onOpenNested = () => openNestedModal(JSON.stringify(parsed), column)
+                        return renderOptionsDropdown(displayNode, column, valueToDisplay, onOpenNested)
+                    }
+                    return <span>{JSON.stringify(valueToDisplay)}</span>
+                }
+                if (typeof valueToDisplay === "string" && valueToDisplay.startsWith("data:image/")) {
+                    return (
+                        <button onClick={() => openFileModal(valueToDisplay, column)} className="border rounded overflow-hidden h-12 w-12 hover:opacity-80 transition-opacity">
+                            <img src={valueToDisplay} alt="preview" className="h-full w-full object-cover" />
+                        </button>
+                    )
+                }
+                if (hasNested) {
+                    const displayNode = <span>{String(valueToDisplay)}</span>
+                    const onOpenNested = () => openNestedModal(JSON.stringify(parsed), column)
+                    return renderOptionsDropdown(displayNode, column, valueToDisplay, onOpenNested)
+                }
+                return <span>{String(valueToDisplay)}</span>
+        }
+    }
+
+    const parseHistoryValue = (val) => {
+        if (val === null || val === undefined || val === "") return "-";
+        const parsed = safeParseJSON(val);
+
+        let valueToDisplay = val
+        if (parsed && typeof parsed === 'object' && parsed.value !== undefined) {
+            valueToDisplay = parsed.value
+        } else if (parsed !== undefined) {
+            valueToDisplay = parsed
+        }
+
+        if (Array.isArray(valueToDisplay)) {
+            return valueToDisplay.map(item => (typeof item === 'object' && item !== null ? (item.label || item.value || JSON.stringify(item)) : item)).join(", ");
+        }
+
+        if (typeof valueToDisplay === 'object' && valueToDisplay !== null) {
+            // Check for phone object structure inside value
+            if (valueToDisplay.number || valueToDisplay.countryCode) {
+                return `${valueToDisplay.countryCode || ''} ${valueToDisplay.number || valueToDisplay.value || ''}`.trim();
+            }
+            // Check for location object structure
+            if (valueToDisplay.address || valueToDisplay.city) {
+                return [valueToDisplay.address || valueToDisplay.name, valueToDisplay.city, valueToDisplay.state].filter(Boolean).join(', ');
+            }
+            return JSON.stringify(valueToDisplay);
+        }
+
+        return String(valueToDisplay);
+    };
+
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen">
+                <RefreshCw className="h-10 w-10 animate-spin text-primary mb-4" />
+                <p className="text-lg font-medium">Loading record details...</p>
+            </div>
+        )
+    }
+
+    return (
+        <div className="container mx-auto py-6 space-y-6">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={() => router.push(`/leadPage?tableId=${tableId}`)}>
+                        <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                    <div>
+                        <h1 className="text-2xl font-bold flex items-center gap-2">
+                            <Eye className="h-6 w-6 text-primary" />
+                            Record Details
+                        </h1>
+                        <p className="text-muted-foreground">Detailed view for record ID: {recordId}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Left Column: Details */}
+                <div className="lg:col-span-12 space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div className="lg:col-span-7 space-y-6">
+                            <Card className="border-l-4 border-l-primary shadow-sm h-fit">
+                                <CardHeader>
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        <Database className="h-5 w-5 text-primary" />
+                                        Record Information
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="p-3 bg-muted/30 rounded-lg space-y-1">
+                                            <Label className="text-xs font-semibold text-muted-foreground uppercase">Assigned To</Label>
+                                            <p className="text-sm font-medium flex items-center gap-2">
+                                                <User className="h-3 w-3 text-muted-foreground" />
+                                                {getUserName(record?.assigned_to)}
+                                            </p>
+                                        </div>
+                                        <div className="p-3 bg-muted/30 rounded-lg space-y-1">
+                                            <Label className="text-xs font-semibold text-muted-foreground uppercase">Created By</Label>
+                                            <p className="text-sm font-medium">
+                                                {getUserName(record?.created_by)}
+                                            </p>
+                                        </div>
+                                        <div className="p-3 bg-muted/30 rounded-lg space-y-1">
+                                            <Label className="text-xs font-semibold text-muted-foreground uppercase">Created At</Label>
+                                            <p className="text-sm">
+                                                {record?.created_at ? new Date(record.created_at).toLocaleString() : '-'}
+                                            </p>
+                                        </div>
+                                        <div className="p-3 bg-muted/30 rounded-lg space-y-1">
+                                            <Label className="text-xs font-semibold text-muted-foreground uppercase">Updated By</Label>
+                                            <p className="text-sm font-medium">
+                                                {getUserName(record?.updated_by)}
+                                            </p>
+                                        </div>
+                                        <div className="p-3 bg-muted/30 rounded-lg space-y-1">
+                                            <Label className="text-xs font-semibold text-muted-foreground uppercase">Updated At</Label>
+                                            <p className="text-sm">
+                                                {record?.updated_at ? new Date(record.updated_at).toLocaleString() : '-'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border-l-4 border-l-blue-500 shadow-sm">
+                                <CardHeader>
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                        <Settings className="h-5 w-5 text-blue-500" />
+                                        Custom Fields
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {columns.map((column) => {
+                                            const value = getFieldValue(record, column.column_id, column)
+                                            const type = getColumnFieldType(column)
+                                            return (
+                                                <div key={column.column_id} className="p-4 bg-muted/20 rounded-lg border group space-y-1.5 hover:border-blue-200 transition-colors">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{column.column_name}</Label>
+                                                        <Badge variant="outline" className="text-[10px] bg-background scale-90">
+                                                            {type || 'text'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="text-sm min-h-[44px] flex items-center bg-background/50 p-2 rounded border border-transparent group-hover:bg-background">
+                                                        {formatFieldValue(value, type, column)}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        <div className="lg:col-span-5 space-y-6">
+                            <Tabs defaultValue="history" className="h-full flex flex-col">
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="history" className="flex items-center gap-2">
+                                        <History className="h-4 w-4" /> History
+                                    </TabsTrigger>
+                                    <TabsTrigger value="activities" className="flex items-center gap-2">
+                                        <ListTodo className="h-4 w-4" /> Activities
+                                    </TabsTrigger>
+                                </TabsList>
+
+                                <TabsContent value="history" className="mt-4 flex-1">
+                                    <Card className="shadow-sm">
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="text-sm font-bold flex items-center gap-2">
+                                                <Clock className="h-4 w-4 text-amber-500" /> Record History
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="h-[600px] overflow-y-auto">
+                                            {loadingHistory ? (
+                                                <div className="flex justify-center py-10"><RefreshCw className="animate-spin h-6 w-6" /></div>
+                                            ) : history.length > 0 ? (
+                                                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:w-0.5 before:bg-muted-foreground/20">
+                                                    {history.map((item, idx) => (
+                                                        <div key={idx} className="relative flex items-start gap-4 group">
+                                                            <div className="w-10 h-10 rounded-full bg-background border-2 border-primary z-10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                                                                <Clock className="h-4 w-4 text-primary" />
+                                                            </div>
+                                                            <div className="flex-1 bg-muted/10 p-4 rounded-xl border group-hover:bg-muted/20 transition-colors">
+                                                                <div className="flex justify-between items-center text-xs mb-2">
+                                                                    <span className="font-bold text-primary">{getUserName(item.user_id)}</span>
+                                                                    <span className="text-muted-foreground bg-background px-2 py-0.5 rounded-full border">{new Date(item.event_timestamp).toLocaleString()}</span>
+                                                                </div>
+                                                                <div className="text-xs space-y-1.5">
+                                                                    <p className="font-semibold text-foreground/80">{item.event_type === 'UPDATE' ? 'Field modified' : item.event_type}</p>
+                                                                    <div className="p-2 bg-background/50 rounded border border-transparent group-hover:border-primary/10">
+                                                                        <span className="font-medium">{columns.find(c => c.column_id === item.changed_field)?.column_name || item.changed_field}:</span>
+                                                                        <div className="flex items-center flex-wrap gap-1 mt-1">
+                                                                            <span className="text-red-500 line-through opacity-60 bg-red-50/50 px-1 rounded">{parseHistoryValue(item.old_value)}</span>
+                                                                            <span className="text-muted-foreground mx-1">→</span>
+                                                                            <span className="text-green-600 font-medium bg-green-50/50 px-1 rounded">{parseHistoryValue(item.new_value)}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                                                    <History className="h-10 w-10 opacity-20 mb-2" />
+                                                    <p>No history found</p>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </TabsContent>
+
+                                <TabsContent value="activities" className="mt-4 flex-1">
+                                    <Card className="shadow-sm">
+                                        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                                            <CardTitle className="text-sm font-bold flex items-center gap-2">
+                                                <ListTodo className="h-4 w-4 text-blue-500" /> Recent Activities
+                                            </CardTitle>
+                                            <Button size="sm" variant="outline" onClick={() => setIsCreateActivityOpen(true)} className="gap-1">
+                                                <Plus className="h-4 w-4" /> Add
+                                            </Button>
+                                        </CardHeader>
+                                        <CardContent className="h-[600px] overflow-y-auto">
+                                            {loadingActivities ? (
+                                                <div className="flex justify-center py-10"><RefreshCw className="animate-spin h-6 w-6" /></div>
+                                            ) : activities.length > 0 ? (
+                                                <div className="space-y-3">
+                                                    {activities.map((activity) => (
+                                                        <div key={activity.activity_id} className="p-4 bg-muted/5 rounded-xl border hover:bg-muted/20 transition-all cursor-pointer group shadow-sm">
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <Badge variant="outline" className="bg-background text-[10px]">{activity.activity_type}</Badge>
+                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                                    <Clock className="h-3 w-3" />
+                                                                    {new Date(activity.due_date).toLocaleDateString()}
+                                                                </span>
+                                                            </div>
+                                                            <h4 className="text-sm font-bold group-hover:text-primary transition-colors">{activity.title}</h4>
+                                                            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{activity.description || 'No description provided'}</p>
+                                                            <div className="mt-3 pt-2 border-t flex items-center justify-between">
+                                                                <Badge variant={activity.completed ? "default" : "secondary"} className="text-[9px] scale-90">
+                                                                    {activity.completed ? "Completed" : "Pending"}
+                                                                </Badge>
+                                                                <span className="text-[10px] font-mono text-primary opacity-0 group-hover:opacity-100 transition-opacity">View Details →</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                                                    <ListTodo className="h-10 w-10 opacity-20 mb-2" />
+                                                    <p>No activities scheduled</p>
+                                                    <Button variant="link" size="sm" onClick={() => setIsCreateActivityOpen(true)}>Create one now</Button>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
+                                </TabsContent>
+                            </Tabs>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <CreateActivityDialog
+                open={isCreateActivityOpen}
+                onOpenChange={setIsCreateActivityOpen}
+                initialData={{
+                    related_table_id: tableId,
+                    related_record_id: recordId
+                }}
+                currentUser={currentUser}
+                onSuccess={fetchActivities}
+            />
+
+            {/* File Preview Modal */}
+            <Dialog open={isFileModalOpen} onOpenChange={setIsFileModalOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden bg-background/95 backdrop-blur">
+                    <DialogHeader className="p-6 border-b shrink-0 bg-muted/20">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                                    <Eye className="h-5 w-5 text-primary" />
+                                    {filePreview?.name}
+                                </DialogTitle>
+                                <DialogDescription className="text-xs">
+                                    File Preview • {filePreview?.type}
+                                </DialogDescription>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => downloadDataUrl(filePreview?.url, filePreview?.name)}
+                                className="gap-2"
+                            >
+                                <RefreshCw className="h-4 w-4" /> Download
+                            </Button>
+                        </div>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-muted/10">
+                        {filePreview?.type?.startsWith("image/") ? (
+                            <img src={filePreview.url} alt={filePreview.name} className="max-w-full h-auto shadow-2xl rounded-lg" />
+                        ) : filePreview?.type === "application/pdf" ? (
+                            <iframe src={filePreview.url} className="w-full h-full min-h-[60vh] rounded-lg shadow-xl" title={filePreview.name} />
+                        ) : (
+                            <div className="text-center p-20 bg-background rounded-3xl shadow-xl border border-primary/10">
+                                <Database className="h-20 w-20 text-primary/20 mx-auto mb-6" />
+                                <p className="text-xl font-bold">No preview available</p>
+                                <p className="text-muted-foreground mt-2">This file type ({filePreview?.type}) cannot be previewed in the browser.</p>
+                                <Button className="mt-8" onClick={() => downloadDataUrl(filePreview?.url, filePreview?.name)}>
+                                    Download to view
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Nested Data Modal */}
+            <Dialog open={isNestedModalOpen} onOpenChange={setIsNestedModalOpen}>
+                <DialogContent className="w-[95vw] max-w-[800px] max-h-[85vh] p-0 gap-0 flex flex-col">
+                    <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0 bg-muted/20">
+                        <DialogTitle className="flex items-center gap-2">
+                            <Settings className="h-5 w-5 text-primary" />
+                            Nested Details: {nestedData?.fieldName}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Viewing nested values for {nestedData?.isMulti ? "multi-selection" : "selection"}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ScrollArea className="flex-1 px-6 py-6 bg-background">
+                        {nestedData && (
+                            <div className="space-y-6">
+                                {nestedData.isMulti ? (
+                                    <div className="space-y-6">
+                                        {(() => {
+                                            const groupedBySelection = {}
+                                            Object.entries(nestedData.formData).forEach(([key, info]) => {
+                                                const idx = info._selectionIndex
+                                                if (!groupedBySelection[idx]) {
+                                                    groupedBySelection[idx] = { value: info._selectionValue, fields: {} }
+                                                }
+                                                groupedBySelection[idx].fields[info._originalFieldId] = info
+                                            })
+
+                                            return Object.keys(groupedBySelection)
+                                                .sort()
+                                                .map((index) => (
+                                                    <Card key={index} className="bg-gradient-to-br from-primary/5 to-transparent border-primary/20 shadow-sm">
+                                                        <CardHeader className="py-3 px-4 bg-primary/5 border-b border-primary/10">
+                                                            <div className="flex items-center gap-3">
+                                                                <Badge variant="default" className="text-[10px] h-5">Selection {Number(index) + 1}</Badge>
+                                                                <span className="font-bold text-sm text-primary">{groupedBySelection[index].value}</span>
+                                                            </div>
+                                                        </CardHeader>
+                                                        <CardContent className="p-4">
+                                                            {renderNestedFormFields(groupedBySelection[index].fields)}
+                                                        </CardContent>
+                                                    </Card>
+                                                ))
+                                        })()}
+                                    </div>
+                                ) : (
+                                    renderNestedFormFields(nestedData.formData)
+                                )}
+                            </div>
+                        )}
+                    </ScrollArea>
+                    <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex items-center justify-end">
+                        <Button variant="outline" onClick={() => setIsNestedModalOpen(false)}>Close</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
+    )
+}
+
+export default function RecordDetailsPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+            <RecordDetailsContent />
+        </Suspense>
+    )
+}
