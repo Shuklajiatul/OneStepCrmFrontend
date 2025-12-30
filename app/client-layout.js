@@ -45,7 +45,7 @@ export default function ClientLayout({ children }) {
                 />
 
                 <section className={cn(
-                    "flex-1 transition-all duration-300 flex flex-col min-h-screen",
+                    "flex-1 transition-all duration-300 flex flex-col min-h-screen min-w-0",
                     isCollapsed ? "md:ml-0" : "md:ml-0"
                 )}>
                     <div className="p-4 border-b border-border bg-card/50">
