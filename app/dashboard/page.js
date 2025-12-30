@@ -533,7 +533,7 @@ export default function DashboardPage() {
                     </Card>
 
                     {/* Upcoming Activities */}
-                    <Card className="rounded-xl shadow-sm">
+                    {/* <Card className="rounded-xl shadow-sm">
                         <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
                                 <CalendarCheck className="h-4 w-4 text-primary" />
@@ -603,7 +603,7 @@ export default function DashboardPage() {
                                 </Link>
                             </div>
                         </CardContent>
-                    </Card>
+                    </Card> */}
 
                     {/* Quick Access Grid (Consolidated) */}
                     <Card className="rounded-xl shadow-sm flex-1 flex flex-col">
