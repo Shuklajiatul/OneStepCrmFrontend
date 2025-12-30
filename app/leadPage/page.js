@@ -25,7 +25,12 @@ import {
   User,
   Settings,
   Filter,
-  Plus
+  Plus,
+  ArrowUpRight,
+  TrendingUp,
+  Activity,
+  CheckCircle2,
+  Clock
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -390,12 +395,14 @@ function LeadsPageContent() {
 
   const getStatusBadge = (isActive) => {
     return isActive ? (
-      <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-200 border-green-200">
-        Active
+      <Badge className="bg-emerald-100/50 text-emerald-700 border-none px-3 py-1 shadow-none font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        Operational
       </Badge>
     ) : (
-      <Badge variant="secondary" className="bg-gray-100 text-gray-600 hover:bg-gray-200 border-gray-200">
-        Inactive
+      <Badge className="bg-slate-100 text-slate-500 border-none px-3 py-1 shadow-none font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5">
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+        Maintenance
       </Badge>
     )
   }
@@ -428,245 +435,302 @@ function LeadsPageContent() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* ... (existing JSX) ... */}
-      {/* (I am not repeating the whole JSX here, just ensuring the structure is valid.
-       The tool asks for a replacement block. I need to be careful not to delete the JSX body.
-       Actually, I changed the function name to LeadsPageContent above.
-       So I need to change the export at the bottom to wrap this component.)
-      */}
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Data Tables</h1>
-          <p className="text-muted-foreground">Manage and view all your data tables</p>
-        </div>
+    <div className="space-y-8 pb-8">
+      {/* Enhanced Header Section */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/5 p-8 border border-primary/10">
+        <div className="absolute top-0 right-0 -mt-10 -mr-10 h-40 w-40 rounded-full bg-primary/5 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-40 w-40 rounded-full bg-accent/5 blur-3xl"></div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={fetchTables}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20">
+                <Database className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Data Tables</h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <Badge variant="secondary" className="bg-primary/10 text-primary border-none font-medium">
+                    CRM Core
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">Manage and view all your data repositories</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            Create Table
-          </Button>
+          <div className="flex items-center gap-3 self-end md:self-center">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={fetchTables}
+              disabled={loading}
+              className="h-11 px-5 border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+
+            <Button className="h-11 px-6 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all duration-300 gap-2 font-semibold">
+              <Plus className="h-5 w-5" />
+              Create Table
+            </Button>
+          </div>
         </div>
-      </div >
+      </div>
 
       {/* Error Display */}
-      {
-        error && (
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-red-700">
-                <AlertCircle className="h-4 w-4" />
-                <span>{error}</span>
-                <Button variant="outline" size="sm" onClick={fetchTables} className="ml-2">
-                  Retry
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )
-      }
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
+      {error && (
+        <Card className="border-destructive/20 bg-destructive/5 animate-in fade-in slide-in-from-top-4 duration-300">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Tables</p>
-                <p className="text-2xl font-bold">{tables.length}</p>
+            <div className="flex items-center gap-3 text-destructive">
+              <AlertCircle className="h-5 w-5 shrink-0" />
+              <div className="flex-1 text-sm font-medium">{error}</div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchTables}
+                className="hover:bg-destructive/10 text-destructive font-semibold"
+              >
+                Retry Request
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Modernized Stats Dashboard */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="card-elevated group hover:border-primary/50 transition-all duration-500 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <Database className="h-12 w-12 text-blue-500" />
+          </div>
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Total Tables</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-black text-foreground">{tables.length}</span>
+                <span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Global</span>
               </div>
-              <Database className="h-8 w-8 text-blue-500" />
+              <div className="mt-4 flex items-center text-xs text-muted-foreground">
+                <ArrowUpRight className="h-3 w-3 mr-1 text-blue-500" />
+                <span>Primary data nodes</span>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Active Tables</p>
-                <p className="text-2xl font-bold">
+        <Card className="card-elevated group hover:border-accent/50 transition-all duration-500 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <CheckCircle2 className="h-12 w-12 text-green-500" />
+          </div>
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Active Tables</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-black text-foreground">
                   {tables.filter(t => t.is_active).length}
-                </p>
+                </span>
+                <span className="text-xs font-bold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">Healthy</span>
               </div>
-              <Settings className="h-8 w-8 text-green-500" />
+              <div className="mt-4 flex items-center text-xs text-muted-foreground">
+                <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+                <span>Resources operational</span>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Inactive Tables</p>
-                <p className="text-2xl font-bold">
+        <Card className="card-elevated group hover:border-orange-200 transition-all duration-500 overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <AlertCircle className="h-12 w-12 text-orange-500" />
+          </div>
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Inactive Tables</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-black text-foreground">
                   {tables.filter(t => !t.is_active).length}
-                </p>
+                </span>
+                <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">Archived</span>
               </div>
-              <AlertCircle className="h-8 w-8 text-orange-500" />
+              <div className="mt-4 flex items-center text-xs text-muted-foreground">
+                <Clock className="h-3 w-3 mr-1 text-orange-500" />
+                <span>Pending reactivaton</span>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">This Week</p>
-                <p className="text-2xl font-bold">
+        <Card className="card-elevated group hover:border-purple-200 transition-all duration-500 overflow-hidden relative text-white bg-gradient-to-br from-purple-600 to-purple-800 border-none">
+          <div className="absolute top-0 right-0 p-4 opacity-20">
+            <TrendingUp className="h-12 w-12" />
+          </div>
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-semibold text-purple-100 uppercase tracking-wider">Growth Factor</span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-4xl font-black text-white">
                   {tables.filter(t => {
                     const createdDate = new Date(t.created_at)
                     const weekAgo = new Date()
                     weekAgo.setDate(weekAgo.getDate() - 7)
                     return createdDate >= weekAgo
                   }).length}
-                </p>
+                </span>
+                <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">This Week</span>
               </div>
-              <Calendar className="h-8 w-8 text-purple-500" />
+              <div className="mt-4 flex items-center text-xs text-purple-200">
+                <Activity className="h-3 w-3 mr-1" />
+                <span>New tables created</span>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Controls - Search on left, Group By and View Tabs on right */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        {/* Search on left */}
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+      {/* Refined Controls Bar */}
+      <div className="flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between bg-card p-6 rounded-2xl border shadow-sm">
+        <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
+          {/* Enhanced Search */}
+          <div className="relative group flex-1 sm:w-80">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
             <Input
-              placeholder="Search tables..."
+              placeholder="Search by table name or description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 w-64"
+              className="pl-10 h-10 w-full bg-muted/30 border-none focus-visible:ring-primary focus-visible:bg-background transition-all"
             />
           </div>
+
+          {/* Styled Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
+            <TabsList className="bg-muted/30 p-1 h-10 border-none">
+              <TabsTrigger value="all" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4">
+                All
+                <Badge variant="secondary" className="ml-2 bg-primary/10 text-primary border-none text-[10px]">
+                  {tables.length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="active" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4">
+                Active
+                <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700 border-none text-[10px]">
+                  {tables.filter(t => t.is_active).length}
+                </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="inactive" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4">
+                Inactive
+                <Badge variant="secondary" className="ml-2 bg-gray-200 text-gray-700 border-none text-[10px]">
+                  {tables.filter(t => !t.is_active).length}
+                </Badge>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
-        {/* Group By and View Tabs on right */}
-        <div className="flex items-center gap-4">
-          {/* Group By Select */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Group by:</span>
+        <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
+          {/* Balanced Grouping Select */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-muted-foreground whitespace-nowrap">Sort & Group:</span>
             <Select value={groupBy} onValueChange={setGroupBy}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Group by" />
+              <SelectTrigger className="w-44 h-10 bg-muted/30 border-none focus:ring-primary">
+                <SelectValue placeholder="Select grouping" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No Grouping</SelectItem>
-                <SelectItem value="status">Status</SelectItem>
-                <SelectItem value="date">Date</SelectItem>
+                <SelectItem value="none">Default Listing</SelectItem>
+                <SelectItem value="status">By Connectivity</SelectItem>
+                <SelectItem value="date">By Creation Date</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* View Mode Buttons */}
-          <div className="flex items-center gap-1 border rounded-lg p-1">
+          <div className="h-6 w-px bg-border hidden sm:block mx-2"></div>
+
+          {/* High-end View Toggles */}
+          <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-xl">
             <Button
-              variant={displayMode === "card" ? "default" : "ghost"}
+              variant={displayMode === "card" ? "secondary" : "ghost"}
               size="sm"
               onClick={() => setDisplayMode("card")}
-              className="h-8 w-8 p-0"
-              title="Card View"
+              className={`h-8 px-3 gap-2 rounded-lg transition-all ${displayMode === 'card' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground'}`}
             >
               <Grid3X3 className="h-4 w-4" />
+              <span className="text-xs font-bold">Grid</span>
             </Button>
             <Button
-              variant={displayMode === "table" ? "default" : "ghost"}
+              variant={displayMode === "table" ? "secondary" : "ghost"}
               size="sm"
               onClick={() => setDisplayMode("table")}
-              className="h-8 w-8 p-0"
-              title="Table View"
+              className={`h-8 px-3 gap-2 rounded-lg transition-all ${displayMode === 'table' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground'}`}
             >
               <List className="h-4 w-4" />
+              <span className="text-xs font-bold">List</span>
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Tabs for Active/Inactive Tables */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
-          <TabsTrigger value="all">
-            All Tables
-            <Badge variant="secondary" className="ml-2 text-xs">
-              {tables.length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="active">
-            Active
-            <Badge variant="secondary" className="ml-2 text-xs">
-              {tables.filter(t => t.is_active).length}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="inactive">
-            Inactive
-            <Badge variant="secondary" className="ml-2 text-xs">
-              {tables.filter(t => !t.is_active).length}
-            </Badge>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      {/* Tables Display */}
-      <div className="space-y-6">
+      {/* Tables Display Area */}
+      <div className="space-y-10">
         {Object.entries(groupedTables()).map(([groupName, groupTables]) => {
           if (groupTables.length === 0) return null
 
           return (
-            <div key={groupName} className="space-y-4">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold">{groupName}</h2>
-                <Badge variant="outline">{groupTables.length}</Badge>
+            <div key={groupName} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-extrabold tracking-tight text-foreground">{groupName}</h2>
+                <div className="h-6 w-px bg-border"></div>
+                <Badge variant="outline" className="rounded-full bg-background font-bold px-3">
+                  {groupTables.length} Total
+                </Badge>
               </div>
 
               {displayMode === "card" ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {groupTables.map((table) => (
-                    <Card key={table.table_id} className="hover:shadow-md transition-shadow flex flex-col">
-                      <CardHeader className="pb-3">
+                    <Card key={table.table_id} className="card-elevated group flex flex-col border-none hover:ring-2 hover:ring-primary/20 transition-all duration-300">
+                      <CardHeader className="pb-4 pt-6 px-6">
                         <div className="flex items-start justify-between">
-                          <div className="flex-1 mr-2">
-                            <CardTitle
-                              className="text-lg font-semibold truncate text-primary hover:underline cursor-pointer"
-                              onClick={() => {
-                                setSelectedTable(table)
-                                setCurrentView("data")
-                              }}
-                            >
-                              {table.table_name}
-                            </CardTitle>
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                className="cursor-pointer"
+                          <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
+                              <Database className="h-5 w-5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <CardTitle
+                                className="text-lg font-bold truncate hover:text-primary transition-colors cursor-pointer"
                                 onClick={() => {
                                   setSelectedTable(table)
                                   setCurrentView("data")
                                 }}
                               >
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Data
+                                {table.table_name}
+                              </CardTitle>
+                              <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mt-0.5">
+                                ID: {String(table.table_id).slice(0, 8)}...
+                              </p>
+                            </div>
+                          </div>
+
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="w-8 h-8 p-0 rounded-full hover:bg-muted">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-xl border-primary/5">
+                              <DropdownMenuItem
+                                className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary"
+                                onClick={() => {
+                                  setSelectedTable(table)
+                                  setCurrentView("data")
+                                }}
+                              >
+                                <Eye className="h-4 w-4 mr-3" />
+                                <span className="font-semibold">View Data Hub</span>
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="cursor-pointer">
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit Table
+                              <DropdownMenuItem className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary">
+                                <Edit className="h-4 w-4 mr-3" />
+                                <span className="font-semibold">Edit Structure</span>
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -674,120 +738,127 @@ function LeadsPageContent() {
                                   setTableToDelete(table)
                                   setIsDeleteDialogOpen(true)
                                 }}
-                                className="text-destructive cursor-pointer focus:text-destructive"
+                                className="rounded-lg text-destructive cursor-pointer focus:bg-destructive/10 focus:text-destructive"
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
+                                <Trash2 className="h-4 w-4 mr-3" />
+                                <span className="font-semibold">Delete Record</span>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
                       </CardHeader>
-                      <CardContent className="pt-0 flex-1 flex flex-col justify-between">
-                        {/* Description */}
+
+                      <CardContent className="pt-0 flex-1 flex flex-col justify-between px-6 pb-6">
                         <div className="flex-1">
-                          {table.description && (
-                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2 mb-3">
-                              {table.description}
-                            </p>
-                          )}
-                          {!table.description && (
-                            <p className="text-sm text-muted-foreground/70 italic mt-1 line-clamp-2 mb-3">
-                              No description
-                            </p>
-                          )}
+                          <div className="bg-muted/30 rounded-xl p-4 mb-4 min-h-[72px]">
+                            {table.description ? (
+                              <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                                {table.description}
+                              </p>
+                            ) : (
+                              <p className="text-sm text-muted-foreground/50 italic flex items-center gap-2">
+                                <AlertCircle className="h-3 w-3" /> No description available
+                              </p>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Footer Info */}
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between pt-3 border-t">
-                            {getStatusBadge(table.is_active)}
-                            <span className="text-xs text-muted-foreground">
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(table.is_active)}
+                              <Badge variant="outline" className="text-[10px] font-bold border-muted-foreground/20">
+                                {table.is_active ? 'ONLINE' : 'OFFLINE'}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
                               {new Date(table.created_at).toLocaleDateString('en-US', {
                                 month: 'short',
                                 day: 'numeric',
-                                year: 'numeric'
                               })}
-                            </span>
+                            </div>
                           </div>
+
+                          <Button
+                            variant="secondary"
+                            className="w-full h-9 rounded-xl bg-primary/5 text-primary hover:bg-primary hover:text-primary-foreground font-bold text-xs transition-all duration-300"
+                            onClick={() => {
+                              setSelectedTable(table)
+                              setCurrentView("data")
+                            }}
+                          >
+                            OPEN HUB
+                            <ArrowUpRight className="h-3 w-3 ml-2" />
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>
                   ))}
                 </div>
               ) : (
-                <Card className="overflow-hidden">
-                  <CardHeader className="pb-1">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{groupName}</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          {groupTables.length} table{groupTables.length !== 1 ? 's' : ''} in this group
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {groupTables.length}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-6 py-1">
-                    <div className="rounded-md border">
-                      <Table className="caption-bottom text-sm w-full table-auto">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Table Name</TableHead>
-                            <TableHead>Description</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Created At</TableHead>
-                            <TableHead>Table ID</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                <Card className="overflow-hidden border-none shadow-xl rounded-2xl bg-card">
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <Table className="w-full">
+                        <TableHeader className="bg-muted/40">
+                          <TableRow className="hover:bg-transparent border-b">
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Information Hub</TableHead>
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">System Narrative</TableHead>
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Connectivity</TableHead>
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Deployment</TableHead>
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px] text-right">Operations</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {groupTables.map((table) => (
-                            <TableRow key={table.table_id}>
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-1">
-                                  <div className="flex-shrink-0">
-                                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                      <Database className="h-4 w-4 text-primary" />
-                                    </div>
+                            <TableRow key={table.table_id} className="group hover:bg-muted/20 transition-colors">
+                              <TableCell className="py-4 px-6">
+                                <div className="flex items-center gap-4">
+                                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
+                                    <Database className="h-5 w-5" />
                                   </div>
-                                  <div
-                                    className="font-semibold text-foreground cursor-pointer hover:text-primary hover:underline"
-                                    onClick={() => {
-                                      setSelectedTable(table)
-                                      setCurrentView("data")
-                                    }}
-                                  >
-                                    {table.table_name}
+                                  <div>
+                                    <div
+                                      className="font-extrabold text-foreground cursor-pointer hover:text-primary transition-colors"
+                                      onClick={() => {
+                                        setSelectedTable(table)
+                                        setCurrentView("data")
+                                      }}
+                                    >
+                                      {table.table_name}
+                                    </div>
+                                    <div className="text-[10px] font-mono text-muted-foreground uppercase opacity-70">
+                                      UUID: {String(table.table_id).slice(0, 12)}
+                                    </div>
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell>
-                                <div className="max-w-[260px]">
-                                  <p className="text-sm text-muted-foreground line-clamp-2">
+                              <TableCell className="py-4 px-6">
+                                <div className="max-w-[300px]">
+                                  <p className="text-sm text-muted-foreground line-clamp-1 group-hover:line-clamp-none transition-all">
                                     {table.description || (
-                                      <span className="italic text-muted-foreground/70">
-                                        No description provided
-                                      </span>
+                                      <span className="italic opacity-50 text-xs">Unspecified narrative profile</span>
                                     )}
                                   </p>
                                 </div>
                               </TableCell>
-                              <TableCell>
-                                {getStatusBadge(table.is_active)}
+                              <TableCell className="py-4 px-6">
+                                <div className="flex items-center gap-2">
+                                  {getStatusBadge(table.is_active)}
+                                </div>
                               </TableCell>
-                              <TableCell>
-                                <div className="text-sm">
-                                  <div className="font-medium text-foreground">
+                              <TableCell className="py-4 px-6">
+                                <div>
+                                  <div className="text-sm font-bold text-foreground">
                                     {new Date(table.created_at).toLocaleDateString('en-US', {
                                       month: 'short',
                                       day: 'numeric',
                                       year: 'numeric'
                                     })}
                                   </div>
-                                  <div className="text-xs text-muted-foreground">
+                                  <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
                                     {new Date(table.created_at).toLocaleTimeString('en-US', {
                                       hour: '2-digit',
                                       minute: '2-digit'
@@ -795,18 +866,12 @@ function LeadsPageContent() {
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell>
-                                <div className="font-mono text-xs bg-muted/50 px-2 py-1 rounded-md border">
-                                  {String(table.table_id).slice(0, 8)}...
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-1">
+                              <TableCell className="py-4 px-6 text-right">
+                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-primary/10"
-                                    title="View table data"
+                                    className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
                                     onClick={() => {
                                       setSelectedTable(table)
                                       setCurrentView("data")
@@ -817,55 +882,21 @@ function LeadsPageContent() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-primary/10"
-                                    title="Edit table"
+                                    className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0 hover:bg-destructive/10"
-                                        title="More actions"
-                                      >
-                                        <MoreHorizontal className="h-4 w-4" />
-                                        <span className="sr-only">Open menu</span>
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-[180px]">
-                                      <DropdownMenuItem
-                                        className="cursor-pointer"
-                                        onClick={() => {
-                                          setSelectedTable(table)
-                                          setCurrentView("data")
-                                        }}
-                                      >
-                                        <Eye className="h-4 w-4 mr-2" />
-                                        View Data
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem className="cursor-pointer">
-                                        <Edit className="h-4 w-4 mr-2" />
-                                        Edit Table
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem className="cursor-pointer">
-                                        <Settings className="h-4 w-4 mr-2" />
-                                        Table Settings
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem
-                                        onClick={() => {
-                                          setTableToDelete(table)
-                                          setIsDeleteDialogOpen(true)
-                                        }}
-                                        className="text-destructive cursor-pointer focus:text-destructive"
-                                      >
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        Delete Table
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-9 w-9 p-0 rounded-xl hover:bg-destructive/10 hover:text-destructive"
+                                    onClick={() => {
+                                      setTableToDelete(table)
+                                      setIsDeleteDialogOpen(true)
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -879,55 +910,65 @@ function LeadsPageContent() {
             </div>
           )
         })}
-
-        {/* Pagination */}
-        {filteredTables.length > 0 && (
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-sm text-muted-foreground">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredTables.length)} of {filteredTables.length} results
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Pagination */}
+      {filteredTables.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-12 bg-muted/20 p-6 rounded-2xl border border-dashed">
+          <div className="text-sm font-semibold text-muted-foreground bg-background px-4 py-2 rounded-lg shadow-sm">
+            Showing <span className="text-foreground">{startIndex + 1}</span> to <span className="text-foreground">{Math.min(endIndex, filteredTables.length)}</span> of <span className="text-foreground">{filteredTables.length}</span> repositories
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="h-10 px-6 rounded-xl font-bold hover:bg-primary/5 hover:text-primary transition-all"
+            >
+              Previous
+            </Button>
+            <div className="flex items-center gap-2 px-4 h-10 bg-background rounded-xl border font-bold text-sm">
+              Page {currentPage} <span className="text-muted-foreground">/</span> {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="h-10 px-6 rounded-xl font-bold hover:bg-primary/5 hover:text-primary transition-all"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Table</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the table &quot;{tableToDelete?.table_name}&quot;?
-              This action cannot be undone and will permanently remove all data in this table.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
+        <DialogContent className="rounded-2xl border-none shadow-2xl max-w-md p-0 overflow-hidden">
+          <div className="bg-destructive/10 p-6 flex flex-col items-center gap-4 text-center">
+            <div className="h-16 w-16 rounded-full bg-destructive/20 flex items-center justify-center text-destructive">
+              <AlertCircle className="h-8 w-8" />
+            </div>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black text-destructive">Destroy Data Table?</DialogTitle>
+              <DialogDescription className="text-destructive/80 font-medium pt-2">
+                You are about to permanently delete <span className="font-bold text-destructive underline">&quot;{tableToDelete?.table_name}&quot;</span>. This action is irreversible and all associated records will be lost forever.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <DialogFooter className="p-6 bg-background flex sm:justify-center gap-3">
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} className="px-8 h-12 rounded-xl font-bold border-muted-foreground/20">
+              KEEP TABLE
             </Button>
             <Button
               variant="destructive"
               onClick={() => handleDeleteTable(tableToDelete?.table_id)}
               disabled={loading}
+              className="px-8 h-12 rounded-xl font-bold shadow-lg shadow-destructive/20"
             >
-              {loading ? "Deleting..." : "Delete Table"}
+              {loading ? "DESTROYING..." : "CONFIRM DELETE"}
             </Button>
           </DialogFooter>
         </DialogContent>
