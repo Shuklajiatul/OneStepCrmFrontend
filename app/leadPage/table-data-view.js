@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 import {
   ArrowLeft,
   Database,
@@ -35,7 +36,10 @@ import {
   Mail,
   Phone,
   MapPin,
-  Calendar
+  Calendar,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -281,6 +285,9 @@ export default function TableDataView({ table, onBack }) {
   const [isSaving, setIsSaving] = useState(false)
   const [currentRecordId, setCurrentRecordId] = useState(null)
   const [currentColumnId, setCurrentColumnId] = useState(null)
+
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'none' }) // 'asc', 'desc', 'none'
 
   // File preview modal state
   const [isFileModalOpen, setIsFileModalOpen] = useState(false)
@@ -577,6 +584,17 @@ export default function TableDataView({ table, onBack }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSort = (key) => {
+    let direction = 'asc'
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc'
+    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'none'
+    }
+    setSortConfig({ key, direction })
+    setCurrentPage(1)
   }
 
   const handleDeleteRecord = async (recordId) => {
@@ -2804,8 +2822,40 @@ export default function TableDataView({ table, onBack }) {
     return false
   })
 
+  // Apply sorting
+  const sortedRecords = [...filteredRecords].sort((a, b) => {
+    if (sortConfig.direction === 'none' || !sortConfig.key) return 0
+
+    let valA, valB
+
+    if (["assigned_to", "updated_by", "created_at", "updated_at"].includes(sortConfig.key)) {
+      valA = a[sortConfig.key]
+      valB = b[sortConfig.key]
+    } else {
+      valA = getFieldValue(a, sortConfig.key)
+      valB = getFieldValue(b, sortConfig.key)
+
+      // If it's an object (like select/radio), use the nested 'value'
+      if (valA && typeof valA === 'object' && valA.value !== undefined) valA = valA.value
+      if (valB && typeof valB === 'object' && valB.value !== undefined) valB = valB.value
+    }
+
+    if (valA === null || valA === undefined) valA = ''
+    if (valB === null || valB === undefined) valB = ''
+
+    // Handle numeric strings
+    if (!isNaN(valA) && !isNaN(valB) && valA !== '' && valB !== '') {
+      valA = Number(valA)
+      valB = Number(valB)
+    }
+
+    if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1
+    if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1
+    return 0
+  })
+
   // Pagination calculations
-  const totalRecords = filteredRecords.length
+  const totalRecords = sortedRecords.length
   const totalFilteredPages = Math.ceil(totalRecords / pageSize)
 
   // Update total pages when filtered records change
@@ -2818,7 +2868,7 @@ export default function TableDataView({ table, onBack }) {
   }, [totalFilteredPages, currentPage])
 
   // Get current page records
-  const currentPageRecords = filteredRecords.slice(
+  const currentPageRecords = sortedRecords.slice(
     (currentPage - 1) * pageSize,
     currentPage * pageSize
   )
@@ -3020,36 +3070,36 @@ export default function TableDataView({ table, onBack }) {
             <div>
               <CardTitle className="text-lg">Table Records</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''} found
+                {sortedRecords.length} record{sortedRecords.length !== 1 ? 's' : ''} found
                 {searchTerm && ` (filtered from ${safeRecords.length} total)`}
               </p>
             </div>
             <Badge variant="outline" className="text-xs">
-              {filteredRecords.length}
+              {sortedRecords.length}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="p-6 pt-1">
+        <CardContent className="p-0">
           {/* Search and Controls */}
-          <div className="flex items-center justify-between pb-3">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 border-b bg-muted/5">
             {/* Search Input - Left Side */}
-            <div className="flex-1 max-w-sm">
+            <div className="w-full md:max-w-sm">
               <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search records..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
+                  className="pl-10 h-10 border-muted-foreground/20 focus-visible:ring-primary"
                 />
               </div>
             </div>
 
             {/* Page Size Selector - Right Side */}
-            <div className="flex items-center gap-2">
-              <Label htmlFor="page-size" className="text-sm whitespace-nowrap">
-                Rows per page:
-              </Label>
+            <div className="flex items-center gap-3 ml-auto">
+              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                Show
+              </span>
               <Select
                 value={pageSize.toString()}
                 onValueChange={(value) => {
@@ -3057,7 +3107,7 @@ export default function TableDataView({ table, onBack }) {
                   setCurrentPage(1)
                 }}
               >
-                <SelectTrigger id="page-size" className="w-20">
+                <SelectTrigger id="page-size" className="w-[80px] h-10 border-muted-foreground/20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -3068,6 +3118,9 @@ export default function TableDataView({ table, onBack }) {
                   ))}
                 </SelectContent>
               </Select>
+              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                entries
+              </span>
             </div>
           </div>
 
@@ -3091,78 +3144,104 @@ export default function TableDataView({ table, onBack }) {
             }
 
             return (
-              <>
+              <div className="p-4">
                 {/* Horizontal Scroll Container */}
-                <div className="rounded-md border overflow-x-auto w-full relative mb-4">
-                  <Table className="w-full min-w-max">
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        {tableColumns.map((column) => (
-                          <TableHead
-                            key={column.accessorKey || column.id}
-                            className={`font-semibold text-foreground whitespace-nowrap ${column.id === "actions" ? "w-[140px] text-center" : ""
-                              }`}
-                          >
-                            {column.header}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {currentPageRecords.map((record, recordIndex) => (
-                        <TableRow
-                          key={record.record_id || record.id || recordIndex}
-                          className="border-b hover:bg-muted/30 transition-colors"
-                        >
+                <div className="rounded-lg border shadow-sm overflow-hidden relative mb-6">
+                  <div className="overflow-x-auto w-full max-h-[600px] scrollbar-thin scrollbar-thumb-muted-foreground/20">
+                    <Table className="w-full min-w-max border-collapse">
+                      <TableHeader className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md shadow-sm">
+                        <TableRow className="hover:bg-transparent border-b">
                           {tableColumns.map((column) => {
-                            // Get the cell value based on column type
-                            let cellContent = '-'
+                            const isSortable = column.id !== "actions";
+                            const isSorted = sortConfig.key === column.accessorKey;
 
-                            if (column.id === "actions") {
-                              // Actions column
-                              cellContent = (
-                                <div className="flex items-center justify-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-primary/10"
-                                    title="View record details"
-                                    onClick={() => {
-                                      router.push(`/leadPage/record-details?table_id=${table.table_id}&record_id=${record.record_id}`)
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
+                            return (
+                              <TableHead
+                                key={column.accessorKey || column.id}
+                                className={cn(
+                                  "h-12 px-4 text-sm font-bold text-foreground border-r last:border-r-0 whitespace-nowrap transition-colors",
+                                  isSortable && "cursor-pointer hover:bg-muted/50 select-none",
+                                  column.id === "actions" ? "w-[150px] text-center" : ""
+                                )}
+                                onClick={() => isSortable && handleSort(column.accessorKey)}
+                              >
+                                <div className={cn(
+                                  "flex items-center gap-2",
+                                  column.id === "actions" ? "justify-center" : "justify-between"
+                                )}>
+                                  <span>{column.header}</span>
+                                  {isSortable && (
+                                    <div className="flex flex-col text-muted-foreground/30">
+                                      {isSorted ? (
+                                        sortConfig.direction === 'asc' ?
+                                          <ChevronUp className="h-3.5 w-3.5 text-primary" /> :
+                                          <ChevronDown className="h-3.5 w-3.5 text-primary" />
+                                      ) : (
+                                        <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableHead>
+                            );
+                          })}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {currentPageRecords.map((record, recordIndex) => (
+                          <TableRow
+                            key={record.record_id || record.id || recordIndex}
+                            className="border-b even:bg-muted/10 hover:bg-primary/5 transition-all duration-200 group"
+                          >
+                            {tableColumns.map((column) => {
+                              // Get the cell value based on column type
+                              let cellContent = '-'
 
-                                  {/* Activity Actions */}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600"
-                                    title="Create Activity"
-                                    onClick={() => {
-                                      setActivityInitialData({
-                                        related_table_id: table.table_id,
-                                        related_record_id: record.record_id
-                                      })
-                                      setIsCreateActivityOpen(true)
-                                    }}
-                                  >
-                                    <CalendarPlus className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600"
-                                    title="View Activities"
-                                    onClick={() => {
-                                      router.push(`/activities?related_table_id=${table.table_id}&related_record_id=${record.record_id}`)
-                                    }}
-                                  >
-                                    <ListTodo className="h-4 w-4" />
-                                  </Button>
+                              if (column.id === "actions") {
+                                // Actions column
+                                cellContent = (
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 hover:bg-primary/10"
+                                      title="View record details"
+                                      onClick={() => {
+                                        router.push(`/leadPage/record-details?table_id=${table.table_id}&record_id=${record.record_id}`)
+                                      }}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
 
-                                  {/* <Button
+                                    {/* Activity Actions */}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600"
+                                      title="Create Activity"
+                                      onClick={() => {
+                                        setActivityInitialData({
+                                          related_table_id: table.table_id,
+                                          related_record_id: record.record_id
+                                        })
+                                        setIsCreateActivityOpen(true)
+                                      }}
+                                    >
+                                      <CalendarPlus className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600"
+                                      title="View Activities"
+                                      onClick={() => {
+                                        router.push(`/activities?related_table_id=${table.table_id}&related_record_id=${record.record_id}`)
+                                      }}
+                                    >
+                                      <ListTodo className="h-4 w-4" />
+                                    </Button>
+
+                                    {/* <Button
                                     variant="ghost"
                                     size="sm"
                                     className="h-8 w-8 p-0 hover:bg-primary/10"
@@ -3171,191 +3250,195 @@ export default function TableDataView({ table, onBack }) {
                                   >
                                     <Edit className="h-4 w-4" />
                                   </Button> */}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-destructive/10"
-                                    title="Delete record"
-                                    onClick={() => {
-                                      setRecordToDelete(record)
-                                      setIsDeleteDialogOpen(true)
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              )
-                            } else if (column.accessorKey === "assigned_to") {
-                              // Assigned To column
-                              const assignedTo = record.assigned_to
-                              if (!assignedTo || assignedTo === 'NA') {
-                                cellContent = <span className="text-sm text-muted-foreground">-</span>
-                              } else {
-                                const user = users.find(u => (u.user_id || u.id) === assignedTo)
-                                if (user) {
-                                  const userName = user.first_name && user.last_name
-                                    ? `${user.first_name} ${user.last_name}`
-                                    : user.name || user.email || assignedTo
-                                  cellContent = <span className="text-sm">{userName}</span>
-                                } else {
-                                  cellContent = <span className="text-sm">{assignedTo}</span>
-                                }
-                              }
-                            } else if (column.accessorKey === "updated_by") {
-                              // Updated By column
-                              const updatedBy = record.updated_by
-                              if (!updatedBy) {
-                                cellContent = <span className="text-sm text-muted-foreground">-</span>
-                              } else {
-                                const user = users.find(u => (u.user_id || u.id) === updatedBy)
-                                if (user) {
-                                  const userName = user.first_name && user.last_name
-                                    ? `${user.first_name} ${user.last_name}`
-                                    : user.name || user.email || updatedBy
-                                  cellContent = <span className="text-sm">{userName}</span>
-                                } else {
-                                  cellContent = <span className="text-sm">{updatedBy}</span>
-                                }
-                              }
-                            } else if (column.accessorKey === "created_at") {
-                              // Created At column
-                              const date = new Date(record.created_at)
-                              cellContent = (
-                                <div className="text-sm">
-                                  <div className="font-medium text-foreground">
-                                    {date.toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric'
-                                    })}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 hover:bg-destructive/10"
+                                      title="Delete record"
+                                      onClick={() => {
+                                        setRecordToDelete(record)
+                                        setIsDeleteDialogOpen(true)
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
                                   </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {date.toLocaleTimeString('en-US', {
-                                      hour: '2-digit',
-                                      minute: '2-digit'
-                                    })}
-                                  </div>
-                                </div>
-                              )
-                            } else if (column.accessorKey === "updated_at") {
-                              // Updated At column
-                              const date = record.updated_at
-                              if (!date) {
-                                cellContent = <span className="text-sm text-muted-foreground">-</span>
-                              } else {
-                                const dateObj = new Date(date)
+                                )
+                              } else if (column.accessorKey === "assigned_to") {
+                                // Assigned To column
+                                const assignedTo = record.assigned_to
+                                if (!assignedTo || assignedTo === 'NA') {
+                                  cellContent = <span className="text-sm text-muted-foreground">-</span>
+                                } else {
+                                  const user = users.find(u => (u.user_id || u.id) === assignedTo)
+                                  if (user) {
+                                    const userName = user.first_name && user.last_name
+                                      ? `${user.first_name} ${user.last_name}`
+                                      : user.name || user.email || assignedTo
+                                    cellContent = <span className="text-sm">{userName}</span>
+                                  } else {
+                                    cellContent = <span className="text-sm">{assignedTo}</span>
+                                  }
+                                }
+                              } else if (column.accessorKey === "updated_by") {
+                                // Updated By column
+                                const updatedBy = record.updated_by
+                                if (!updatedBy) {
+                                  cellContent = <span className="text-sm text-muted-foreground">-</span>
+                                } else {
+                                  const user = users.find(u => (u.user_id || u.id) === updatedBy)
+                                  if (user) {
+                                    const userName = user.first_name && user.last_name
+                                      ? `${user.first_name} ${user.last_name}`
+                                      : user.name || user.email || updatedBy
+                                    cellContent = <span className="text-sm">{userName}</span>
+                                  } else {
+                                    cellContent = <span className="text-sm">{updatedBy}</span>
+                                  }
+                                }
+                              } else if (column.accessorKey === "created_at") {
+                                // Created At column
+                                const date = new Date(record.created_at)
                                 cellContent = (
                                   <div className="text-sm">
                                     <div className="font-medium text-foreground">
-                                      {dateObj.toLocaleDateString('en-US', {
+                                      {date.toLocaleDateString('en-US', {
                                         month: 'short',
                                         day: 'numeric',
                                         year: 'numeric'
                                       })}
                                     </div>
                                     <div className="text-xs text-muted-foreground">
-                                      {dateObj.toLocaleTimeString('en-US', {
+                                      {date.toLocaleTimeString('en-US', {
                                         hour: '2-digit',
                                         minute: '2-digit'
                                       })}
                                     </div>
                                   </div>
                                 )
-                              }
-                            } else {
-                              // Dynamic data columns
-                              const columnData = columns.find(col => col.column_id === column.accessorKey)
-                              if (columnData) {
-                                const fieldValue = getFieldValue(record, column.accessorKey, columnData)
-                                const displayDataType = getColumnFieldType(columnData)
-                                cellContent = formatFieldValue(fieldValue, displayDataType, columnData, record)
+                              } else if (column.accessorKey === "updated_at") {
+                                // Updated At column
+                                const date = record.updated_at
+                                if (!date) {
+                                  cellContent = <span className="text-sm text-muted-foreground">-</span>
+                                } else {
+                                  const dateObj = new Date(date)
+                                  cellContent = (
+                                    <div className="text-sm">
+                                      <div className="font-medium text-foreground">
+                                        {dateObj.toLocaleDateString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          year: 'numeric'
+                                        })}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {dateObj.toLocaleTimeString('en-US', {
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })}
+                                      </div>
+                                    </div>
+                                  )
+                                }
                               } else {
-                                cellContent = <span className="text-muted-foreground">-</span>
+                                // Dynamic data columns
+                                const columnData = columns.find(col => col.column_id === column.accessorKey)
+                                if (columnData) {
+                                  const fieldValue = getFieldValue(record, column.accessorKey, columnData)
+                                  const displayDataType = getColumnFieldType(columnData)
+                                  cellContent = formatFieldValue(fieldValue, displayDataType, columnData, record)
+                                } else {
+                                  cellContent = <span className="text-muted-foreground">-</span>
+                                }
                               }
-                            }
 
-                            return (
-                              <TableCell
-                                key={column.accessorKey || column.id}
-                                className={`py-3 whitespace-nowrap ${column.id === "actions" ? "w-[140px] text-center" : ""
-                                  }`}
-                              >
-                                {cellContent}
-                              </TableCell>
-                            )
-                          })}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                              return (
+                                <TableCell
+                                  key={column.accessorKey || column.id}
+                                  className={cn(
+                                    "px-4 py-3.5 text-sm border-r last:border-r-0 align-middle",
+                                    column.id === "actions" ? "w-[150px]" : "max-w-[300px]"
+                                  )}
+                                >
+                                  {cellContent}
+                                </TableCell>
+                              )
+                            })}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
 
                 {/* Pagination Controls */}
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>
-                      Showing {((currentPage - 1) * pageSize) + 1} to{' '}
-                      {Math.min(currentPage * pageSize, filteredRecords.length)} of{' '}
-                      {filteredRecords.length} entries
-                      {searchTerm && ` (filtered from ${safeRecords.length} total)`}
-                    </span>
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5">
+                  <div className="text-sm font-medium text-muted-foreground order-2 sm:order-1 text-center sm:text-left">
+                    Showing <span className="text-foreground">{((currentPage - 1) * pageSize) + 1}</span> to{' '}
+                    <span className="text-foreground">{Math.min(currentPage * pageSize, totalRecords)}</span> of{' '}
+                    <span className="text-foreground">{totalRecords}</span> entries
+                    {searchTerm && totalRecords < safeRecords.length && (
+                      <span className="ml-1 opacity-70">(filtered from {safeRecords.length} total)</span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    {/* First Page Button */}
+                  <div className="flex items-center gap-1 order-1 sm:order-2">
+                    {/* First Page */}
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       onClick={goToFirstPage}
                       disabled={currentPage === 1}
-                      className="h-8 w-8 p-0"
+                      className="h-9 w-9 rounded-md border-muted-foreground/20 hover:text-primary transition-colors"
+                      title="First page"
                     >
                       <ChevronsLeft className="h-4 w-4" />
                     </Button>
 
-                    {/* Previous Page Button */}
+                    {/* Previous Page */}
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       onClick={goToPreviousPage}
                       disabled={currentPage === 1}
-                      className="h-8 w-8 p-0"
+                      className="h-9 w-9 rounded-md border-muted-foreground/20 hover:text-primary transition-colors"
+                      title="Previous page"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
 
-                    {/* Page Info */}
-                    <div className="flex items-center gap-1 text-sm">
-                      <span className="font-medium">Page</span>
-                      <span className="font-bold">{currentPage}</span>
-                      <span>of</span>
-                      <span className="font-medium">{totalPages}</span>
+                    {/* Page Numbers */}
+                    <div className="flex items-center px-4 h-9 min-w-[100px] justify-center text-sm font-bold bg-muted/20 border border-muted-foreground/10 rounded-md">
+                      {currentPage} / {totalPages || 1}
                     </div>
 
-                    {/* Next Page Button */}
+                    {/* Next Page */}
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       onClick={goToNextPage}
                       disabled={currentPage === totalPages || totalPages === 0}
-                      className="h-8 w-8 p-0"
+                      className="h-9 w-9 rounded-md border-muted-foreground/20 hover:text-primary transition-colors"
+                      title="Next page"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
 
-                    {/* Last Page Button */}
+                    {/* Last Page */}
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
                       onClick={goToLastPage}
                       disabled={currentPage === totalPages || totalPages === 0}
-                      className="h-8 w-8 p-0"
+                      className="h-9 w-9 rounded-md border-muted-foreground/20 hover:text-primary transition-colors"
+                      title="Last page"
                     >
                       <ChevronsRight className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-              </>
+              </div>
             )
           })()}
         </CardContent>
@@ -3453,7 +3536,7 @@ export default function TableDataView({ table, onBack }) {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       <CreateActivityDialog
         open={isCreateActivityOpen}
@@ -3928,6 +4011,6 @@ export default function TableDataView({ table, onBack }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   )
 }
