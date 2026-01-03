@@ -1441,12 +1441,23 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-4">
-                <Input
-                  type="text"
-                  placeholder="Search genes..."
-                  value={searches || ''}
-                  onChange={handleSearchChange}
-                />
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="Search genes..."
+                    value={searches || ''}
+                    onChange={handleSearchChange}
+                    className="pr-10"
+                  />
+                  {searches && (
+                    <X
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                      onClick={() => {
+                        handleSearchChange({ target: { value: '' } });
+                      }}
+                    />
+                  )}
+                </div>
                 <Select>
                   <SelectTrigger>
                     <SelectValue placeholder="All Types" />

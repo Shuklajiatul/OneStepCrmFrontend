@@ -39,7 +39,8 @@ import {
   Calendar,
   ArrowUpDown,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  X
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -3090,8 +3091,14 @@ export default function TableDataView({ table, onBack }) {
                   placeholder="Search records..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-10 border-muted-foreground/20 focus-visible:ring-primary"
+                  className="pl-10 h-10 border-muted-foreground/20 focus-visible:ring-primary pr-10"
                 />
+                {searchTerm && (
+                  <X
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                    onClick={() => setSearchTerm("")}
+                  />
+                )}
               </div>
             </div>
 

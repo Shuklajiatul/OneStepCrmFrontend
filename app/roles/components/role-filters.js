@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search } from "lucide-react"
+import { Search, X } from "lucide-react"
 
 export function RoleFilters({
     searchTerm,
@@ -15,8 +15,14 @@ export function RoleFilters({
                     placeholder="Search by name or priority..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 pr-10"
                 />
+                {searchTerm && (
+                    <X
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                        onClick={() => setSearchTerm("")}
+                    />
+                )}
             </div>
 
             {searchTerm && (

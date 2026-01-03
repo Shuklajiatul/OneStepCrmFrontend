@@ -28,7 +28,8 @@ import {
   Filter,
   MoreVertical,
   Calendar,
-  LayoutDashboard
+  LayoutDashboard,
+  X
 } from "lucide-react"
 import {
   Table,
@@ -213,6 +214,12 @@ export default function FormAnalyticsPage() {
     setCurrentPage(1)
   }
 
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    // Optional: add scroll to table or top if needed
+    // window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
@@ -367,16 +374,22 @@ export default function FormAnalyticsPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search forms..."
-                className="pl-10 rounded-xl"
+                className="pl-10 pr-10 rounded-xl"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+              {searchTerm && (
+                <X
+                  className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={() => setSearchTerm("")}
+                />
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table className="w-full">
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-white shadow-sm">
               <TableRow className="bg-muted/30">
                 <TableHead className="pl-8 font-bold text-xs uppercase tracking-wider h-12">Form Name</TableHead>
                 <TableHead className="font-bold text-xs uppercase tracking-wider h-12">Submissions</TableHead>
@@ -474,55 +487,117 @@ export default function FormAnalyticsPage() {
                   <span className="text-sm text-muted-foreground whitespace-nowrap">per page</span>
                 </div>
                 <div className="text-sm text-muted-foreground whitespace-nowrap">
-                  Showing {startIndex + 1} to {endIndex} of {filteredForms.length} forms
+                  Showing {filteredForms.length === 0 ? 0 : startIndex + 1} to {endIndex} of {filteredForms.length} forms
                 </div>
               </div>
 
-              {totalPages > 1 && (
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      />
-                    </PaginationItem>
+              <Pagination className="justify-end w-auto mx-0">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (currentPage > 1) handlePageChange(currentPage - 1)
+                      }}
+                      className={currentPage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      href="#"
+                    />
+                  </PaginationItem>
 
-                    {(() => {
-                      const pages = [];
-                      const maxVisiblePages = 5;
-                      let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-                      let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                  {(() => {
+                    const pages = []
+                    const maxVisible = 5
 
-                      if (endPage - startPage + 1 < maxVisiblePages) {
-                        startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                      }
-
-                      for (let i = startPage; i <= endPage; i++) {
+                    if (totalPages <= maxVisible) {
+                      for (let i = 1; i <= totalPages; i++) {
                         pages.push(
                           <PaginationItem key={i}>
                             <PaginationLink
-                              onClick={() => setCurrentPage(i)}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                handlePageChange(i)
+                              }}
                               isActive={currentPage === i}
                               className="cursor-pointer"
+                              href="#"
                             >
                               {i}
                             </PaginationLink>
                           </PaginationItem>
-                        );
+                        )
                       }
-                      return pages;
-                    })()}
+                    } else {
+                      // Always show first page
+                      pages.push(
+                        <PaginationItem key={1}>
+                          <PaginationLink
+                            onClick={(e) => { e.preventDefault(); handlePageChange(1) }}
+                            isActive={currentPage === 1}
+                            className="cursor-pointer"
+                            href="#"
+                          >
+                            1
+                          </PaginationLink>
+                        </PaginationItem>
+                      )
 
-                    <PaginationItem>
-                      <PaginationNext
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
-              )}
+                      if (currentPage > 3) {
+                        pages.push(<PaginationItem key="start-ellipsis"><PaginationEllipsis /></PaginationItem>)
+                      }
+
+                      // Middle pages
+                      const start = Math.max(2, currentPage - 1)
+                      const end = Math.min(totalPages - 1, currentPage + 1)
+
+                      for (let i = start; i <= end; i++) {
+                        pages.push(
+                          <PaginationItem key={i}>
+                            <PaginationLink
+                              onClick={(e) => { e.preventDefault(); handlePageChange(i) }}
+                              isActive={currentPage === i}
+                              className="cursor-pointer"
+                              href="#"
+                            >
+                              {i}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )
+                      }
+
+                      if (currentPage < totalPages - 2) {
+                        pages.push(<PaginationItem key="end-ellipsis"><PaginationEllipsis /></PaginationItem>)
+                      }
+
+                      // Always show last page
+                      pages.push(
+                        <PaginationItem key={totalPages}>
+                          <PaginationLink
+                            onClick={(e) => { e.preventDefault(); handlePageChange(totalPages) }}
+                            isActive={currentPage === totalPages}
+                            className="cursor-pointer"
+                            href="#"
+                          >
+                            {totalPages}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )
+                    }
+
+                    return pages
+                  })()}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={(e) => {
+                        e.preventDefault()
+                        if (currentPage < totalPages) handlePageChange(currentPage + 1)
+                      }}
+                      className={currentPage >= totalPages || totalPages === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      href="#"
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             </div>
           </div>
         )}

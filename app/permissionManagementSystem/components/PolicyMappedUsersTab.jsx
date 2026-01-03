@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ArrowLeft, Loader2, Users, CheckCircle2, XCircle, Shield, Download, Eye, UserMinus } from "lucide-react"
+import { ArrowLeft, Loader2, Users, CheckCircle2, XCircle, Shield, Download, Eye, UserMinus, X } from "lucide-react"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
 import { rolesApi, policiesApi, usersApi } from "@/lib/api-endpoint"
@@ -351,12 +351,21 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
               </div>
 
               <div className="flex items-center gap-4">
-                <Input
-                  placeholder="Search mapped users by name or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="flex-1"
-                />
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search mapped users by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 pr-10"
+                  />
+                  {searchTerm && (
+                    <X
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                      onClick={() => setSearchTerm("")}
+                    />
+                  )}
+                </div>
               </div>
 
               {loading ? (

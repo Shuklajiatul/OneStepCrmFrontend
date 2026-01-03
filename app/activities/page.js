@@ -518,8 +518,14 @@ function ActivitiesPageContent() {
                                     placeholder="Search activities..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-10"
+                                    className="pl-10 pr-10"
                                 />
+                                {searchQuery && (
+                                    <X
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                                        onClick={() => setSearchQuery("")}
+                                    />
+                                )}
                             </div>
                         </div>
                         <Select value={filterType} onValueChange={setFilterType}>
