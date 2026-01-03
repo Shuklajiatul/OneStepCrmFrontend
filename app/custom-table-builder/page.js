@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, Save, X, Trash2, Settings, Type, Hash, Calendar, CheckSquare, Database, Mail, Phone, Users, FileText, List, Calculator, User, Sparkles, GripVertical, Loader2, ArrowLeft } from "lucide-react"
+import { Plus, Edit, Save, X, Trash2, Settings, Type, Hash, Calendar, CheckSquare, Database, Mail, Phone, Users, FileText, List, Calculator, User, Sparkles, GripVertical, Loader2, ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { toast } from "sonner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -265,7 +267,7 @@ function TableSettingsDialog({ table, open, onOpenChange, onUpdate }) {
 }
 
 // Sortable Table Component
-function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddRow, currentTable, onUpdateColumns, onUpdateTables, tables, setTables, onToggleStatus, loading, onUpdateTableDetails, onFetchRecords }) {
+function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddRow, currentTable, onUpdateColumns, onUpdateTables, tables, setTables, onToggleStatus, loading, onUpdateTableDetails, onFetchRecords, records }) {
   const {
     attributes,
     listeners,
@@ -402,8 +404,8 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
         )
       }
 
-      // Select/Radio
-      if ((fieldType === 'select' || fieldType === 'radio') && columnOptions.length > 0) {
+      // Select
+      if (fieldType === 'select' && columnOptions.length > 0) {
         const selectedOption = columnOptions.find(opt => {
           const val = typeof opt === 'object' ? (opt.value || opt.label) : opt
           return val === primitiveValue
@@ -439,6 +441,47 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
         )
       }
 
+      // Radio
+      if (fieldType === 'radio' && columnOptions.length > 0) {
+        const selectedOption = columnOptions.find(opt => {
+          const val = typeof opt === 'object' ? (opt.value || opt.label) : opt
+          return val === primitiveValue
+        })
+        const nestedFields = selectedOption?.nestedFields || []
+
+        return (
+          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1' : ''} space-y-2`}>
+            <Label>{fieldName}</Label>
+            <RadioGroup value={primitiveValue} onValueChange={val => handleRecursiveFieldChange(fieldId, { value: val, nestedValues: {} }, path)}>
+              <div className="grid gap-2">
+                {columnOptions.map((opt, i) => {
+                  const val = typeof opt === 'object' ? (opt.value || opt.label) : opt
+                  const label = typeof opt === 'object' ? (opt.label || opt.value) : opt
+                  const id = `radio-${fieldId}-${i}`
+                  return (
+                    <div key={i} className="flex items-center space-x-2">
+                      <RadioGroupItem value={val} id={id} />
+                      <Label htmlFor={id} className="font-normal cursor-pointer">{label}</Label>
+                    </div>
+                  )
+                })}
+              </div>
+            </RadioGroup>
+
+            {nestedFields.length > 0 && primitiveValue && (
+              <div className="mt-2 text-xs font-medium text-muted-foreground flex items-center gap-2">
+                <Plus className="h-3 w-3" /> Nested Fields for {primitiveValue}
+              </div>
+            )}
+            {nestedFields.length > 0 && primitiveValue && (
+              <div className="mt-2">
+                {renderFormFieldsRecursive(nestedFields, storedValue?.nestedValues || {}, [...path, fieldId, 'nestedValues'], depth + 1)}
+              </div>
+            )}
+          </div>
+        )
+      }
+
       // Checkbox
       if (fieldType === 'checkbox' && columnOptions.length > 0) {
         const checkboxSelections = Array.isArray(storedValue)
@@ -446,7 +489,7 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
           : []
 
         return (
-          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1' : ''} space-y-2`}>
+          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1' : ''} space-y-3`}>
             <Label>{fieldName}</Label>
             <div className="space-y-2">
               {columnOptions.map((opt, i) => {
@@ -454,14 +497,20 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
                 const optLabel = typeof opt === 'object' ? (opt.label || opt.value) : opt
                 const isChecked = checkboxSelections.includes(optVal)
                 const selectionIdx = isChecked ? (storedValue || []).findIndex(s => (s.value || s) === optVal) : -1
+                const id = `checkbox-${fieldId}-${i}`
 
                 return (
                   <div key={i} className="space-y-2">
-                    <div onClick={() => handleRecursiveCheckboxToggle(fieldId, optVal, path)} className="flex items-center gap-2 cursor-pointer">
-                      <div className={`h-4 w-4 rounded border flex items-center justify-center ${isChecked ? 'bg-primary border-primary' : 'border-input'}`}>
-                        {isChecked && <div className="h-2 w-2 bg-primary-foreground rounded-sm" />}
-                      </div>
-                      <span className="text-sm">{optLabel}</span>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={id}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          // Handle manual toggle since we want to pass specific args
+                          handleRecursiveCheckboxToggle(fieldId, optVal, path)
+                        }}
+                      />
+                      <Label htmlFor={id} className="font-normal cursor-pointer">{optLabel}</Label>
                     </div>
                     {isChecked && typeof opt === 'object' && opt.nestedFields && opt.nestedFields.length > 0 && selectionIdx !== -1 && (
                       <div className="mt-2 ml-6">
@@ -589,6 +638,7 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
             setTables={setTables}
             onFetchRecords={onFetchRecords}
             onAddRecord={openAddRecordDialog}
+            records={records}
           />
         )}
       </Card>
@@ -718,7 +768,7 @@ function SortableColumn({ column, table, onUpdate, onDelete, onEditName }) {
 }
 
 // Table Content Component
-function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTables, onFetchRecords, onAddRecord }) {
+function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTables, onFetchRecords, onAddRecord, records }) {
   const [activeColumn, setActiveColumn] = useState(null)
 
   const sensors = useSensors(
@@ -908,7 +958,7 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {table.rows.map(row => (
+                {(records || table.rows || []).map(row => (
                   <TableRow key={row.id} className="hover:bg-muted/50">
                     {table.columns.map(column => (
                       <TableCell
@@ -1372,6 +1422,17 @@ export default function CustomTableBuilder() {
   })
   const [loading, setLoading] = useState(false)
 
+  // Pagination State
+  const [tablesPage, setTablesPage] = useState(1)
+  const [tablesRowsPerPage, setTablesRowsPerPage] = useState(10)
+  const [totalTables, setTotalTables] = useState(0)
+  const [tablesSearch, setTablesSearch] = useState("")
+
+  const [recordsPage, setRecordsPage] = useState(1)
+  const [recordsRowsPerPage, setRecordsRowsPerPage] = useState(10)
+  const [totalRecords, setTotalRecords] = useState(0)
+  const [recordsSearch, setRecordsSearch] = useState("")
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -1381,15 +1442,43 @@ export default function CustomTableBuilder() {
 
   useEffect(() => {
     fetchTables()
-  }, [])
+  }, [tablesPage, tablesRowsPerPage, tablesSearch])
 
 
   const fetchTables = async () => {
     setLoading(true)
     try {
-      const response = await datatablesApi.getAll()
+      const response = await datatablesApi.getAll({
+        page: tablesPage,
+        limit: tablesRowsPerPage,
+        search: tablesSearch
+      })
       if (response.data && (response.data.success === true || response.data.status === 'success')) {
-        const rawTables = response.data.data
+        const responseData = response.data.data
+        const meta = response.data.meta || {}
+
+        let rawTables = []
+        if (Array.isArray(responseData)) {
+          rawTables = responseData
+        } else if (responseData && Array.isArray(responseData.data)) {
+          rawTables = responseData.data
+        }
+
+        // Client-side filtering fallback
+        if (tablesSearch && rawTables.length > 0) {
+          const lowerSearch = tablesSearch.toLowerCase()
+          if (rawTables.length > tablesRowsPerPage) {
+            rawTables = rawTables.filter(t =>
+              (t.table_name || t.name || "").toLowerCase().includes(lowerSearch) ||
+              (t.description || "").toLowerCase().includes(lowerSearch)
+            )
+          }
+        }
+
+        // Set total count
+        const total = meta.total || (responseData.pagination ? responseData.pagination.total : rawTables.length)
+        setTotalTables(total)
+
         const mappedTables = rawTables.map(mapBackendTableToFrontend)
         setTables(mappedTables)
 
@@ -1687,11 +1776,48 @@ export default function CustomTableBuilder() {
     }
   }
 
+  useEffect(() => {
+    if (currentTable?.id) {
+      fetchRecords(currentTable.id)
+    }
+  }, [currentTable?.id, recordsPage, recordsRowsPerPage, recordsSearch])
+
   const fetchRecords = async (tableId) => {
+    if (!tableId) return
     try {
-      const response = await recordsApi.getAll(tableId)
+      const response = await recordsApi.getAll(tableId, {
+        page: recordsPage,
+        limit: recordsRowsPerPage,
+        search: recordsSearch
+      })
+
       if (response.data && (response.data.success === true || response.data.status === 'success')) {
-        const records = response.data.data || []
+        const responseData = response.data.data
+        const meta = response.data.meta || {}
+
+        let records = []
+        if (Array.isArray(responseData)) {
+          records = responseData
+        } else if (responseData && Array.isArray(responseData.data)) {
+          records = responseData.data
+        }
+
+        // Client-side filtering fallback
+        if (recordsSearch && records.length > recordsRowsPerPage) {
+          const lowerSearch = recordsSearch.toLowerCase()
+          records = records.filter(r => {
+            const values = Object.values(r.field_values || {}).map(v => {
+              if (typeof v === 'object' && v !== null && v.value) return v.value
+              return v
+            })
+            return values.some(val => String(val).toLowerCase().includes(lowerSearch))
+          })
+        }
+
+        // Set total count
+        const total = meta.total || (responseData.pagination ? responseData.pagination.total : records.length)
+        setTotalRecords(total)
+
         setTables(prev => prev.map(t => {
           if (t.id === tableId) {
             const mappedRows = mapBackendRecordsToFrontend(records, t.columns)
@@ -1727,15 +1853,8 @@ export default function CustomTableBuilder() {
         // Merge columns into backendTable for mapping
         const fullTable = mapBackendTableToFrontend({ ...backendTable, columns })
 
-        // Fetch records
-        try {
-          const recRes = await recordsApi.getAll(table.id)
-          if (recRes.data && (recRes.data.success === true || recRes.data.status === 'success')) {
-            fullTable.rows = mapBackendRecordsToFrontend(recRes.data.data || [], fullTable.columns)
-          }
-        } catch (e) {
-          console.error("Failed to fetch records", e)
-        }
+        // Reset pagination when selecting a table
+        setRecordsPage(1)
 
         setCurrentTable(fullTable)
         setTables(prev => prev.map(t => t.id === table.id ? fullTable : t))
@@ -1766,125 +1885,205 @@ export default function CustomTableBuilder() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Custom Tables</h1>
           <p className="text-muted-foreground">Create and manage your custom data tables</p>
         </div>
 
-        <Dialog open={isCreatingTable} onOpenChange={setIsCreatingTable}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              New Table
-            </Button>
-          </DialogTrigger>
-          {loading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground ml-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Syncing...
-            </div>
-          )}
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Table</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Table Name</label>
-                <Input
-                  value={newTableName}
-                  onChange={(e) => setNewTableName(e.target.value)}
-                  placeholder="Enter table name"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") createNewTable()
+        <div className="flex items-center gap-2">
+          {view === 'list' && (
+            <div className="relative w-64">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search tables..."
+                value={tablesSearch}
+                onChange={(e) => setTablesSearch(e.target.value)}
+                className="pl-8 pr-8"
+              />
+              {tablesSearch && (
+                <X
+                  className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setTablesSearch("")
                   }}
                 />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setIsCreatingTable(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={createNewTable}>
-                  Create Table
-                </Button>
-              </div>
+              )}
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+          )}
 
-      {/* View Content */}
-      {view === 'list' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tables.map(table => (
-            <Card
-              key={table.id}
-              className="hover:border-primary cursor-pointer transition-colors group relative"
-              onClick={() => handleSelectTable(table)}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Database className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{table.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground">{table.columns.length} columns</p>
-                    </div>
-                  </div>
-                  <Badge variant={table.isActive ? "default" : "secondary"}>
-                    {table.isActive ? "Active" : "Inactive"}
-                  </Badge>
+          <Dialog open={isCreatingTable} onOpenChange={setIsCreatingTable}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" disabled={loading}>
+                <Plus className="h-4 w-4" />
+                Create Table
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Table</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Table Name</label>
+                  <Input
+                    value={newTableName}
+                    onChange={(e) => setNewTableName(e.target.value)}
+                    placeholder="Enter table name"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") createNewTable()
+                    }}
+                  />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {table.description || "No description provided"}
-                </p>
-                <div className="mt-4 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    Manage <ArrowLeft className="h-4 w-4 rotate-180" />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setIsCreatingTable(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={createNewTable}>
+                    Create Table
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex items-center gap-4 mb-2">
-            <Button variant="ghost" size="sm" onClick={() => setView('list')} className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to List
-            </Button>
+      </div>
+
+
+      {/* View Content */}
+      {
+        view === 'list' ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(tables.length > tablesRowsPerPage ? tables.slice((tablesPage - 1) * tablesRowsPerPage, tablesPage * tablesRowsPerPage) : tables).map(table => (
+                <Card
+                  key={table.id}
+                  className="hover:border-primary cursor-pointer transition-colors group relative"
+                  onClick={() => handleSelectTable(table)}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <Database className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{table.name}</CardTitle>
+                          <p className="text-sm text-muted-foreground">{table.columns.length} columns</p>
+                        </div>
+                      </div>
+                      <Badge variant={table.isActive ? "default" : "secondary"}>
+                        {table.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {table.description || "No description provided"}
+                    </p>
+                    <div className="mt-4 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="sm" className="gap-2">
+                        Manage <ArrowLeft className="h-4 w-4 rotate-180" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t mt-4">
+              <div className="text-sm font-medium text-muted-foreground order-2 sm:order-1">
+                Showing <span className="text-foreground">{((tablesPage - 1) * tablesRowsPerPage) + 1}</span> to{' '}
+                <span className="text-foreground">{Math.min(tablesPage * tablesRowsPerPage, totalTables)}</span> of{' '}
+                <span className="text-foreground">{totalTables}</span> entries
+              </div>
+
+              <div className="flex items-center gap-1 order-1 sm:order-2">
+                <Button variant="outline" size="icon" onClick={() => setTablesPage(1)} disabled={tablesPage === 1} className="h-9 w-9"><ChevronsLeft className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" onClick={() => setTablesPage(p => Math.max(1, p - 1))} disabled={tablesPage === 1} className="h-9 w-9"><ChevronLeft className="h-4 w-4" /></Button>
+                <span className="text-sm font-medium min-w-[3rem] text-center">
+                  Page {tablesPage} of {Math.ceil(totalTables / tablesRowsPerPage) || 1}
+                </span>
+                <Button variant="outline" size="icon" onClick={() => setTablesPage(p => Math.min(Math.ceil(totalTables / tablesRowsPerPage), p + 1))} disabled={tablesPage >= Math.ceil(totalTables / tablesRowsPerPage) || totalTables === 0} className="h-9 w-9"><ChevronRight className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" onClick={() => setTablesPage(Math.ceil(totalTables / tablesRowsPerPage))} disabled={tablesPage >= Math.ceil(totalTables / tablesRowsPerPage) || totalTables === 0} className="h-9 w-9"><ChevronsRight className="h-4 w-4" /></Button>
+              </div>
+            </div>
           </div>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleTableDragEnd}
-          >
-            <SortableTable
-              key={currentTable.id}
-              table={currentTable}
-              onTableClick={() => { }} // No-op in dedicated view
-              onDeleteTable={() => deleteTable(currentTable.id)}
-              onAddColumn={() => openAddColumnModal(currentTable)}
-              onAddRow={() => addRow(currentTable.id)}
-              currentTable={currentTable}
-              onUpdateColumns={updateColumns}
-              onUpdateTables={setTables}
-              tables={tables}
-              setTables={setTables}
-              onToggleStatus={toggleTableStatus}
-              loading={loading}
-              onUpdateTableDetails={updateTableDetails}
-              onFetchRecords={fetchRecords}
-            />
-          </DndContext>
-        </div>
-      )}
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-4">
+                <Button variant="ghost" size="sm" onClick={() => setView('list')} className="gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to List
+                </Button>
+              </div>
+              <div className="relative w-64">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search records..."
+                  value={recordsSearch}
+                  onChange={(e) => setRecordsSearch(e.target.value)}
+                  className="pl-8 pr-8"
+                />
+                {recordsSearch && (
+                  <X
+                    className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRecordsSearch("")
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleTableDragEnd}
+            >
+              <SortableTable
+                key={currentTable.id}
+                table={currentTable}
+                onTableClick={() => { }} // No-op in dedicated view
+                onDeleteTable={() => deleteTable(currentTable.id)}
+                onAddColumn={() => openAddColumnModal(currentTable)}
+                onAddRow={() => addRow(currentTable.id)}
+                currentTable={currentTable}
+                onUpdateColumns={updateColumns}
+                onUpdateTables={setTables}
+                tables={tables}
+                setTables={setTables}
+                onToggleStatus={toggleTableStatus}
+                loading={loading}
+                onUpdateTableDetails={updateTableDetails}
+                onFetchRecords={fetchRecords}
+                onFetchRecords={fetchRecords}
+                records={currentTable.rows ? (currentTable.rows.length > recordsRowsPerPage ? currentTable.rows.slice((recordsPage - 1) * recordsRowsPerPage, recordsPage * recordsRowsPerPage) : currentTable.rows) : []}
+              />
+            </DndContext>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t mt-4">
+              <div className="text-sm font-medium text-muted-foreground order-2 sm:order-1">
+                Showing <span className="text-foreground">{((recordsPage - 1) * recordsRowsPerPage) + 1}</span> to{' '}
+                <span className="text-foreground">{Math.min(recordsPage * recordsRowsPerPage, totalRecords)}</span> of{' '}
+                <span className="text-foreground">{totalRecords}</span> entries
+              </div>
+
+              <div className="flex items-center gap-1 order-1 sm:order-2">
+                <Button variant="outline" size="icon" onClick={() => setRecordsPage(1)} disabled={recordsPage === 1} className="h-9 w-9"><ChevronsLeft className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" onClick={() => setRecordsPage(p => Math.max(1, p - 1))} disabled={recordsPage === 1} className="h-9 w-9"><ChevronLeft className="h-4 w-4" /></Button>
+                <span className="text-sm font-medium min-w-[3rem] text-center">
+                  Page {recordsPage} of {Math.ceil(totalRecords / recordsRowsPerPage) || 1}
+                </span>
+                <Button variant="outline" size="icon" onClick={() => setRecordsPage(p => Math.min(Math.ceil(totalRecords / recordsRowsPerPage), p + 1))} disabled={recordsPage >= Math.ceil(totalRecords / recordsRowsPerPage) || totalRecords === 0} className="h-9 w-9"><ChevronRight className="h-4 w-4" /></Button>
+                <Button variant="outline" size="icon" onClick={() => setRecordsPage(Math.ceil(totalRecords / recordsRowsPerPage))} disabled={recordsPage >= Math.ceil(totalRecords / recordsRowsPerPage) || totalRecords === 0} className="h-9 w-9"><ChevronsRight className="h-4 w-4" /></Button>
+              </div>
+            </div>
+          </div>
+        )
+      }
 
       {/* Add Column Modal */}
       <Dialog open={isAddingColumn} onOpenChange={setIsAddingColumn}>
@@ -2018,21 +2217,23 @@ export default function CustomTableBuilder() {
       </Dialog>
 
       {/* Empty State */}
-      {tables.length === 0 && (
-        <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-lg">
-          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-            <Database className="h-8 w-8 text-muted-foreground" />
+      {
+        tables.length === 0 && (
+          <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-lg">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+              <Database className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">No Tables Created</h3>
+            <p className="text-muted-foreground mb-4 max-w-md">
+              Create your first custom table to start organizing and managing your data in a flexible spreadsheet-like interface.
+            </p>
+            <Button onClick={() => setIsCreatingTable(true)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Create Your First Table
+            </Button>
           </div>
-          <h3 className="text-lg font-medium mb-2">No Tables Created</h3>
-          <p className="text-muted-foreground mb-4 max-w-md">
-            Create your first custom table to start organizing and managing your data in a flexible spreadsheet-like interface.
-          </p>
-          <Button onClick={() => setIsCreatingTable(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Create Your First Table
-          </Button>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   )
 }
