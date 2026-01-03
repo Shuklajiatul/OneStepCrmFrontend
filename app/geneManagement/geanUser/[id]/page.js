@@ -27,6 +27,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 // API Constants
 const API_CONSTANTS = {
@@ -678,6 +679,9 @@ const RolePriorityTree = () => {
 
   return (
     <div className="h-screen bg-background flex flex-col">
+      <div className="px-4 pt-4">
+        <PageBreadcrumb />
+      </div>
       {/* Header */}
       <Card className="m-0 rounded-none border-x-0 border-t-0 border-b shadow-md">
         <CardHeader className="pb-4">

@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { authUtils } from "@/lib/auth-utils"
 import { recordsApi, datatablesApi } from "@/lib/api-endpoint" // Added recordsApi
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import {
   DndContext,
   closestCenter,
@@ -1884,6 +1885,21 @@ export default function CustomTableBuilder() {
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumb */}
+      <PageBreadcrumb
+        customItems={view === 'edit' ? [
+          {
+            label: "Table Builder",
+            href: "/custom-table-builder",
+            onClick: (e) => {
+              e.preventDefault()
+              setView('list')
+            }
+          },
+          { label: currentTable?.name || "Table Details" }
+        ] : null}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>

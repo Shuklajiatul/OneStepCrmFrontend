@@ -55,6 +55,7 @@ import {
     ResponsiveContainer,
     Cell
 } from 'recharts'
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 export default function DashboardPage() {
     const [stats, setStats] = useState({
@@ -289,6 +290,9 @@ export default function DashboardPage() {
 
     return (
         <div className="p-4 md:p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-[1600px] mx-auto">
+            {/* Breadcrumb */}
+            <PageBreadcrumb />
+
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 rounded-xl border shadow-sm">
                 <div className="space-y-1">

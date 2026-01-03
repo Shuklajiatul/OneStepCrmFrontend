@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCap
 import { DataTable } from "@/components/ui/data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import TableDataView from "./table-data-view"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import {
   Database,
   RefreshCw,
@@ -436,6 +437,9 @@ function LeadsPageContent() {
 
   return (
     <div className="space-y-8 pb-8">
+      {/* Breadcrumb */}
+      <PageBreadcrumb />
+
       {/* Enhanced Header Section */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/5 p-8 border border-primary/10">
         <div className="absolute top-0 right-0 -mt-10 -mr-10 h-40 w-40 rounded-full bg-primary/5 blur-3xl"></div>

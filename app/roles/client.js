@@ -8,6 +8,7 @@ import { RoleStats } from "./components/role-stats"
 import { RoleFilters } from "./components/role-filters"
 import { RoleTable } from "./components/role-table"
 import { RoleDialogs } from "./components/role-dialogs"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 export default function RolesClient(props) {
     const {
@@ -34,6 +35,7 @@ export default function RolesClient(props) {
 
     return (
         <div className="space-y-6">
+            <PageBreadcrumb />
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Roles</h1>

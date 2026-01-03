@@ -13,6 +13,7 @@ import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
 import { usersApi } from "@/lib/api-endpoint"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -270,6 +271,7 @@ export default function ProfilePage() {
   return (
     <main className="min-h-screen bg-background">
       <div className="container max-w-4xl mx-auto py-8 px-4">
+        <PageBreadcrumb />
         <div className="mb-6">
           <h1 className="text-3xl font-bold mb-2">Profile Settings</h1>
           <p className="text-muted-foreground">Manage your account information and security settings</p>

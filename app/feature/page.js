@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 // authUtils removed as it was only used for manual headers
 import { featuresApi } from "@/lib/api-endpoint"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import {
   Shield,
   ShieldPlus,
@@ -359,6 +360,7 @@ export default function FeaturePage() {
     <main className="min-h-screen bg-background">
       <div className="flex-1 p-4 md:p-6 bg-background">
         <div className="container mx-auto py-4 space-y-6">
+          <PageBreadcrumb />
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

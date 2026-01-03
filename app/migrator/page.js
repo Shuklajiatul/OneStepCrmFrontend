@@ -11,6 +11,7 @@ import PreviewTable from './components/PreviewTable';
 import { datatablesApi } from '@/lib/api-endpoint';
 import { authUtils } from '@/lib/auth-utils';
 import { toast } from 'sonner';
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 // Import ShadCN components
 import {
@@ -285,6 +286,7 @@ const App = () => {
             </header>
 
             <main className="container mx-auto px-6 py-12">
+                <PageBreadcrumb />
                 {/* Header Section */}
                 {/* <div className="mb-12 text-center max-w-2xl mx-auto space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">

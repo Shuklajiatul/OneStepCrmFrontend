@@ -55,6 +55,7 @@ import {
 import { formsApi, submissionsApi } from "@/lib/api-endpoint"
 import { authUtils } from "@/lib/auth-utils"
 import Link from "next/link"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444']
 
@@ -230,6 +231,7 @@ export default function FormAnalyticsPage() {
 
   return (
     <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-700 max-w-[1600px] mx-auto">
+      <PageBreadcrumb />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">

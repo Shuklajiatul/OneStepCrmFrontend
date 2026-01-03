@@ -51,6 +51,7 @@ import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
 import { usersApi, datatablesApi, recordsApi } from '@/lib/api-endpoint'
 import CreateActivityDialog from "@/components/activities/create-activity-dialog"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -2959,6 +2960,19 @@ export default function TableDataView({ table, onBack }) {
 
   return (
     <div className="space-y-6 w-full max-w-full overflow-x-hidden">
+      {/* Breadcrumb */}
+      <PageBreadcrumb
+        customItems={[
+          {
+            label: "Leads",
+            onClick: (e) => {
+              e.preventDefault()
+              if (onBack) onBack()
+            }
+          },
+          { label: table?.table_name || "Table Data" }
+        ]}
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

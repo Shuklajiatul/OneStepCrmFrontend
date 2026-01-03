@@ -7,6 +7,7 @@ import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
 import { featuresApi, policiesApi, policyMappingApi } from "@/lib/api-endpoint"
 import { Button } from "@/components/ui/button"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { CreatePolicyTab } from "./components/CreatePolicyTab"
@@ -326,6 +327,7 @@ export default function PermissionManagement() {
     <main className="min-h-screen bg-background">
       <div className="flex-1 p-4 md:p-6 bg-background">
         <div className="container mx-auto py-6 space-y-6">
+          <PageBreadcrumb />
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">

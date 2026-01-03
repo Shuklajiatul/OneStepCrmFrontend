@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { ArrowLeft, FileText } from "lucide-react"
 import { authUtils } from '@/lib/auth-utils'
 import { formsApi } from '@/lib/api-endpoint'
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 export default function FormPreviewPage() {
   const [fields, setFields] = useState([])
@@ -514,6 +515,9 @@ export default function FormPreviewPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <div className="px-4 pt-4">
+        <PageBreadcrumb />
+      </div>
       {/* Header with back button */}
       <div className="sticky top-0 z-10 bg-card border-b shadow-sm">
         <div className="max-w-7xl mx-auto p-4">

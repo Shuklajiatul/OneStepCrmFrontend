@@ -41,6 +41,7 @@ import { formatDateTimeDisplay } from "@/lib/utils"
 import { extractTimestampFromUUID } from "@/lib/utils"
 import { isUUIDv1 } from "@/lib/utils"
 import { isValidDate } from "@/lib/utils"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 
 // API Configuration
@@ -871,6 +872,13 @@ export default function FormSubmissionsPage() {
 
   const mainContent = (
     <div className="space-y-6 w-full">
+      <PageBreadcrumb
+        customItems={[
+          { label: "My Forms", href: "/my-forms" },
+          { label: "Form Submissions" },
+          { label: formDetails?.form_name || "Submissions" }
+        ]}
+      />
       {/* Error Display */}
       {error && (
         <Card className="border-destructive/20 bg-destructive/5">

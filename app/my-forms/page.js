@@ -33,6 +33,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { authUtils } from '@/lib/auth-utils'
 import { useRouter, usePathname } from 'next/navigation'
 import { cn } from "@/lib/utils"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID;
 
@@ -1121,6 +1122,7 @@ export default function MyFormsPage() {
   const mainContent = (
     <TooltipProvider delayDuration={0}>
       <div className="container mx-auto py-1 space-y-6">
+        <PageBreadcrumb />
         {/* Header */}
         <Card>
           <CardHeader>

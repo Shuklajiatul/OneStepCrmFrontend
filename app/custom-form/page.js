@@ -15,6 +15,7 @@ import { Eye, Code, Settings, FileText, Download, Plus, GripVertical, Trash2, Al
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -830,6 +831,9 @@ export default function CustomFormPage() {
 
   return (
     <div className={isEditMode ? "min-h-screen flex flex-col bg-background" : "h-[calc(100vh-140px)] flex flex-col"}>
+      <div className="px-6 pt-6">
+        <PageBreadcrumb />
+      </div>
       {/* Header */}
       {isEditMode ? (
         <div className="p-6 pb-0">

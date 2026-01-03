@@ -47,6 +47,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { PageBreadcrumb } from "@/components/page-breadcrumb";
 
 
 
@@ -1349,6 +1350,9 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   return (
     <TooltipProvider delayDuration={0}>
       <div className="min-h-screen bg-background">
+        <div className="px-4 pt-4">
+          <PageBreadcrumb />
+        </div>
         {/* Header */}
         {/* <header className="bg-card border-b">
         <div className="px-4 sm:px-6 py-4">

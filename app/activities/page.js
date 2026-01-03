@@ -55,6 +55,7 @@ import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import CreateActivityDialog from "@/components/activities/create-activity-dialog"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 const activityTypeIcons = {
     task: ListTodo,
@@ -448,6 +449,9 @@ function ActivitiesPageContent() {
 
     return (
         <div className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto">
+            {/* Breadcrumb */}
+            <PageBreadcrumb />
+
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>

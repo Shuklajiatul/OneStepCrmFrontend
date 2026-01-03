@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Building2, RefreshCw } from "lucide-react"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 import { useOrganizationManagement } from "./hooks/use-organization-management"
 import { OrganizationStats } from "./components/organization-stats"
@@ -35,6 +36,7 @@ export default function OrganizationsClient(props) {
 
     return (
         <div className="space-y-6">
+            <PageBreadcrumb />
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
