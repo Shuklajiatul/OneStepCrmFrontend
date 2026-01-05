@@ -31,12 +31,19 @@ import {
   TrendingUp,
   Activity,
   CheckCircle2,
-  Clock
+  Clock,
+  X
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { toast } from "sonner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { authUtils } from '@/lib/auth-utils'
@@ -603,8 +610,14 @@ function LeadsPageContent() {
               placeholder="Search by table name or description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-10 w-full bg-muted/30 border-none focus-visible:ring-primary focus-visible:bg-background transition-all"
+              className="pl-10 h-10 w-full bg-muted/30 border-none focus-visible:ring-primary focus-visible:bg-background transition-all pr-10"
             />
+            {searchTerm && (
+              <X
+                className="absolute right-3 top-3 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                onClick={() => setSearchTerm("")}
+              />
+            )}
           </div>
 
           {/* Styled Tabs */}
@@ -709,9 +722,9 @@ function LeadsPageContent() {
                               >
                                 {table.table_name}
                               </CardTitle>
-                              <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mt-0.5">
+                              {/*<p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mt-0.5">
                                 ID: {String(table.table_id).slice(0, 8)}...
-                              </p>
+                              </p>*/}
                             </div>
                           </div>
 
@@ -807,11 +820,11 @@ function LeadsPageContent() {
                       <Table className="w-full">
                         <TableHeader className="bg-muted/40">
                           <TableRow className="hover:bg-transparent border-b">
-                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Information Hub</TableHead>
-                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">System Narrative</TableHead>
-                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Connectivity</TableHead>
-                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Deployment</TableHead>
-                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px] text-right">Operations</TableHead>
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Table Name</TableHead>
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Description</TableHead>
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Status</TableHead>
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px]">Created At</TableHead>
+                            <TableHead className="py-4 px-6 font-extrabold text-foreground uppercase tracking-widest text-[10px] text-right">Action</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -871,36 +884,61 @@ function LeadsPageContent() {
                                 </div>
                               </TableCell>
                               <TableCell className="py-4 px-6 text-right">
-                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
-                                    onClick={() => {
-                                      setSelectedTable(table)
-                                      setCurrentView("data")
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-9 w-9 p-0 rounded-xl hover:bg-destructive/10 hover:text-destructive"
-                                    onClick={() => {
-                                      setTableToDelete(table)
-                                      setIsDeleteDialogOpen(true)
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                <div className="flex items-center justify-end gap-2">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
+                                          onClick={() => {
+                                            setSelectedTable(table)
+                                            setCurrentView("data")
+                                          }}
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>View Data </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-9 w-9 p-0 rounded-xl hover:bg-primary/10 hover:text-primary"
+                                        >
+                                          <Edit className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Edit Details</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-9 w-9 p-0 rounded-xl hover:bg-destructive/10 hover:text-destructive"
+                                          onClick={() => {
+                                            setTableToDelete(table)
+                                            setIsDeleteDialogOpen(true)
+                                          }}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Delete Table</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 </div>
                               </TableCell>
                             </TableRow>
