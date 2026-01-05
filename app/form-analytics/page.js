@@ -230,7 +230,7 @@ export default function FormAnalyticsPage() {
   }
 
   return (
-    <div className="p-4 md:p-8 space-y-8 animate-in fade-in duration-700 max-w-[1600px] mx-auto">
+    <div className="p-0 md:p-0 space-y-8 animate-in fade-in duration-700 max-w-[1600px] mx-auto">
       <PageBreadcrumb />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

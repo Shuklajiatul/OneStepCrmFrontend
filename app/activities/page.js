@@ -448,7 +448,8 @@ function ActivitiesPageContent() {
     }
 
     return (
-        <div className="p-4 md:p-6 space-y-6 max-w-[1600px] mx-auto">
+        <div className="p-0Data Tables
+ md:p-0 space-y-6 max-w-[1600px] mx-auto">
             {/* Breadcrumb */}
             <PageBreadcrumb />
 

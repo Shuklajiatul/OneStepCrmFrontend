@@ -358,8 +358,8 @@ export default function FeaturePage() {
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="flex-1 p-4 md:p-6 bg-background">
-        <div className="container mx-auto py-4 space-y-6">
+      <div className="flex-1 p-0 md:p-0 bg-background">
+        <div className="container mx-auto py-0 space-y-6">
           <PageBreadcrumb />
           <Card>
             <CardHeader>
