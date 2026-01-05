@@ -229,8 +229,43 @@ export default function DashboardPage() {
                         icon: Zap,
                         color: 'text-indigo-500',
                         bg: 'bg-indigo-50'
-                    }))
-                ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 10)
+                    })),
+                    // Add CRM Activities to the stream
+                    ...(activitiesRes.data?.data || activitiesRes.data || []).slice(0, 10).map(a => {
+                        const type = (a.activity_type || 'task').toLowerCase();
+                        let icon = Flag;
+                        let color = 'text-blue-500';
+                        let bg = 'bg-blue-50';
+
+                        switch (type) {
+                            case 'call':
+                                icon = Activity;
+                                color = 'text-green-500';
+                                bg = 'bg-green-50';
+                                break;
+                            case 'meeting':
+                                icon = CalendarCheck;
+                                color = 'text-purple-500';
+                                bg = 'bg-purple-50';
+                                break;
+                            case 'email':
+                                icon = Bell;
+                                color = 'text-amber-500';
+                                bg = 'bg-amber-50';
+                                break;
+                        }
+
+                        return {
+                            id: `activity-${a.activity_id}`,
+                            title: a.title || 'New Activity',
+                            desc: `${type.charAt(0).toUpperCase() + type.slice(1)} assigned to ${userMap[a.assigned_to]?.name || 'User'}`,
+                            time: a.created_at || a.updated_at || new Date().toISOString(),
+                            icon: icon,
+                            color: color,
+                            bg: bg
+                        }
+                    })
+                ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 15)
 
                 // Process Activities
                 const activitiesData = activitiesRes.data?.data || activitiesRes.data || []
@@ -289,7 +324,7 @@ export default function DashboardPage() {
     }
 
     return (
-        <div className="p-4 md:p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-[1600px] mx-auto">
+        <div className="p-0 md:p-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-[1600px] mx-auto">
             {/* Breadcrumb */}
             <PageBreadcrumb />
 
