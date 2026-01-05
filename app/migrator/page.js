@@ -261,6 +261,10 @@ const App = () => {
 
     return (
         <div className="min-h-screen bg-muted/30 text-slate-900 font-sans pb-20">
+            {/* Breadcrumb placed above Header/DataFlow as requested */}
+            <div className="container mx-auto px-6 pt-2">
+                <PageBreadcrumb />
+            </div>
             {/* Navbar - Simplified and Cleaner */}
             <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
                 <div className="container mx-auto px-6 h-16 flex items-center justify-between">
@@ -286,7 +290,6 @@ const App = () => {
             </header>
 
             <main className="container mx-auto px-6 py-12">
-                <PageBreadcrumb />
                 {/* Header Section */}
                 {/* <div className="mb-12 text-center max-w-2xl mx-auto space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
