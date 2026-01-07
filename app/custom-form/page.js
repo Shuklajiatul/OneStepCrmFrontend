@@ -831,7 +831,7 @@ export default function CustomFormPage() {
 
   return (
     <div className={isEditMode ? "min-h-screen flex flex-col bg-background" : "h-[calc(100vh-140px)] flex flex-col"}>
-      <div className="px-6 pt-6">
+      <div className="px-0 pt-0">
         <PageBreadcrumb />
       </div>
       {/* Header */}
