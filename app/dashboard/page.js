@@ -194,77 +194,84 @@ export default function DashboardPage() {
 
                 // Aggregate Recent Activities
                 const allActivities = [
-                    ...usersData.slice(0, 5).map(u => ({
-                        id: `user-${u.user_id || u.id}`,
-                        title: 'New User',
-                        desc: `${u.first_name || 'A user'} joined the platform`,
-                        time: u.created_at || new Date().toISOString(),
-                        icon: UserPlus,
-                        color: 'text-blue-500',
-                        bg: 'bg-blue-50'
-                    })),
-                    ...formsData.slice(0, 5).map(f => ({
+                    // Only show the currently logged-in user's registration activity if they have a valid created_at
+                    ...(currentUserId && usersData.find(u => (u.user_id || u.id) === currentUserId)?.created_at
+                        ? [{
+                            id: `user-${currentUserId}`,
+                            title: 'New User',
+                            desc: `${currentUser?.first_name || 'You'} joined the platform`,
+                            time: usersData.find(u => (u.user_id || u.id) === currentUserId).created_at,
+                            icon: UserPlus,
+                            color: 'text-blue-500',
+                            bg: 'bg-blue-50'
+                        }]
+                        : []
+                    ),
+                    ...formsData.filter(f => f.created_at).slice(0, 5).map(f => ({
                         id: `form-${f.form_id}`,
                         title: 'Form Created',
                         desc: `New form "${f.form_name}" is now live`,
-                        time: f.created_at || new Date().toISOString(),
+                        time: f.created_at,
                         icon: FileText,
                         color: 'text-emerald-500',
                         bg: 'bg-emerald-50'
                     })),
-                    ...tablesData.slice(0, 5).map(t => ({
+                    ...tablesData.filter(t => t.created_at).slice(0, 5).map(t => ({
                         id: `table-${t.table_id}`,
                         title: 'Table Added',
                         desc: `Schema "${t.table_name}" was initialized`,
-                        time: t.created_at || new Date().toISOString(),
+                        time: t.created_at,
                         icon: Database,
                         color: 'text-amber-500',
                         bg: 'bg-amber-50'
                     })),
-                    ...leadsData.slice(0, 5).map(l => ({
+                    ...leadsData.filter(l => l.created_at).slice(0, 5).map(l => ({
                         id: `lead-${l.record_id}`,
                         title: 'Lead Captured',
                         desc: `New record received in ${recentTables.find(t => t.table_id === l.table_id)?.table_name || 'Table'}`,
-                        time: l.created_at || new Date().toISOString(),
+                        time: l.created_at,
                         icon: Zap,
                         color: 'text-indigo-500',
                         bg: 'bg-indigo-50'
                     })),
                     // Add CRM Activities to the stream
-                    ...(activitiesRes.data?.data || activitiesRes.data || []).slice(0, 10).map(a => {
-                        const type = (a.activity_type || 'task').toLowerCase();
-                        let icon = Flag;
-                        let color = 'text-blue-500';
-                        let bg = 'bg-blue-50';
+                    ...(activitiesRes.data?.data || activitiesRes.data || [])
+                        .filter(a => a.created_at || a.updated_at)
+                        .slice(0, 10)
+                        .map(a => {
+                            const type = (a.activity_type || 'task').toLowerCase();
+                            let icon = Flag;
+                            let color = 'text-blue-500';
+                            let bg = 'bg-blue-50';
 
-                        switch (type) {
-                            case 'call':
-                                icon = Activity;
-                                color = 'text-green-500';
-                                bg = 'bg-green-50';
-                                break;
-                            case 'meeting':
-                                icon = CalendarCheck;
-                                color = 'text-purple-500';
-                                bg = 'bg-purple-50';
-                                break;
-                            case 'email':
-                                icon = Bell;
-                                color = 'text-amber-500';
-                                bg = 'bg-amber-50';
-                                break;
-                        }
+                            switch (type) {
+                                case 'call':
+                                    icon = Activity;
+                                    color = 'text-green-500';
+                                    bg = 'bg-green-50';
+                                    break;
+                                case 'meeting':
+                                    icon = CalendarCheck;
+                                    color = 'text-purple-500';
+                                    bg = 'bg-purple-50';
+                                    break;
+                                case 'email':
+                                    icon = Bell;
+                                    color = 'text-amber-500';
+                                    bg = 'bg-amber-50';
+                                    break;
+                            }
 
-                        return {
-                            id: `activity-${a.activity_id}`,
-                            title: a.title || 'New Activity',
-                            desc: `${type.charAt(0).toUpperCase() + type.slice(1)} assigned to ${userMap[a.assigned_to]?.name || 'User'}`,
-                            time: a.created_at || a.updated_at || new Date().toISOString(),
-                            icon: icon,
-                            color: color,
-                            bg: bg
-                        }
-                    })
+                            return {
+                                id: `activity-${a.activity_id}`,
+                                title: a.title || 'New Activity',
+                                desc: `${type.charAt(0).toUpperCase() + type.slice(1)} assigned to ${userMap[a.assigned_to]?.name || 'User'}`,
+                                time: a.created_at || a.updated_at,
+                                icon: icon,
+                                color: color,
+                                bg: bg
+                            }
+                        })
                 ].sort((a, b) => new Date(b.time) - new Date(a.time)).slice(0, 15)
 
                 // Process Activities
@@ -558,7 +565,7 @@ export default function DashboardPage() {
                                                     <p className="text-[10px] text-muted-foreground line-clamp-1">{activity.desc}</p>
                                                 </div>
                                             </div>
-                                        ))
+                                        ), console.log("activities", activities))
                                     )}
                                 </div>
                             </ScrollArea>
