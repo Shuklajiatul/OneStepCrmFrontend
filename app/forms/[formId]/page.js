@@ -1591,7 +1591,23 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
           }
 
           // Phone/location keep structure
-          if (subField.type === 'phone' || subField.type === 'location') {
+          if (subField.type === 'phone') {
+            // Convert API phone format (countryCode) to form format (country)
+            if (parsedValue && parsedValue.countryCode !== undefined) {
+              let countryCode = ''
+              if (phoneCountries && Array.isArray(phoneCountries)) {
+                const phoneCountry = phoneCountries.find(c => c.dial === parsedValue.countryCode)
+                countryCode = phoneCountry?.code || ''
+              }
+              return {
+                country: countryCode,
+                number: parsedValue.number || ''
+              }
+            }
+            return parsedValue
+          }
+
+          if (subField.type === 'location') {
             return parsedValue
           }
 
