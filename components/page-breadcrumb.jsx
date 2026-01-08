@@ -153,9 +153,9 @@ export function PageBreadcrumb({ customItems = null, className = "" }) {
                         </BreadcrumbLink>
                     </BreadcrumbItem>
 
-                    {history.map((item, index) => {
+                    {(customItems || history).map((item, index) => {
                         if (item.href === "/dashboard" || item.href === "/") return null
-                        const isLast = index === history.length - 1
+                        const isLast = index === (customItems || history).length - 1
 
                         return (
                             <React.Fragment key={index}>
@@ -163,7 +163,10 @@ export function PageBreadcrumb({ customItems = null, className = "" }) {
                                 <BreadcrumbItem>
                                     {!isLast ? (
                                         <BreadcrumbLink asChild>
-                                            <Link href={item.href}>
+                                            <Link
+                                                href={item.href || "#"}
+                                                onClick={item.onClick}
+                                            >
                                                 {item.label}
                                             </Link>
                                         </BreadcrumbLink>
