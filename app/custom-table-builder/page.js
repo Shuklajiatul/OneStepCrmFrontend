@@ -6,21 +6,45 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, Save, X, Trash2, Settings, Type, Hash, Calendar, CheckSquare, Database, Mail, Phone, Users, FileText, List, Calculator, User, Sparkles, GripVertical, Loader2, ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from "lucide-react"
+import { Plus, Edit, Save, X, Trash2, Settings, Settings2, Type, Hash, Calendar, CheckSquare, Database, Mail, Phone, Users, FileText, List, Calculator, User, Sparkles, GripVertical, Loader2, ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, MoreHorizontal, Columns, Maximize2, Minimize2, MapPin, Box, Filter, MoreVertical, Check, ChevronsUpDown, Info, LayoutTemplate, UserPlus, Table as TableIcon, Download, History, Eye, ChevronDown } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { toast } from "sonner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { cn } from "@/lib/utils"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
+import { v4 as uuidv4 } from 'uuid'
+import { ColumnConfigPanel } from "./column-config-panel"
 import { authUtils } from "@/lib/auth-utils"
 import { recordsApi, datatablesApi } from "@/lib/api-endpoint" // Added recordsApi
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
+import { fetchPhoneCountries, fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import {
   DndContext,
   closestCenter,
@@ -41,27 +65,29 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 
 
+
 const columnTypes = [
   // Essential Types
-  { value: "text", label: "Text", icon: Type, category: "essential" },
+  { value: "text", label: "Text Input", icon: Type, category: "essential" },
   { value: "email", label: "Email", icon: Mail, category: "essential" },
   { value: "number", label: "Number", icon: Hash, category: "essential" },
   { value: "textarea", label: "Textarea", icon: FileText, category: "essential" },
-  { value: "formula", label: "Formula", icon: Calculator, category: "essential" },
-  { value: "status", label: "Status", icon: CheckSquare, category: "essential" },
-  { value: "file", label: "File", icon: FileText, category: "essential" },
 
-  // Super Useful Types
-  { value: "date", label: "Date", icon: Calendar, category: "super-useful" },
-  { value: "datetime", label: "DateTime", icon: Calendar, category: "super-useful" },
-  { value: "phone", label: "Phone", icon: Phone, category: "super-useful" },
-  { value: "checkbox", label: "Checkbox", icon: CheckSquare, category: "super-useful" },
+  // Professional Types (Super Useful)
   { value: "select", label: "Select", icon: List, category: "super-useful" },
+  { value: "checkbox", label: "Checkbox", icon: CheckSquare, category: "super-useful" },
   { value: "radio", label: "Radio", icon: CheckSquare, category: "super-useful" },
-  { value: "people", label: "People", icon: Users, category: "super-useful" },
-  { value: "dropdown", label: "Dropdown", icon: List, category: "super-useful" },
-  { value: "custom", label: "Custom Type", icon: Sparkles, category: "custom" },
+  { value: "file", label: "File Upload", icon: FileText, category: "super-useful" },
+  { value: "datetime", label: "Date Time", icon: Calendar, category: "super-useful" },
+  { value: "phone", label: "Phone Number", icon: Phone, category: "super-useful" },
+
+  // Custom Types
+  { value: "location", label: "Location", icon: MapPin, category: "custom" },
 ]
+
+const essentialTypes = columnTypes.filter(t => t.category === "essential")
+const superUsefulTypes = columnTypes.filter(t => t.category === "super-useful")
+const customTypes = columnTypes.filter(t => t.category === "custom")
 
 
 const parseOptionalValuesArray = (optionalValuesInput) => {
@@ -97,6 +123,7 @@ const getColumnFieldType = (column) => {
     column.properties?.field_type ||
     column.parentDatatype || // Use the mapped parentDatatype
     column.parent_datatype ||
+    column.data_type || // Include data_type for datetime/date support
     column.type || // fallback to mapped UI type
     'text'
   )
@@ -245,13 +272,36 @@ function TableSettingsDialog({ table, open, onOpenChange, onUpdate }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Badge
-                variant={isActive ? "default" : "secondary"}
-                className="cursor-pointer"
-                onClick={() => setIsActive(!isActive)}
-              >
-                {isActive ? "Active" : "Inactive"}
-              </Badge>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Badge
+                    variant={isActive ? "default" : "secondary"}
+                    className="cursor-pointer hover:opacity-80"
+                  >
+                    {isActive ? "Active" : "Inactive"}
+                  </Badge>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Change Table Status?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to {isActive ? "deactivate" : "activate"} the table
+                      <span className="font-semibold text-foreground mx-1">"{name}"</span>?
+                      {isActive
+                        ? " Deactivating it will hide it from users."
+                        : " Activating it will make it visible to users again."}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => setIsActive(!isActive)}
+                    >
+                      {isActive ? "Deactivate" : "Activate"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </div>
@@ -268,7 +318,7 @@ function TableSettingsDialog({ table, open, onOpenChange, onUpdate }) {
 }
 
 // Sortable Table Component
-function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddRow, currentTable, onUpdateColumns, onUpdateTables, tables, setTables, onToggleStatus, loading, onUpdateTableDetails, onFetchRecords, records }) {
+function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddRow, currentTable, onUpdateColumns, onUpdateTables, tables, setTables, onToggleStatus, loading, onUpdateTableDetails, onFetchRecords, records, countries }) {
   const {
     attributes,
     listeners,
@@ -279,6 +329,8 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
   } = useSortable({ id: table.id })
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // -- Record Creation State (Lifted from TableContent) --
   const [isAddRecordDialogOpen, setIsAddRecordDialogOpen] = useState(false)
@@ -295,7 +347,9 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
       } else if (fieldType === 'select' || fieldType === 'radio') {
         initialFormState[column.id] = { value: '', nestedValues: {} }
       } else if (fieldType === 'phone') {
-        initialFormState[column.id] = { countryCode: '', number: '' }
+        initialFormState[column.id] = { countryCode: column.validation?.defaultCountry || '+91', number: '' }
+      } else if (fieldType === 'location') {
+        initialFormState[column.id] = { country: undefined, state: undefined, city: undefined }
       } else {
         initialFormState[column.id] = ''
       }
@@ -349,12 +403,25 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
       const pIds = authUtils.getPIds()
 
       const fieldValues = {}
-      table.columns.forEach(column => {
-        const payloadValue = buildFieldValuePayload(column, recordFormData[column.id])
+      for (const column of table.columns) {
+        const value = recordFormData[column.id]
+        if (value === null || value === undefined) continue
+
+        const fieldType = getColumnFieldType(column)
+
+        // Location specific handling
+        if (fieldType === 'location') {
+          if (value.country) {
+            fieldValues[column.id] = buildFieldValuePayload(column, value)
+          }
+          continue
+        }
+
+        const payloadValue = buildFieldValuePayload(column, value)
         if (payloadValue !== null) {
           fieldValues[column.id] = payloadValue
         }
-      })
+      }
 
       const payload = {
         g_id: gId || (gIds && gIds[0]),
@@ -391,15 +458,36 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
         ? (storedValue?.value || '')
         : (typeof storedValue === 'object' ? JSON.stringify(storedValue) : String(storedValue || ''))
 
+      // Location
+      if (fieldType === 'location') {
+        const locationVal = typeof storedValue === 'object' && storedValue !== null ? storedValue : {}
+        return (
+          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1' : ''} space-y-2`}>
+            <Label className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              {fieldName}
+            </Label>
+            <LocationPicker
+              value={locationVal}
+              onChange={val => handleRecursiveFieldChange(fieldId, val, path)}
+              validation={field.validation || {}}
+            />
+          </div>
+        )
+      }
+
       // Phone
       if (fieldType === 'phone') {
+        const phoneData = typeof storedValue === 'object' && storedValue !== null
+          ? { countryCode: storedValue.countryCode || field.validation?.defaultCountry || '+91', number: storedValue.number || '' }
+          : { countryCode: field.validation?.defaultCountry || '+91', number: storedValue || '' }
         return (
           <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1' : ''} space-y-2`}>
             <Label>{fieldName}</Label>
-            <Input
-              value={storedValue || ''}
-              onChange={e => handleRecursiveFieldChange(fieldId, e.target.value, path)}
-              placeholder="Enter phone"
+            <PhoneInput
+              value={phoneData}
+              onChange={val => handleRecursiveFieldChange(fieldId, val, path)}
+              countries={countries}
             />
           </div>
         )
@@ -532,8 +620,56 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
           <Label>{fieldName}</Label>
           {fieldType === 'textarea' ? (
             <Textarea value={primitiveValue} onChange={e => handleRecursiveFieldChange(fieldId, e.target.value, path)} />
+          ) : fieldType === 'number' ? (
+            (() => {
+              // Check if value is outside min/max range
+              const numValue = parseFloat(primitiveValue)
+              const isOutOfRange = primitiveValue && !isNaN(numValue) && (
+                (field.validation?.min !== undefined && numValue < field.validation.min) ||
+                (field.validation?.max !== undefined && numValue > field.validation.max)
+              )
+              return (
+                <div className="space-y-1">
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      value={primitiveValue}
+                      onChange={e => handleRecursiveFieldChange(fieldId, e.target.value, path)}
+                      min={field.validation?.min}
+                      max={field.validation?.max}
+                      onWheel={(e) => e.currentTarget.blur()}
+                      className={`pr-8 ${isOutOfRange ? "border-red-500 text-red-500 placeholder-red-500 focus-visible:ring-red-500" : ""}`}
+                    />
+                    {primitiveValue && (
+                      <button
+                        type="button"
+                        onClick={() => handleRecursiveFieldChange(fieldId, '', path)}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label="Clear input"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  {isOutOfRange && (
+                    <p className="text-xs text-red-500">
+                      {field.validation?.min !== undefined && field.validation?.max !== undefined
+                        ? `Value must be between ${field.validation.min} and ${field.validation.max}`
+                        : field.validation?.min !== undefined
+                          ? `Value must be at least ${field.validation.min}`
+                          : `Value must be at most ${field.validation.max}`
+                      }
+                    </p>
+                  )}
+                </div>
+              )
+            })()
           ) : (
-            <Input value={primitiveValue} onChange={e => handleRecursiveFieldChange(fieldId, e.target.value, path)} type={fieldType === 'number' ? 'number' : 'text'} />
+            <Input
+              value={primitiveValue}
+              onChange={e => handleRecursiveFieldChange(fieldId, e.target.value, path)}
+              type={fieldType === 'email' ? 'email' : fieldType === 'date' ? 'date' : fieldType === 'datetime' ? 'datetime-local' : 'text'}
+            />
           )}
         </div>
       )
@@ -571,61 +707,105 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
             </div>
 
             <div className="flex items-center gap-2">
-              <Badge
-                variant={table.isActive ? "default" : "secondary"}
-                className={`cursor-pointer hover:opacity-80 mr-2 ${loading ? 'opacity-50 pointer-events-none' : ''}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleStatus(table.id, table.isActive);
-                }}
-              >
-                {table.isActive ? "Active" : "Inactive"}
-              </Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onAddColumn}
-              >
-                <Plus className="h-3 w-3" />
-                Add Column
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setIsSettingsOpen(true)}
-                title="Table Settings"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
-              {
-                /* Replaced direct Add Row with Dialog Trigger via onAddRow which now opens dialog */
-              }
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={openAddRecordDialog}
-                className="gap-1 h-8"
-              >
-                <Plus className="h-3 w-3" />
-                Add Record
-              </Button>
-              <Button
-                variant={currentTable?.id === table.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => onTableClick(table)}
-                className="h-8"
-              >
-                {currentTable?.id === table.id ? "Collapse" : "Expand"}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDeleteTable}
-                className="h-8 w-8 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <MoreHorizontal className="h-4 w-4" />
+                    Actions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => setShowStatusConfirm(true)}>
+                    <CheckSquare className="mr-2 h-4 w-4" />
+                    <span>{table.isActive ? "Deactivate" : "Activate"} Table</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onAddColumn}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    <span>Add Column</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>Table Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={openAddRecordDialog}>
+                    <Database className="mr-2 h-4 w-4" />
+                    <span>Add Record</span>
+                  </DropdownMenuItem>
+                  {/* <DropdownMenuItem onClick={() => onTableClick(table)}>
+                    {currentTable?.id === table.id ? (
+                      <>
+                        <Minimize2 className="mr-2 h-4 w-4" />
+                        <span>Collapse View</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="mr-2 h-4 w-4" />
+                        <span>Expand View</span>
+                      </>
+                    )}
+                  </DropdownMenuItem> */}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    <span>Delete Table</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Controlled Dialogs */}
+              <AlertDialog open={showStatusConfirm} onOpenChange={setShowStatusConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Change Table Status?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to {table.isActive ? "deactivate" : "activate"} the table
+                      <span className="font-semibold text-foreground mx-1">"{table.name}"</span>?
+                      {table.isActive
+                        ? " Deactivating it will hide it from users."
+                        : " Activating it will make it visible to users again."}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        onToggleStatus(table.id, table.isActive);
+                        setShowStatusConfirm(false);
+                      }}
+                    >
+                      {table.isActive ? "Deactivate" : "Activate"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete the
+                      table <span className="font-semibold text-foreground">"{table.name}"</span> and all of its records.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        onDeleteTable();
+                        setShowDeleteConfirm(false);
+                      }}
+                      className="bg-red-600 text-white hover:bg-red-700"
+                    >
+                      Delete Table
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </CardHeader>
@@ -640,6 +820,7 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
             onFetchRecords={onFetchRecords}
             onAddRecord={openAddRecordDialog}
             records={records}
+            countries={countries}
           />
         )}
       </Card>
@@ -657,7 +838,7 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
               const fieldValue = recordFormData[column.id]
 
               // Main level render check for recursive types
-              if (fieldType === 'checkbox' || fieldType === 'select' || fieldType === 'radio') {
+              if (fieldType === 'checkbox' || fieldType === 'select' || fieldType === 'radio' || fieldType === 'location') {
                 // Reuse the recursive function for top-level complex fields
                 return renderFormFieldsRecursive([{
                   id: column.id,
@@ -665,6 +846,7 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
                   type: fieldType,
                   options: columnOptions,
                   properties: column.properties,
+                  validation: column.validation,
                   parent_datatype: column.parent_datatype,
                   parentDatatype: column.parentDatatype
                 }], recordFormData, [], 0)
@@ -680,13 +862,64 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
                       onChange={e => handleRecursiveFieldChange(column.id, e.target.value, [])}
                     />
                   ) : fieldType === 'phone' ? (
-                    <div className="grid grid-cols-12 gap-2">
-                      <Input className="col-span-4" placeholder="+91" value={fieldValue?.countryCode || ''} onChange={e => handleRecursiveFieldChange(column.id, { ...(fieldValue || {}), countryCode: e.target.value }, [])} />
-                      <Input className="col-span-8" placeholder="Number" value={fieldValue?.number || ''} onChange={e => handleRecursiveFieldChange(column.id, { ...(fieldValue || {}), number: e.target.value }, [])} />
-                    </div>
+                    <PhoneInput
+                      value={typeof fieldValue === 'object' && fieldValue !== null
+                        ? { countryCode: fieldValue.countryCode || column.validation?.defaultCountry || '+91', number: fieldValue.number || '' }
+                        : { countryCode: column.validation?.defaultCountry || '+91', number: fieldValue || '' }}
+                      onChange={val => handleRecursiveFieldChange(column.id, val, [])}
+                      countries={countries}
+                    />
+                  ) : fieldType === 'number' ? (
+                    (() => {
+                      // Check if value is outside min/max range
+                      const numValue = parseFloat(fieldValue)
+                      const isOutOfRange = fieldValue && !isNaN(numValue) && (
+                        (column.validation?.min !== undefined && numValue < column.validation.min) ||
+                        (column.validation?.max !== undefined && numValue > column.validation.max)
+                      )
+                      return (
+                        <div className="space-y-1">
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              value={fieldValue || ''}
+                              onChange={e => handleRecursiveFieldChange(column.id, e.target.value, [])}
+                              min={column.validation?.min}
+                              max={column.validation?.max}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              className={`pr-8 ${isOutOfRange ? "border-red-500 text-red-500 placeholder-red-500 focus-visible:ring-red-500" : ""}`}
+                            />
+                            {fieldValue && (
+                              <button
+                                type="button"
+                                onClick={() => handleRecursiveFieldChange(column.id, '', [])}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                aria-label="Clear input"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                          {isOutOfRange && (
+                            <p className="text-xs text-red-500">
+                              {column.validation?.min !== undefined && column.validation?.max !== undefined
+                                ? `Value must be between ${column.validation.min} and ${column.validation.max}`
+                                : column.validation?.min !== undefined
+                                  ? `Value must be at least ${column.validation.min}`
+                                  : `Value must be at most ${column.validation.max}`
+                              }
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()
                   ) : (
                     <Input
-                      type={fieldType === 'number' ? 'number' : 'text'}
+                      type={
+                        fieldType === 'email' ? 'email' :
+                          fieldType === 'date' ? 'date' :
+                            fieldType === 'datetime' ? 'datetime-local' : 'text'
+                      }
                       value={fieldValue || ''}
                       onChange={e => handleRecursiveFieldChange(column.id, e.target.value, [])}
                     />
@@ -710,6 +943,105 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
         open={isSettingsOpen}
         onOpenChange={setIsSettingsOpen}
         onUpdate={onUpdateTableDetails}
+      />
+    </div>
+  )
+}
+
+function PhoneInput({ value, onChange, countries }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+
+  const selectedCountry = countries?.find(c => c.dial === value?.countryCode)
+
+  const filteredCountries = (countries || []).filter(c =>
+    c.label.toLowerCase().includes(search.toLowerCase()) ||
+    c.dial.includes(search)
+  )
+
+  return (
+    <div className="flex gap-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-[110px] justify-between h-10 px-3 shrink-0"
+          >
+            <div className="flex items-center gap-2 overflow-hidden">
+              {selectedCountry ? (
+                <>
+                  {selectedCountry.flag ? (
+                    <img src={selectedCountry.flag} alt="" className="w-5 h-3.5 object-cover rounded-sm shrink-0" />
+                  ) : (
+                    <span className="text-lg shrink-0">{selectedCountry.emoji || "🏳️"}</span>
+                  )}
+                  <span className="font-medium truncate">{value?.countryCode || selectedCountry.dial}</span>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground text-xs">{countries?.length === 0 ? "Loading..." : "Select"}</span>
+                </div>
+              )}
+            </div>
+            <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[300px] p-0" align="start">
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Search country..."
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList>
+              {filteredCountries.length === 0 ? (
+                <CommandEmpty>No country found.</CommandEmpty>
+              ) : (
+                <CommandGroup>
+                  <ScrollArea className="h-[250px]">
+                    {filteredCountries.map((country) => (
+                      <CommandItem
+                        key={`${country.code}-${country.dial}`}
+                        onSelect={() => {
+                          onChange({ ...value, countryCode: country.dial })
+                          setOpen(false)
+                          setSearch("")
+                        }}
+                        className="flex items-center justify-between cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          {country.flag ? (
+                            <img src={country.flag} alt="" className="w-5 h-3.5 object-cover rounded-sm shrink-0" />
+                          ) : (
+                            <span className="text-xl">{country.emoji}</span>
+                          )}
+                          <div className="flex flex-col">
+                            <span className="font-medium">{country.label}</span>
+                            <span className="text-xs text-muted-foreground">{country.dial}</span>
+                          </div>
+                        </div>
+                        <Check
+                          className={cn(
+                            "h-4 w-4",
+                            value?.countryCode === country.dial ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                      </CommandItem>
+                    ))}
+                  </ScrollArea>
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      <Input
+        className="flex-1 h-10"
+        placeholder="Phone number"
+        value={value?.number || ''}
+        onChange={e => onChange({ ...value, number: e.target.value })}
       />
     </div>
   )
@@ -759,6 +1091,7 @@ function SortableColumn({ column, table, onUpdate, onDelete, onEditName }) {
         </div>
 
         <ColumnSettings
+          table={table}
           column={column}
           onUpdate={onUpdate}
           onDelete={onDelete}
@@ -769,7 +1102,7 @@ function SortableColumn({ column, table, onUpdate, onDelete, onEditName }) {
 }
 
 // Table Content Component
-function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTables, onFetchRecords, onAddRecord, records }) {
+function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTables, onFetchRecords, onAddRecord, records, countries }) {
   const [activeColumn, setActiveColumn] = useState(null)
 
   const sensors = useSensors(
@@ -835,7 +1168,13 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
 
     // Common renderer logic
     const renderPrimitive = (val) => {
-      if (column.type === 'date' && val) return format(new Date(val), "PPP")
+      if ((column.type === 'date' || column.type === 'datetime') && val) {
+        try {
+          return format(new Date(val), column.type === 'datetime' ? "PPp" : "PPP")
+        } catch (e) {
+          return val
+        }
+      }
       if (column.type === 'status') return <Badge variant={val === "active" ? "default" : "secondary"}>{val || "inactive"}</Badge>
       return val
     }
@@ -851,7 +1190,32 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
         primaryDisplay = findOptionLabel(column.options, primaryVal)
       }
       if (column.type === 'phone' && typeof primaryVal === 'object') {
-        primaryDisplay = primaryVal.number ? `${primaryVal.countryCode || ''} ${primaryVal.number}` : JSON.stringify(primaryVal)
+        const country = countries?.find(c => c.dial === primaryVal.countryCode)
+        const flagSpan = country?.flag ? (
+          <img src={country.flag} alt="" className="w-4 h-3 object-cover rounded-sm inline mr-1" />
+        ) : (
+          <span>{country?.emoji || ''}</span>
+        )
+        primaryDisplay = primaryVal.number ? (
+          <span className="flex items-center gap-1">
+            {flagSpan} {primaryVal.countryCode || ''} {primaryVal.number}
+          </span>
+        ) : JSON.stringify(primaryVal)
+      }
+
+      if (column.type === 'location' && typeof primaryVal === 'object' && primaryVal !== null) {
+        const { country, state, city } = primaryVal
+        const parts = [country, state, city].filter(Boolean)
+        primaryDisplay = parts.length > 0 ? (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {parts.map((p, i) => (
+              <Fragment key={i}>
+                <span className="text-sm">{p}</span>
+                {i < parts.length - 1 && <span className="text-muted-foreground">/</span>}
+              </Fragment>
+            ))}
+          </div>
+        ) : "-"
       }
 
       return (
@@ -911,7 +1275,22 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
     if (typeof value === 'object' && value !== null) {
       // Phone literal object
       if (column.type === 'phone') {
-        return value.number ? `${value.countryCode || ''} ${value.number}` : JSON.stringify(value)
+        const country = countries?.find(c => c.dial === value.countryCode)
+        const flagSpan = country?.flag ? (
+          <img src={country.flag} alt="" className="w-4 h-3 object-cover rounded-sm inline mr-1" />
+        ) : (
+          <span>{country?.emoji || ''}</span>
+        )
+        return value.number ? (
+          <span className="flex items-center gap-1">
+            {flagSpan} {value.countryCode || ''} {value.number}
+          </span>
+        ) : JSON.stringify(value)
+      }
+      if (column.type === 'location' && value) {
+        const { country, state, city } = value
+        const parts = [country, state, city].filter(Boolean)
+        return parts.length > 0 ? parts.join(" / ") : "-"
       }
       return JSON.stringify(value)
     }
@@ -945,17 +1324,7 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
                       />
                     ))}
                   </SortableContext>
-                  <TableHead className="w-12 bg-muted/50 border-l border-border">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={onAddRecord}
-                      title="Add row"
-                      className="h-8 w-8"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </TableHead>
+                  {/* Action Column Removed */}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -974,16 +1343,7 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
                         </div>
                       </TableCell>
                     ))}
-                    <TableCell className="w-12 border-l border-border">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteRow(row.id)}
-                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+                    {/* Action Cell Removed */}
                   </TableRow>
                 ))}
               </TableBody>
@@ -1063,8 +1423,40 @@ function EditableColumnName({ column, onSave }) {
   )
 }
 
-function ColumnSettings({ column, onUpdate, onDelete }) {
+function ColumnSettings({ table, column, onUpdate, onDelete }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [localColumn, setLocalColumn] = useState(column)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Reset local state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setLocalColumn(column)
+    }
+  }, [isOpen, column])
+
+  const handleLocalUpdate = (updates) => {
+    setLocalColumn(prev => ({ ...prev, ...updates }))
+  }
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true)
+      const backendData = mapFrontendColumnToBackend(localColumn)
+      const response = await datatablesApi.updateColumn(table.id, column.id, backendData)
+
+      if (response.data && (response.data.success || response.data.status === 'success')) {
+        onUpdate(localColumn)
+        setIsOpen(false)
+        toast.success("Column updated successfully")
+      }
+    } catch (error) {
+      console.error("Error updating column:", error)
+      toast.error("Failed to update column")
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -1077,58 +1469,103 @@ function ColumnSettings({ column, onUpdate, onDelete }) {
           <Settings className="h-3 w-3" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Column Settings</DialogTitle>
+      <DialogContent className="sm:max-w-[90vw] lg:max-w-[1000px] h-[85vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="p-6 border-b">
+          <DialogTitle className="text-xl font-semibold">Column Settings</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm font-medium mb-2 block">Column Type</label>
-            <Select
-              value={column.type}
-              onValueChange={(type) => onUpdate({ type })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {columnTypes.map(type => (
-                  <SelectItem key={type.value} value={type.value}>
-                    <div className="flex items-center gap-2">
-                      <type.icon className="h-4 w-4" />
-                      {type.label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">Editable</label>
-            <input
-              type="checkbox"
-              checked={column.editable}
-              onChange={(e) => onUpdate({ editable: e.target.checked })}
-              className="h-4 w-4"
-            />
-          </div>
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-background/50">
+          <div className="flex-1 overflow-y-auto p-6 lg:p-10 scrollbar-thin">
+            <div className="max-w-2xl mx-auto space-y-8">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Column Type</Label>
+                <Select
+                  value={localColumn.type}
+                  onValueChange={(type) => handleLocalUpdate({ type })}
+                >
+                  <SelectTrigger className="w-full h-11 bg-background border-2 transition-all hover:border-primary/50 focus:border-primary">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {columnTypes.map(t => (
+                      <SelectItem key={t.value} value={t.value}>
+                        <div className="flex items-center gap-3 py-1">
+                          <t.icon className="h-4 w-4 text-primary" />
+                          <span className="font-medium">{t.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="flex justify-between pt-4 border-t">
+              <div className="pt-4 border-t border-dashed">
+                <ColumnConfigPanel
+                  column={localColumn}
+                  onUpdate={handleLocalUpdate}
+                  columnTypes={columnTypes}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t bg-background flex justify-between items-center shadow-lg">
+          <Button
+            variant="outline"
+            onClick={() => setIsOpen(false)}
+            className="h-11 px-6 font-medium"
+            disabled={isSaving}
+          >
+            Cancel
+          </Button>
+          <div className="flex gap-3">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  className="h-11 px-6 font-medium shadow-sm hover:shadow-md transition-shadow"
+                  disabled={isSaving}
+                >
+                  Delete
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Column?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete the column
+                    <span className="font-semibold text-foreground mx-1">"{localColumn.name}"</span>?
+                    This action cannot be undone and will permanently remove this column and all its data from the table.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      onDelete()
+                      setIsOpen(false)
+                    }}
+                    className="bg-red-600 text-white hover:bg-red-700"
+                  >
+                    Delete Column
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button
-              variant="outline"
-              onClick={() => setIsOpen(false)}
+              onClick={handleSave}
+              className="h-11 px-8 font-semibold shadow-md hover:shadow-lg transition-all"
+              disabled={isSaving}
             >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                onDelete()
-                setIsOpen(false)
-              }}
-            >
-              Delete Column
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
             </Button>
           </div>
         </div>
@@ -1258,33 +1695,291 @@ function EditableCell({ value, column, onSave, onCancel }) {
           className="h-8"
         />
       )
-    case "dropdown":
+    case "location":
       return (
-        <Select value={inputValue} onValueChange={setInputValue} onOpenChange={(open) => !open && handleSave()}>
-          <SelectTrigger ref={inputRef} className="h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {column.options?.map((option, index) => (
-              <SelectItem key={index} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="min-w-[300px]">
+          <LocationPicker
+            value={value && typeof value === 'object' && value.hasOwnProperty('value') ? value.value : value}
+            onChange={(val) => {
+              if (value && typeof value === 'object' && value.hasOwnProperty('value')) {
+                onSave({ ...value, value: val })
+              } else {
+                onSave(val)
+              }
+            }}
+            validation={column.validation || {}}
+          />
+        </div>
       )
-    default:
+    case "dropdown":
+    case "select":
       return (
-        <Input
-          ref={inputRef}
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-          className="h-8"
-        />
+        <div className="flex gap-1 items-center w-full">
+          <Select
+            value={inputValue}
+            onValueChange={(val) => {
+              setInputValue(val)
+              // If no nested fields, save immediately. If nested exist, user will probably need to click the gear.
+              const optIdx = column.options?.indexOf(val)
+              if (!column.nestedFields || !column.nestedFields[optIdx] || column.nestedFields[optIdx].length === 0) {
+                onSave(val)
+              }
+            }}
+            onOpenChange={(open) => !open && handleSave()}
+          >
+            <SelectTrigger ref={inputRef} className="h-8 flex-1 truncate">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {column.options?.map((option, index) => (
+                <SelectItem key={index} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {column.nestedFields && column.nestedFields[column.options?.indexOf(inputValue)]?.length > 0 && (
+            <NestedValuesDialog
+              column={column}
+              selectedOption={inputValue}
+              currentValue={value}
+              onSave={onSave}
+            />
+          )}
+        </div>
+      )
+    case "checkbox":
+      return (
+        <div className="flex items-center gap-2 h-8 px-2">
+          <Checkbox
+            checked={!!inputValue}
+            onCheckedChange={(checked) => {
+              setInputValue(checked)
+              onSave(checked)
+            }}
+          />
+          <Label className="text-xs font-normal cursor-pointer" onClick={() => {
+            const newVal = !inputValue
+            setInputValue(newVal)
+            onSave(newVal)
+          }}>
+            {column.name}
+          </Label>
+        </div>
+      )
+    case "radio":
+      return (
+        <div className="space-y-2 p-2 border rounded-md bg-muted/20">
+          <RadioGroup
+            value={inputValue}
+            onValueChange={(val) => {
+              setInputValue(val)
+              onSave(val)
+            }}
+          >
+            {column.options?.map((option, index) => (
+              <div key={index} className="flex items-center space-x-2">
+                <RadioGroupItem value={option} id={`radio-${column.id}-${index}`} />
+                <Label htmlFor={`radio-${column.id}-${index}`} className="text-xs">{option}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+          {column.nestedFields && column.nestedFields[column.options?.indexOf(inputValue)]?.length > 0 && (
+            <div className="mt-2 pt-2 border-t">
+              <NestedValuesDialog
+                column={column}
+                selectedOption={inputValue}
+                currentValue={value}
+                onSave={onSave}
+              />
+            </div>
+          )}
+        </div>
       )
   }
+}
+
+// Reusable Location Picker Component for Custom Table Builder
+function LocationPicker({ value, onChange, validation = {} }) {
+  const [countries, setCountries] = useState([])
+  const [states, setStates] = useState([])
+  const [cities, setCities] = useState([])
+  const [loadingStates, setLoadingStates] = useState(false)
+  const [loadingCities, setLoadingCities] = useState(false)
+  const [open, setOpen] = useState({ country: false, state: false, city: false })
+  const [search, setSearch] = useState({ country: "", state: "", city: "" })
+
+  const current = value || { country: undefined, state: undefined, city: undefined }
+
+  useEffect(() => {
+    const loadCountries = async () => {
+      const data = await fetchCountries()
+      setCountries(data)
+    }
+    loadCountries()
+  }, [])
+
+  useEffect(() => {
+    const loadStates = async () => {
+      if (current.country) {
+        setLoadingStates(true)
+        try {
+          const data = await fetchStates(current.country)
+          setStates(data)
+        } finally {
+          setLoadingStates(false)
+        }
+      } else {
+        setStates([])
+      }
+    }
+    loadStates()
+  }, [current.country])
+
+  useEffect(() => {
+    const loadCities = async () => {
+      if (current.state && current.country) {
+        setLoadingCities(true)
+        try {
+          const data = await fetchCities(current.country, current.state)
+          setCities(data)
+        } finally {
+          setLoadingCities(false)
+        }
+      } else {
+        setCities([])
+      }
+    }
+    loadCities()
+  }, [current.state, current.country])
+
+  const filteredCountries = countries.filter(c => {
+    if (validation.allowedCountries?.length > 0 && !validation.allowedCountries.includes(c.name)) return false
+    return c.name.toLowerCase().includes(search.country.toLowerCase())
+  })
+
+  const filteredStates = states.filter(s => {
+    if (validation.allowedStates?.[current.country]?.length > 0 && !validation.allowedStates[current.country].includes(s.name)) return false
+    return s.name.toLowerCase().includes(search.state.toLowerCase())
+  })
+
+  const filteredCities = cities.filter(c => {
+    if (validation.allowedCities?.[current.state]?.length > 0 && !validation.allowedCities[current.state].includes(c.name)) return false
+    return c.name.toLowerCase().includes(search.city.toLowerCase())
+  })
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      {/* Country Select */}
+      <div className="space-y-1">
+        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Country</Label>
+        <SelectPopover
+          title="Country"
+          open={open.country}
+          setOpen={(o) => setOpen(prev => ({ ...prev, country: o }))}
+          value={current.country}
+          onSelect={(val) => {
+            onChange({ country: val, state: undefined, city: undefined })
+            setOpen(prev => ({ ...prev, country: false, state: true }))
+          }}
+          options={filteredCountries}
+          search={search.country}
+          setSearch={(s) => setSearch(prev => ({ ...prev, country: s }))}
+        />
+      </div>
+
+      {/* State Select */}
+      <div className="space-y-1">
+        <Label className="text-[10px] uppercase font-bold text-muted-foreground">State</Label>
+        <SelectPopover
+          title="State"
+          disabled={!current.country}
+          loading={loadingStates}
+          open={open.state}
+          setOpen={(o) => setOpen(prev => ({ ...prev, state: o }))}
+          value={current.state}
+          onSelect={(val) => {
+            onChange({ ...current, state: val, city: undefined })
+            setOpen(prev => ({ ...prev, state: false, city: true }))
+          }}
+          options={filteredStates}
+          search={search.state}
+          setSearch={(s) => setSearch(prev => ({ ...prev, state: s }))}
+        />
+      </div>
+
+      {/* City Select */}
+      <div className="space-y-1">
+        <Label className="text-[10px] uppercase font-bold text-muted-foreground">City</Label>
+        <SelectPopover
+          title="City"
+          disabled={!current.state}
+          loading={loadingCities}
+          open={open.city}
+          setOpen={(o) => setOpen(prev => ({ ...prev, city: o }))}
+          value={current.city}
+          onSelect={(val) => {
+            onChange({ ...current, city: val })
+            setOpen(prev => ({ ...prev, city: false }))
+          }}
+          options={filteredCities}
+          search={search.city}
+          setSearch={(s) => setSearch(prev => ({ ...prev, city: s }))}
+        />
+      </div>
+    </div>
+  )
+}
+
+function SelectPopover({ title, open, setOpen, value, onSelect, options, search, setSearch, disabled, loading }) {
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          disabled={disabled}
+          className="w-full justify-between h-9 text-xs font-normal bg-background"
+        >
+          <span className="truncate">{value || `Select ${title}...`}</span>
+          {loading ? <Loader2 className="h-3 w-3 animate-spin opacity-50" /> : <ChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder={`Search ${title.toLowerCase()}...`}
+            value={search}
+            onValueChange={setSearch}
+            className="h-8"
+          />
+          <CommandList className="max-h-[200px]">
+            {options.length === 0 ? (
+              <CommandEmpty>No {title.toLowerCase()} found.</CommandEmpty>
+            ) : (
+              <CommandGroup>
+                {options.map((opt) => (
+                  <CommandItem
+                    key={opt.name}
+                    onSelect={() => onSelect(opt.name)}
+                    className="flex items-center justify-between cursor-pointer py-1.5 text-xs"
+                  >
+                    <span className="truncate">{opt.name}</span>
+                    <Check
+                      className={cn(
+                        "h-3.5 w-3.5",
+                        value === opt.name ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function getDefaultValueForType(type) {
@@ -1302,6 +1997,131 @@ function getDefaultValueForType(type) {
     default:
       return ""
   }
+}
+
+function NestedValuesDialog({ column, selectedOption, currentValue, onSave }) {
+  const optionIndex = column.options?.indexOf(selectedOption)
+  const nestedCols = column.nestedFields?.[optionIndex] || []
+  const [nestedValues, setNestedValues] = useState({})
+  const [isOpen, setIsOpen] = useState(false)
+
+  // Sync state when props change or dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      // Only reset/sync if it matches the current selected option
+      if (currentValue?.value === selectedOption) {
+        setNestedValues(currentValue?.nestedValues || {})
+      } else {
+        setNestedValues({})
+      }
+    }
+  }, [isOpen, selectedOption, currentValue])
+
+  if (nestedCols.length === 0) return null
+
+  const handleSave = () => {
+    onSave({
+      value: selectedOption,
+      nestedValues: nestedValues
+    })
+    setIsOpen(false)
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-primary hover:bg-primary/10">
+          <Settings2 className="h-3.5 w-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Details for {selectedOption}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          {nestedCols.map((nestedCol) => (
+            <div key={nestedCol.id} className="space-y-2">
+              <Label>{nestedCol.name}</Label>
+              <EditableCell
+                value={nestedValues[nestedCol.id]}
+                column={nestedCol}
+                onSave={(val) => setNestedValues(prev => ({ ...prev, [nestedCol.id]: val }))}
+                onCancel={() => { }}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
+          <Button onClick={handleSave}>Apply Details</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Helper to recursively convert array-based nested structure (Backend/FormBuilder)
+// to map-based nested structure (CustomTableBuilder UI)
+const processBackendNestedFields = (fieldsArray) => {
+  if (!Array.isArray(fieldsArray)) return []
+
+  return fieldsArray.map(field => {
+    const processedField = {
+      ...field,
+      id: field.id || uuidv4(),
+      // Prioritize human-readable label for UI name
+      name: field.label || field.name || field.column_name,
+      technicalName: field.name, // Preserve technical slug
+      type: field.type || field.data_type || 'text',
+      options: [],
+      nestedFields: {}
+    }
+
+    // Process options
+    if (field.options && Array.isArray(field.options)) {
+      processedField.options = field.options.map((opt, idx) => {
+        const optionValue = typeof opt === 'object' ? (opt.value || opt.label) : opt
+
+        // If option is an object with nestedFields, move them to the parent's map
+        if (typeof opt === 'object' && opt.nestedFields && Array.isArray(opt.nestedFields)) {
+          processedField.nestedFields[idx] = processBackendNestedFields(opt.nestedFields)
+        }
+
+        return optionValue
+      })
+    }
+
+    return processedField
+  })
+}
+
+// Helper to recursively convert map-based nested structure (UI)
+// to array-based nested structure (Backend/FormBuilder)
+const processFrontendNestedFields = (fieldsArray, nestedFieldsMap) => {
+  if (!Array.isArray(fieldsArray)) return []
+
+  return fieldsArray.map((field, fieldIdx) => {
+    const processedField = {
+      ...field,
+      label: field.name, // The UI name is the human-friendly label
+      name: field.technicalName || field.name?.toLowerCase().replace(/\s+/g, '_'), // Restore technical slug or generate one
+      options: (field.options || []).map((opt, optIdx) => {
+        const nestedForOption = nestedFieldsMap?.[optIdx] || field.nestedFields?.[optIdx] || []
+
+        if (nestedForOption.length > 0) {
+          return {
+            value: typeof opt === 'object' ? opt.value : opt,
+            label: typeof opt === 'object' ? opt.label : opt,
+            nestedFields: processFrontendNestedFields(nestedForOption, {})
+          }
+        }
+        return opt
+      })
+    }
+    // Remove the flat nestedFields map from the final object to keep it clean
+    delete processedField.nestedFields
+    return processedField
+  })
 }
 
 const mapBackendTableToFrontend = (backendTable) => ({
@@ -1341,10 +2161,26 @@ const mapBackendTableToFrontend = (backendTable) => ({
       }
     }
 
-    // Ensure options are simple strings for the dropdown if they are objects
-    const simpleOptions = parsedOptions.map(opt =>
-      typeof opt === 'object' ? (opt.label || opt.value || JSON.stringify(opt)) : opt
-    )
+    // Process the hierarchical structure using recursion
+    const initialNestedFields = {}
+    const processedOptions = (parsedOptions || []).map((opt, idx) => {
+      if (typeof opt === 'object' && opt.nestedFields && Array.isArray(opt.nestedFields)) {
+        initialNestedFields[idx] = processBackendNestedFields(opt.nestedFields)
+      }
+      return typeof opt === 'object' ? (opt.label || opt.value) : opt
+    })
+
+    const properties = col.properties || {}
+    const propertyNestedFieldsMap = typeof properties.nestedFields === 'string'
+      ? JSON.parse(properties.nestedFields)
+      : (properties.nestedFields || {})
+
+    // Deep merge or combine maps
+    const combinedNestedFieldsMap = { ...initialNestedFields, ...propertyNestedFieldsMap }
+
+    const validation = typeof properties.validation === 'string'
+      ? JSON.parse(properties.validation)
+      : (properties.validation || {})
 
     return {
       id: col.column_id || col.id,
@@ -1352,11 +2188,13 @@ const mapBackendTableToFrontend = (backendTable) => ({
       type: uiType,
       editable: true,
       isSearchable: col.is_searchable ?? true,
-      options: simpleOptions,
-      rawOptions: parsedOptions, // Keep raw options for advanced usage usually
+      options: processedOptions,
+      rawOptions: parsedOptions,
       required: col.required ?? false,
-      properties: col.properties || {},
-      parentDatatype: col.parent_datatype // Store original parent type
+      properties: properties,
+      nestedFields: combinedNestedFieldsMap,
+      validation: validation,
+      parentDatatype: col.parent_datatype
     }
   }),
   createdAt: backendTable.created_at || backendTable.createdAt || new Date().toISOString(),
@@ -1400,27 +2238,57 @@ const mapBackendRecordsToFrontend = (records, columns) => {
   })
 }
 
-const mapFrontendColumnToBackend = (column) => ({
-  column_name: column.name,
-  data_type: column.type,
-  is_searchable: column.isSearchable ?? true,
-  properties: column.properties || {},
-  optional_values: column.options || [],
-  required: column.required ?? false
-})
+const mapFrontendColumnToBackend = (column) => {
+  // Recursively process options to embed nested fields (Form Builder Style)
+  const consolidatedOptions = (column.options || []).map((opt, idx) => {
+    const nestedForThisOption = column.nestedFields?.[idx] || []
+    if (nestedForThisOption.length > 0) {
+      return {
+        value: typeof opt === 'object' ? opt.value : opt,
+        label: typeof opt === 'object' ? opt.label : opt,
+        nestedFields: processFrontendNestedFields(nestedForThisOption, {})
+      }
+    }
+    return opt
+  })
+
+  return {
+    column_name: column.name,
+    data_type: column.type,
+    is_searchable: column.isSearchable ?? true,
+    properties: {
+      ...(column.properties || {}),
+      nestedFields: JSON.stringify(column.nestedFields || {}),
+      validation: JSON.stringify(column.validation || {}),
+    },
+    optional_values: consolidatedOptions,
+    required: column.required ?? false
+  }
+}
 
 export default function CustomTableBuilder() {
   const [tables, setTables] = useState([])
   const [currentTable, setCurrentTable] = useState(null)
   const [view, setView] = useState('list') // 'list' | 'edit'
+  const [tableListViewMode, setTableListViewMode] = useState('card') // 'card' | 'list'
   const [isCreatingTable, setIsCreatingTable] = useState(false)
   const [newTableName, setNewTableName] = useState("")
   const [isAddingColumn, setIsAddingColumn] = useState(false)
-  const [newColumnConfig, setNewColumnConfig] = useState({
-    name: "",
+  const [addedColumns, setAddedColumns] = useState([])
+  const [activeColumnIndex, setActiveColumnIndex] = useState(0)
+
+  const createDefaultColumn = () => ({
+    id: uuidv4(),
+    name: "New Column",
     type: "text",
-    options: []
+    options: [],
+    required: false,
+    isSearchable: true,
+    properties: {},
+    validation: {},
+    nestedFields: {}
   })
+
   const [loading, setLoading] = useState(false)
 
   // Pagination State
@@ -1428,6 +2296,17 @@ export default function CustomTableBuilder() {
   const [tablesRowsPerPage, setTablesRowsPerPage] = useState(10)
   const [totalTables, setTotalTables] = useState(0)
   const [tablesSearch, setTablesSearch] = useState("")
+
+  const [records, setRecords] = useState([])
+  const [countries, setCountries] = useState([])
+
+  useEffect(() => {
+    const loadCountries = async () => {
+      const data = await fetchPhoneCountries()
+      setCountries(data)
+    }
+    loadCountries()
+  }, [])
 
   const [recordsPage, setRecordsPage] = useState(1)
   const [recordsRowsPerPage, setRecordsRowsPerPage] = useState(10)
@@ -1449,11 +2328,7 @@ export default function CustomTableBuilder() {
   const fetchTables = async () => {
     setLoading(true)
     try {
-      const response = await datatablesApi.getAll({
-        page: tablesPage,
-        limit: tablesRowsPerPage,
-        search: tablesSearch
-      })
+      const response = await datatablesApi.getAll({})
       if (response.data && (response.data.success === true || response.data.status === 'success')) {
         const responseData = response.data.data
         const meta = response.data.meta || {}
@@ -1555,17 +2430,15 @@ export default function CustomTableBuilder() {
   const openAddColumnModal = (table = currentTable) => {
     if (!table) return
     setCurrentTable(table)
-    setNewColumnConfig({
-      name: "",
-      type: "text",
-      options: []
-    })
+    setAddedColumns([createDefaultColumn()])
+    setActiveColumnIndex(0)
     setIsAddingColumn(true)
   }
 
   const addColumn = async () => {
-    if (!newColumnConfig.name.trim()) {
-      toast.error("Please enter a column name")
+    const invalidColumn = addedColumns.find(col => !col.name.trim())
+    if (invalidColumn) {
+      toast.error("Please enter a name for all columns")
       return
     }
 
@@ -1574,30 +2447,46 @@ export default function CustomTableBuilder() {
 
     try {
       setLoading(true)
-      const columnData = mapFrontendColumnToBackend({
-        name: newColumnConfig.name.trim(),
-        type: newColumnConfig.type,
-        options: newColumnConfig.options
-      })
+      const columnsData = addedColumns.map(mapFrontendColumnToBackend)
 
-      const response = await datatablesApi.addColumn(targetTable.id, [columnData])
+      const response = await datatablesApi.addColumn(targetTable.id, columnsData)
 
       if (response.data && (response.data.success === true || response.data.status === 'success')) {
-        const tableRes = await datatablesApi.getById(targetTable.id)
+        const [tableRes, columnsRes] = await Promise.all([
+          datatablesApi.getById(targetTable.id),
+          datatablesApi.getColumns(targetTable.id)
+        ])
+
         if (tableRes.data && (tableRes.data.success === true || tableRes.data.status === 'success')) {
-          const updatedTable = mapBackendTableToFrontend(tableRes.data.data)
+          let backendTable = tableRes.data.data
+
+          if (columnsRes.data && (columnsRes.data.success === true || columnsRes.data.status === 'success')) {
+            backendTable = { ...backendTable, columns: columnsRes.data.data }
+          }
+
+          const fetchedTable = mapBackendTableToFrontend(backendTable)
+          // Preserve existing rows to prevent them from disappearing immediately
+          // The new column will just be missing from the cells until we fetch or edit, which renderCell handles
+          const updatedTable = {
+            ...fetchedTable,
+            rows: targetTable.rows || []
+          }
+
           const updatedTables = tables.map(table =>
             table.id === targetTable.id ? updatedTable : table
           )
           setTables(updatedTables)
           setCurrentTable(updatedTable)
           setIsAddingColumn(false)
-          toast.success("Column added successfully!")
+          toast.success(`${addedColumns.length} column(s) added successfully!`)
+
+          // Refresh records to ensure we have the latest structure/defaults if any
+          fetchRecords(targetTable.id)
         }
       }
     } catch (error) {
-      console.error("Error adding column:", error)
-      toast.error("Failed to add column")
+      console.error("Error adding columns:", error)
+      toast.error("Failed to add columns")
     } finally {
       setLoading(false)
     }
@@ -1734,6 +2623,10 @@ export default function CustomTableBuilder() {
         setTables(updatedTables)
         if (currentTable?.id === tableId) {
           setCurrentTable({ ...currentTable, isActive: !currentStatus })
+          // Refetch records if activating the table to clear cached 410 responses
+          if (!currentStatus) {
+            fetchRecords(tableId)
+          }
         }
         toast.success(`Table ${!currentStatus ? 'activated' : 'deactivated'}`)
       }
@@ -1786,11 +2679,7 @@ export default function CustomTableBuilder() {
   const fetchRecords = async (tableId) => {
     if (!tableId) return
     try {
-      const response = await recordsApi.getAll(tableId, {
-        page: recordsPage,
-        limit: recordsRowsPerPage,
-        search: recordsSearch
-      })
+      const response = await recordsApi.getAll(tableId, {})
 
       if (response.data && (response.data.success === true || response.data.status === 'success')) {
         const responseData = response.data.data
@@ -1894,6 +2783,7 @@ export default function CustomTableBuilder() {
             onClick: (e) => {
               e.preventDefault()
               setView('list')
+              setCurrentTable(null)
             }
           },
           { label: currentTable?.name || "Table Details" }
@@ -1909,24 +2799,45 @@ export default function CustomTableBuilder() {
 
         <div className="flex items-center gap-2">
           {view === 'list' && (
-            <div className="relative w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search tables..."
-                value={tablesSearch}
-                onChange={(e) => setTablesSearch(e.target.value)}
-                className="pl-8 pr-8"
-              />
-              {tablesSearch && (
-                <X
-                  className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setTablesSearch("")
-                  }}
+            <>
+              <div className="relative w-64">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search tables..."
+                  value={tablesSearch}
+                  onChange={(e) => setTablesSearch(e.target.value)}
+                  className="pl-8 pr-8"
                 />
-              )}
-            </div>
+                {tablesSearch && (
+                  <X
+                    className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setTablesSearch("")
+                    }}
+                  />
+                )}
+              </div>
+
+              <div className="flex items-center border rounded-md">
+                <Button
+                  variant={tableListViewMode === 'card' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-r-none"
+                  onClick={() => setTableListViewMode('card')}
+                >
+                  <LayoutTemplate className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={tableListViewMode === 'list' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-l-none"
+                  onClick={() => setTableListViewMode('list')}
+                >
+                  <TableIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </>
           )}
 
           <Dialog open={isCreatingTable} onOpenChange={setIsCreatingTable}>
@@ -1971,42 +2882,93 @@ export default function CustomTableBuilder() {
       {
         view === 'list' ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {(tables.length > tablesRowsPerPage ? tables.slice((tablesPage - 1) * tablesRowsPerPage, tablesPage * tablesRowsPerPage) : tables).map(table => (
-                <Card
-                  key={table.id}
-                  className="hover:border-primary cursor-pointer transition-colors group relative"
-                  onClick={() => handleSelectTable(table)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Database className="h-5 w-5 text-primary" />
+            {tableListViewMode === 'card' ? (
+              // Card View (existing)
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(tables.length > tablesRowsPerPage ? tables.slice((tablesPage - 1) * tablesRowsPerPage, tablesPage * tablesRowsPerPage) : tables).map(table => (
+                  <Card
+                    key={table.id}
+                    className="hover:border-primary cursor-pointer transition-colors group relative"
+                    onClick={() => handleSelectTable(table)}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-primary/10 rounded-lg">
+                            <Database className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-lg">{table.name}</CardTitle>
+                            <p className="text-sm text-muted-foreground">{table.columns.length} columns</p>
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle className="text-lg">{table.name}</CardTitle>
-                          <p className="text-sm text-muted-foreground">{table.columns.length} columns</p>
-                        </div>
+                        <Badge variant={table.isActive ? "default" : "secondary"}>
+                          {table.isActive ? "Active" : "Inactive"}
+                        </Badge>
                       </div>
-                      <Badge variant={table.isActive ? "default" : "secondary"}>
-                        {table.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {table.description || "No description provided"}
-                    </p>
-                    <div className="mt-4 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="sm" className="gap-2">
-                        Manage <ArrowLeft className="h-4 w-4 rotate-180" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {table.description || "No description provided"}
+                      </p>
+                      <div className="mt-4 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="sm" className="gap-2">
+                          Manage <ArrowLeft className="h-4 w-4 rotate-180" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              // List/Table View (new)
+              <div className="border rounded-lg">
+                <Table className="w-full">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40px]"></TableHead>
+                      <TableHead>Table Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-center">Columns</TableHead>
+                      <TableHead className="text-center">Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(tables.length > tablesRowsPerPage ? tables.slice((tablesPage - 1) * tablesRowsPerPage, tablesPage * tablesRowsPerPage) : tables).map(table => (
+                      <TableRow
+                        key={table.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => handleSelectTable(table)}
+                      >
+                        <TableCell>
+                          <div className="p-2 bg-primary/10 rounded-lg inline-flex">
+                            <Database className="h-4 w-4 text-primary" />
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{table.name}</TableCell>
+                        <TableCell className="text-muted-foreground max-w-md truncate">
+                          {table.description || "No description provided"}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline">{table.columns.length}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant={table.isActive ? "default" : "secondary"}>
+                            {table.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" className="gap-2">
+                            Manage <ArrowLeft className="h-4 w-4 rotate-180" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t mt-4">
               <div className="text-sm font-medium text-muted-foreground order-2 sm:order-1">
@@ -2030,7 +2992,10 @@ export default function CustomTableBuilder() {
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-4">
-                <Button variant="ghost" size="sm" onClick={() => setView('list')} className="gap-2">
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setView('list')
+                  setCurrentTable(null)
+                }} className="gap-2">
                   <ArrowLeft className="h-4 w-4" />
                   Back to List
                 </Button>
@@ -2075,8 +3040,8 @@ export default function CustomTableBuilder() {
                 loading={loading}
                 onUpdateTableDetails={updateTableDetails}
                 onFetchRecords={fetchRecords}
-                onFetchRecords={fetchRecords}
                 records={currentTable.rows ? (currentTable.rows.length > recordsRowsPerPage ? currentTable.rows.slice((recordsPage - 1) * recordsRowsPerPage, recordsPage * recordsRowsPerPage) : currentTable.rows) : []}
+                countries={countries}
               />
             </DndContext>
 
@@ -2103,134 +3068,187 @@ export default function CustomTableBuilder() {
 
       {/* Add Column Modal */}
       <Dialog open={isAddingColumn} onOpenChange={setIsAddingColumn}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add New Column</DialogTitle>
+        <DialogContent className="sm:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[1400px] h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-0 border-b pb-4">
+            <div className="flex items-center justify-between">
+              <DialogTitle>Batch Create Columns</DialogTitle>
+              <div className="flex items-center gap-4">
+                <Badge variant="secondary" className="px-3 py-1">
+                  {addedColumns.length} Column(s) Pending
+                </Badge>
+              </div>
+            </div>
           </DialogHeader>
-          <div className="space-y-6">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Column Name</label>
-              <Input
-                value={newColumnConfig.name}
-                onChange={(e) => setNewColumnConfig({ ...newColumnConfig, name: e.target.value })}
-                placeholder="Enter column name"
-              />
-            </div>
 
-            <div>
-              <label className="text-sm font-medium mb-3 block">Column Type</label>
-
-              {/* Essential Types */}
-              <div className="mb-6">
-                <h4 className="text-sm font-medium mb-3 text-muted-foreground">Essential Types</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {essentialTypes.map(type => (
-                    <Button
-                      key={type.value}
-                      variant={newColumnConfig.type === type.value ? "default" : "outline"}
-                      className="justify-start h-auto py-3 px-4"
-                      onClick={() => setNewColumnConfig({ ...newColumnConfig, type: type.value })}
-                    >
-                      <type.icon className="h-4 w-4 mr-2" />
-                      {type.label}
-                    </Button>
-                  ))}
-                </div>
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left Sidebar - List of columns being added */}
+            <div className="w-[300px] border-r bg-muted/20 flex flex-col">
+              <div className="p-4 border-b bg-background/50 flex items-center justify-between">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Columns to Add</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5"
+                  onClick={() => {
+                    const newList = [...addedColumns, createDefaultColumn()]
+                    setAddedColumns(newList)
+                    setActiveColumnIndex(newList.length - 1)
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Another
+                </Button>
               </div>
-
-              {/* Super Useful Types */}
-              <div className="mb-6">
-                <h4 className="text-sm font-medium mb-3 text-muted-foreground">Super Useful</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {superUsefulTypes.map(type => (
-                    <Button
-                      key={type.value}
-                      variant={newColumnConfig.type === type.value ? "default" : "outline"}
-                      className="justify-start h-auto py-3 px-4"
-                      onClick={() => setNewColumnConfig({ ...newColumnConfig, type: type.value })}
-                    >
-                      <type.icon className="h-4 w-4 mr-2" />
-                      {type.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Custom Types */}
-              <div>
-                <h4 className="text-sm font-medium mb-3 text-muted-foreground">Custom</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {customTypes.map(type => (
-                    <Button
-                      key={type.value}
-                      variant={newColumnConfig.type === type.value ? "default" : "outline"}
-                      className="justify-start h-auto py-3 px-4"
-                      onClick={() => setNewColumnConfig({ ...newColumnConfig, type: type.value })}
-                    >
-                      <type.icon className="h-4 w-4 mr-2" />
-                      {type.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Additional Options based on type */}
-            {(newColumnConfig.type === "dropdown" || newColumnConfig.type === "status") && (
-              <div>
-                <label className="text-sm font-medium mb-2 block">
-                  {newColumnConfig.type === "dropdown" ? "Dropdown Options" : "Status Options"}
-                </label>
-                <div className="space-y-2">
-                  {newColumnConfig.options.map((option, index) => (
-                    <div key={index} className="flex gap-2">
-                      <Input
-                        value={option}
-                        onChange={(e) => {
-                          const newOptions = [...newColumnConfig.options]
-                          newOptions[index] = e.target.value
-                          setNewColumnConfig({ ...newColumnConfig, options: newOptions })
-                        }}
-                        placeholder={`Option ${index + 1}`}
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          const newOptions = newColumnConfig.options.filter((_, i) => i !== index)
-                          setNewColumnConfig({ ...newColumnConfig, options: newOptions })
-                        }}
+              <ScrollArea className="flex-1">
+                <div className="p-2 space-y-1">
+                  {addedColumns.map((col, idx) => {
+                    const typeInfo = columnTypes.find(t => t.value === col.type) || columnTypes[0]
+                    return (
+                      <div
+                        key={col.id}
+                        className={`group flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${activeColumnIndex === idx
+                          ? "bg-primary text-primary-foreground shadow-md"
+                          : "hover:bg-muted"
+                          }`}
+                        onClick={() => setActiveColumnIndex(idx)}
                       >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    variant="outline"
-                    onClick={() => setNewColumnConfig({
-                      ...newColumnConfig,
-                      options: [...newColumnConfig.options, ""]
-                    })}
-                    className="gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Option
-                  </Button>
-                </div>
-              </div>
-            )}
+                        <typeInfo.icon className={`h-4 w-4 shrink-0 ${activeColumnIndex === idx ? "" : "text-muted-foreground"}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{col.name || 'Untitled'}</p>
+                          <p className={`text-[10px] ${activeColumnIndex === idx ? "opacity-80" : "text-muted-foreground"}`}>{typeInfo.label}</p>
+                        </div>
+                        {addedColumns.length > 1 && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className={`h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity ${activeColumnIndex === idx ? "hover:bg-white/20 text-white" : "hover:bg-destructive/10 text-destructive"
+                              }`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              const newList = addedColumns.filter((_, i) => i !== idx)
+                              setAddedColumns(newList)
+                              setActiveColumnIndex(Math.max(0, idx - 1))
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div >
+              </ScrollArea >
+            </div >
 
-            <div className="flex gap-2 justify-end pt-4">
-              <Button variant="outline" onClick={() => setIsAddingColumn(false)}>
-                Cancel
-              </Button>
-              <Button onClick={addColumn}>
-                Add Column
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+            {/* Right Side - Active Column Configuration */}
+            {
+              addedColumns[activeColumnIndex] && (
+                <div className="flex-1 flex flex-col bg-background">
+                  <div className="flex-1 flex overflow-hidden">
+                    {/* Sub-sidebar for Type Selection */}
+                    <div className="w-[280px] border-r bg-muted/10 p-4 overflow-y-auto">
+                      <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-4">Choose Field Type</h4>
+                      <div className="space-y-6">
+                        <div>
+                          <p className="text-[10px] text-muted-foreground mb-2 px-2">ESSENTIAL</p>
+                          <div className="grid grid-cols-1 gap-1">
+                            {essentialTypes.map(type => (
+                              <Button
+                                key={type.value}
+                                variant={addedColumns[activeColumnIndex].type === type.value ? "default" : "ghost"}
+                                className="justify-start h-9 px-3 text-xs"
+                                onClick={() => {
+                                  const newList = [...addedColumns]
+                                  newList[activeColumnIndex] = { ...newList[activeColumnIndex], type: type.value }
+                                  setAddedColumns(newList)
+                                }}
+                              >
+                                <type.icon className="h-3.5 w-3.5 mr-2" />
+                                {type.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground mb-2 px-2">PROFESSIONAL</p>
+                          <div className="grid grid-cols-1 gap-1">
+                            {superUsefulTypes.map(type => (
+                              <Button
+                                key={type.value}
+                                variant={addedColumns[activeColumnIndex].type === type.value ? "default" : "ghost"}
+                                className="justify-start h-9 px-3 text-xs"
+                                onClick={() => {
+                                  const newList = [...addedColumns]
+                                  newList[activeColumnIndex] = { ...newList[activeColumnIndex], type: type.value }
+                                  setAddedColumns(newList)
+                                }}
+                              >
+                                <type.icon className="h-3.5 w-3.5 mr-2" />
+                                {type.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-muted-foreground mb-2 px-2">CUSTOM</p>
+                          <div className="grid grid-cols-1 gap-1">
+                            {customTypes.map(type => (
+                              <Button
+                                key={type.value}
+                                variant={addedColumns[activeColumnIndex].type === type.value ? "default" : "ghost"}
+                                className="justify-start h-9 px-3 text-xs"
+                                onClick={() => {
+                                  const newList = [...addedColumns]
+                                  newList[activeColumnIndex] = { ...newList[activeColumnIndex], type: type.value }
+                                  setAddedColumns(newList)
+                                }}
+                              >
+                                <type.icon className="h-3.5 w-3.5 mr-2" />
+                                {type.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Main Config Area */}
+                    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-background/50">
+                      <div className="flex-1 overflow-y-auto p-8 lg:p-12 scrollbar-thin">
+                        <div className="max-w-2xl mx-auto">
+                          <div className="mb-6 pb-6 border-b">
+                            <h2 className="text-xl font-bold">Configure {addedColumns[activeColumnIndex].name || 'Column'}</h2>
+                            <p className="text-sm text-muted-foreground mt-1">Set up properties and validation for this field</p>
+                          </div>
+                          <ColumnConfigPanel
+                            column={addedColumns[activeColumnIndex]}
+                            onUpdate={(updates) => {
+                              const newList = [...addedColumns]
+                              newList[activeColumnIndex] = { ...newList[activeColumnIndex], ...updates }
+                              setAddedColumns(newList)
+                            }}
+                            columnTypes={columnTypes}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-4 border-t bg-muted/10 flex justify-end gap-3 px-8">
+                    <Button variant="outline" onClick={() => setIsAddingColumn(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={addColumn} disabled={loading} className="px-8 shadow-lg transition-transform hover:scale-105 active:scale-95">
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Database className="h-4 w-4 mr-2" />}
+                      Create {addedColumns.length} Column(s)
+                    </Button>
+                  </div>
+                </div>
+              )
+            }
+          </div >
+        </DialogContent >
+      </Dialog >
 
       {/* Empty State */}
       {
