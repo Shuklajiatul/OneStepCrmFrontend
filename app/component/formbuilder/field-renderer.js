@@ -88,7 +88,7 @@ const useLocationData = (currentValue, validation = {}) => {
 
         try {
           setLoadingStates(true)
-          const statesData = await fetchStates(selectedCountry.id)
+          const statesData = await fetchStates(selectedCountry.name)
           setStates(statesData)
           if (statesData.length === 0) {
             setApiError(`No states available for selected country`)
@@ -118,8 +118,8 @@ const useLocationData = (currentValue, validation = {}) => {
         const selectedState = states.find(s => s.name === currentValue.state)
         const selectedCountry = countries.find(c => c.name === currentValue.country)
 
-        if (validation.allowedStates && selectedCountry) {
-          if (!selectedState || !validation.allowedStates[selectedCountry.name]?.includes(selectedState.name)) {
+        if (validation.allowedStates && selectedCountry && validation.allowedStates[selectedCountry.name]?.length > 0) {
+          if (!selectedState || !validation.allowedStates[selectedCountry.name].includes(selectedState.name)) {
             setCities([])
             setApiError('Selected state is not allowed')
             return
@@ -128,7 +128,7 @@ const useLocationData = (currentValue, validation = {}) => {
 
         try {
           setLoadingCities(true)
-          const citiesData = await fetchCities(selectedState.id)
+          const citiesData = await fetchCities(selectedCountry.name, selectedState.name)
           setCities(citiesData)
           if (citiesData.length === 0) {
             setApiError(`No cities available for selected state`)
@@ -230,8 +230,8 @@ const LocationField = ({ current, validation, onChange, invalid, error, disabled
 
   const locationData = useLocationData(current, validation)
 
-  const handleCountry = (countryId) => {
-    const country = locationData.countries.find(c => c.id === parseInt(countryId))
+  const handleCountry = (countryName) => {
+    const country = locationData.countries.find(c => c.id === countryName)
     const newValue = {
       country: country?.name, // Send only the country name, not ID
       state: undefined,
@@ -241,8 +241,8 @@ const LocationField = ({ current, validation, onChange, invalid, error, disabled
     locationData.setCountryOpen(false)
   }
 
-  const handleState = (stateId) => {
-    const state = locationData.states?.find(s => s.id === parseInt(stateId))
+  const handleState = (stateName) => {
+    const state = locationData.states?.find(s => s.id === stateName)
     const newValue = {
       ...current,
       state: state?.name,
@@ -252,8 +252,8 @@ const LocationField = ({ current, validation, onChange, invalid, error, disabled
     locationData.setStateOpen(false)
   }
 
-  const handleCity = (cityId) => {
-    const city = locationData.cities?.find(c => c.id === parseInt(cityId))
+  const handleCity = (cityName) => {
+    const city = locationData.cities?.find(c => c.id === cityName)
     const newValue = {
       ...current,
       city: city?.name // Send only the city name, not ID
@@ -1714,7 +1714,7 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
         handleNumber(numbersOnly)
       }
 
-      const selectedCountry = phoneCountries.find(c => c.code === country)
+      const selectedCountry = phoneCountries.find(c => c.code === country || (current.countryCode && c.dial === current.countryCode))
 
       return (
         <div className="space-y-2">
@@ -1731,7 +1731,11 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                     <div className="flex items-center gap-2 truncate">
                       {selectedCountry ? (
                         <>
-                          {selectedCountry.emoji}
+                          {selectedCountry.flag ? (
+                            <img src={selectedCountry.flag} alt="" className="w-5 h-3.5 object-cover rounded-sm" />
+                          ) : (
+                            <span className="text-base leading-none">{selectedCountry.emoji}</span>
+                          )}
                           <span className="truncate text-xs">{selectedCountry.dial}</span>
                         </>
                       ) : (
@@ -1767,7 +1771,15 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
                               className={`mr-2 h-4 w-4 ${current.country === country.code ? "opacity-100" : "opacity-0"
                                 }`}
                             />
-                            {country.emoji} {country.label} ({country.dial})
+                            <div className="flex items-center gap-2 w-full">
+                              {country.flag ? (
+                                <img src={country.flag} alt="" className="w-5 h-3.5 object-cover rounded-sm" />
+                              ) : (
+                                <span className="text-base leading-none">{country.emoji}</span>
+                              )}
+                              <span className="flex-1 truncate">{country.label}</span>
+                              <span className="text-muted-foreground ml-auto">{country.dial}</span>
+                            </div>
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -1795,8 +1807,14 @@ const renderNestedFieldInput = (nestedField, value, onChange, disabled, invalid,
             </div>
           </div>
           {!invalid && selectedCountry && (
-            <p className="text-xs text-muted-foreground">
-              Selected: {selectedCountry.emoji} {selectedCountry.label} • Format: {selectedCountry.dial} {selectedCountry.len} digits
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <span>Selected:</span>
+              {selectedCountry.flag ? (
+                <img src={selectedCountry.flag} alt="" className="w-4 h-2.5 object-contain rounded-sm" />
+              ) : (
+                <span>{selectedCountry.emoji}</span>
+              )}
+              <span>{selectedCountry.label} • Format: {selectedCountry.dial} {selectedCountry.len} digits</span>
             </p>
           )}
           {(country || number) && !disabled && (
@@ -2019,8 +2037,8 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
 
         try {
           setLoadingStates(true)
-          // Pass the country ID, not the country name
-          const statesData = await fetchStates(selectedCountry.id)
+          // Pass the country name
+          const statesData = await fetchStates(selectedCountry.name)
           setStates(statesData)
           if (statesData.length === 0) {
             setApiError(`No states available for selected country`)
@@ -2049,7 +2067,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
       if (current.state) {
         // Find the state by name (since current.state contains the state name, not ID)
         const selectedState = states.find(s => s.name === current.state)
-        const selectedCountry = countries.find(c => c.id === parseInt(current.country))
+        const selectedCountry = countries.find(c => c.name === current.country)
 
         if (!selectedState) {
           console.warn('State not found in states list:', current.state)
@@ -2069,8 +2087,8 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
 
         try {
           setLoadingCities(true)
-          // Pass the state ID, not the state name
-          const citiesData = await fetchCities(selectedState.id)
+          // Pass the country name and state name
+          const citiesData = await fetchCities(selectedCountry.name, selectedState.name)
           setCities(citiesData)
           if (citiesData.length === 0) {
             setApiError(`No cities available for selected state`)
@@ -2108,7 +2126,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
   const filteredStates = states.filter(state => {
     // Apply field validation restrictions if they exist
     if (field.type === 'location' && fieldValidation?.allowedStates && value?.country) {
-      const selectedCountry = countries.find(c => c.id === parseInt(value.country))
+      const selectedCountry = countries.find(c => c.name === value.country)
       if (selectedCountry && fieldValidation.allowedStates[selectedCountry.name]) {
         if (!fieldValidation.allowedStates[selectedCountry.name].includes(state.name)) {
           return false
@@ -2123,7 +2141,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
   const filteredCities = cities.filter(city => {
     // Apply field validation restrictions if they exist
     if (field.type === 'location' && fieldValidation?.allowedCities && value?.state) {
-      const selectedState = states.find(s => s.id === parseInt(value.state))
+      const selectedState = states.find(s => s.name === value.state)
       if (selectedState && fieldValidation.allowedCities[selectedState.name]) {
         if (!fieldValidation.allowedCities[selectedState.name].includes(city.name)) {
           return false
@@ -3060,7 +3078,7 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
           handleNumber(numbersOnly)
         }
 
-        const selectedCountry = phoneCountries.find(c => c.code === country)
+        const selectedCountry = phoneCountries.find(c => c.code === country || (current.countryCode && c.dial === current.countryCode))
 
         return (
           <div className="space-y-2">
@@ -3077,7 +3095,11 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                       <div className="flex items-center gap-2 truncate">
                         {selectedCountry ? (
                           <>
-                            {selectedCountry.emoji}
+                            {selectedCountry.flag ? (
+                              <img src={selectedCountry.flag} alt="" className="w-5 h-3.5 object-cover rounded-sm" />
+                            ) : (
+                              <span className="text-base leading-none">{selectedCountry.emoji}</span>
+                            )}
                             <span className="truncate text-xs">{selectedCountry.dial}</span>
                           </>
                         ) : (
@@ -3113,7 +3135,15 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
                                 className={`mr-2 h-4 w-4 ${current.country === country.code ? "opacity-100" : "opacity-0"
                                   }`}
                               />
-                              {country.emoji} {country.label} ({country.dial})
+                              <div className="flex items-center gap-2 w-full">
+                                {country.flag ? (
+                                  <img src={country.flag} alt="" className="w-5 h-3.5 object-cover rounded-sm" />
+                                ) : (
+                                  <span className="text-base leading-none">{country.emoji}</span>
+                                )}
+                                <span className="flex-1 truncate">{country.label}</span>
+                                <span className="text-muted-foreground ml-auto">{country.dial}</span>
+                              </div>
                             </CommandItem>
                           ))}
                         </CommandGroup>
@@ -3154,8 +3184,14 @@ export function FieldRenderer({ field, value, onChange, disabled = false, invali
               </div>
             )}
             {!invalid && selectedCountry && (
-              <p className="text-xs text-muted-foreground">
-                Selected: {selectedCountry.emoji} {selectedCountry.label} • Format: {selectedCountry.dial} {selectedCountry.len} digits
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span>Selected:</span>
+                {selectedCountry.flag ? (
+                  <img src={selectedCountry.flag} alt="" className="w-4 h-2.5 object-contain rounded-sm" />
+                ) : (
+                  <span>{selectedCountry.emoji}</span>
+                )}
+                <span>{selectedCountry.label} • Format: {selectedCountry.dial} {selectedCountry.len} digits</span>
               </p>
             )}
             {!invalid && !selectedCountry && (

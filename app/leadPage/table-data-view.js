@@ -40,6 +40,8 @@ import {
   ArrowUpDown,
   ChevronUp,
   ChevronDown,
+  Check,
+  Loader2,
   X
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
@@ -52,6 +54,8 @@ import { authUtils } from '@/lib/auth-utils'
 import { usersApi, datatablesApi, recordsApi } from '@/lib/api-endpoint'
 import CreateActivityDialog from "@/components/activities/create-activity-dialog"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
+import { fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
@@ -247,6 +251,18 @@ const normalizeFieldValueForForm = (rawValue, column) => {
       return JSON.stringify(parsedValue)
     }
     return parsedValue ? String(parsedValue) : ''
+  }
+
+  if (fieldType === 'location') {
+    if (parsedValue && typeof parsedValue === 'object') {
+      return parsedValue
+    }
+    // Fallback if it's stringified JSON but didn't parse correctly or is a simple string
+    try {
+      const p = JSON.parse(String(parsedValue))
+      if (p && typeof p === 'object') return p
+    } catch (e) { }
+    return { country: undefined, state: undefined, city: undefined }
   }
 
   if (typeof parsedValue === 'object' && parsedValue !== null && parsedValue.value !== undefined) {
@@ -461,6 +477,24 @@ export default function TableDataView({ table, onBack }) {
         )
       }
 
+      // Location
+      if (fieldType === 'location') {
+        const locationVal = (typeof storedValue === 'object' && storedValue !== null) ? storedValue : { country: undefined, state: undefined, city: undefined }
+        return (
+          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
+            <Label className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">{fieldName}</span>
+            </Label>
+            <LocationPicker
+              value={locationVal}
+              onChange={val => handleRecursiveFieldChange(fieldId, val, path)}
+              validation={field.validation || field.properties?.validation ? (typeof field.properties.validation === 'string' ? JSON.parse(field.properties.validation) : field.properties.validation) : {}}
+            />
+          </div>
+        )
+      }
+
       // Regular inputs
       return (
         <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
@@ -631,6 +665,8 @@ export default function TableDataView({ table, onBack }) {
         initialFormState[column.column_id] = { value: '', nestedValues: {} }
       } else if (fieldType === 'phone') {
         initialFormState[column.column_id] = JSON.stringify({ countryCode: '', number: '' })
+      } else if (fieldType === 'location') {
+        initialFormState[column.column_id] = { country: undefined, state: undefined, city: undefined }
       } else {
         initialFormState[column.column_id] = ''
       }
@@ -973,16 +1009,39 @@ export default function TableDataView({ table, onBack }) {
   }
 
   const formatLocationDisplay = (value) => {
-    const parsed = parseJsonSafely(value)
+    let parsed = null
+    if (value && typeof value === 'object') {
+      parsed = value
+    } else {
+      parsed = parseJsonSafely(value)
+    }
+
     if (parsed && typeof parsed === 'object') {
-      const title = parsed.address || parsed.name || ''
-      const subtitle = [parsed.city, parsed.state, parsed.country].filter(Boolean).join(', ')
-      return (
-        <div className="text-sm">
-          {title && <div className="font-medium">{title}</div>}
-          {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
-        </div>
-      )
+      // Old structure check
+      if (parsed.address || parsed.name) {
+        const title = parsed.address || parsed.name || ''
+        const subtitle = [parsed.city, parsed.state, parsed.country].filter(Boolean).join(', ')
+        return (
+          <div className="text-sm">
+            {title && <div className="font-medium">{title}</div>}
+            {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
+          </div>
+        )
+      }
+      // New structure check
+      const parts = [parsed.country, parsed.state, parsed.city].filter(Boolean)
+      if (parts.length > 0) {
+        return (
+          <div className="flex items-center gap-1 text-sm flex-wrap">
+            {parts.map((p, i) => (
+              <span key={i} className="flex items-center gap-1">
+                {p}
+                {i < parts.length - 1 && <span className="text-muted-foreground">/</span>}
+              </span>
+            ))}
+          </div>
+        )
+      }
     }
     return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
   }
@@ -1064,6 +1123,14 @@ export default function TableDataView({ table, onBack }) {
         })
       }
 
+      return null
+    }
+
+    // Handle location
+    if (fieldType === 'location') {
+      if (typeof value === 'object' && value !== null) {
+        return JSON.stringify({ value })
+      }
       return null
     }
 
@@ -4033,5 +4100,187 @@ export default function TableDataView({ table, onBack }) {
         </DialogContent>
       </Dialog>
     </div >
+  )
+}
+
+function LocationPicker({ value, onChange, validation = {} }) {
+  const [countries, setCountries] = useState([])
+  const [states, setStates] = useState([])
+  const [cities, setCities] = useState([])
+  const [loadingStates, setLoadingStates] = useState(false)
+  const [loadingCities, setLoadingCities] = useState(false)
+  const [open, setOpen] = useState({ country: false, state: false, city: false })
+  const [search, setSearch] = useState({ country: "", state: "", city: "" })
+
+  const current = value || { country: undefined, state: undefined, city: undefined }
+
+  useEffect(() => {
+    const loadCountries = async () => {
+      const data = await fetchCountries()
+      setCountries(data)
+    }
+    loadCountries()
+  }, [])
+
+  useEffect(() => {
+    const loadStates = async () => {
+      if (current.country) {
+        setLoadingStates(true)
+        try {
+          const data = await fetchStates(current.country)
+          setStates(data)
+        } finally {
+          setLoadingStates(false)
+        }
+      } else {
+        setStates([])
+      }
+    }
+    loadStates()
+  }, [current.country])
+
+  useEffect(() => {
+    const loadCities = async () => {
+      if (current.state && current.country) {
+        setLoadingCities(true)
+        try {
+          const data = await fetchCities(current.country, current.state)
+          setCities(data)
+        } finally {
+          setLoadingCities(false)
+        }
+      } else {
+        setCities([])
+      }
+    }
+    loadCities()
+  }, [current.state, current.country])
+
+  const filteredCountries = countries.filter(c => {
+    if (validation?.allowedCountries?.length > 0 && !validation.allowedCountries.includes(c.name)) return false
+    return c.name.toLowerCase().includes(search.country.toLowerCase())
+  })
+
+  const filteredStates = states.filter(s => {
+    if (validation?.allowedStates?.[current.country]?.length > 0 && !validation.allowedStates[current.country].includes(s.name)) return false
+    return s.name.toLowerCase().includes(search.state.toLowerCase())
+  })
+
+  const filteredCities = cities.filter(c => {
+    if (validation?.allowedCities?.[current.state]?.length > 0 && !validation.allowedCities[current.state].includes(c.name)) return false
+    return c.name.toLowerCase().includes(search.city.toLowerCase())
+  })
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      {/* Country Select */}
+      <div className="space-y-1">
+        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Country</Label>
+        <SelectPopover
+          title="Country"
+          open={open.country}
+          setOpen={(o) => setOpen(prev => ({ ...prev, country: o }))}
+          value={current.country}
+          onSelect={(val) => {
+            onChange({ country: val, state: undefined, city: undefined })
+            setOpen(prev => ({ ...prev, country: false, state: true }))
+          }}
+          options={filteredCountries}
+          search={search.country}
+          setSearch={(s) => setSearch(prev => ({ ...prev, country: s }))}
+        />
+      </div>
+
+      {/* State Select */}
+      <div className="space-y-1">
+        <Label className="text-[10px] uppercase font-bold text-muted-foreground">State</Label>
+        <SelectPopover
+          title="State"
+          disabled={!current.country}
+          loading={loadingStates}
+          open={open.state}
+          setOpen={(o) => setOpen(prev => ({ ...prev, state: o }))}
+          value={current.state}
+          onSelect={(val) => {
+            onChange({ ...current, state: val, city: undefined })
+            setOpen(prev => ({ ...prev, state: false, city: true }))
+          }}
+          options={filteredStates}
+          search={search.state}
+          setSearch={(s) => setSearch(prev => ({ ...prev, state: s }))}
+        />
+      </div>
+
+      {/* City Select */}
+      <div className="space-y-1">
+        <Label className="text-[10px] uppercase font-bold text-muted-foreground">City</Label>
+        <SelectPopover
+          title="City"
+          disabled={!current.state}
+          loading={loadingCities}
+          open={open.city}
+          setOpen={(o) => setOpen(prev => ({ ...prev, city: o }))}
+          value={current.city}
+          onSelect={(val) => {
+            onChange({ ...current, city: val })
+            setOpen(prev => ({ ...prev, city: false }))
+          }}
+          options={filteredCities}
+          search={search.city}
+          setSearch={(s) => setSearch(prev => ({ ...prev, city: s }))}
+        />
+      </div>
+    </div>
+  )
+}
+
+function SelectPopover({ title, open, setOpen, value, onSelect, options, search, setSearch, disabled, loading }) {
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          disabled={disabled}
+          className="w-full justify-between h-10 text-sm font-normal bg-background px-3"
+        >
+          <span className="truncate">{value || `Select ${title}...`}</span>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin opacity-50" /> : <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder={`Search ${title.toLowerCase()}...`}
+            value={search}
+            onValueChange={setSearch}
+            className="h-9"
+          />
+          <CommandList className="max-h-[300px]">
+            {options.length === 0 ? (
+              <CommandEmpty>No {title.toLowerCase()} found.</CommandEmpty>
+            ) : (
+              <CommandGroup>
+                {options.map((opt) => (
+                  <CommandItem
+                    key={opt.name}
+                    onSelect={() => onSelect(opt.name)}
+                    className="flex items-center justify-between cursor-pointer py-2 text-sm"
+                  >
+                    <span className="truncate">{opt.name}</span>
+                    <Check
+                      className={cn(
+                        "h-4 w-4",
+                        value === opt.name ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }

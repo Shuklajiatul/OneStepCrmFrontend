@@ -188,63 +188,37 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
     }
 
     setManualCityInput("")
-    setShowManualCityInput(false)
+    setShowManualCityInput(prev => ({ ...prev, [stateName]: false }))
   }
 
-  const loadStatesForCountry = async (countryId) => {
-    setLoadingStates(prev => ({ ...prev, [countryId]: true }))
+  const loadStatesForCountry = async (countryName) => {
+    setLoadingStates(prev => ({ ...prev, [countryName]: true }))
     try {
-      const statesData = await fetchStates(countryId)
-      setStatesByCountry(prev => ({ ...prev, [countryId]: statesData }))
+      const statesData = await fetchStates(countryName)
+      setStatesByCountry(prev => ({ ...prev, [countryName]: statesData }))
     } catch (error) {
       console.error('Failed to load states:', error)
     } finally {
-      setLoadingStates(prev => ({ ...prev, [countryId]: false }))
+      setLoadingStates(prev => ({ ...prev, [countryName]: false }))
     }
   }
 
-  const loadCitiesForState = async (stateId) => {
-    setLoadingCities(prev => ({ ...prev, [stateId]: true }))
+  const loadCitiesForState = async (countryName, stateName) => {
+    const cacheKey = `${countryName}-${stateName}`
+    setLoadingCities(prev => ({ ...prev, [cacheKey]: true }))
     try {
-      const citiesData = await fetchCities(stateId)
-      setCitiesByState(prev => ({ ...prev, [stateId]: citiesData }))
+      const citiesData = await fetchCities(countryName, stateName)
+      setCitiesByState(prev => ({ ...prev, [cacheKey]: citiesData }))
     } catch (error) {
       console.error('Failed to load cities:', error)
     } finally {
-      setLoadingCities(prev => ({ ...prev, [stateId]: false }))
+      setLoadingCities(prev => ({ ...prev, [cacheKey]: false }))
     }
   }
 
   const loadCitiesForStateByName = async (stateName, countryName) => {
     try {
-      // First, we need to find the state ID by loading states for the country
-      const country = countries.find(c => c.name === countryName)
-      if (!country) {
-        console.error('Country not found:', countryName)
-        alert(`Country "${countryName}" not found. Please try again.`)
-        return
-      }
-
-      console.log('Loading states for country:', countryName, 'ID:', country.id)
-      const statesData = await fetchStates(country.id)
-      console.log('States data received:', statesData)
-
-      const state = statesData.find(s => s.name === stateName)
-      if (!state) {
-        console.error('State not found:', stateName, 'Available states:', statesData.map(s => s.name))
-        alert(`State "${stateName}" not found in ${countryName}. Available states: ${statesData.map(s => s.name).join(', ')}`)
-        return
-      }
-
-      console.log('Loading cities for state:', stateName, 'ID:', state.id)
-      const citiesData = await fetchCities(state.id)
-      console.log('Cities data received:', citiesData)
-
-      if (citiesData.length === 0) {
-        alert(`No cities found for ${stateName}, ${countryName}. This might be because the API doesn't have city data for this state.`)
-      }
-
-      setCitiesByState(prev => ({ ...prev, [state.id]: citiesData }))
+      await loadCitiesForState(countryName, stateName)
     } catch (error) {
       console.error('Failed to load cities:', error)
       alert(`Failed to load cities for ${stateName}, ${countryName}. Please check the console for more details.`)
@@ -1021,8 +995,8 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                     </div>
                   ))}
 
-                  <Select onValueChange={(countryId) => {
-                    const country = countries.find(c => c.id === parseInt(countryId))
+                  <Select onValueChange={(countryName) => {
+                    const country = countries.find(c => c.name === countryName)
                     if (country) {
                       const currentAllowed = nestedField.validation?.allowedCountries || []
                       if (!currentAllowed.includes(country.name)) {
@@ -1042,7 +1016,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                       {countries
                         .filter(country => !nestedField.validation?.allowedCountries?.includes(country.name))
                         .map(country => (
-                          <SelectItem key={country.id} value={country.id.toString()}>
+                          <SelectItem key={country.name} value={country.name}>
                             {country.name}
                           </SelectItem>
                         ))}
@@ -1066,11 +1040,11 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => loadStatesForCountry(country.id)}
-                            disabled={loadingStates[country.id]}
+                            onClick={() => loadStatesForCountry(countryName)}
+                            disabled={loadingStates[countryName]}
                             className="h-6 text-xs"
                           >
-                            {loadingStates[country.id] ? "Loading..." : "Load States"}
+                            {loadingStates[countryName] ? "Loading..." : "Load States"}
                           </Button>
                         </div>
 
@@ -1107,9 +1081,9 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                             </div>
                           ))}
 
-                          {statesByCountry[country.id]?.length > 0 && (
-                            <Select onValueChange={(stateId) => {
-                              const state = statesByCountry[country.id].find(s => s.id === parseInt(stateId))
+                          {statesByCountry[countryName]?.length > 0 && (
+                            <Select onValueChange={(stateName) => {
+                              const state = statesByCountry[countryName].find(s => s.name === stateName)
                               if (state) {
                                 const currentAllowedStates = nestedField.validation?.allowedStates || {}
                                 const countryStates = currentAllowedStates[countryName] || []
@@ -1131,10 +1105,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                 <SelectValue placeholder="Add state" />
                               </SelectTrigger>
                               <SelectContent>
-                                {statesByCountry[country.id]
+                                {statesByCountry[countryName]
                                   .filter(state => !nestedField.validation?.allowedStates?.[countryName]?.includes(state.name))
                                   .map(state => (
-                                    <SelectItem key={state.id} value={state.id.toString()}>
+                                    <SelectItem key={state.name} value={state.name}>
                                       {state.name}
                                     </SelectItem>
                                   ))}
@@ -1157,8 +1131,8 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                       const country = countries.find(c => c.name === countryName)
                       if (!country) return null
 
-                      // Find the state object from the loaded states for this country
-                      const state = statesByCountry[country.id]?.find(s => s.name === stateName)
+                      // Use name-based cache key
+                      const cacheKey = `${countryName}-${stateName}`
 
                       return (
                         <div key={`${countryName}-${stateName}`} className="space-y-1">
@@ -1168,10 +1142,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               size="sm"
                               variant="outline"
                               onClick={() => loadCitiesForStateByName(stateName, countryName)}
-                              disabled={state ? loadingCities[state.id] : false}
+                              disabled={loadingCities[cacheKey]}
                               className="h-6 text-xs"
                             >
-                              {state && loadingCities[state.id] ? "Loading..." : "Load Cities"}
+                              {loadingCities[cacheKey] ? "Loading..." : "Load Cities"}
                             </Button>
                           </div>
 
@@ -1203,9 +1177,9 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               </div>
                             ))}
 
-                            {state && citiesByState[state.id]?.length > 0 && (
-                              <Select onValueChange={(cityId) => {
-                                const city = citiesByState[state.id].find(c => c.id === parseInt(cityId))
+                            {citiesByState[cacheKey]?.length > 0 && (
+                              <Select onValueChange={(cityName) => {
+                                const city = citiesByState[cacheKey].find(c => c.name === cityName)
                                 if (city) {
                                   const currentAllowedCities = nestedField.validation?.allowedCities || {}
                                   const stateCities = currentAllowedCities[stateName] || []
@@ -1227,10 +1201,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                   <SelectValue placeholder="Add city" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {citiesByState[state.id]
+                                  {citiesByState[cacheKey]
                                     .filter(city => !nestedField.validation?.allowedCities?.[stateName]?.includes(city.name))
                                     .map(city => (
-                                      <SelectItem key={city.id} value={city.id.toString()}>
+                                      <SelectItem key={city.name} value={city.name}>
                                         {city.name}
                                       </SelectItem>
                                     ))}
@@ -1240,16 +1214,16 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
                             {/* Manual city input fallback */}
                             <div className="space-y-1">
-                              {state && !showManualCityInput[state.id] ? (
+                              {!showManualCityInput[cacheKey] ? (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => setShowManualCityInput(prev => ({ ...prev, [state.id]: true }))}
+                                  onClick={() => setShowManualCityInput(prev => ({ ...prev, [cacheKey]: true }))}
                                   className="h-6 text-xs"
                                 >
                                   Add City Manually
                                 </Button>
-                              ) : state && showManualCityInput[state.id] ? (
+                              ) : showManualCityInput[cacheKey] ? (
                                 <div className="flex gap-1">
                                   <Input
                                     value={manualCityInput}
@@ -1276,9 +1250,9 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                         }
 
                                         setManualCityInput("")
-                                        setShowManualCityInput(prev => ({ ...prev, [state.id]: false }))
+                                        setShowManualCityInput(prev => ({ ...prev, [cacheKey]: false }))
                                       } else if (e.key === 'Escape') {
-                                        setShowManualCityInput(prev => ({ ...prev, [state.id]: false }))
+                                        setShowManualCityInput(prev => ({ ...prev, [cacheKey]: false }))
                                         setManualCityInput("")
                                       }
                                     }}
@@ -1304,7 +1278,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                       }
 
                                       setManualCityInput("")
-                                      setShowManualCityInput(prev => ({ ...prev, [state.id]: false }))
+                                      setShowManualCityInput(prev => ({ ...prev, [cacheKey]: false }))
                                     }}
                                     className="h-6 px-2 text-xs"
                                   >
@@ -1314,7 +1288,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                     size="sm"
                                     variant="outline"
                                     onClick={() => {
-                                      setShowManualCityInput(prev => ({ ...prev, [state.id]: false }))
+                                      setShowManualCityInput(prev => ({ ...prev, [cacheKey]: false }))
                                       setManualCityInput("")
                                     }}
                                     className="h-6 px-2 text-xs"
@@ -1979,8 +1953,8 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                     </div>
                   ))}
 
-                  <Select onValueChange={(countryId) => {
-                    const country = countries.find(c => c.id === parseInt(countryId))
+                  <Select onValueChange={(countryName) => {
+                    const country = countries.find(c => c.name === countryName)
                     if (country) {
                       addAllowedCountry(country.name)
                     }
@@ -1992,7 +1966,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                       {countries
                         .filter(country => !field.validation?.allowedCountries?.includes(country.name))
                         .map(country => (
-                          <SelectItem key={country.id} value={country.id.toString()}>
+                          <SelectItem key={country.name} value={country.name}>
                             {country.name}
                           </SelectItem>
                         ))}
@@ -2016,11 +1990,11 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => loadStatesForCountry(country.id)}
-                            disabled={loadingStates[country.id]}
+                            onClick={() => loadStatesForCountry(countryName)}
+                            disabled={loadingStates[countryName]}
                             className="h-6 text-xs"
                           >
-                            {loadingStates[country.id] ? "Loading..." : "Load States"}
+                            {loadingStates[countryName] ? "Loading..." : "Load States"}
                           </Button>
                         </div>
 
@@ -2039,9 +2013,9 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                             </div>
                           ))}
 
-                          {statesByCountry[country.id]?.length > 0 && (
-                            <Select onValueChange={(stateId) => {
-                              const state = statesByCountry[country.id].find(s => s.id === parseInt(stateId))
+                          {statesByCountry[countryName]?.length > 0 && (
+                            <Select onValueChange={(stateName) => {
+                              const state = statesByCountry[countryName].find(s => s.name === stateName)
                               if (state) {
                                 addAllowedState(countryName, state.name)
                               }
@@ -2050,10 +2024,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                 <SelectValue placeholder="Add state" />
                               </SelectTrigger>
                               <SelectContent>
-                                {statesByCountry[country.id]
+                                {statesByCountry[countryName]
                                   .filter(state => !field.validation?.allowedStates?.[countryName]?.includes(state.name))
                                   .map(state => (
-                                    <SelectItem key={state.id} value={state.id.toString()}>
+                                    <SelectItem key={state.name} value={state.name}>
                                       {state.name}
                                     </SelectItem>
                                   ))}
@@ -2076,8 +2050,8 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                       const country = countries.find(c => c.name === countryName)
                       if (!country) return null
 
-                      // Find the state object from the loaded states for this country
-                      const state = statesByCountry[country.id]?.find(s => s.name === stateName)
+                      // Use name-based cache key
+                      const cacheKey = `${countryName}-${stateName}`
 
                       return (
                         <div key={`${countryName}-${stateName}`} className="space-y-2">
@@ -2087,10 +2061,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               size="sm"
                               variant="outline"
                               onClick={() => loadCitiesForStateByName(stateName, countryName)}
-                              disabled={state ? loadingCities[state.id] : false}
+                              disabled={loadingCities[cacheKey]}
                               className="h-6 text-xs"
                             >
-                              {state && loadingCities[state.id] ? "Loading..." : "Load Cities"}
+                              {loadingCities[cacheKey] ? "Loading..." : "Load Cities"}
                             </Button>
                           </div>
 
@@ -2109,9 +2083,9 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                               </div>
                             ))}
 
-                            {state && citiesByState[state.id]?.length > 0 && (
-                              <Select onValueChange={(cityId) => {
-                                const city = citiesByState[state.id].find(c => c.id === parseInt(cityId))
+                            {citiesByState[cacheKey]?.length > 0 && (
+                              <Select onValueChange={(cityName) => {
+                                const city = citiesByState[cacheKey].find(c => c.name === cityName)
                                 if (city) {
                                   addAllowedCity(stateName, city.name)
                                 }
@@ -2120,10 +2094,10 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                   <SelectValue placeholder="Add city" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {citiesByState[state.id]
+                                  {citiesByState[cacheKey]
                                     .filter(city => !field.validation?.allowedCities?.[stateName]?.includes(city.name))
                                     .map(city => (
-                                      <SelectItem key={city.id} value={city.id.toString()}>
+                                      <SelectItem key={city.name} value={city.name}>
                                         {city.name}
                                       </SelectItem>
                                     ))}
@@ -2133,16 +2107,16 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
 
                             {/* Manual city input fallback */}
                             <div className="space-y-2">
-                              {state && !showManualCityInput[state.id] ? (
+                              {!showManualCityInput[cacheKey] ? (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => setShowManualCityInput(prev => ({ ...prev, [state.id]: true }))}
+                                  onClick={() => setShowManualCityInput(prev => ({ ...prev, [cacheKey]: true }))}
                                   className="h-6 text-xs"
                                 >
                                   Add City Manually
                                 </Button>
-                              ) : state && showManualCityInput[state.id] ? (
+                              ) : showManualCityInput[cacheKey] ? (
                                 <div className="flex gap-1">
                                   <Input
                                     value={manualCityInput}
@@ -2153,7 +2127,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                       if (e.key === 'Enter') {
                                         addManualCity(stateName)
                                       } else if (e.key === 'Escape') {
-                                        setShowManualCityInput(prev => ({ ...prev, [state.id]: false }))
+                                        setShowManualCityInput(prev => ({ ...prev, [cacheKey]: false }))
                                         setManualCityInput("")
                                       }
                                     }}
@@ -2169,7 +2143,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                                     size="sm"
                                     variant="outline"
                                     onClick={() => {
-                                      setShowManualCityInput(prev => ({ ...prev, [state.id]: false }))
+                                      setShowManualCityInput(prev => ({ ...prev, [cacheKey]: false }))
                                       setManualCityInput("")
                                     }}
                                     className="h-6 px-2 text-xs"
