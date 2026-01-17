@@ -935,16 +935,16 @@ export default function FormSubmissionsPage() {
           </div>
         </CardHeader>
 
-        <CardContent className="p-6">
+        <CardContent className="px-6">
           {/* Search and Controls Section */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
+            <div className="relative w-full sm:w-72 md:w-96 lg:w-[28rem]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search submissions..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-10"
+                className="pl-10 pr-10 h-9 text-sm"
               />
               {searchTerm && (
                 <X
@@ -953,12 +953,6 @@ export default function FormSubmissionsPage() {
                 />
               )}
             </div>
-
-            {searchTerm && (
-              <Button variant="outline" onClick={() => setSearchTerm("")} className="whitespace-nowrap">
-                Clear Filters
-              </Button>
-            )}
           </div>
 
           {/* Table Section */}
@@ -1380,7 +1374,7 @@ export default function FormSubmissionsPage() {
 
   return (
     <main className="min-h-screen bg-background w-full">
-      <div className="w-full p-4 md:p-6 bg-background overflow-x-auto">{mainContent}</div>
+      <div className="w-full p-0 md:p- bg-background overflow-x-auto">{mainContent}</div>
     </main>
   )
 }

@@ -562,8 +562,8 @@ function SubmissionDetailsContent() {
     }
 
     return (
-        <main className="min-h-screen bg-muted/20 p-4 md:p-8">
-            <div className="max-w-7xl mx-auto space-y-6">
+        <main className="min-h-screen bg-muted/20 ">
+            <div className="max-w-8xl mx-auto space-y-6">
                 <PageBreadcrumb
                     customItems={[
                         { label: "My Forms", href: "/my-forms" },
