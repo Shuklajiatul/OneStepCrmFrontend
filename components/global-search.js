@@ -22,6 +22,7 @@ const searchItems = [
   { label: "Role Management", category: "User Management", href: "/roles", type: "route" },
   { label: "Org Management", category: "User Management", href: "/organizations", type: "route" },
   { label: "Custom Table", category: "General", href: "/custom-table-builder", type: "route" },
+  { label: "Migrator", category: "General", href:"/migrator", type:"route"},
   { label: "Report", category: "General", href: "/report", type: "route" },
   { label: "Setting", category: "General", href: "/setting", type: "route" },
   { label: "Profile", category: "User", href: "/profile", type: "route" },
