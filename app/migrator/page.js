@@ -289,7 +289,7 @@ const App = () => {
                 </div>
             </header>
 
-            <main className="container mx-auto px-6 py-12">
+            <main className="container mx-auto px-0 py-8">
                 {/* Header Section */}
                 {/* <div className="mb-12 text-center max-w-2xl mx-auto space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
