@@ -24,6 +24,13 @@ export async function POST(request) {
       );
     }
 
+    console.log('Refresh API response data:', {
+      accessToken: !!data.accessToken,
+      refreshToken: !!data.refreshToken,
+      user: !!data.user,
+      organization: !!data.organization
+    });
+
     // Create response with new tokens
     const nextResponse = NextResponse.json(data);
 
@@ -43,6 +50,24 @@ export async function POST(request) {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60, // 7 days
+      });
+    }
+
+    if (data.user) {
+      nextResponse.cookies.set('user', JSON.stringify(data.user), {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60, // 1 day
+      });
+    }
+
+    if (data.organization) {
+      nextResponse.cookies.set('organization', JSON.stringify(data.organization), {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60, // 1 day
       });
     }
 
