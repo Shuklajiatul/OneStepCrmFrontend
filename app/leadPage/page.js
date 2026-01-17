@@ -448,7 +448,7 @@ function LeadsPageContent() {
       <PageBreadcrumb />
 
       {/* Enhanced Header Section */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/5 p-8 border border-primary/10">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/5 p-4 border border-primary/10">
         <div className="absolute top-0 right-0 -mt-10 -mr-10 h-40 w-40 rounded-full bg-primary/5 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-40 w-40 rounded-full bg-accent/5 blur-3xl"></div>
 
@@ -482,7 +482,10 @@ function LeadsPageContent() {
               Refresh
             </Button>
 
-            <Button className="h-11 px-6 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all duration-300 gap-2 font-semibold">
+            <Button
+              className="h-11 px-6 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all duration-300 gap-2 font-semibold"
+              onClick={() => router.push('/custom-table-builder')}
+            >
               <Plus className="h-5 w-5" />
               Create Table
             </Button>
@@ -511,19 +514,19 @@ function LeadsPageContent() {
       )}
 
       {/* Modernized Stats Dashboard */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="card-elevated group hover:border-primary/50 transition-all duration-500 overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <Database className="h-12 w-12 text-blue-500" />
+          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <Database className="h-8 w-8 text-blue-500" />
           </div>
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <div className="flex flex-col gap-1">
-              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Total Tables</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-foreground">{tables.length}</span>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Tables</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-foreground">{tables.length}</span>
                 <span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Global</span>
               </div>
-              <div className="mt-4 flex items-center text-xs text-muted-foreground">
+              <div className="mt-2 flex items-center text-xs text-muted-foreground">
                 <ArrowUpRight className="h-3 w-3 mr-1 text-blue-500" />
                 <span>Primary data nodes</span>
               </div>
@@ -532,19 +535,19 @@ function LeadsPageContent() {
         </Card>
 
         <Card className="card-elevated group hover:border-accent/50 transition-all duration-500 overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <CheckCircle2 className="h-12 w-12 text-green-500" />
+          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <CheckCircle2 className="h-8 w-8 text-green-500" />
           </div>
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <div className="flex flex-col gap-1">
-              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Active Tables</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-foreground">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Tables</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-foreground">
                   {tables.filter(t => t.is_active).length}
                 </span>
                 <span className="text-xs font-bold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">Healthy</span>
               </div>
-              <div className="mt-4 flex items-center text-xs text-muted-foreground">
+              <div className="mt-2 flex items-center text-xs text-muted-foreground">
                 <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
                 <span>Resources operational</span>
               </div>
@@ -553,35 +556,35 @@ function LeadsPageContent() {
         </Card>
 
         <Card className="card-elevated group hover:border-orange-200 transition-all duration-500 overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <AlertCircle className="h-12 w-12 text-orange-500" />
+          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <AlertCircle className="h-8 w-8 text-orange-500" />
           </div>
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <div className="flex flex-col gap-1">
-              <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Inactive Tables</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-foreground">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Inactive Tables</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-foreground">
                   {tables.filter(t => !t.is_active).length}
                 </span>
                 <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">Archived</span>
               </div>
-              <div className="mt-4 flex items-center text-xs text-muted-foreground">
+              <div className="mt-2 flex items-center text-xs text-muted-foreground">
                 <Clock className="h-3 w-3 mr-1 text-orange-500" />
-                <span>Pending reactivaton</span>
+                <span>Pending reactivation</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="card-elevated group hover:border-purple-200 transition-all duration-500 overflow-hidden relative text-white bg-gradient-to-br from-purple-600 to-purple-800 border-none">
-          <div className="absolute top-0 right-0 p-4 opacity-20">
-            <TrendingUp className="h-12 w-12" />
+          <div className="absolute top-0 right-0 p-2 opacity-20">
+            <TrendingUp className="h-8 w-8" />
           </div>
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             <div className="flex flex-col gap-1">
-              <span className="text-sm font-semibold text-purple-100 uppercase tracking-wider">Growth Factor</span>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-white">
+              <span className="text-xs font-semibold text-purple-100 uppercase tracking-wider">Growth Factor</span>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-white">
                   {tables.filter(t => {
                     const createdDate = new Date(t.created_at)
                     const weekAgo = new Date()
@@ -591,7 +594,7 @@ function LeadsPageContent() {
                 </span>
                 <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">This Week</span>
               </div>
-              <div className="mt-4 flex items-center text-xs text-purple-200">
+              <div className="mt-2 flex items-center text-xs text-purple-200">
                 <Activity className="h-3 w-3 mr-1" />
                 <span>New tables created</span>
               </div>
@@ -599,6 +602,7 @@ function LeadsPageContent() {
           </CardContent>
         </Card>
       </div>
+
 
       {/* Refined Controls Bar */}
       <div className="flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between bg-card p-6 rounded-2xl border shadow-sm">
