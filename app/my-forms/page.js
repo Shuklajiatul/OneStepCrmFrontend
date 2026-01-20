@@ -1765,7 +1765,7 @@ export default function MyFormsPage() {
                 {sortedForms.length > 0 && (
                   <div className="mt-6 px-4 sm:px-0 pb-4 sm:pb-0">
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                      <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                      <div className="flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
                         {/* Items per page selector */}
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-muted-foreground whitespace-nowrap">Show</span>
@@ -1791,7 +1791,7 @@ export default function MyFormsPage() {
 
                       {/* Pagination controls */}
                       {totalPages > 1 && (
-                        <Pagination>
+                        <Pagination className="justify-end">
                           <PaginationContent>
                             <PaginationItem>
                               <PaginationPrevious
