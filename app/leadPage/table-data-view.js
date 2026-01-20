@@ -52,7 +52,7 @@ import { activitiesApi } from '@/lib/api-endpoint'
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
 import { usersApi, datatablesApi, recordsApi } from '@/lib/api-endpoint'
-import CreateActivityDialog from "@/components/activities/create-activity-dialog"
+import CreateActivityDialog from "@/app/activities/components/create-activity-dialog"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import { fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
