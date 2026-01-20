@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation" // Added imports
+import { useRouter, useSearchParams } from "next/navigation" 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -405,12 +405,12 @@ function LeadsPageContent() {
     return isActive ? (
       <Badge className="bg-emerald-100/50 text-emerald-700 border-none px-3 py-1 shadow-none font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-        Operational
+        Active
       </Badge>
     ) : (
       <Badge className="bg-slate-100 text-slate-500 border-none px-3 py-1 shadow-none font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5">
         <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-        Maintenance
+        InActive
       </Badge>
     )
   }
@@ -448,14 +448,14 @@ function LeadsPageContent() {
       <PageBreadcrumb />
 
       {/* Enhanced Header Section */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/5 p-4 border border-primary/10">
+      <div className="relative overflow-hidden rounded-2xl from-primary/10 via-background to-accent/5 p-4 border border-primary/10">
         <div className="absolute top-0 right-0 -mt-10 -mr-10 h-40 w-40 rounded-full bg-primary/5 blur-3xl"></div>
         <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-40 w-40 rounded-full bg-accent/5 blur-3xl"></div>
 
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary ">
                 <Database className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
@@ -788,9 +788,6 @@ function LeadsPageContent() {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               {getStatusBadge(table.is_active)}
-                              <Badge variant="outline" className="text-[10px] font-bold border-muted-foreground/20">
-                                {table.is_active ? 'ONLINE' : 'OFFLINE'}
-                              </Badge>
                             </div>
                             <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                               <Calendar className="h-3 w-3" />
@@ -809,7 +806,7 @@ function LeadsPageContent() {
                               setCurrentView("data")
                             }}
                           >
-                            OPEN HUB
+                            Access Table
                             <ArrowUpRight className="h-3 w-3 ml-2" />
                           </Button>
                         </div>
