@@ -31,7 +31,7 @@ import {
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
 import { usersApi, datatablesApi, recordsApi, activitiesApi } from '@/lib/api-endpoint'
-import CreateActivityDialog from "@/components/activities/create-activity-dialog"
+import CreateActivityDialog from "@/app/activities/components/create-activity-dialog"
 
 // Helper functions (Ported from table-data-view.js)
 const inferTypeFromColumnName = (name = '') => {
