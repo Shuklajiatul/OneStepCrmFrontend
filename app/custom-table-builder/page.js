@@ -85,7 +85,6 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 
 
-// --- UI Helpers from Lead Page ---
 
 const getStatusBadge = (isActive) => {
   return isActive ? (
@@ -3005,14 +3004,14 @@ export default function CustomTableBuilder() {
       {/* Premium Header Section */}
       {view === 'list' && (
         <>
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-background to-accent/5 p-4 border border-primary/10">
+          <div className="relative overflow-hidden rounded-2xl from-primary/10 to-accent/5 p-4 border border-primary/10">
             <div className="absolute top-0 right-0 -mt-10 -mr-10 h-40 w-40 rounded-full bg-primary/5 blur-3xl"></div>
             <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-40 w-40 rounded-full bg-accent/5 blur-3xl"></div>
 
             <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
                     <Database className="h-6 w-6 text-primary-foreground" />
                   </div>
                   <div>
@@ -3058,95 +3057,95 @@ export default function CustomTableBuilder() {
             </div>
           </div>
 
-      {/* Stats Dashboard (Compact Version) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="card-elevated group hover:border-primary/50 transition-all duration-500 overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <Database className="h-8 w-8 text-blue-500" />
-          </div>
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Tables</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-foreground">{totalTables}</span>
-                <span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Global</span>
+          {/* Stats Dashboard (Compact Version) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="card-elevated group hover:border-primary/50 transition-all duration-500 overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                <Database className="h-8 w-8 text-blue-500" />
               </div>
-              <div className="mt-2 flex items-center text-xs text-muted-foreground">
-                <ArrowUpRight className="h-3 w-3 mr-1 text-blue-500" />
-                <span>Primary data nodes</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Tables</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-foreground">{totalTables}</span>
+                    <span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Global</span>
+                  </div>
+                  <div className="mt-2 flex items-center text-xs text-muted-foreground">
+                    <ArrowUpRight className="h-3 w-3 mr-1 text-blue-500" />
+                    <span>Primary data nodes</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="card-elevated group hover:border-accent/50 transition-all duration-500 overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <CheckCircle2 className="h-8 w-8 text-green-500" />
-          </div>
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Tables</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-foreground">
-                  {tables.filter(t => t.isActive).length}
-                </span>
-                <span className="text-xs font-bold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">Healthy</span>
+            <Card className="card-elevated group hover:border-accent/50 transition-all duration-500 overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                <CheckCircle2 className="h-8 w-8 text-green-500" />
               </div>
-              <div className="mt-2 flex items-center text-xs text-muted-foreground">
-                <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-                <span>Resources operational</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Tables</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-foreground">
+                      {tables.filter(t => t.isActive).length}
+                    </span>
+                    <span className="text-xs font-bold text-green-500 bg-green-50 px-2 py-0.5 rounded-full">Healthy</span>
+                  </div>
+                  <div className="mt-2 flex items-center text-xs text-muted-foreground">
+                    <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+                    <span>Resources operational</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="card-elevated group hover:border-orange-200 transition-all duration-500 overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
-            <AlertCircle className="h-8 w-8 text-orange-500" />
-          </div>
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Inactive Tables</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-foreground">
-                  {tables.filter(t => !t.isActive).length}
-                </span>
-                <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">Archived</span>
+            <Card className="card-elevated group hover:border-orange-200 transition-all duration-500 overflow-hidden relative">
+              <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                <AlertCircle className="h-8 w-8 text-orange-500" />
               </div>
-              <div className="mt-2 flex items-center text-xs text-muted-foreground">
-                <Clock className="h-3 w-3 mr-1 text-orange-500" />
-                <span>Pending reactivation</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Inactive Tables</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-foreground">
+                      {tables.filter(t => !t.isActive).length}
+                    </span>
+                    <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">Archived</span>
+                  </div>
+                  <div className="mt-2 flex items-center text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3 mr-1 text-orange-500" />
+                    <span>Pending reactivation</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="card-elevated group hover:border-purple-200 transition-all duration-500 overflow-hidden relative text-white bg-gradient-to-br from-purple-600 to-purple-800 border-none">
-          <div className="absolute top-0 right-0 p-2 opacity-20">
-            <TrendingUp className="h-8 w-8" />
+            <Card className="card-elevated group hover:border-purple-200 transition-all duration-500 overflow-hidden relative text-white bg-gradient-to-br from-purple-600 to-purple-800 border-none">
+              <div className="absolute top-0 right-0 p-2 opacity-20">
+                <TrendingUp className="h-8 w-8" />
+              </div>
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-purple-100 uppercase tracking-wider">Growth Factor</span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-white">
+                      {tables.filter(t => {
+                        const createdDate = new Date(t.createdAt || t.created_at)
+                        const weekAgo = new Date()
+                        weekAgo.setDate(weekAgo.getDate() - 7)
+                        return createdDate >= weekAgo
+                      }).length}
+                    </span>
+                    <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">This Week</span>
+                  </div>
+                  <div className="mt-2 flex items-center text-xs text-purple-200">
+                    <Activity className="h-3 w-3 mr-1" />
+                    <span>New tables created</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-          <CardContent className="p-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-purple-100 uppercase tracking-wider">Growth Factor</span>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-white">
-                  {tables.filter(t => {
-                    const createdDate = new Date(t.createdAt || t.created_at)
-                    const weekAgo = new Date()
-                    weekAgo.setDate(weekAgo.getDate() - 7)
-                    return createdDate >= weekAgo
-                  }).length}
-                </span>
-                <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">This Week</span>
-              </div>
-              <div className="mt-2 flex items-center text-xs text-purple-200">
-                <Activity className="h-3 w-3 mr-1" />
-                <span>New tables created</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
         </>
       )}
@@ -3272,18 +3271,18 @@ export default function CustomTableBuilder() {
 
                   {tableListViewMode === 'card' ? (
                     // Updated Card View
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                       {groupTables.map((table) => (
                         <Card key={table.id} className="card-elevated group flex flex-col border-none hover:ring-2 hover:ring-primary/20 transition-all duration-300">
-                          <CardHeader className="pb-4 pt-6 px-6">
+                          <CardHeader className="pb-3 pt-5 px-5">
                             <div className="flex items-start justify-between">
-                              <div className="flex items-center gap-4 flex-1 min-w-0">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
-                                  <Database className="h-5 w-5" />
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
+                                  <Database className="h-4 w-4" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <CardTitle
-                                    className="text-lg font-bold truncate hover:text-primary transition-colors cursor-pointer"
+                                    className="text-base font-semibold truncate hover:text-primary transition-colors cursor-pointer"
                                     onClick={() => handleSelectTable(table)}
                                   >
                                     {table.name}
@@ -3293,62 +3292,74 @@ export default function CustomTableBuilder() {
 
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="w-8 h-8 p-0 rounded-full hover:bg-muted">
-                                    <MoreHorizontal className="h-4 w-4" />
+                                  <Button variant="ghost" size="sm" className="w-7 h-7 p-0 rounded-full hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+                                    <MoreHorizontal className="h-3.5 w-3.5" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-xl border-primary/5">
                                   <DropdownMenuItem
-                                    className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary"
-                                    onClick={() => handleSelectTable(table)}
+                                    className="cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSelectTable(table);
+                                    }}
                                   >
-                                    <Eye className="h-4 w-4 mr-3" />
-                                    <span className="font-semibold">View Data Hub</span>
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View Data
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary" onClick={() => handleSelectTable(table)}>
-                                    <Settings className="h-4 w-4 mr-3" />
-                                    <span className="font-semibold">Settings</span>
+                                  <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSelectTable(table);
+                                    }}
+                                  >
+                                    <Settings2 className="h-4 w-4 mr-2" />
+                                    Table Settings
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
-                                    onClick={() => deleteTable(table.id)}
-                                    className="rounded-lg text-destructive cursor-pointer focus:bg-destructive/10 focus:text-destructive"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteTable(table.id);
+                                    }}
+                                    className="text-destructive cursor-pointer focus:text-destructive"
                                   >
-                                    <Trash2 className="h-4 w-4 mr-3" />
-                                    <span className="font-semibold">Delete Record</span>
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete Table
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
                           </CardHeader>
 
-                          <CardContent className="pt-0 flex-1 flex flex-col justify-between px-6 pb-6">
+                          <CardContent className="pt-0 flex-1 flex flex-col justify-between px-5 pb-5">
                             <div className="flex-1">
-                              <div className="bg-muted/30 rounded-xl p-4 mb-4 min-h-[72px]">
+                              <div className="bg-muted/20 rounded-lg p-3 mb-3 min-h-[60px]">
                                 {table.description ? (
                                   <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
                                     {table.description}
                                   </p>
                                 ) : (
-                                  <p className="text-sm text-muted-foreground/50 italic flex items-center gap-2">
-                                    <AlertCircle className="h-3 w-3" /> No description available
+                                  <p className="text-xs text-muted-foreground/50 italic flex items-center gap-1.5">
+                                    <AlertCircle className="h-2.5 w-2.5" /> No description
                                   </p>
                                 )}
                               </div>
-                              <div className="flex flex-wrap gap-2 mb-4">
-                                <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/10">
+                              <div className="flex flex-wrap gap-1.5 mb-3">
+                                <Badge variant="secondary" className="text-xs bg-primary/5 text-primary border-primary/10 px-2 py-0.5">
                                   {table.columns.length} Columns
                                 </Badge>
                               </div>
                             </div>
 
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                               <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
                                   {getStatusBadge(table.isActive)}
                                 </div>
-                                <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                                  <Calendar className="h-3 w-3" />
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Calendar className="h-2.5 w-2.5" />
                                   {new Date(table.createdAt || table.created_at).toLocaleDateString('en-US', {
                                     month: 'short',
                                     day: 'numeric',
@@ -3358,11 +3369,12 @@ export default function CustomTableBuilder() {
 
                               <Button
                                 variant="outline"
-                                className="w-full justify-between group-hover:border-primary/50 group-hover:text-primary transition-all"
+                                size="sm"
+                                className="w-full justify-between h-9 group-hover:border-primary/50 group-hover:text-primary transition-all"
                                 onClick={() => handleSelectTable(table)}
                               >
-                                <span className="font-semibold">Access Table</span>
-                                <ArrowLeft className="h-4 w-4 rotate-180 transition-transform group-hover:translate-x-1" />
+                                <span className="text-sm font-semibold">Access Table</span>
+                                <ArrowLeft className="h-3.5 w-3.5 rotate-180 transition-transform group-hover:translate-x-0.5" />
                               </Button>
                             </div>
                           </CardContent>
@@ -3423,9 +3435,46 @@ export default function CustomTableBuilder() {
                                   <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={(e) => { e.stopPropagation(); handleSelectTable(table); }}>
                                     <Eye className="h-4 w-4" />
                                   </Button>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={(e) => { e.stopPropagation(); deleteTable(table.id); }}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="w-8 h-8 p-0 rounded-full hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-xl border-primary/5">
+                                      <DropdownMenuItem
+                                        className="cursor-pointer"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSelectTable(table);
+                                        }}
+                                      >
+                                        <Eye className="h-4 w-4 mr-2" />
+                                        View Data
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className="cursor-pointer"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleSelectTable(table);
+                                        }}
+                                      >
+                                        <Settings2 className="h-4 w-4 mr-2" />
+                                        Table Settings
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          deleteTable(table.id);
+                                        }}
+                                        className="text-destructive cursor-pointer focus:text-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete Table
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               </TableCell>
                             </TableRow>
