@@ -1,36 +1,30 @@
 import { cookies } from 'next/headers'
 import UsersClient from './client'
-import { USER_ENDPOINTS, ROLE_ENDPOINTS, GENE_ENDPOINTS, POLICY_ENDPOINTS } from '@/lib/api-endpoint'
+import { API_BASE_URL, USER_ENDPOINTS, ROLE_ENDPOINTS, GENE_ENDPOINTS, POLICY_ENDPOINTS } from '@/lib/api-endpoint'
+import { authUtils } from '@/lib/auth-utils'
+import { extractArray } from '@/lib/utils'
 
 async function getData() {
   const cookieStore = await cookies()
-  const accessToken = cookieStore.get('accessToken')?.value || cookieStore.get('token')?.value
-
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    ...(accessToken && { 'Authorization': `Bearer ${accessToken}` })
-  }
-
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.10.15.194:3001'
+  const headers = authUtils.getServerHeaders(cookieStore)
 
   try {
     const [usersRes, rolesRes, genesRes, policiesRes] = await Promise.all([
-      fetch(`${baseUrl}${USER_ENDPOINTS.LIST}`, {
+      fetch(`${API_BASE_URL}${USER_ENDPOINTS.LIST}`, {
         headers,
-        next: { revalidate: 60 } // Cache users for 60 seconds
+        next: { revalidate: 60 }
       }),
-      fetch(`${baseUrl}${ROLE_ENDPOINTS.LIST}`, {
+      fetch(`${API_BASE_URL}${ROLE_ENDPOINTS.LIST}`, {
         headers,
-        next: { revalidate: 3600 } // Cache roles for 1 hour
+        next: { revalidate: 3600 }
       }),
-      fetch(`${baseUrl}${GENE_ENDPOINTS.LIST}`, {
+      fetch(`${API_BASE_URL}${GENE_ENDPOINTS.LIST}`, {
         headers,
-        next: { revalidate: 3600 } // Cache genes for 1 hour
+        next: { revalidate: 3600 }
       }),
-      fetch(`${baseUrl}${POLICY_ENDPOINTS.LIST}`, {
+      fetch(`${API_BASE_URL}${POLICY_ENDPOINTS.LIST}`, {
         headers,
-        next: { revalidate: 3600 } // Cache policies for 1 hour
+        next: { revalidate: 3600 }
       })
     ])
 
@@ -39,15 +33,6 @@ async function getData() {
     const genesData = genesRes.ok ? await genesRes.json() : []
     const policiesData = policiesRes.ok ? await policiesRes.json() : []
 
-    // Helper to extract array from response
-    const extractArray = (data, key) => {
-      if (Array.isArray(data)) return data
-      if (data && Array.isArray(data.data)) return data.data
-      if (data && key && Array.isArray(data[key])) return data[key]
-      return []
-    }
-
-    // Filter genes mapped to users (replicating client-side logic)
     const users = extractArray(usersData)
     const allGenes = extractArray(genesData, 'genes')
 
