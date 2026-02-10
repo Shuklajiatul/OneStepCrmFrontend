@@ -611,9 +611,8 @@ export default function TableDataView({ table, onBack }) {
       toast.success(`Loaded ${recordsData.length} records successfully!`)
 
     } catch (err) {
-      const errorMsg = `Failed to fetch table data: ${err.message}`
+      const errorMsg = `Access Denied - view feature not found for this table in policies: ${err.message}`
       setError(errorMsg)
-      toast.error(errorMsg)
       console.error("Error fetching table data:", err)
       setRecords([])
       setColumns([])
@@ -3059,14 +3058,14 @@ export default function TableDataView({ table, onBack }) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
+          {/* <Button
             variant="outline"
             onClick={fetchTableData}
             disabled={loading}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
-          </Button>
+          </Button> */}
 
           <Button className="gap-2" onClick={openAddRecordDialog}>
             <Plus className="h-4 w-4" />
@@ -3147,7 +3146,7 @@ export default function TableDataView({ table, onBack }) {
 
       {/* Data Table */}
       <Card className="relative">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-0">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-lg">Table Records</CardTitle>
@@ -3163,7 +3162,7 @@ export default function TableDataView({ table, onBack }) {
         </CardHeader>
         <CardContent className="p-0">
           {/* Search and Controls */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 border-b bg-muted/5">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-0 p-4 border-b bg-muted/5">
             {/* Search Input - Left Side */}
             <div className="w-full md:max-w-sm">
               <div className="relative">
