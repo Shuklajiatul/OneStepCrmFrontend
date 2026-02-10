@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
-import { useRouter, useSearchParams } from "next/navigation" 
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -471,7 +471,7 @@ function LeadsPageContent() {
           </div>
 
           <div className="flex items-center gap-3 self-end md:self-center">
-            <Button
+            {/* <Button
               variant="outline"
               size="lg"
               onClick={fetchTables}
@@ -480,12 +480,12 @@ function LeadsPageContent() {
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
-            </Button>
+            </Button>*/}
 
             <Button
               className="h-11 px-6 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all duration-300 gap-2 font-semibold"
               onClick={() => router.push('/custom-table-builder')}
-            >
+            > 
               <Plus className="h-5 w-5" />
               Create Table
             </Button>
@@ -747,7 +747,7 @@ function LeadsPageContent() {
                                 }}
                               >
                                 <Eye className="h-4 w-4 mr-3" />
-                                <span className="font-semibold">View Data Hub</span>
+                                <span className="font-semibold">View Data</span>
                               </DropdownMenuItem>
                               <DropdownMenuItem className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary">
                                 <Edit className="h-4 w-4 mr-3" />
