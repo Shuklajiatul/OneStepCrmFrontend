@@ -806,7 +806,7 @@ export default function DashboardPage() {
                         <div>
                             <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
                                 <Boxes className="h-4 w-4 text-primary" />
-                                System Blueprint
+                                Gene Managements
                             </CardTitle>
                             <CardDescription className="text-[10px]">Active modular genes in the core</CardDescription>
                         </div>
@@ -933,7 +933,7 @@ export default function DashboardPage() {
                 {/* Recent Tables Feed */}
                 <Card className="col-span-full lg:col-span-3 rounded-xl shadow-sm border-t-4 border-t-amber-500">
                     <CardHeader className="py-4">
-                        <CardTitle className="text-lg font-semibold italic">Core Data Structures</CardTitle>
+                        <CardTitle className="text-lg font-semibold italic">Recent Tables</CardTitle>
                         <CardDescription className="text-xs">Recently added schemas</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-2 pb-6 px-4">
