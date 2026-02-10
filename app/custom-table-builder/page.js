@@ -737,7 +737,7 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
                 <Database className="h-5 w-5 text-primary" />
                 {table.name}
                 <Badge variant="secondary" className="text-xs">
-                  {table.columns.length} columns × {table.rows.length} rows
+                  {table.rows.length} rows
                 </Badge>
               </CardTitle>
             </div>
@@ -2396,39 +2396,11 @@ export default function CustomTableBuilder() {
 
         const mappedTables = rawTables.map(mapBackendTableToFrontend)
         setTables(mappedTables)
-
-        // Proactively fetch columns for each table to show accurate counts in the list
-        rawTables.forEach(async (table) => {
-          const tableId = table.table_id || table.id
-          try {
-            const colRes = await datatablesApi.getColumns(tableId)
-            if (colRes.data && (colRes.data.success === true || colRes.data.status === 'success')) {
-              const columns = colRes.data.data
-              setTables(prev => prev.map(t => {
-                if (t.id === tableId) {
-                  // Reuse mapping logic for columns
-                  const mappedColumns = columns.map(col => ({
-                    id: col.column_id || col.id,
-                    name: col.column_name || col.name,
-                    type: col.data_type || col.type,
-                    options: col.optional_values || col.options || [],
-                    isSearchable: col.is_searchable ?? true,
-                    required: col.required ?? false,
-                    properties: col.properties || {}
-                  }))
-                  return { ...t, columns: mappedColumns }
-                }
-                return t
-              }))
-            }
-          } catch (e) {
-            console.error(`Error fetching columns for table ${tableId}:`, e)
-          }
-        })
       }
     } catch (error) {
-      console.error("Error fetching tables:", error)
-      toast.error("Failed to load tables")
+      const errorMsg = `Access Denied - view feature not found for this table in policies: ${error.message}`
+      setError(errorMsg)
+      console.error("Error fetching table data:", error)
     } finally {
       setLoading(false)
     }
@@ -3347,9 +3319,9 @@ export default function CustomTableBuilder() {
                                 )}
                               </div>
                               <div className="flex flex-wrap gap-1.5 mb-3">
-                                <Badge variant="secondary" className="text-xs bg-primary/5 text-primary border-primary/10 px-2 py-0.5">
+                                {/* <Badge variant="secondary" className="text-xs bg-primary/5 text-primary border-primary/10 px-2 py-0.5">
                                   {table.columns.length} Columns
-                                </Badge>
+                                </Badge> */}
                               </div>
                             </div>
 
