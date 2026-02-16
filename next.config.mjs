@@ -33,16 +33,34 @@ const nextConfig = {
       '@radix-ui/react-icons',
       'recharts',
     ],
+    allowedDevOrigins: ["10.10.15.194:3000"],
+    turbo: {
+      root: ".",
+    },
   },
 
   // Webpack optimizations
-  webpack: (config, { dev, isServer }) => {
-    // Production optimizations only
-    if (!dev && !isServer) {
-      // Enable module concatenation for smaller bundles
-      config.optimization.concatenateModules = true
-    }
-    return config
+    // webpack: (config, { dev, isServer }) => {
+
+    // // Production optimizations only
+
+    // if (!dev && !isServer) {
+
+    //   // Enable module concatenation for smaller bundles
+
+    //   config.optimization.concatenateModules = true
+
+    // }
+
+    // return config
+	  // },
+
+  turbopack: {
+    
+  },
+  
+  devIndicators: {
+    appIsrStatus: false,
   },
 
   // Enable gzip compression headers
