@@ -408,7 +408,6 @@ function SubmissionDetailsContent() {
             // Use record_id from submission if it exists, otherwise use submission_id
             const actualRecordId = currentSub?.record_id || currentSub?.id || submissionId
             const actualTableId = tableId !== 'undefined' && tableId !== 'null' ? tableId : (currentSub?.table_id || formData?.table_id)
-
             if (actualTableId && actualRecordId) {
                 try {
                     const recordRes = await recordsApi.getById(actualTableId, actualRecordId)
