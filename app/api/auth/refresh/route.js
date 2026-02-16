@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authUtils } from "@/lib/auth-utils"
 
 export async function POST(request) {
   try {
@@ -35,41 +36,7 @@ export async function POST(request) {
     const nextResponse = NextResponse.json(data);
 
     // Set cookies if tokens are returned
-    if (data.accessToken) {
-      nextResponse.cookies.set('accessToken', data.accessToken, {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60, // 1 day
-      });
-    }
-
-    if (data.refreshToken) {
-      nextResponse.cookies.set('refreshToken', data.refreshToken, {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 7 * 24 * 60 * 60, // 7 days
-      });
-    }
-
-    if (data.user) {
-      nextResponse.cookies.set('user', JSON.stringify(data.user), {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60, // 1 day
-      });
-    }
-
-    if (data.organization) {
-      nextResponse.cookies.set('organization', JSON.stringify(data.organization), {
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 24 * 60 * 60, // 1 day
-      });
-    }
+    authUtils.setTokens(data)
 
     return nextResponse;
   } catch (error) {
