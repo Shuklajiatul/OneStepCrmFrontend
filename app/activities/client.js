@@ -325,6 +325,13 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
     }
 
     const handleCompleteActivity = async (activity) => {
+        // Check permissions
+        const userId = currentUser?.user_id || currentUser?.id
+        if (String(activity.assigned_to) !== String(userId)) {
+            toast.error("You don't have permission to update this activity")
+            return
+        }
+
         try {
             await activitiesApi.complete(
                 activity.activity_id,
@@ -341,6 +348,13 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
     }
 
     const openEditDialog = (activity) => {
+        // Check permissions
+        const userId = currentUser?.user_id || currentUser?.id
+        if (String(activity.assigned_to) !== String(userId)) {
+            toast.error("You don't have permission to edit this activity")
+            return
+        }
+
         setEditingActivity(activity)
         setFormData({
             related_table_id: activity.related_table_id || "",
