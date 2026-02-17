@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,7 +32,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-// ... existing imports ...
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { Label } from "@/components/ui/label"
@@ -100,7 +99,6 @@ const getStatusBadge = (isActive) => {
   )
 }
 
-// ---------------------------------
 
 const columnTypes = [
   // Essential Types
@@ -372,7 +370,6 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
   const [isAddRecordDialogOpen, setIsAddRecordDialogOpen] = useState(false)
   const [recordFormData, setRecordFormData] = useState({})
   const [isSubmittingRecord, setIsSubmittingRecord] = useState(false)
-  // ----------------------------------------------------
 
   const openAddRecordDialog = () => {
     const initialFormState = {}
@@ -426,7 +423,6 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
       return updateNestedState(prev, [...path, fieldId], newFieldVal)
     })
   }
-  // -----------------------------
 
   const handleAddRecordSubmit = async () => {
     setIsSubmittingRecord(true)
@@ -1505,12 +1501,12 @@ function ColumnSettings({ table, column, onUpdate, onDelete }) {
           <Settings className="h-3 w-3" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[90vw] lg:max-w-[1000px] h-[85vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-6 border-b">
+      <DialogContent className="sm:max-w-[90vw] lg:max-w-[1000px] max-h-[85vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="p-6 border-b shrink-0">
           <DialogTitle className="text-xl font-semibold">Column Settings</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-background/50">
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col bg-background/50">
           <div className="flex-1 overflow-y-auto p-6 lg:p-10 scrollbar-thin">
             <div className="max-w-2xl mx-auto space-y-8">
               <div className="space-y-2">
@@ -1546,7 +1542,7 @@ function ColumnSettings({ table, column, onUpdate, onDelete }) {
           </div>
         </div>
 
-        <div className="p-6 border-t bg-background flex justify-between items-center shadow-lg">
+        <div className="p-6 border-t bg-background flex justify-between items-center shadow-lg shrink-0">
           <Button
             variant="outline"
             onClick={() => setIsOpen(false)}
@@ -2096,7 +2092,7 @@ function NestedValuesDialog({ column, selectedOption, currentValue, onSave }) {
   )
 }
 
-// Helper to recursively convert array-based nested structure (Backend/FormBuilder)
+
 // to map-based nested structure (CustomTableBuilder UI)
 const processBackendNestedFields = (fieldsArray) => {
   if (!Array.isArray(fieldsArray)) return []
@@ -2132,7 +2128,6 @@ const processBackendNestedFields = (fieldsArray) => {
 }
 
 // Helper to recursively convert map-based nested structure (UI)
-// to array-based nested structure (Backend/FormBuilder)
 const processFrontendNestedFields = (fieldsArray, nestedFieldsMap) => {
   if (!Array.isArray(fieldsArray)) return []
 
@@ -2154,7 +2149,6 @@ const processFrontendNestedFields = (fieldsArray, nestedFieldsMap) => {
         return opt
       })
     }
-    // Remove the flat nestedFields map from the final object to keep it clean
     delete processedField.nestedFields
     return processedField
   })
@@ -2241,15 +2235,12 @@ const mapBackendRecordsToFrontend = (records, columns) => {
   return records.map(record => {
     const cells = {}
     columns.forEach(col => {
-      // Backend might return field_values as a JSON string or object
-      // key is column_id
       const rawVal = record.field_values?.[col.id]
 
       let parsedVal = rawVal
       if (typeof rawVal === 'string') {
         try {
           // Attempt to parse if it looks like JSON or if we expect structured data
-          // Simple heuristic: starts with { or [
           if (rawVal.trim().startsWith('{') || rawVal.trim().startsWith('[')) {
             parsedVal = JSON.parse(rawVal)
           }
@@ -2359,9 +2350,14 @@ export default function CustomTableBuilder() {
     })
   )
 
+  // Ref for strict mode double-call prevention
+  const tableDataLoadedRef = useRef(false)
+
   useEffect(() => {
+    if (tableDataLoadedRef.current) return
+    tableDataLoadedRef.current = true
     fetchTables()
-  }, [tablesPage, tablesRowsPerPage, tablesSearch])
+  }, [])
 
 
   const fetchTables = async () => {
@@ -2377,17 +2373,6 @@ export default function CustomTableBuilder() {
           rawTables = responseData
         } else if (responseData && Array.isArray(responseData.data)) {
           rawTables = responseData.data
-        }
-
-        // Client-side filtering fallback
-        if (tablesSearch && rawTables.length > 0) {
-          const lowerSearch = tablesSearch.toLowerCase()
-          if (rawTables.length > tablesRowsPerPage) {
-            rawTables = rawTables.filter(t =>
-              (t.table_name || t.name || "").toLowerCase().includes(lowerSearch) ||
-              (t.description || "").toLowerCase().includes(lowerSearch)
-            )
-          }
         }
 
         // Set total count
@@ -2493,7 +2478,6 @@ export default function CustomTableBuilder() {
           }
 
           const fetchedTable = mapBackendTableToFrontend(backendTable)
-          // Preserve existing rows to prevent them from disappearing immediately
           // The new column will just be missing from the cells until we fetch or edit, which renderCell handles
           const updatedTable = {
             ...fetchedTable,
@@ -2698,11 +2682,16 @@ export default function CustomTableBuilder() {
     }
   }
 
+  // Guard to prevent duplicate fetches for the same table
+  const recordsLoadedRef = useRef(null)
+
   useEffect(() => {
-    if (currentTable?.id) {
-      fetchRecords(currentTable.id)
-    }
-  }, [currentTable?.id, recordsPage, recordsRowsPerPage, recordsSearch])
+    if (!currentTable?.id) return
+    if (recordsLoadedRef.current === currentTable.id) return
+
+    recordsLoadedRef.current = currentTable.id
+    fetchRecords(currentTable.id)
+  }, [currentTable?.id])
 
   const fetchRecords = async (tableId) => {
     if (!tableId) return
@@ -2720,17 +2709,7 @@ export default function CustomTableBuilder() {
           records = responseData.data
         }
 
-        // Client-side filtering fallback
-        if (recordsSearch && records.length > recordsRowsPerPage) {
-          const lowerSearch = recordsSearch.toLowerCase()
-          records = records.filter(r => {
-            const values = Object.values(r.field_values || {}).map(v => {
-              if (typeof v === 'object' && v !== null && v.value) return v.value
-              return v
-            })
-            return values.some(val => String(val).toLowerCase().includes(lowerSearch))
-          })
-        }
+        // Removed redundant client-side filtering here - moved to simple render logic
 
         // Set total count
         const total = meta.total || (responseData.pagination ? responseData.pagination.total : records.length)
@@ -2879,7 +2858,6 @@ export default function CustomTableBuilder() {
 
     return { "All Tables": dataSource }
   }
-  // ----------------------------------
 
   // --- Pagination Helper ---
   const renderPaginationItems = (currentPage, totalCount, rowsPerPage, setPage) => {
@@ -2953,7 +2931,25 @@ export default function CustomTableBuilder() {
 
     return items
   }
-  // -------------------------
+
+
+  // --- Filtered Records for SortableTable ---
+  const filteredRecords = useMemo(() => {
+    let rows = currentTable?.rows || []
+
+    if (recordsSearch) {
+      const lowerSearch = recordsSearch.toLowerCase()
+      rows = rows.filter(r => {
+        // Adapt logic from original fetchRecords to use cells
+        const values = Object.values(r.cells || {}).map(v => {
+          if (typeof v === 'object' && v !== null && v.value) return v.value
+          return v
+        })
+        return values.some(val => String(val).toLowerCase().includes(lowerSearch))
+      })
+    }
+    return rows
+  }, [currentTable?.rows, recordsSearch])
 
   return (
     <div className="space-y-6">
@@ -3529,7 +3525,7 @@ export default function CustomTableBuilder() {
               loading={loading}
               onUpdateTableDetails={updateTableDetails}
               onFetchRecords={fetchRecords}
-              records={currentTable.rows ? (currentTable.rows.length > recordsRowsPerPage ? currentTable.rows.slice((recordsPage - 1) * recordsRowsPerPage, recordsPage * recordsRowsPerPage) : currentTable.rows) : []}
+              records={filteredRecords.slice((recordsPage - 1) * recordsRowsPerPage, recordsPage * recordsRowsPerPage)}
               countries={countries}
             />
           </DndContext>
@@ -3537,14 +3533,14 @@ export default function CustomTableBuilder() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t mt-4">
             <div className="text-sm font-medium text-muted-foreground order-2 sm:order-1">
               Showing <span className="text-foreground">{((recordsPage - 1) * recordsRowsPerPage) + 1}</span> to{' '}
-              <span className="text-foreground">{Math.min(recordsPage * recordsRowsPerPage, totalRecords)}</span> of{' '}
-              <span className="text-foreground">{totalRecords}</span> entries
+              <span className="text-foreground">{Math.min(recordsPage * recordsRowsPerPage, filteredRecords.length)}</span> of{' '}
+              <span className="text-foreground">{filteredRecords.length}</span> entries
             </div>
 
             <div className="order-1 sm:order-2">
               <Pagination className="justify-end w-auto mx-0">
                 <PaginationContent>
-                  {renderPaginationItems(recordsPage, totalRecords, recordsRowsPerPage, setRecordsPage)}
+                  {renderPaginationItems(recordsPage, filteredRecords.length, recordsRowsPerPage, setRecordsPage)}
                 </PaginationContent>
               </Pagination>
             </div>
