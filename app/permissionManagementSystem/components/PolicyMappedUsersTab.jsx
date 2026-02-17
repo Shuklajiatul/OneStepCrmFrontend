@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -36,11 +36,24 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
   const [userToRemove, setUserToRemove] = useState(null)
   const [removingUser, setRemovingUser] = useState(false)
 
+  const dataLoadedRef = useRef(false)
+
   useEffect(() => {
+    // Prevent duplicate calls in React Strict Mode or rapid updates
+    if (dataLoadedRef.current && policy.p_id === dataLoadedRef.current) {
+      return
+    }
+
     const loadData = async () => {
-      await fetchRoles()
-      await fetchMappedUsers(true) // Show loading on initial load
-      await fetchAvailableUsers()
+      dataLoadedRef.current = policy.p_id || policy.id
+
+      // Only fetch roles if not already loaded
+      if (roles.length === 0) {
+        await fetchRoles()
+      }
+
+      // Fetch users
+      await fetchAllUsersAndSplit()
     }
     loadData()
   }, [policy])
@@ -63,6 +76,48 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
     }
   }
 
+  // Fetch all users once and split into mapped and available
+  const fetchAllUsersAndSplit = async (showLoading = true) => {
+    try {
+      if (showLoading) {
+        setLoading(true)
+      }
+      const token = authUtils.getAuthHeader()
+      if (!token) return
+
+      // Get user IDs from policy.users array
+      const userIds = Array.isArray(policy.users) ? policy.users : []
+
+      // Fetch all users once
+      const response = await usersApi.getAll()
+      const allUsers = Array.isArray(response.data)
+        ? response.data
+        : response.data?.data || response.data?.users || []
+
+      // Split users into mapped and available
+      const mappedUserData = allUsers.filter(user =>
+        userIds.includes(user.user_id || user.id)
+      )
+      const availableUserData = allUsers.filter(user =>
+        !userIds.includes(user.user_id || user.id)
+      )
+
+      setMappedUsers(mappedUserData)
+      setAvailableUsers(availableUserData)
+
+      return { mapped: mappedUserData, available: availableUserData }
+    } catch (error) {
+      console.error("Error fetching users:", error)
+      setMappedUsers([])
+      setAvailableUsers([])
+      return { mapped: [], available: [] }
+    } finally {
+      if (showLoading) {
+        setLoading(false)
+      }
+    }
+  }
+
   const fetchMappedUsers = async (showLoading = false) => {
     try {
       if (showLoading) {
@@ -71,15 +126,27 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
       const token = authUtils.getAuthHeader()
       if (!token) return
 
-      const policyId = policy.p_id || policy.policy_id || policy.id
-      const response = await policiesApi.getUsersByPolicy(policyId)
+      // Get user IDs from policy.users array
+      const userIds = Array.isArray(policy.users) ? policy.users : []
 
-      const userData = Array.isArray(response.data)
+      if (userIds.length === 0) {
+        setMappedUsers([])
+        return []
+      }
+
+      // Fetch all users and filter by the IDs in policy.users
+      const response = await usersApi.getAll()
+      const allUsers = Array.isArray(response.data)
         ? response.data
         : response.data?.data || response.data?.users || []
 
-      setMappedUsers(userData)
-      return userData
+      // Filter users that are mapped to this policy
+      const mappedUserData = allUsers.filter(user =>
+        userIds.includes(user.user_id || user.id)
+      )
+
+      setMappedUsers(mappedUserData)
+      return mappedUserData
     } catch (error) {
       console.error("Error fetching mapped users:", error)
       setMappedUsers([])
@@ -170,11 +237,10 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
       setDeleteDialogOpen(false)
       setUserToRemove(null)
 
-      // First fetch updated mapped users, then use that data to update available users
-      const updatedMappedUsers = await fetchMappedUsers(false) // Silent update
-      await fetchAvailableUsers(updatedMappedUsers) // Pass fresh data to avoid stale state
+      // Refresh data after removing user
+      await fetchAllUsersAndSplit(false) // Silent update
 
-      // Notify parent to refresh user counts (without full page reload)
+      // Notify parent to refresh user counts
       if (onUserUpdate) {
         onUserUpdate()
       }
@@ -543,11 +609,10 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
 
                                         toast.success("User added to policy successfully")
 
-                                        // First fetch updated mapped users, then use that data to update available users
-                                        const updatedMappedUsers = await fetchMappedUsers(false) // Silent update
-                                        await fetchAvailableUsers(updatedMappedUsers) // Pass fresh data to avoid stale state
+                                        // Refresh data after adding user
+                                        await fetchAllUsersAndSplit(false) // Silent update
 
-                                        // Notify parent to refresh user counts (without full page reload)
+                                        // Notify parent to refresh user counts
                                         if (onUserUpdate) {
                                           onUserUpdate()
                                         }
