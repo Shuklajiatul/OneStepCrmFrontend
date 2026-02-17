@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { CheckCircle2, Send, ArrowLeft, Building, User, Save, Edit, FileText, Trash2, Lock, Pause } from "lucide-react"
+import { CheckCircle2, Send, ArrowLeft, Building, User, Save, Edit, FileText, Trash2, Lock, Pause, AlertCircle } from "lucide-react"
 import { FieldRenderer } from "../../component/formbuilder/field-renderer"
 import { useState, useEffect, Suspense } from "react"
 import { toast } from "sonner"
@@ -1765,8 +1765,7 @@ function PublicFormContent() {
   const [updateSuccess, setUpdateSuccess] = useState(false)
   const [editCountLeft, setEditCountLeft] = useState(null)
   const [isEditable, setIsEditable] = useState(true)
-  const [latestVersion, setLatestVersion] = useState(null)
-  const [isVersionReadOnly, setIsVersionReadOnly] = useState(false)
+  const [isLatestVersion, setIsLatestVersion] = useState(true)
   const [lastSubmissionId, setLastSubmissionId] = useState(null)
   const [lastSubmissionToken, setLastSubmissionToken] = useState(null)
   const [phoneCountries, setPhoneCountries] = useState([])
@@ -1813,28 +1812,7 @@ function PublicFormContent() {
     }
   }, [token, submissionId, formId, userIdFromUrl])
 
-  // Enforce view-only in edit mode if the submission's form version is older than latest
-  useEffect(() => {
-    const enforceEditModeVersion = async () => {
-      if (!formId || !isEditMode || !formData?.version) return
-      try {
-        const baseUrl = `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`
-        const latestResp = await formsApi.getById(formId)
-        const latestRes = latestResp.data
-        if (latestRes?.success && latestRes?.data) {
-          const latestVer = latestRes.data.version || null
-          setLatestVersion(latestVer)
-          if (latestVer && Number(formData.version) < Number(latestVer)) {
-            setIsEditable(false)
-            setIsVersionReadOnly(true)
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to check latest version for edit mode:', e?.message)
-      }
-    }
-    enforceEditModeVersion()
-  }, [formId, isEditMode, formData?.version])
+
 
   const checkExistingSubmission = () => {
     try {
@@ -2626,23 +2604,36 @@ function PublicFormContent() {
           console.log('Form version load:', { requestedVersion: versionParam, usedVersionEndpoint })
         }
 
-        try {
-          // Also fetch latest to determine read-only state when a specific version is requested
-          const latestResp = await formsApi.getById(formId)
-          const latestRes = latestResp.data
-          const latestData = latestRes.success ? latestRes.data : latestRes
-          if (latestData) {
-            const latestVer = latestData.version || null
-            setLatestVersion(latestVer)
-            if (versionParam && latestVer && Number(versionParam) < Number(latestVer)) {
-              setIsVersionReadOnly(true)
+        if (versionParam) {
+          try {
+            let latestVersion = null;
+            if (!usedVersionEndpoint) {
+              latestVersion = result.version;
             } else {
-              setIsVersionReadOnly(false)
+              const latestResp = await formsApi.getById(formId)
+              const latestData = latestResp.data.success ? latestResp.data.data : latestResp.data
+              if (latestData) {
+                latestVersion = latestData.version;
+              }
             }
+
+            if (latestVersion) {
+              const currentVer = String(result.version || versionParam)
+              const latestVer = String(latestVersion)
+              const isLatest = currentVer === latestVer
+              setIsLatestVersion(isLatest)
+              console.log(`Version check: current=${currentVer}, latest=${latestVer}, isLatest=${isLatest}`)
+            }
+          } catch (verErr) {
+            console.warn('Failed to check latest version:', verErr)
+            setIsLatestVersion(true)
           }
-        } catch (e) {
-          console.warn('Unable to fetch latest form version for comparison:', e?.message)
+        } else {
+          // No version requested -> implies latest
+          setIsLatestVersion(true)
         }
+
+
 
         // Check if form is archived/inactive
         if (result.archived || result.isarchieved || result.status === false) {
@@ -3666,9 +3657,17 @@ function PublicFormContent() {
                 </div>
               )}
               {!isEditMode && formData.version && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Form v{formData.version} {isVersionReadOnly ? '(View Only - older version)' : '(Latest)'}
-                </p>
+                <div className="flex flex-col items-center gap-2 mt-1">
+                  <p className="text-xs text-gray-500">
+                    Form v{formData.version} {formData.version && versionParam ? '(Specific Version)' : '(Latest)'}
+                  </p>
+                  {!isLatestVersion && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md text-amber-700 text-sm">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>This is an older version of the form. It is read-only.</span>
+                    </div>
+                  )}
+                </div>
               )}
             </CardHeader>
 
@@ -3729,6 +3728,7 @@ function PublicFormContent() {
                                         invalid={fieldApi.state.meta.errors.length > 0}
                                         error={fieldApi.state.meta.errors.length > 0 ? fieldApi.state.meta.errors[0] : undefined}
                                         hideFieldTypes={true}
+                                        disabled={!isLatestVersion || (isEditMode && !isEditable)}
                                       />
                                     </div>
                                   )
@@ -3773,6 +3773,7 @@ function PublicFormContent() {
                               invalid={fieldApi.state.meta.errors.length > 0}
                               error={fieldApi.state.meta.errors.length > 0 ? fieldApi.state.meta.errors[0] : undefined}
                               hideFieldTypes={true}
+                              disabled={!isLatestVersion || (isEditMode && !isEditable)}
                             />
                           </div>
                         )
@@ -3807,7 +3808,7 @@ function PublicFormContent() {
                     {([canSubmit, isSubmitting]) => (
                       <Button
                         type="submit"
-                        disabled={!canSubmit || submitting || (isEditMode && !isEditable) || (!isEditMode && isVersionReadOnly)}
+                        disabled={!canSubmit || submitting || (isEditMode && !isEditable) || !isLatestVersion}
                         className="gap-2 min-w-32"
                       >
                         {submitting || isSubmitting ? (
@@ -3824,22 +3825,15 @@ function PublicFormContent() {
                               </>
                             ) : !isEditMode ? (
                               <>
-                                {isVersionReadOnly ? (
-                                  <>
-                                    <Lock className="h-4 w-4" />
-                                    View Only
-                                  </>
-                                ) : (
-                                  <>
-                                    <Send className="h-4 w-4" />
-                                    Submit Form
-                                  </>
-                                )}
+                                <>
+                                  <Send className="h-4 w-4" />
+                                  Submit Form
+                                </>
                               </>
                             ) : (
                               <>
                                 <Lock className="h-4 w-4" />
-                                Form Not Editable
+                                {!isLatestVersion ? "Form Read-Only" : "Form Not Editable"}
                               </>
                             )}
                           </>
