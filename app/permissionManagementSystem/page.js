@@ -115,48 +115,7 @@ const fetchSinglePolicy = async (policyId) => {
   }
 }
 
-const fetchUserCountsForPolicies = async (policies) => {
-  const token = authUtils.getAuthHeader()
-  if (!token) {
-    return {}
-  }
 
-  const counts = {}
-
-  // Fetch all user counts in parallel for better performance
-  const fetchPromises = policies.map(async (policy) => {
-    const policyId = policy.p_id || policy.policy_id || policy.id
-    if (!policyId) {
-      return { policyId: null, count: 0 }
-    }
-
-    try {
-      // Use the same endpoint that PolicyMappedUsersTab uses to get users
-      const response = await policiesApi.getUsersByPolicy(policyId)
-
-      // Extract user data from response
-      const userData = Array.isArray(response.data)
-        ? response.data
-        : response.data?.data || response.data?.users || []
-
-      return { policyId, count: userData.length }
-    } catch (error) {
-      console.error(`Error fetching user count for policy ${policyId}:`, error)
-      return { policyId, count: 0 }
-    }
-  })
-
-  const results = await Promise.all(fetchPromises)
-
-  // Convert results array to counts object
-  results.forEach(({ policyId, count }) => {
-    if (policyId) {
-      counts[policyId] = count
-    }
-  })
-
-  return counts
-}
 
 export default function PermissionManagement() {
   const [activeTab, setActiveTab] = useState("overview")
@@ -190,8 +149,14 @@ export default function PermissionManagement() {
       setPolicies(data.policies || [])
       setPolicyFeatureMappings(data.mappings || [])
 
-      // Fetch user counts for all policies
-      const userCountsMap = await fetchUserCountsForPolicies(data.policies || [])
+      // Extract user counts directly from policies data
+      const userCountsMap = {}
+      data.policies.forEach(policy => {
+        const policyId = policy.p_id || policy.policy_id || policy.id
+        if (policyId) {
+          userCountsMap[policyId] = Array.isArray(policy.users) ? policy.users.length : 0
+        }
+      })
       setUserCounts(userCountsMap)
 
       // Update selectedMapping if we're on mapping-detail tab to get fresh data
@@ -340,13 +305,13 @@ export default function PermissionManagement() {
                     Manage feature access, create policies, and control user permissions
                   </CardDescription>
                 </div>
-                <Button
+                {/* <Button
                   onClick={() => setActiveTab("create-policy")}
                   className="flex items-center gap-2"
                 >
                   <Plus className="h-4 w-4" />
                   Create Policy
-                </Button>
+                </Button> */}
               </div>
             </CardHeader>
             <CardContent>
@@ -415,10 +380,8 @@ export default function PermissionManagement() {
                         policy={selectedPolicy}
                         onBack={handleBackToOverview}
                         onUserUpdate={async () => {
-                          // Refresh user counts when users are added/removed
-                          // Use current policies state to get updated counts
-                          const updatedCounts = await fetchUserCountsForPolicies(policies)
-                          setUserCounts(updatedCounts)
+                          // Refresh all data to get updated user counts
+                          await loadAllData()
                         }}
                       />
                     )}
