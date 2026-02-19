@@ -18,7 +18,7 @@ import {
 import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon, Database, FileText, X } from "lucide-react"
 import { toast } from "sonner"
 import { formsApi } from "@/lib/api-endpoint"
-import EditFormDialog from "../component/EditForm/edit-form"
+import EditFormDialog from "../custom-form/components/EditForm/edit-form"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -245,7 +245,7 @@ export default function MyFormsPage() {
       setArchivingForm(formId)
 
       const archivePayload = {
-        organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
+        organization_id: authUtils.getOrganizationId(),
         form_id: formId,
         table_id: process.env.NEXT_PUBLIC_TABLE_ID,
         status: !currentStatus,
@@ -292,26 +292,22 @@ export default function MyFormsPage() {
   // Function to delete form
   const deleteForm = async (form) => {
     try {
-      console.log('Starting delete for form:', {
-        form_id: form.form_id,
-        form_name: form.form_name,
-        version: form.version || 1
-      })
+
       setDeletingForm(form.form_id)
 
       const deletePayload = {
-        organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
+        organization_id: authUtils.getOrganizationId(),
         form_id: form.form_id,
         table_id: process.env.NEXT_PUBLIC_TABLE_ID,
         version: form.version || 1
       }
 
-      console.log('Delete payload:', deletePayload)
+
 
       const response = await formsApi.delete(deletePayload)
 
       const result = response.data
-      console.log('Delete response:', result)
+
 
       if (result.success) {
         // Remove the specific form version from local state
@@ -319,7 +315,7 @@ export default function MyFormsPage() {
           const filteredForms = prevForms.filter(f =>
             !(f.form_id === form.form_id && (f.version || 1) === (form.version || 1))
           )
-          console.log(`Removed version ${form.version || 1} of form ${form.form_id}. Remaining forms:`, filteredForms.length)
+
           return filteredForms
         })
 
@@ -351,7 +347,7 @@ export default function MyFormsPage() {
 
       const response = await formsApi.getAll()
       const result = response.data
-      console.log('API Forms Response:', result)
+
 
       if (result.success && Array.isArray(result.data)) {
         // Group forms by form_id to find latest versions
@@ -642,7 +638,6 @@ export default function MyFormsPage() {
                 // Check if fieldRef is a full field object (has type property) or just an ID
                 if (typeof fieldRef === 'object' && fieldRef.type) {
                   // It's a full field object - parse it like we do for regular fields
-                  // ... existing parsing logic ...
                   const parsedSubField = {
                     id: fieldRef.id,
                     name: fieldRef.name || fieldRef.id,
@@ -892,7 +887,7 @@ export default function MyFormsPage() {
       const apiData = {
         form_id: editingForm.form_id,
         table_id: process.env.NEXT_PUBLIC_TABLE_ID,
-        organization_id: process.env.NEXT_PUBLIC_ORGANIZATION_ID,
+        organization_id: authUtils.getOrganizationId(),
         form_name: updatedData.form_name,
         description: updatedData.description,
         retry_count: updatedData.retry_count || editingForm.retry_count || editingForm.max_retry_count || "2",
@@ -1011,14 +1006,7 @@ export default function MyFormsPage() {
       // Add published status
       apiData.published = editingForm.published !== false
 
-      console.log('Update payload structure:', {
-        form_id: apiData.form_id,
-        table_id: apiData.table_id,
-        form_name: apiData.form_name,
-        total_fields: apiData.fields.length,
-        has_group: apiData.group !== "[]",
-        retry_count: apiData.retry_count
-      })
+
 
       const result = await updateForm(apiData)
 

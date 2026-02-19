@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { RefreshCw, AlertCircle, Search, FileText, Send, ArrowLeft, Eye, X } from "lucide-react"
+import { RefreshCw, ArrowLeft, FileText, Search, X, Send, Eye, AlertCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -36,17 +36,23 @@ import { toast } from "sonner"
 import { authUtils } from "@/lib/auth-utils"
 import { formsApi, submissionsApi } from "@/lib/api-endpoint"
 import { useParams, useRouter, usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { formatDateTimeDisplay } from "@/lib/utils"
-import { extractTimestampFromUUID } from "@/lib/utils"
-import { isUUIDv1 } from "@/lib/utils"
-import { isValidDate } from "@/lib/utils"
+import {
+  cn,
+  formatDateTimeDisplay,
+  extractTimestampFromUUID,
+  isUUIDv1,
+  isValidDate,
+  formatDateOnly,
+  formatPhoneDisplay,
+  formatLocationDisplay,
+  inferFilenameFromDataUrl,
+  safeParseJSON
+} from "@/lib/utils"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
 const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 
 export default function FormSubmissionsPage() {
@@ -70,8 +76,11 @@ export default function FormSubmissionsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
 
+  const lastFetchedFormId = useRef(null)
+
   useEffect(() => {
-    if (formId) {
+    if (formId && lastFetchedFormId.current !== formId) {
+      lastFetchedFormId.current = formId
       fetchFormDetails()
       fetchSubmissions()
     }
@@ -104,7 +113,7 @@ export default function FormSubmissionsPage() {
     setError(null)
 
     try {
-      const response = await submissionsApi.getAll(ORGANIZATION_ID, formId)
+      const response = await submissionsApi.getAll(authUtils.getOrganizationId(), formId)
 
       if (response.data.success && Array.isArray(response.data.data)) {
         const mappedSubmissions = response.data.data.map((submission) => ({
@@ -125,96 +134,6 @@ export default function FormSubmissionsPage() {
     }
   }
 
-  const parseJsonSafely = (value) => {
-    if (value === null || value === undefined) return null
-    if (typeof value === "object") return value
-    if (typeof value !== "string") return value
-    const trimmed = value.trim()
-    if (!trimmed) return ""
-    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-      try {
-        return JSON.parse(trimmed)
-      } catch (error) {
-        console.warn("parseJsonSafely error:", error)
-        return value
-      }
-    }
-    return value
-  }
-
-  const formatDateOnly = (input) => {
-    if (input instanceof Date && !isNaN(input.getTime())) {
-      return input.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    }
-
-    if (input === null || input === undefined) return null;
-
-    const str = String(input).trim();
-    if (!str) return null;
-
-    // Try direct parsing first
-    const direct = new Date(str);
-    if (!isNaN(direct.getTime())) {
-      return direct.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-    }
-
-    // Handle ISO format with time
-    const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
-    if (isoMatch) {
-      const datePart = isoMatch[1];
-      const [year, month, day] = datePart.split('-');
-      const dateObj = new Date(year, month - 1, day);
-      if (!isNaN(dateObj.getTime())) {
-        return dateObj.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        });
-      }
-    }
-
-    return null;
-  };
-
-  const formatPhoneDisplay = (value) => {
-    const parsed = parseJsonSafely(value)
-    if (parsed && typeof parsed === "object") {
-      const countryCode = parsed.countryCode || parsed.code || ""
-      const number = parsed.number || parsed.value || ""
-      const country = parsed.country || ""
-      const line = [countryCode, number].filter(Boolean).join(" ").trim()
-      return (
-        <div className="text-sm">
-          {line && <div className="font-medium">{line}</div>}
-          {country && <div className="text-xs text-muted-foreground">{country}</div>}
-        </div>
-      )
-    }
-    return <span className="truncate max-w-[200px]">{String(value ?? "")}</span>
-  }
-
-  const formatLocationDisplay = (value) => {
-    const parsed = parseJsonSafely(value)
-    if (parsed && typeof parsed === "object") {
-      const title = parsed.address || parsed.name || ""
-      const subtitle = [parsed.city, parsed.state, parsed.country].filter(Boolean).join(", ")
-      return (
-        <div className="text-sm">
-          {title && <div className="font-medium">{title}</div>}
-          {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
-        </div>
-      )
-    }
-    return <span className="truncate max-w-[200px]">{String(value ?? "")}</span>
-  }
 
   const normalizeNestedFields = (nestedFields) => {
     if (!nestedFields || !Array.isArray(nestedFields)) return []
@@ -235,7 +154,8 @@ export default function FormSubmissionsPage() {
 
   const parseNestedData = (fieldValue, field) => {
     try {
-      const parsed = JSON.parse(fieldValue)
+      const parsed = safeParseJSON(fieldValue)
+      if (!parsed || typeof parsed !== 'object') return null
       let options = field.options ? (typeof field.options === "string" ? JSON.parse(field.options) : field.options) : []
 
       const normalizeOptionsRecursively = (opts) => {
@@ -391,26 +311,7 @@ export default function FormSubmissionsPage() {
     }
   }
 
-  const inferFilenameFromDataUrl = (dataUrl, field) => {
-    try {
-      if (typeof dataUrl !== "string") return "file"
-      const match = dataUrl.match(/^data:([^;]+);base64,/)
-      const mime = match ? match[1] : "application/octet-stream"
-      const ext =
-        {
-          "image/png": "png",
-          "image/jpeg": "jpg",
-          "image/jpg": "jpg",
-          "image/gif": "gif",
-          "image/webp": "webp",
-          "application/pdf": "pdf",
-        }[mime] || "bin"
-      const base = (field?.label || field?.name || "file").toString().replace(/\s+/g, "_").toLowerCase()
-      return `${base}.${ext}`
-    } catch {
-      return "file"
-    }
-  }
+
 
   const openFileModal = (dataUrl, field) => {
     if (!dataUrl || typeof dataUrl !== "string") return
@@ -588,7 +489,7 @@ export default function FormSubmissionsPage() {
           </a>
         )
       case "phone": {
-        const phoneData = parseJsonSafely(rawString)
+        const phoneData = safeParseJSON(rawString)
         if (phoneData && typeof phoneData === "object") {
           return formatPhoneDisplay(phoneData)
         }
@@ -599,7 +500,7 @@ export default function FormSubmissionsPage() {
         )
       }
       case "location": {
-        const locationData = parseJsonSafely(rawString)
+        const locationData = safeParseJSON(rawString)
         if (locationData && typeof locationData === "object") {
           return formatLocationDisplay(locationData)
         }
@@ -639,13 +540,9 @@ export default function FormSubmissionsPage() {
 
     if (typeof rawValue === "string") {
       const trimmed = rawValue.trim()
-      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-        try {
-          return JSON.parse(trimmed)
-        } catch (e) {
-          return rawValue
-        }
-      }
+      const parsed = safeParseJSON(trimmed)
+      if (typeof parsed === 'object') return parsed
+      return rawValue
     }
 
     return rawValue
@@ -671,13 +568,9 @@ export default function FormSubmissionsPage() {
 
     if (typeof value === "string") {
       const trimmed = value.trim()
-      if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
-        try {
-          const parsed = JSON.parse(trimmed)
-          return extractSearchableText(parsed)
-        } catch (e) {
-          return value
-        }
+      const parsed = safeParseJSON(trimmed)
+      if (typeof parsed === 'object') {
+        return extractSearchableText(parsed)
       }
       return value
     }
@@ -843,7 +736,7 @@ export default function FormSubmissionsPage() {
               parsedField = JSON.parse(jsonString)
             }
           } catch (e) {
-            console.warn("Failed to parse field:", e)
+            // Silently fail
           }
         }
       }

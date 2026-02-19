@@ -39,13 +39,10 @@ export function middleware(request) {
     const accessToken = request.cookies.get('accessToken')
     const refreshToken = request.cookies.get('refreshToken')
 
-    // Debug log (server-side only, viewable in terminal)
-    // console.log(`Middleware: ${pathname} - Access: ${!!accessToken}, Refresh: ${!!refreshToken}`);
-
     if (!accessToken && !refreshToken) {
         // No tokens found -> Redirect to login
         const url = request.nextUrl.clone()
-        url.pathname = '/login'
+        url.pathname = '/auth/login'
         url.searchParams.set('error', 'session_required')
         return NextResponse.redirect(url)
     }

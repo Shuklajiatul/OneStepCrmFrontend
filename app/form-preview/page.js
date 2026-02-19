@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { FormPreview } from "../component/formbuilder/form-preview"
+import { FormPreview } from "../custom-form/components/formbuilder/form-preview"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
@@ -184,7 +184,7 @@ export default function FormPreviewPage() {
 
         // Generate the same payload structure as Generate Link
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-        const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
+        const ORGANIZATION_ID = authUtils.getOrganizationId()
         const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 
         // Separate fields by type

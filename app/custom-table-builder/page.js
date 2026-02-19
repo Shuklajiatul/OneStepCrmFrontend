@@ -31,17 +31,17 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { cn } from "@/lib/utils"
+import { cn, getStatusBadge, parseOptionalValuesArray, getColumnFieldType, getColumnOptions, buildFieldValuePayload, updateNestedState } from "@/lib/utils"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { v4 as uuidv4 } from 'uuid'
-import { ColumnConfigPanel } from "./column-config-panel"
-import { TableCreationWizard } from "./table-creation-wizard"
+import { ColumnConfigPanel } from "./components/column-config-panel"
+import { TableCreationWizard } from "./components/table-creation-wizard"
 import { authUtils } from "@/lib/auth-utils"
-import { recordsApi, datatablesApi } from "@/lib/api-endpoint" // Added recordsApi
+import { recordsApi, datatablesApi } from "@/lib/api-endpoint"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import { fetchPhoneCountries, fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
 import {
@@ -85,21 +85,6 @@ import { CSS } from '@dnd-kit/utilities'
 
 
 
-const getStatusBadge = (isActive) => {
-  return isActive ? (
-    <Badge className="bg-emerald-100/50 text-emerald-700 border-none px-3 py-1 shadow-none font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5">
-      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-      Active
-    </Badge>
-  ) : (
-    <Badge className="bg-slate-100 text-slate-500 border-none px-3 py-1 shadow-none font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5">
-      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-      Inactive
-    </Badge>
-  )
-}
-
-
 const columnTypes = [
   // Essential Types
   { value: "text", label: "Text Input", icon: Type, category: "essential" },
@@ -123,131 +108,6 @@ const essentialTypes = columnTypes.filter(t => t.category === "essential")
 const superUsefulTypes = columnTypes.filter(t => t.category === "super-useful")
 const customTypes = columnTypes.filter(t => t.category === "custom")
 
-
-const parseOptionalValuesArray = (optionalValuesInput) => {
-  if (!optionalValuesInput) return []
-
-  const tryParse = (value) => {
-    if (Array.isArray(value)) return value
-    if (typeof value === 'string') {
-      try {
-        const parsed = JSON.parse(value)
-        return Array.isArray(parsed) ? parsed : []
-      } catch { return [] }
-    }
-    if (typeof value === 'object') return Array.isArray(value) ? value : []
-    return []
-  }
-
-  if (Array.isArray(optionalValuesInput)) {
-    for (const entry of optionalValuesInput) {
-      const parsed = tryParse(entry)
-      if (parsed.length) return parsed
-    }
-  }
-
-  if (typeof optionalValuesInput === 'string') return tryParse(optionalValuesInput)
-  return []
-}
-
-const getColumnFieldType = (column) => {
-  if (!column) return 'text'
-  // Prioritize properties.field_type or parent_datatype just like in table-data-view.js
-  return (
-    column.properties?.field_type ||
-    column.parentDatatype || // Use the mapped parentDatatype
-    column.parent_datatype ||
-    column.data_type || // Include data_type for datetime/date support
-    column.type || // fallback to mapped UI type
-    'text'
-  )
-}
-
-const getColumnOptions = (column) => {
-  if (!column) return []
-  if (Array.isArray(column.rawOptions) && column.rawOptions.length > 0) return column.rawOptions
-  if (Array.isArray(column.options) && column.options.length > 0) {
-    // Fallback or if options already parsed
-    const first = column.options[0]
-    if (typeof first === 'object') return column.options
-  }
-  // Try parsing if strict options not found
-  return parseOptionalValuesArray(column.options)
-}
-
-const buildFieldValuePayload = (column, value) => {
-  const fieldType = getColumnFieldType(column)
-
-  if (value === null || value === undefined) return null
-
-  // Handle checkbox (multi-select)
-  if (fieldType === 'checkbox') {
-    const normalizedArray = (Array.isArray(value) ? value : [])
-      .map((item) => {
-        if (typeof item === 'object' && item !== null) {
-          if (!item.value) return null
-          const payload = { value: item.value }
-          if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
-            payload.nestedValues = item.nestedValues
-          }
-          return payload
-        }
-
-        if (!item) return null
-        return { value: item }
-      })
-      .filter(Boolean)
-
-    if (!normalizedArray.length) return null
-    return JSON.stringify(normalizedArray)
-  }
-
-  // Handle select & radio (single choice)
-  if (fieldType === 'select' || fieldType === 'radio') {
-    if (typeof value === 'object' && value !== null) {
-      if (!value.value) return null
-      return JSON.stringify({
-        value: value.value,
-        nestedValues: value.nestedValues || {},
-      })
-    }
-
-    if (typeof value === 'string' && value.trim()) {
-      return JSON.stringify({
-        value: value.trim(),
-        nestedValues: {},
-      })
-    }
-
-    return null
-  }
-
-  // Handle remaining field types (wrap with { value })
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-
-    if (
-      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('[') && trimmed.endsWith(']'))
-    ) {
-      try {
-        const parsed = JSON.parse(trimmed)
-        return JSON.stringify({ value: parsed })
-      } catch {
-        return JSON.stringify({ value: trimmed })
-      }
-    }
-
-    return JSON.stringify({ value: trimmed })
-  }
-
-  if (typeof value === 'object') {
-    return JSON.stringify({ value })
-  }
-
-  return JSON.stringify({ value })
-}
 
 // Table Settings Dialog
 function TableSettingsDialog({ table, open, onOpenChange, onUpdate }) {
@@ -389,15 +249,6 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
     })
     setRecordFormData(initialFormState)
     setIsAddRecordDialogOpen(true)
-  }
-
-  // --- Nested State Updates ---
-  const updateNestedState = (obj, path, value) => {
-    if (path.length === 0) return value
-    const [head, ...tail] = path
-    const res = Array.isArray(obj) ? [...obj] : { ...obj }
-    res[head] = updateNestedState(obj[head], tail, value)
-    return res
   }
 
   const handleRecursiveFieldChange = (fieldId, newValue, path = []) => {
@@ -2708,8 +2559,6 @@ export default function CustomTableBuilder() {
         } else if (responseData && Array.isArray(responseData.data)) {
           records = responseData.data
         }
-
-        // Removed redundant client-side filtering here - moved to simple render logic
 
         // Set total count
         const total = meta.total || (responseData.pagination ? responseData.pagination.total : records.length)

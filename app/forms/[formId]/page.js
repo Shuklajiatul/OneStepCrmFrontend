@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { CheckCircle2, Send, ArrowLeft, Building, User, Save, Edit, FileText, Trash2, Lock, Pause, AlertCircle } from "lucide-react"
-import { FieldRenderer } from "../../component/formbuilder/field-renderer"
+import { FieldRenderer } from "../../custom-form/components/formbuilder/field-renderer"
 import { useState, useEffect, Suspense } from "react"
 import { toast } from "sonner"
 import { authUtils } from "@/lib/auth-utils"
+import { formatFileSize } from "@/lib/utils"
 import { formsApi, submissionsApi } from "@/lib/api-endpoint"
 import Link from "next/link"
 import Image from "next/image"
@@ -18,20 +19,9 @@ import { fetchPhoneCountries } from "@/lib/constants/location-api"
 import { v4 as uuidv4 } from 'uuid';
 
 
-// API configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
 const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID
-
-// Helper functions
-const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
 
 // Improved base64 detection
 const isBase64File = (str) => {
@@ -1010,22 +1000,6 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
         }
         break
 
-      // case "location":
-      //   if (typeof fieldValue === 'object' && fieldValue !== null) {
-      //     const locationData = {
-      //       value: "location",
-      //       nestedValues: {
-      //         country: { value: fieldValue.country || "" },
-      //         state: { value: fieldValue.state || "" },
-      //         city: { value: fieldValue.city || "" }
-      //       }
-      //     }
-      //     transformedValues[finalFieldKey] = locationData
-      //   } else {
-      //     transformedValues[finalFieldKey] = { value: "" }
-      //   }
-      //   break
-
       case "location":
         if (typeof fieldValue === 'object' && fieldValue !== null) {
           // Create location object in the direct format expected by API
@@ -1034,129 +1008,11 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
             state: fieldValue.state || "",
             city: fieldValue.city || ""
           }
-          transformedValues[finalFieldKey] = locationData
-
-          console.log('📍 Location field transformed:', {
-            fieldId: finalFieldKey,
-            transformed: transformedValues[finalFieldKey]
-          })
-        } else {
-          transformedValues[finalFieldKey] = {
-            country: "",
-            state: "",
-            city: ""
-          }
         }
         break
-
-      // case "phone":
-      //   if (typeof fieldValue === 'object' && fieldValue !== null) {
-      //     const phoneData = {
-      //       value: "phone",
-      //       nestedValues: {
-      //         country: { value: fieldValue.country || "" },
-      //         number: { value: fieldValue.number || "" }
-      //       }
-      //     }
-      //     transformedValues[finalFieldKey] = phoneData
-      //   } else {
-      //     transformedValues[finalFieldKey] = { value: "" }
-      //   }
-      //   break
-      case "phone":
-        if (typeof fieldValue === 'object' && fieldValue !== null) {
-          // Find the country code from phoneCountries with proper fallback
-          let countryCode = "+1" // Default fallback
-          let number = fieldValue.number || ""
-
-          if (phoneCountries && Array.isArray(phoneCountries)) {
-            const phoneCountry = phoneCountries.find(c => c.code === fieldValue.country)
-            countryCode = phoneCountry?.dial || "+1"
-          } else {
-            console.warn('phoneCountries not available, using default country code +1')
-          }
-
-          // Create the phone object in the exact format expected by API
-          const phoneData = {
-            countryCode: countryCode,
-            number: number
-          }
-
-          // Set the phone data directly (no contact_number wrapper)
-          transformedValues[finalFieldKey] = phoneData
-
-          console.log('📞 Phone field transformed:', {
-            fieldId: finalFieldKey,
-            transformed: transformedValues[finalFieldKey]
-          })
-        } else {
-          transformedValues[finalFieldKey] = {
-            countryCode: "+1",
-            number: ""
-          }
-        }
-        break
-
-      case "group":
-        // For group fields, extract subfield values to top level instead of nesting
-        if (typeof fieldValue === 'object' && fieldValue !== null) {
-          // The fieldValue contains subfield IDs as keys with their values
-          Object.keys(fieldValue).forEach(subFieldId => {
-            const subFieldValue = fieldValue[subFieldId]
-            const subField = field.subFields?.find(sf => sf.id === subFieldId)
-
-            // Transform each subfield value based on its type
-            if (subField) {
-              switch (subField.type) {
-                case "phone":
-                  if (typeof subFieldValue === 'object' && subFieldValue !== null) {
-                    let countryCode = "+1"
-                    let number = subFieldValue.number || ""
-                    if (phoneCountries && Array.isArray(phoneCountries)) {
-                      const phoneCountry = phoneCountries.find(c => c.code === subFieldValue.country)
-                      countryCode = phoneCountry?.dial || "+1"
-                    }
-                    transformedValues[subFieldId] = { countryCode, number }
-                  } else {
-                    transformedValues[subFieldId] = { countryCode: "+1", number: "" }
-                  }
-                  break
-                case "location":
-                  if (typeof subFieldValue === 'object' && subFieldValue !== null) {
-                    transformedValues[subFieldId] = {
-                      country: subFieldValue.country || "",
-                      state: subFieldValue.state || "",
-                      city: subFieldValue.city || ""
-                    }
-                  } else {
-                    transformedValues[subFieldId] = { country: "", state: "", city: "" }
-                  }
-                  break
-                case "select":
-                case "checkbox":
-                case "radio":
-                  if (typeof subFieldValue === 'object' && subFieldValue !== null && subFieldValue.value !== undefined) {
-                    transformedValues[subFieldId] = { value: subFieldValue.value }
-                  } else {
-                    transformedValues[subFieldId] = { value: subFieldValue || "" }
-                  }
-                  break
-                default:
-                  // For text, email, number, textarea, etc.
-                  transformedValues[subFieldId] = { value: subFieldValue || "" }
-              }
-            } else {
-              // Fallback if subField definition not found
-              transformedValues[subFieldId] = { value: subFieldValue || "" }
-            }
-          })
-        }
-        // Don't add the group itself to transformedValues - only its subfields
-        break
-
       default:
-        // Text, email, number, textarea
-        transformedValues[finalFieldKey] = { value: fieldValue || "" }
+        transformedValues[finalFieldKey] = { value: fieldValue }
+        break
     }
   })
 
@@ -1712,23 +1568,6 @@ const transformSubmissionValues = (submissionValues, fields, phoneCountries = []
     }
   })
 
-  console.log('Final transformed values for form:', transformedValues)
-
-  // Debug: Check for file fields specifically
-  const fileFields = fields.filter(f => f.type === 'file')
-  if (fileFields.length > 0) {
-    console.log('📁 File fields found:', fileFields.map(f => ({ id: f.id, label: f.label })))
-    fileFields.forEach(field => {
-      const value = transformedValues[field.id]
-      console.log(`📁 File field ${field.id} (${field.label}):`, {
-        hasValue: !!value,
-        valueType: typeof value,
-        isFileObject: value && typeof value === 'object' && value.name && value.base64,
-        value: value
-      })
-    })
-  }
-
   return transformedValues
 }
 
@@ -1741,6 +1580,7 @@ function PublicFormContent() {
   const submissionId = searchParams.get('submission_id')
   const userIdFromUrl = searchParams.get('user_id')
   const versionParam = searchParams.get('version')
+  const ORGANIZATION_ID = authUtils.getOrganizationId()
 
   // Properly handle null, undefined, or "undefined" string values
   const tokens = authUtils.getTokens()
@@ -2409,11 +2249,8 @@ function PublicFormContent() {
                   // Find the matching field in parsedFields by ID (ensure strict string comparison)
                   const matchingField = parsedFields.find(f => String(f.id) === String(fieldRef) || String(f.originalId) === String(fieldRef))
                   if (matchingField) {
-                    // console.log('✅ Found matching subfield:', fieldRef, matchingField.label)
                     subFields.push(matchingField)
                     groupFieldIds.add(String(fieldRef))
-                  } else {
-                    console.warn('⚠️ Could not find matching field for group ref:', fieldRef)
                   }
                 }
                 // Check if fieldRef is a full field object (has type property)
@@ -3256,44 +3093,6 @@ function PublicFormContent() {
     setFormInitialized(false)
   }, [isEditMode, formId])
 
-  // Add a debug effect to track form state changes
-  useEffect(() => {
-    console.log('Form State Update:', {
-      isEditMode,
-      formInitialized,
-      submissionData: !!submissionData,
-      formData: !!formData,
-      formValues: form?.state?.values
-    })
-  }, [isEditMode, formInitialized, submissionData, formData, form?.state?.values])
-
-  // Debug parsed form data structure
-  useEffect(() => {
-    if (formData) {
-      formData.fields.forEach((field, index) => {
-        console.log(`Field ${index}: ${field.label} (${field.type})`, {
-          id: field.id,
-          options: field.options,
-          nestedFields: field.nestedFields,
-          hasProcessedOptions: !!field._processedOptions,
-          processedOptions: field._processedOptions
-        })
-
-        // Log nested structure
-        if (field._processedOptions) {
-          field._processedOptions.forEach((option, optIndex) => {
-            if (option.nestedFields && option.nestedFields.length > 0) {
-              console.log(`  Option ${optIndex}: "${option.value}" has ${option.nestedFields.length} nested fields`)
-              option.nestedFields.forEach((nested, nestedIndex) => {
-                console.log(`    Nested Field ${nestedIndex}: ${nested.label} (${nested.type})`)
-              })
-            }
-          })
-        }
-      })
-    }
-  }, [formData])
-
   // Success View
   if (submissionSuccess && !isEditMode) {
     return (
@@ -3308,7 +3107,7 @@ function PublicFormContent() {
                 </div>
                 <div>
                   <h1 className="text-xl font-bold text-foreground">Slash CRM</h1>
-                  <p className="text-sm text-muted-foreground">Form Collection</p>
+                  <p className="text-sm text-text-muted-foreground">Form Collection</p>
                 </div>
               </div>
               <Badge variant="outline" className="text-xs">
@@ -3883,5 +3682,5 @@ export default function PublicFormPage() {
     }>
       <PublicFormContent />
     </Suspense>
-  )
+  );
 }

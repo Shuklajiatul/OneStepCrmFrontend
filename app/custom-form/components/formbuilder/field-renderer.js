@@ -18,19 +18,11 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 
 import { v4 as uuidv4 } from 'uuid'
+import { formatFileSize } from "@/lib/utils"
 
 // Helper function to generate unique field IDs
 const generateUniqueFieldId = () => {
   return uuidv4()
-}
-
-// Helper function to format file size
-const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 // Custom hook for location data management

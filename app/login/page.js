@@ -38,7 +38,7 @@ function LoginContent() {
 
   // Parse OTP timer from env (default 1 minute)
   const getOtpTimeInSeconds = () => {
-    const otpTime = process.env.NEXT_PUBLIC_OTP_TIME || '1m'
+    const otpTime = process.env.LOGIN_PUBLIC_OTP_TIME || '1m'
     const match = otpTime.match(/^(\d+)([smh])$/)
     if (!match) return 60
     const [, value, unit] = match
@@ -77,26 +77,6 @@ function LoginContent() {
     }
     return () => clearInterval(interval)
   }, [otpTimer])
-
-  // Check if user is already logged in
-  // useEffect(() => {
-  //   checkAuthStatus()
-  // }, [])
-
-  // const checkAuthStatus = async () => {
-  //   try {
-  //     const response = await apiClient.get(`/api/auth/check-session`)
-
-  //     if (response.status === 200) {
-  //       const data = response.data
-  //       if (data.authenticated) {
-  //         router.push('/dashboard')
-  //       }
-  //     }
-  //   } catch (error) {
-  //     console.error('Error checking auth status:', error)
-  //   }
-  // }
 
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target

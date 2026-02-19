@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,77 +20,28 @@ import {
     ArrowLeft,
     FileText,
     RefreshCw,
-    Settings,
-    History,
-    Clock,
     User,
-    Calendar,
-    Hash,
+    Settings,
+    Clock,
+    History,
     AlertCircle
 } from "lucide-react"
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
 import { usersApi, recordsApi, formsApi, submissionsApi } from '@/lib/api-endpoint'
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
+import {
+    safeParseJSON,
+    formatDateOnly,
+    formatLocationDisplay,
+    formatPhoneDisplay,
+    inferFilenameFromDataUrl
+} from "@/lib/utils"
 
-const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
 
-// --- Formatting Helpers ---
 
-const safeParseJSON = (val) => {
-    if (val === null || val === undefined || val === "") return null;
-    if (typeof val !== 'string') return val;
-    if (!val.trim().startsWith('{') && !val.trim().startsWith('[')) return val;
-    try {
-        return JSON.parse(val);
-    } catch (e) {
-        return val;
-    }
-};
 
-const formatDateOnly = (input) => {
-    if (!input) return null
-    const direct = new Date(input)
-    if (!Number.isNaN(direct.getTime())) return direct.toLocaleDateString()
-    return null
-}
 
-const formatLocationDisplay = (value) => {
-    if (!value) return null
-    const parsed = (typeof value === 'string') ? safeParseJSON(value) : value
-    if (parsed && typeof parsed === 'object') {
-        const title = parsed.address || parsed.name || ''
-        const subtitle = [parsed.city, parsed.state, parsed.country].filter(Boolean).join(', ')
-        return (
-            <div className="text-sm">
-                {title && <div className="font-medium">{title}</div>}
-                {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
-            </div>
-        )
-    }
-    return <span>{String(value ?? '')}</span>
-}
-
-const formatPhoneDisplay = (value) => {
-    if (!value) return null
-    const parsed = safeParseJSON(value);
-    if (parsed && typeof parsed === 'object') {
-        const actualValue = (parsed.value !== undefined) ? parsed.value : parsed
-        if (actualValue && typeof actualValue === 'object') {
-            const countryCode = actualValue.countryCode || actualValue.code || ''
-            const number = actualValue.number || actualValue.value || ''
-            const line = [countryCode, number].filter(Boolean).join(' ').trim()
-            return (
-                <div className="text-sm">
-                    {line && <div className="font-medium">{line}</div>}
-                    {actualValue.country && <div className="text-xs text-muted-foreground">{actualValue.country}</div>}
-                </div>
-            )
-        }
-        return <span>{String(actualValue)}</span>
-    }
-    return String(value)
-}
 
 function SubmissionDetailsContent() {
     const router = useRouter()
@@ -112,35 +63,17 @@ function SubmissionDetailsContent() {
     const [nestedData, setNestedData] = useState(null)
     const [currentField, setCurrentField] = useState(null)
 
+    const lastFetchedParams = useRef(null)
+
     useEffect(() => {
-        if (!formId || !submissionId) {
-            toast.error("Missing required parameters")
-            router.back()
-            return
+        const paramKey = `${formId}-${submissionId}`
+        if (formId && submissionId && lastFetchedParams.current !== paramKey) {
+            lastFetchedParams.current = paramKey
+            fetchData()
         }
-        fetchData()
     }, [formId, submissionId])
 
-    const inferFilenameFromDataUrl = (dataUrl, field) => {
-        try {
-            if (typeof dataUrl !== "string") return "file"
-            const match = dataUrl.match(/^data:([^;]+);base64,/)
-            const mime = match ? match[1] : "application/octet-stream"
-            const ext =
-                {
-                    "image/png": "png",
-                    "image/jpeg": "jpg",
-                    "image/jpg": "jpg",
-                    "image/gif": "gif",
-                    "image/webp": "webp",
-                    "application/pdf": "pdf",
-                }[mime] || "bin"
-            const base = (field?.label || field?.name || "file").toString().replace(/\s+/g, "_").toLowerCase()
-            return `${base}.${ext}`
-        } catch {
-            return "file"
-        }
-    }
+
 
     const openFileModal = (dataUrl, field) => {
         if (!dataUrl || typeof dataUrl !== "string") return
@@ -166,8 +99,8 @@ function SubmissionDetailsContent() {
 
     const parseNestedData = (fieldValue, field) => {
         try {
-            const parsed = typeof fieldValue === 'string' ? JSON.parse(fieldValue) : fieldValue
-            let options = field.options ? (typeof field.options === "string" ? JSON.parse(field.options) : field.options) : []
+            const parsed = typeof fieldValue === 'string' ? safeParseJSON(fieldValue) : fieldValue
+            let options = field.options ? (typeof field.options === "string" ? safeParseJSON(field.options) : field.options) : []
 
             const normalizeOptionsRecursively = (opts) => {
                 if (!Array.isArray(opts)) return []
@@ -391,7 +324,7 @@ function SubmissionDetailsContent() {
             const [formRes, usersRes, subsRes] = await Promise.all([
                 formsApi.getById(formId),
                 usersApi.getAll(),
-                submissionsApi.getAll(ORGANIZATION_ID, formId)
+                submissionsApi.getAll(authUtils.getOrganizationId(), formId)
             ])
 
             const formData = formRes.data?.data || formRes.data
@@ -415,12 +348,8 @@ function SubmissionDetailsContent() {
                     if (rData && !rData.error) {
                         setRecord(rData)
                         fetchHistory(actualTableId, actualRecordId)
-                    } else {
-                        // If record 404s, we still try history with both possible IDs just in case
-                        fetchHistory(actualTableId, actualRecordId)
                     }
                 } catch (e) {
-                    console.warn("Record API failed, falling back to submission values", e)
                     fetchHistory(actualTableId, actualRecordId)
                 }
             }

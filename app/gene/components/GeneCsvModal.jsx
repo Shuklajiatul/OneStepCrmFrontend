@@ -31,8 +31,7 @@ export default function GeneCsvModal({ isOpen, onClose, onSubmit }) {
      
       await onSubmit(formData);
       
-      // Note: Success toast is handled by parent component
-      setSelectedFile(null);
+            setSelectedFile(null);
       setFileName('');
       onClose();
     } catch (error) {

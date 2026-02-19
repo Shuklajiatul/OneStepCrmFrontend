@@ -12,19 +12,11 @@ import { Switch } from "@/components/ui/switch"
 import { Loader2, Save, X, Edit, Download, Eye, File, Image, Upload } from "lucide-react"
 import { TableColumnSelector } from "../formbuilder/table-column-selector"
 import { v4 as uuidv4 } from 'uuid'
+import { formatFileSize } from "@/lib/utils"
 
 // Helper function to generate unique field IDs
 const generateUniqueFieldId = (prefix = 'field') => {
   return uuidv4()
-}
-
-// Enhanced helper functions
-const formatFileSize = (bytes) => {
-  if (bytes === 0) return '0 Bytes'
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
 // Improved base64 detection

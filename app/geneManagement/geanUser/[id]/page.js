@@ -29,7 +29,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
-// API Constants
 const API_CONSTANTS = {
   BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
   geneDetails: '/api/genes',

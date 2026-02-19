@@ -30,109 +30,12 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
+import { parseOptionalValuesArray, inferTypeFromColumnName, getColumnFieldType, formatDateOnly, formatLocationDisplay, getFieldValue, safeParseJSON, formatPhoneDisplay } from '@/lib/utils'
 import { usersApi, datatablesApi, recordsApi, activitiesApi } from '@/lib/api-endpoint'
 import CreateActivityDialog from "@/app/activities/components/create-activity-dialog"
 
 // Helper functions (Ported from table-data-view.js)
-const inferTypeFromColumnName = (name = '') => {
-    const lower = name.toLowerCase()
-    if (lower.includes('email')) return 'email'
-    if (lower.includes('phone') || lower.includes('mobile')) return 'phone'
-    if (lower.includes('location') || lower.includes('address')) return 'location'
-    if (lower.includes('date') || lower.includes('dob')) return 'date'
-    if (lower.includes('time')) return 'datetime'
-    if (lower.includes('description') || lower.includes('notes') || lower.includes('feedback')) return 'textarea'
-    if (lower.includes('amount') || lower.includes('salary') || lower.includes('price')) return 'number'
-    return null
-}
-
-const getColumnFieldType = (column) => {
-    if (!column) return 'text'
-    return (
-        column.properties?.field_type ||
-        column.properties?.type ||
-        column.data_type ||
-        inferTypeFromColumnName(column.column_name || '') ||
-        'text'
-    )
-}
-
-const formatDateOnly = (input) => {
-    if (input instanceof Date && !Number.isNaN(input.getTime())) {
-        return input.toLocaleDateString()
-    }
-    if (!input) return null
-    const str = String(input).trim()
-    if (!str) return null
-    const direct = new Date(str)
-    if (!Number.isNaN(direct.getTime())) return direct.toLocaleDateString()
-    return null
-}
-
-const formatLocationDisplay = (value) => {
-    if (!value) return null
-    const parsed = (typeof value === 'string') ? safeParseJSON(value) : value
-    if (parsed && typeof parsed === 'object') {
-        const title = parsed.address || parsed.name || ''
-        const subtitle = [parsed.city, parsed.state, parsed.country].filter(Boolean).join(', ')
-        return (
-            <div className="text-sm">
-                {title && <div className="font-medium">{title}</div>}
-                {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
-            </div>
-        )
-    }
-    return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
-}
-
-const getFieldValue = (record, columnId, column) => {
-    if (!record || !columnId) return null
-    if (record[columnId] !== undefined) return record[columnId]
-    if (record.field_values && record.field_values[columnId] !== undefined) return record.field_values[columnId]
-    return null
-}
-
-const safeParseJSON = (val) => {
-    if (val === null || val === undefined || val === "") return null;
-    if (typeof val !== 'string') return val;
-    if (!val.trim().startsWith('{') && !val.trim().startsWith('[')) return val;
-    try {
-        return JSON.parse(val);
-    } catch (e) {
-        return val;
-    }
-};
-
-const parseOptionalValuesArray = (optionalValuesInput) => {
-    if (!optionalValuesInput) return []
-
-    const tryParse = (value) => {
-        if (Array.isArray(value)) return value
-        if (typeof value === 'string') {
-            try {
-                const parsed = JSON.parse(value)
-                return Array.isArray(parsed) ? parsed : []
-            } catch {
-                return []
-            }
-        }
-        if (typeof value === 'object') return Array.isArray(value) ? value : []
-        return []
-    }
-
-    if (Array.isArray(optionalValuesInput)) {
-        for (const entry of optionalValuesInput) {
-            const parsed = tryParse(entry)
-            if (parsed.length) return parsed
-        }
-    }
-
-    if (typeof optionalValuesInput === 'string') {
-        return tryParse(optionalValuesInput)
-    }
-
-    return []
-}
+// Moved to @/lib/utils
 
 function RecordDetailsContent() {
     const router = useRouter()
@@ -496,40 +399,7 @@ function RecordDetailsContent() {
         )
     }
 
-    const formatPhoneDisplay = (value) => {
-        if (!value) return null
 
-        // Try parsing if it's a string
-        const parsed = safeParseJSON(value);
-
-        if (parsed && typeof parsed === 'object') {
-            // Handle { value: { countryCode: '...', number: '...' } } or just { countryCode: '...', number: '...' }
-            const actualValue = (parsed.value !== undefined) ? parsed.value : parsed
-
-            if (actualValue && typeof actualValue === 'object') {
-                const countryCode = actualValue.countryCode || actualValue.code || ''
-                const number = actualValue.number || actualValue.value || ''
-                const country = actualValue.country || ''
-                const line = [countryCode, number].filter(Boolean).join(' ').trim()
-
-                if (line || country) {
-                    return (
-                        <div className="text-sm">
-                            {line && <div className="font-medium">{line}</div>}
-                            {country && <div className="text-xs text-muted-foreground">{country}</div>}
-                        </div>
-                    )
-                }
-            }
-
-            // If actualValue is not an object but somehow nested
-            if (actualValue !== undefined && actualValue !== null) {
-                return <span>{String(actualValue)}</span>
-            }
-        }
-
-        return String(value)
-    }
 
     const formatFieldValue = (rawValue, dataType, column = null) => {
         if (rawValue === null || rawValue === undefined || rawValue === "") {

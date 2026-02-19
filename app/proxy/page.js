@@ -67,19 +67,13 @@ function ProxyContent() {
 
                     await new Promise(r => setTimeout(r, 500));
 
-                    // if (isAuthenticated) {
                     setProgress(100);
                     setStatus("Success! Redirecting to dashboard...");
 
                     setTimeout(() => {
                         router.push(response.data.redirectUrl || "/dashboard");
                     }, 1000);
-                    // } else {
-                    // setError("Authentication failed. Please try again.");
                     //     setTimeout(() => {
-                    //         window.location.href = "/login?error=auth_failed";
-                    //     }, 2000);
-                    // }
                 } else {
                     setError("Authentication rejected. Please login again.");
                     setTimeout(() => {
@@ -160,34 +154,6 @@ function ProxyContent() {
                             <AlertDescription>{error}</AlertDescription>
                         </Alert>
                     )}
-
-                    {/* <div className="flex flex-col space-y-3">
-                        {error ? (
-                            <Button onClick={handleRetry} className="w-full">
-                                <RefreshCw className="mr-2 h-4 w-4" />
-                                Try Again
-                            </Button>
-                        ) : !loading ? (
-                            <Button
-                                onClick={() => window.location.href = '/'}
-                                variant="outline"
-                                className="w-full"
-                            >
-                                Go Home
-                            </Button>
-                        ) : null}
-
-                        {!loading && (
-                            <Button
-                                onClick={() => window.history.back()}
-                                variant="ghost"
-                                className="w-full"
-                            >
-                                Go Back
-                            </Button>
-                        )}
-                    </div> */}
-
                     <div className="text-center">
                         <p className="text-xs text-muted-foreground">
                             {loading ? 'This may take a few moments...' : 'Thank you for your patience'}

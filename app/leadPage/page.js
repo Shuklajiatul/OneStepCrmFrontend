@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table"
 import { DataTable } from "@/components/ui/data-table"
 import { ColumnDef } from "@tanstack/react-table"
-import TableDataView from "./table-data-view"
+import TableDataView from "./components/table-data-view"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import {
   Database,
@@ -47,9 +47,9 @@ import {
 import { toast } from "sonner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { authUtils } from '@/lib/auth-utils'
+import { getStatusBadge } from '@/lib/utils'
 import { datatablesApi } from '@/lib/api-endpoint'
 
-// API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 const LEADS_TABLE_ID = 'dc6032a9-391b-43b6-bab3-405b397d5283'
 
@@ -399,20 +399,6 @@ function LeadsPageContent() {
       hour: '2-digit',
       minute: '2-digit'
     })
-  }
-
-  const getStatusBadge = (isActive) => {
-    return isActive ? (
-      <Badge className="bg-emerald-100/50 text-emerald-700 border-none px-3 py-1 shadow-none font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-        Active
-      </Badge>
-    ) : (
-      <Badge className="bg-slate-100 text-slate-500 border-none px-3 py-1 shadow-none font-bold text-[10px] tracking-wider uppercase flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-        InActive
-      </Badge>
-    )
   }
 
   if (loading && tables.length === 0) {

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { usePathname } from "next/navigation"
-import Sidebar from "./component/sidebar"
-import Topbar from "./component/topbar"
+import Sidebar from "@/components/layout/sidebar.js"
+import Topbar from "@/components/layout/topbar.js"
 import { cn } from "@/lib/utils"
 
 export default function ClientLayout({ children }) {
@@ -20,7 +20,6 @@ export default function ClientLayout({ children }) {
         }
     }, [darkMode])
 
-    // Define public routes that should not have the sidebar/topbar
     const publicRoutes = ['/login', '/register', '/forgot-password']
     const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith('/forms/')
 

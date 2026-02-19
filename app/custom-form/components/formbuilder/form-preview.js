@@ -176,7 +176,6 @@ const processNestedFieldsRecursively = (nestedFields) => {
 }
 
 // API configuration
-const ORGANIZATION_ID = process.env.NEXT_PUBLIC_ORGANIZATION_ID
 const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 
 export function FormPreview({ fields, isEditMode = false, formData = null, onRetryCountChange = null }) {
@@ -741,10 +740,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
       // Split regular fields based on isLeadColumn
       // isLeadColumn: true -> extraFields (to be added to DB)
-      // isLeadColumn: false -> fields (just form fields)
-
-      // Note: extraFields variable here contains regular form fields (source!='table')
-      const regularLeadFields = extraFields.filter(f => f.isLeadColumn)
+      // isLeadColumn: false -> fields (just form fields)      const regularLeadFields = extraFields.filter(f => f.isLeadColumn)
       const regularNonLeadFields = extraFields.filter(f => !f.isLeadColumn)
 
       const processedLeadFields = regularLeadFields.map(processFieldData)
@@ -764,7 +760,7 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
 
       // Prepare the form data for API
       const formPayload = {
-        organization_id: ORGANIZATION_ID,
+        organization_id: authUtils.getOrganizationId(),
         table_id: selectedTable,
         form_name: formName,
         description: formDescription,

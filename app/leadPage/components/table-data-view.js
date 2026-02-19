@@ -11,7 +11,24 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
+import {
+  cn,
+  parseOptionalValuesArray,
+  getColumnFieldType,
+  getColumnOptions,
+  buildFieldValuePayload,
+  updateNestedState,
+  inferTypeFromColumnName,
+  normalizeColumnMetadata,
+  normalizeFieldValueForForm,
+  formatDateOnly,
+  formatPhoneDisplay,
+  formatLocationDisplay,
+  getFieldValue,
+  inferFilenameFromDataUrl,
+  isFileObject,
+  safeParseJSON
+} from "@/lib/utils"
 import {
   ArrowLeft,
   Database,
@@ -57,230 +74,11 @@ import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import { fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
-// API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
-const parseOptionalValuesArray = (optionalValuesInput) => {
-  if (!optionalValuesInput) return []
 
-  const tryParse = (value) => {
-    if (Array.isArray(value)) {
-      return value
-    }
 
-    if (typeof value === 'string') {
-      try {
-        const parsed = JSON.parse(value)
-        return Array.isArray(parsed) ? parsed : []
-      } catch {
-        return []
-      }
-    }
 
-    if (typeof value === 'object') {
-      return Array.isArray(value) ? value : []
-    }
-
-    return []
-  }
-
-  if (Array.isArray(optionalValuesInput)) {
-    for (const entry of optionalValuesInput) {
-      const parsed = tryParse(entry)
-      if (parsed.length) {
-        return parsed
-      }
-    }
-  }
-
-  if (typeof optionalValuesInput === 'string') {
-    return tryParse(optionalValuesInput)
-  }
-
-  return []
-}
-
-const inferTypeFromColumnName = (name = '') => {
-  const lower = name.toLowerCase()
-  if (lower.includes('email')) return 'email'
-  if (lower.includes('phone') || lower.includes('mobile')) return 'phone'
-  if (lower.includes('location') || lower.includes('address')) return 'location'
-  if (lower.includes('date') || lower.includes('dob')) return 'date'
-  if (lower.includes('time')) return 'datetime'
-  if (lower.includes('description') || lower.includes('notes') || lower.includes('feedback')) return 'textarea'
-  if (lower.includes('amount') || lower.includes('salary') || lower.includes('price')) return 'number'
-  return null
-}
-
-const normalizeColumnMetadata = (column) => {
-  if (!column) return null
-  const options = parseOptionalValuesArray(column.optional_values)
-  const propertyType =
-    column.properties?.field_type ||
-    column.properties?.type ||
-    column.properties?.input_type ||
-    column.properties?.parent_datatype
-
-  const nameBasedType = inferTypeFromColumnName(column.column_name || '')
-  let resolvedParentDatatype = column.parent_datatype || propertyType || null
-
-  if ((!resolvedParentDatatype || resolvedParentDatatype === 'text') && column.data_type === 'number') {
-    resolvedParentDatatype = 'number'
-  }
-
-  if ((!resolvedParentDatatype || resolvedParentDatatype === 'text') && column.data_type === 'boolean') {
-    resolvedParentDatatype = 'boolean'
-  }
-
-  if ((!resolvedParentDatatype || resolvedParentDatatype === 'text') && nameBasedType) {
-    resolvedParentDatatype = nameBasedType
-  }
-
-  if ((!resolvedParentDatatype || resolvedParentDatatype === 'text') && options.length > 0) {
-    resolvedParentDatatype =
-      column.properties?.selection_style ||
-      column.properties?.selection_type ||
-      column.properties?.display_type ||
-      column.properties?.field_type ||
-      'select'
-  }
-
-  if (!resolvedParentDatatype) {
-    resolvedParentDatatype = 'text'
-  }
-
-  return {
-    ...column,
-    resolvedOptions: options,
-    resolvedParentDatatype,
-    resolvedDataType: column.data_type || resolvedParentDatatype || 'text',
-  }
-}
-
-const getColumnFieldType = (column) => {
-  if (!column) return 'text'
-  return (
-    column.resolvedParentDatatype ||
-    column.parent_datatype ||
-    column.properties?.field_type ||
-    column.properties?.type ||
-    column.data_type ||
-    inferTypeFromColumnName(column.column_name || '') ||
-    'text'
-  )
-}
-
-const normalizeFieldValueForForm = (rawValue, column) => {
-  const fieldType = getColumnFieldType(column)
-
-  const parseValue = (value) => {
-    if (value === null || value === undefined) {
-      return null
-    }
-
-    if (typeof value === 'string') {
-      const trimmed = value.trim()
-      if (!trimmed) return ''
-
-      if (
-        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))
-      ) {
-        try {
-          return JSON.parse(trimmed)
-        } catch {
-          return trimmed
-        }
-      }
-
-      return trimmed
-    }
-
-    return value
-  }
-
-  const parsedValue = parseValue(rawValue)
-
-  if (fieldType === 'checkbox') {
-    if (Array.isArray(parsedValue)) {
-      return parsedValue.map((item) => {
-        if (typeof item === 'object' && item !== null) {
-          return {
-            value: item.value ?? '',
-            nestedValues: item.nestedValues || {},
-          }
-        }
-        return {
-          value: item,
-          nestedValues: {},
-        }
-      })
-    }
-    if (
-      parsedValue &&
-      typeof parsedValue === 'object' &&
-      Array.isArray(parsedValue.value)
-    ) {
-      return parsedValue.value.map((item) => ({
-        value: typeof item === 'object' && item !== null ? item.value ?? '' : item,
-        nestedValues:
-          typeof item === 'object' && item !== null && item.nestedValues
-            ? item.nestedValues
-            : {},
-      }))
-    }
-    return []
-  }
-
-  if (fieldType === 'select' || fieldType === 'radio') {
-    if (parsedValue && typeof parsedValue === 'object' && !Array.isArray(parsedValue)) {
-      return {
-        value: parsedValue.value ?? '',
-        nestedValues: parsedValue.nestedValues || {},
-      }
-    }
-
-    return {
-      value: parsedValue ? String(parsedValue) : '',
-      nestedValues: {},
-    }
-  }
-
-  if (fieldType === 'phone') {
-    if (parsedValue && typeof parsedValue === 'object') {
-      return JSON.stringify(parsedValue)
-    }
-    return parsedValue ? String(parsedValue) : ''
-  }
-
-  if (fieldType === 'location') {
-    if (parsedValue && typeof parsedValue === 'object') {
-      return parsedValue
-    }
-    // Fallback if it's stringified JSON but didn't parse correctly or is a simple string
-    try {
-      const p = JSON.parse(String(parsedValue))
-      if (p && typeof p === 'object') return p
-    } catch (e) { }
-    return { country: undefined, state: undefined, city: undefined }
-  }
-
-  if (typeof parsedValue === 'object' && parsedValue !== null && parsedValue.value !== undefined) {
-    return typeof parsedValue.value === 'object'
-      ? JSON.stringify(parsedValue.value)
-      : String(parsedValue.value ?? '')
-  }
-
-  if (typeof parsedValue === 'object' && parsedValue !== null) {
-    try {
-      return JSON.stringify(parsedValue)
-    } catch {
-      return String(parsedValue)
-    }
-  }
-
-  return parsedValue !== null && parsedValue !== undefined ? String(parsedValue) : ''
-}
 
 export default function TableDataView({ table, onBack }) {
   const router = useRouter()
@@ -322,15 +120,6 @@ export default function TableDataView({ table, onBack }) {
 
   const [activeOptionPopover, setActiveOptionPopover] = useState(null)
   const [nestedModalContext, setNestedModalContext] = useState('record')
-
-  // Helper for deep state updates in recordFormData
-  const updateNestedState = (obj, path, value) => {
-    if (path.length === 0) return value
-    const [head, ...tail] = path
-    const res = Array.isArray(obj) ? [...obj] : { ...obj }
-    res[head] = updateNestedState(obj[head], tail, value)
-    return res
-  }
 
   const handleRecursiveFieldChange = (fieldId, newValue, path = []) => {
     setRecordFormData(prev => updateNestedState(prev, [...path, fieldId], newValue))
@@ -675,24 +464,8 @@ export default function TableDataView({ table, onBack }) {
     setIsAddRecordDialogOpen(true)
   }
 
-  // const openEditRecordDialog = (record) => {
-  //   setRecordToEdit(record)
+const openEditRecordDialog = (record) => {
 
-  //   const formData = {
-  //     assigned_to: record.assigned_to === "NA" || !record.assigned_to ? null : record.assigned_to
-  //   }
-
-  //   columns.forEach(column => {
-  //     const rawValue = getFieldValue(record, column.column_id, column)
-  //     formData[column.column_id] = normalizeFieldValueForForm(rawValue, column)
-  //   })
-
-  //   setRecordFormData(formData)
-  //   setIsEditRecordDialogOpen(true)
-  // }
-
-  const openEditRecordDialog = (record) => {
-    console.log('Opening edit dialog for record:', record)
     setRecordToEdit(record)
 
     const formData = {
@@ -701,11 +474,11 @@ export default function TableDataView({ table, onBack }) {
 
     columns.forEach(column => {
       const rawValue = getFieldValue(record, column.column_id, column)
-      console.log(`Column ${column.column_name}:`, rawValue)
+
       formData[column.column_id] = normalizeFieldValueForForm(rawValue, column)
     })
 
-    console.log('Form data:', formData)
+
     setRecordFormData(formData)
     setIsEditRecordDialogOpen(true)
   }
@@ -871,58 +644,9 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  const parseJsonSafely = (value) => {
-    if (value === null || value === undefined) return null
-    if (typeof value === 'object') return value
-    if (typeof value !== 'string') return value
-    const trimmed = value.trim()
-    if (!trimmed) return ''
-    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-      try {
-        return JSON.parse(trimmed)
-      } catch (error) {
-        console.warn('parseJsonSafely error:', error)
-        return value
-      }
-    }
-    return value
-  }
 
-  const formatDateOnly = (input) => {
-    if (input instanceof Date && !Number.isNaN(input.getTime())) {
-      return input.toLocaleDateString()
-    }
 
-    if (input === null || input === undefined) return null
 
-    const str = String(input).trim()
-    if (!str) return null
-
-    const direct = new Date(str)
-    if (!Number.isNaN(direct.getTime())) {
-      return direct.toLocaleDateString()
-    }
-
-    const match = str.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2})(?::(\d{2})(?::(\d{2}))?)?)?$/)
-    if (match) {
-      const [, datePart] = match
-      const [yearStr, monthStr, dayStr] = datePart.split('-')
-      const year = Number(yearStr)
-      const month = Number(monthStr)
-      const day = Number(dayStr)
-
-      if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
-        const dateObj = new Date(year, month - 1, day)
-        if (!Number.isNaN(dateObj.getTime())) {
-          return dateObj.toLocaleDateString()
-        }
-      }
-
-      return datePart
-    }
-
-    return null
-  }
 
   const toDateInputValue = (input, includeTime = false) => {
     if (!input && input !== 0) return ''
@@ -963,223 +687,13 @@ export default function TableDataView({ table, onBack }) {
     return dateObj.toISOString().slice(0, 10)
   }
 
-  const formatPhoneDisplay = (value) => {
-    if (!value) return null
 
-    // Try parsing if it's a string
-    const parsed = parseJsonSafely(value)
 
-    if (parsed && typeof parsed === 'object') {
-      // Handle { value: { countryCode: '...', number: '...' } } or just { countryCode: '...', number: '...' }
-      const actualValue = (parsed.value !== undefined) ? parsed.value : parsed
 
-      if (actualValue && typeof actualValue === 'object') {
-        const countryCode = actualValue.countryCode || actualValue.code || ''
-        const number = actualValue.number || actualValue.value || ''
-        const country = actualValue.country || ''
-        const line = [countryCode, number].filter(Boolean).join(' ').trim()
 
-        if (line || country) {
-          return (
-            <div className="text-sm">
-              {line && <div className="font-medium">{line}</div>}
-              {country && <div className="text-xs text-muted-foreground">{country}</div>}
-            </div>
-          )
-        }
-      }
 
-      // If actualValue is not an object but somehow nested
-      if (actualValue !== undefined && actualValue !== null) {
-        return <span className="truncate max-w-[200px]">{String(actualValue)}</span>
-      }
-    }
 
-    // Default string display with tel link
-    if (value && typeof value !== 'object') {
-      return (
-        <a href={`tel:${value}`} className="text-blue-600 hover:underline">
-          {String(value)}
-        </a>
-      )
-    }
 
-    return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
-  }
-
-  const formatLocationDisplay = (value) => {
-    let parsed = null
-    if (value && typeof value === 'object') {
-      parsed = value
-    } else {
-      parsed = parseJsonSafely(value)
-    }
-
-    if (parsed && typeof parsed === 'object') {
-      // Old structure check
-      if (parsed.address || parsed.name) {
-        const title = parsed.address || parsed.name || ''
-        const subtitle = [parsed.city, parsed.state, parsed.country].filter(Boolean).join(', ')
-        return (
-          <div className="text-sm">
-            {title && <div className="font-medium">{title}</div>}
-            {subtitle && <div className="text-xs text-muted-foreground">{subtitle}</div>}
-          </div>
-        )
-      }
-      // New structure check
-      const parts = [parsed.country, parsed.state, parsed.city].filter(Boolean)
-      if (parts.length > 0) {
-        return (
-          <div className="flex items-center gap-1 text-sm flex-wrap">
-            {parts.map((p, i) => (
-              <span key={i} className="flex items-center gap-1">
-                {p}
-                {i < parts.length - 1 && <span className="text-muted-foreground">/</span>}
-              </span>
-            ))}
-          </div>
-        )
-      }
-    }
-    return <span className="truncate max-w-[200px]">{String(value ?? '')}</span>
-  }
-
-  const getFieldValue = (record, columnId, column = null) => {
-    if (!record || !record.field_values) return null
-    if (!record.field_values[columnId]) return null
-
-    const rawValue = record.field_values[columnId]
-
-    if (typeof rawValue === 'string') {
-      const trimmed = rawValue.trim()
-
-      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-        try {
-          const parsed = JSON.parse(trimmed)
-
-          if (parsed && typeof parsed === 'object') {
-            if (parsed.value !== undefined) {
-              return parsed
-            }
-            if (parsed.countryCode || parsed.number) {
-              return parsed
-            }
-          }
-
-          return parsed
-        } catch (e) {
-          return rawValue
-        }
-      }
-    }
-
-    return rawValue
-  }
-
-  const buildFieldValuePayload = (column, value) => {
-    const fieldType = getColumnFieldType(column)
-
-    if (value === null || value === undefined) return null
-
-    // Handle checkbox (multi-select)
-    if (fieldType === 'checkbox') {
-      const normalizedArray = (Array.isArray(value) ? value : [])
-        .map((item) => {
-          if (typeof item === 'object' && item !== null) {
-            if (!item.value) return null
-            const payload = { value: item.value }
-            if (item.nestedValues && Object.keys(item.nestedValues).length > 0) {
-              payload.nestedValues = item.nestedValues
-            }
-            return payload
-          }
-
-          if (!item) return null
-          return { value: item }
-        })
-        .filter(Boolean)
-
-      if (!normalizedArray.length) return null
-      return JSON.stringify(normalizedArray)
-    }
-
-    // Handle select & radio (single choice)
-    if (fieldType === 'select' || fieldType === 'radio') {
-      if (typeof value === 'object' && value !== null) {
-        if (!value.value) return null
-        return JSON.stringify({
-          value: value.value,
-          nestedValues: value.nestedValues || {},
-        })
-      }
-
-      if (typeof value === 'string' && value.trim()) {
-        return JSON.stringify({
-          value: value.trim(),
-          nestedValues: {},
-        })
-      }
-
-      return null
-    }
-
-    // Handle location
-    if (fieldType === 'location') {
-      if (typeof value === 'object' && value !== null) {
-        return JSON.stringify({ value })
-      }
-      return null
-    }
-
-    // Handle remaining field types (wrap with { value })
-    if (typeof value === 'string') {
-      const trimmed = value.trim()
-      if (!trimmed) return null
-
-      if (
-        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))
-      ) {
-        try {
-          const parsed = JSON.parse(trimmed)
-          return JSON.stringify({ value: parsed })
-        } catch {
-          return JSON.stringify({ value: trimmed })
-        }
-      }
-
-      return JSON.stringify({ value: trimmed })
-    }
-
-    if (typeof value === 'object') {
-      return JSON.stringify({ value })
-    }
-
-    return JSON.stringify({ value })
-  }
-
-  const inferFilenameFromDataUrl = (dataUrl, columnOrFieldDef) => {
-    try {
-      if (typeof dataUrl !== 'string') return 'file'
-      const match = dataUrl.match(/^data:([^;]+);base64,/)
-      const mime = match ? match[1] : 'application/octet-stream'
-      const ext = ({
-        'image/png': 'png',
-        'image/jpeg': 'jpg',
-        'image/jpg': 'jpg',
-        'image/gif': 'gif',
-        'image/webp': 'webp',
-        'application/pdf': 'pdf'
-      })[mime] || 'bin'
-      const baseName = columnOrFieldDef?.column_name || columnOrFieldDef?.label || 'file'
-      const base = baseName.toString().replace(/\s+/g, '_').toLowerCase()
-      return `${base}.${ext}`
-    } catch {
-      return 'file'
-    }
-  }
 
   const openFileModal = (dataUrl, columnOrFieldDef) => {
     if (!dataUrl || typeof dataUrl !== 'string') return
@@ -1203,14 +717,7 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  const isFileObject = (val) => {
-    return val && typeof val === 'object' && (
-      val.base64 !== undefined ||
-      val.previewUrl !== undefined ||
-      val.isFromBase64 === true ||
-      (val.name !== undefined && val.type !== undefined)
-    )
-  }
+
 
   const findFieldDefinition = (fieldId, options, depth = 0) => {
     if (depth > 10) return null
@@ -1511,25 +1018,11 @@ export default function TableDataView({ table, onBack }) {
     return hasNestedFields || modalEditableTypes.includes(parentDatatype)
   }
 
-  const getColumnOptions = (column) => {
-    if (!column) return []
-    if (Array.isArray(column.resolvedOptions)) {
-      return column.resolvedOptions
-    }
-
-    const parsed = parseOptionalValuesArray(column.optional_values)
-    return parsed
-  }
-
   const parseNestedData = (fieldValue, column) => {
     try {
       let parsed = fieldValue
       if (typeof fieldValue === 'string') {
-        try {
-          parsed = JSON.parse(fieldValue)
-        } catch {
-          parsed = null
-        }
+        parsed = safeParseJSON(fieldValue)
       }
 
       const options = getColumnOptions(column)
@@ -1772,7 +1265,7 @@ export default function TableDataView({ table, onBack }) {
     }
 
     const fieldType = getColumnFieldType(column) || dataType || 'text'
-    const parsed = parseJsonSafely(rawValue)
+    const parsed = safeParseJSON(rawValue)
 
     // Robustly extract the value to display
     let valueToDisplay = rawValue
@@ -2039,7 +1532,7 @@ export default function TableDataView({ table, onBack }) {
         }
       }
 
-      console.log('Saving nested data with payload:', payload)
+
 
       if (nestedModalContext === 'record') {
         const response = await recordsApi.updateNested(
@@ -2066,7 +1559,7 @@ export default function TableDataView({ table, onBack }) {
         setNestedModalContext('record')
       }
     } catch (error) {
-      console.log('Error saving nested data:', error)
+
       toast.error(error.response?.data?.message || 'Failed to update record')
     } finally {
       setIsSaving(false)
@@ -4156,23 +3649,22 @@ function LocationPicker({ value, onChange, validation = {} }) {
   }, [current.state, current.country])
 
   const filteredCountries = countries.filter(c => {
-    if (validation?.allowedCountries?.length > 0 && !validation.allowedCountries.includes(c.name)) return false
+    if (validation.allowedCountries?.length > 0 && !validation.allowedCountries.includes(c.name)) return false
     return c.name.toLowerCase().includes(search.country.toLowerCase())
   })
 
   const filteredStates = states.filter(s => {
-    if (validation?.allowedStates?.[current.country]?.length > 0 && !validation.allowedStates[current.country].includes(s.name)) return false
+    if (validation.allowedStates?.[current.country]?.length > 0 && !validation.allowedStates[current.country].includes(s.name)) return false
     return s.name.toLowerCase().includes(search.state.toLowerCase())
   })
 
   const filteredCities = cities.filter(c => {
-    if (validation?.allowedCities?.[current.state]?.length > 0 && !validation.allowedCities[current.state].includes(c.name)) return false
+    if (validation.allowedCities?.[current.state]?.length > 0 && !validation.allowedCities[current.state].includes(c.name)) return false
     return c.name.toLowerCase().includes(search.city.toLowerCase())
   })
 
   return (
     <div className="grid gap-4 sm:grid-cols-3">
-      {/* Country Select */}
       <div className="space-y-1">
         <Label className="text-[10px] uppercase font-bold text-muted-foreground">Country</Label>
         <SelectPopover
@@ -4189,8 +3681,6 @@ function LocationPicker({ value, onChange, validation = {} }) {
           setSearch={(s) => setSearch(prev => ({ ...prev, country: s }))}
         />
       </div>
-
-      {/* State Select */}
       <div className="space-y-1">
         <Label className="text-[10px] uppercase font-bold text-muted-foreground">State</Label>
         <SelectPopover
@@ -4209,8 +3699,6 @@ function LocationPicker({ value, onChange, validation = {} }) {
           setSearch={(s) => setSearch(prev => ({ ...prev, state: s }))}
         />
       </div>
-
-      {/* City Select */}
       <div className="space-y-1">
         <Label className="text-[10px] uppercase font-bold text-muted-foreground">City</Label>
         <SelectPopover
@@ -4241,35 +3729,35 @@ function SelectPopover({ title, open, setOpen, value, onSelect, options, search,
           variant="outline"
           role="combobox"
           disabled={disabled}
-          className="w-full justify-between h-10 text-sm font-normal bg-background px-3"
+          className="w-full justify-between h-9 text-xs font-normal bg-background"
         >
-          <span className="truncate">{value || `Select ${title}...`}</span>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin opacity-50" /> : <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />}
+          <span className="truncate">{value || "Select " + title + "..."}</span>
+          {loading ? <Loader2 className="h-3 w-3 animate-spin opacity-50" /> : <ChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[300px] p-0" align="start">
+      <PopoverContent className="w-[200px] p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder={`Search ${title.toLowerCase()}...`}
+            placeholder={"Search " + title.toLowerCase() + "..."}
             value={search}
             onValueChange={setSearch}
-            className="h-9"
+            className="h-8"
           />
-          <CommandList className="max-h-[300px]">
+          <CommandList className="max-h-[200px]">
             {options.length === 0 ? (
-              <CommandEmpty>No {title.toLowerCase()} found.</CommandEmpty>
+              <CommandEmpty>{"No " + title.toLowerCase() + " found."}</CommandEmpty>
             ) : (
               <CommandGroup>
                 {options.map((opt) => (
                   <CommandItem
                     key={opt.name}
                     onSelect={() => onSelect(opt.name)}
-                    className="flex items-center justify-between cursor-pointer py-2 text-sm"
+                    className="flex items-center justify-between cursor-pointer py-1.5 text-xs"
                   >
                     <span className="truncate">{opt.name}</span>
                     <Check
                       className={cn(
-                        "h-4 w-4",
+                        "h-3.5 w-3.5",
                         value === opt.name ? "opacity-100" : "opacity-0"
                       )}
                     />

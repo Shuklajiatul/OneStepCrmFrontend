@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { FieldPalette } from "../component/formbuilder/field-palette"
-import { FormCanvas } from "../component/formbuilder/form-canvas"
-import { FieldConfigPanel } from "../component/formbuilder/field-config-panel"
-import { FormPreview } from "../component/formbuilder/form-preview"
-import { ResizableDivider } from "../component/formbuilder/resizable-divider"
+import { FieldPalette } from "./components/formbuilder/field-palette"
+import { FormCanvas } from "./components/formbuilder/form-canvas"
+import { FieldConfigPanel } from "./components/formbuilder/field-config-panel"
+import { FormPreview } from "./components/formbuilder/form-preview"
+import { ResizableDivider } from "./components/formbuilder/resizable-divider"
 import MyFormsPage from "../my-forms/page"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -203,7 +203,6 @@ export default function CustomFormPage() {
           setEditFormData(data)
 
           // Don't clear localStorage - keep it for persistence across refreshes
-          // localStorage.removeItem('formBuilderData')
         }
       } catch (error) {
         console.error('Error parsing form builder data:', error)
@@ -345,20 +344,6 @@ export default function CustomFormPage() {
   const generateUniqueFieldId = (prefix = 'field') => {
     return uuidv4()
   }
-
-  // Helper function to ensure field IDs are unique
-  // const ensureUniqueFieldIds = (fields) => {
-  //   const existingIds = new Set(fields.map(f => f.id))
-  //   return fields.map(field => {
-  //     if (existingIds.has(field.id)) {
-  //       const newId = generateUniqueFieldId()
-  //       existingIds.add(newId)
-  //       return { ...field, id: newId }
-  //     }
-  //     existingIds.add(field.id)
-  //     return field
-  //   })
-  // }
 
   const ensureUniqueFieldIds = (fields) => {
     const seenIds = new Set()
@@ -709,7 +694,6 @@ export default function CustomFormPage() {
         })
 
         // Select the new field (optional, might need to handle selection logic for nested fields)
-        // setSelectedField(newField) 
         return
       }
 

@@ -217,8 +217,6 @@ export default function FormAnalyticsPage() {
 
   const handlePageChange = (page) => {
     setCurrentPage(page)
-    // Optional: add scroll to table or top if needed
-    // window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   if (loading) {

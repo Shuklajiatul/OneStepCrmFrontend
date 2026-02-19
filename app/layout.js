@@ -28,7 +28,6 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      // className={shantellSans.className}
       >
         <ClientLayout>{children}</ClientLayout>
         <Toaster position="top-right" />

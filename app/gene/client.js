@@ -37,7 +37,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination";
-import { cn } from "@/lib/utils";
+import { cn, debounce, getStatusBadge } from "@/lib/utils";
 import UserGeneMappingModal from "./components/UserGeneMappingModal";
 import GeneModal from "./components/GeneModal";
 import GeneCsvModal from "./components/GeneCsvModal";
@@ -91,15 +91,6 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
 
   // Track initial render to avoid double fetch
   const isFirstRender = useRef(true);
-
-  // Debounce function
-  const debounce = (func, delay) => {
-    let timeoutId;
-    return (...args) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => func.apply(null, args), delay);
-    };
-  };
 
   // Debounced search function
   const debouncedSearchHandler = useCallback(
@@ -364,18 +355,9 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   useEffect(() => {
     if (debouncedSearch !== undefined && debouncedSearch !== null) {
       setCurrentPage(1);
-      // Note: fetchGenes will be called when currentPage changes
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+            // eslint-disable-next-line react-hooks/exhaustive-deps
     }
   }, [debouncedSearch]);
-
-  const getStatusBadge = (is_active) => {
-    return (
-      <Badge variant={is_active ? "default" : "secondary"}>
-        {is_active ? 'Active' : 'Inactive'}
-      </Badge>
-    );
-  };
 
   const handleToggleStatus = async (geneId, currentStatus) => {
     const loadingToast = toast.loading('Updating status...');
@@ -686,12 +668,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
     }
   };
 
-  // const openViewModal = (gene) => {
-  //   setSelectedGene(gene);
-  //   setShowViewModal(true);
-  // };
-
-  const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
+const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
 
   const openViewModal = async (gene) => {
     setSelectedGene(gene);
