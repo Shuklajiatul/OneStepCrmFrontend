@@ -11,6 +11,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { authUtils } from "@/lib/auth-utils"
 import axios from "axios"
+import { toast } from "sonner"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://10.10.15.194:3001'
 
@@ -54,7 +55,8 @@ function LoginContent() {
         oauth_cancelled: "Google sign-in was cancelled",
         no_code: "Authorization failed. Please try again",
         auth_failed: "Authentication failed. Please try again",
-        session_failed: "Session creation failed. Please try again"
+        session_failed: "Session creation failed. Please try again",
+        session_required: "Please sign in to continue"
       }
       setError(errorMessages[errorParam] || "An error occurred during sign-in")
     }
@@ -143,11 +145,20 @@ function LoginContent() {
 
       setLoginData(data)
       setSuccess("OTP has been sent to your email and phone number")
+      toast.success("Login successful! OTP has been sent to your registered email and phone.")
       setOtpTimer(getOtpTimeInSeconds())
       setStep(3)
     } catch (err) {
       console.error('Login error:', err)
-      setError(err.response?.data?.message || err.message || "Login failed")
+      let errorMessage = err.response?.data?.message || err.message || "Login failed"
+
+      // Handle specific 401 Unauthorized error with a clearer message
+      if (err.response?.status === 401) {
+        errorMessage = "Invalid email, password, or organization ID. Please check your credentials."
+      }
+
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -179,9 +190,12 @@ function LoginContent() {
       console.log('OTP verification response:', data);
       authUtils.setTokens(data)
       console.log('Cookies after verification:', document.cookie);
+      toast.success("OTP verified successfully! Redirecting...")
       router.push("/dashboard")
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "OTP verification failed")
+      const errorMessage = err.response?.data?.message || err.message || "OTP verification failed"
+      setError(errorMessage)
+      toast.error(errorMessage)
     } finally {
       setIsVerifying(false)
     }
@@ -225,10 +239,13 @@ function LoginContent() {
         throw new Error(data.message || "Failed to resend OTP")
       }
 
-      setSuccess("OTP has been resent to your email and phone number")
+      setSuccess("OTP has been sent to your email and phone number")
+      toast.success("OTP has been resent successfully.")
       setOtpTimer(getOtpTimeInSeconds())
     } catch (err) {
-      setError(err.response?.data?.message || err.message || "Failed to resend OTP")
+      const errorMessage = err.response?.data?.message || err.message || "Failed to resend OTP"
+      setError(errorMessage)
+      toast.error(errorMessage)
     }
   }
 
