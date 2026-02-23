@@ -247,7 +247,7 @@ export default function MyFormsPage() {
       const archivePayload = {
         organization_id: authUtils.getOrganizationId(),
         form_id: formId,
-        table_id: process.env.NEXT_PUBLIC_TABLE_ID,
+        table_id: form.table_id || process.env.NEXT_PUBLIC_TABLE_ID,
         status: !currentStatus,
         version: version || 1
       }
@@ -298,7 +298,7 @@ export default function MyFormsPage() {
       const deletePayload = {
         organization_id: authUtils.getOrganizationId(),
         form_id: form.form_id,
-        table_id: process.env.NEXT_PUBLIC_TABLE_ID,
+        table_id: form.table_id || process.env.NEXT_PUBLIC_TABLE_ID,
         version: form.version || 1
       }
 
@@ -886,7 +886,7 @@ export default function MyFormsPage() {
       // Prepare the data for API - sending all fields in one array
       const apiData = {
         form_id: editingForm.form_id,
-        table_id: process.env.NEXT_PUBLIC_TABLE_ID,
+        table_id: form.table_id || process.env.NEXT_PUBLIC_TABLE_ID,
         organization_id: authUtils.getOrganizationId(),
         form_name: updatedData.form_name,
         description: updatedData.description,
