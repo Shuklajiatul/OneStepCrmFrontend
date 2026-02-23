@@ -26,10 +26,18 @@ export const validateSource = async (sourceType, config) => {
     }
 
     const response = await migrationApi.validateSource(payload);
+    // If API returns 200 but success is false, ensure we have a message
+    if (response.data && response.data.success === false) {
+      return {
+        ...response.data,
+        message: response.data.error || response.data.message || "Validation failed"
+      };
+    }
     return response.data;
   } catch (error) {
-    console.error("Validation API Error:", error);
-    return { success: false, message: error.response?.data?.message || error.message };
+    console.warn("[MigrationService] Validation API Error (Handled):", error);
+    const apiError = error.response?.data?.error || error.response?.data?.message || error.message;
+    return { success: false, message: apiError };
   }
 };
 
@@ -74,6 +82,8 @@ export const startMigration = async (payload) => {
       formData.append('tableId', payload.tableId);
       formData.append('createdBy', payload.createdBy);
       if (payload.g_id) formData.append('g_id', payload.g_id);
+      if (payload.destinationType) formData.append('destinationType', payload.destinationType);
+      if (payload.keyspace) formData.append('keyspace', payload.keyspace);
 
       // Append mapping as a JSON string
       formData.append('mapping', JSON.stringify(payload.mapping || {}));
@@ -87,6 +97,16 @@ export const startMigration = async (payload) => {
     return response.data;
   } catch (error) {
     console.error("[MigrationService] Error in startMigration:", error);
+    throw error;
+  }
+};
+
+export const getSystemTables = async (keyspace = 'crm') => {
+  try {
+    const response = await migrationApi.getSystemTables({ keyspace });
+    return response.data;
+  } catch (error) {
+    console.error("getSystemTables API Error:", error);
     throw error;
   }
 };
