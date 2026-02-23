@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
   BarChart,
@@ -43,6 +43,10 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { formsApi, submissionsApi } from "@/lib/api-endpoint"
+import { authUtils } from "@/lib/auth-utils"
+import Link from "next/link"
+import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import {
   Pagination,
   PaginationContent,
@@ -50,12 +54,7 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-  PaginationEllipsis
 } from "@/components/ui/pagination"
-import { formsApi, submissionsApi } from "@/lib/api-endpoint"
-import { authUtils } from "@/lib/auth-utils"
-import Link from "next/link"
-import { PageBreadcrumb } from "@/components/page-breadcrumb"
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444']
 
@@ -74,29 +73,60 @@ export default function FormAnalyticsPage() {
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(5)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+
+
+  const hasFetched = useRef(false)
 
   useEffect(() => {
+    if (hasFetched.current) return
+    hasFetched.current = true
+
     const fetchAnalytics = async () => {
       try {
         const orgId = authUtils.getOrganizationId()
         const formsRes = await formsApi.getAll()
         const formsData = formsRes.data?.data || []
 
-        // Fetch submissions for each form to get real counts
-        const formsWithSubmissions = await Promise.all(formsData.map(async (form) => {
+        // Group forms by form_id to find latest versions
+        const formGroups = {}
+        formsData.forEach(form => {
+          const formId = form.form_id
+          if (!formGroups[formId]) formGroups[formId] = []
+          formGroups[formId].push(form)
+        })
+
+        // Filter to keep only the latest version of each form
+        const latestFormsData = Object.values(formGroups).map(group => {
+          return group.reduce((prev, current) => (prev.version > current.version) ? prev : current)
+        })
+
+        // Fetch submissions per unique form_id
+        const submissionCache = new Map()
+        const uniqueFormIds = Object.keys(formGroups)
+
+        await Promise.all(uniqueFormIds.map(async (formId) => {
           try {
-            const subRes = await submissionsApi.getAll(orgId, form.form_id)
-            const submissions = subRes.data?.data || []
-            return {
-              ...form,
-              submissionCount: submissions.length,
-              submissions: submissions
-            }
+            const subRes = await submissionsApi.getAll(orgId, formId)
+            submissionCache.set(formId, subRes.data?.data || [])
           } catch (e) {
-            return { ...form, submissionCount: 0, submissions: [] }
+            submissionCache.set(formId, [])
           }
         }))
+
+        // Map submissions and setup is_archived status
+        const formsWithSubmissions = latestFormsData.map(form => {
+          const submissions = submissionCache.get(form.form_id) || []
+          const isArchived = form.isarchieved === true || form.isarchieved === 'true' ||
+            form.archived === true || form.archived === 'true' ||
+            form.archieve_status === true || form.archieve_status === 'true'
+          return {
+            ...form,
+            is_archived: isArchived,
+            submissionCount: submissions.length,
+            submissions: submissions
+          }
+        })
 
         const allSubmissions = formsWithSubmissions.flatMap(f => f.submissions)
         const totalSubmissions = allSubmissions.length
@@ -112,7 +142,7 @@ export default function FormAnalyticsPage() {
             month: d.getMonth(),
             year: d.getFullYear(),
             submissions: 0,
-            completion: 0 // We'll set this to a baseline or calculate if possible
+            completion: 0
           })
         }
 
@@ -127,15 +157,13 @@ export default function FormAnalyticsPage() {
           }
         })
 
-        // Simple completion rate logic - if we don't have real data, we use a stable high number
-        // or calculate based on some field if available. For now, let's use a realistic distribution.
         last6Months.forEach(m => {
           m.completion = m.submissions > 0 ? Math.floor(70 + (Math.random() * 20)) : 0
         })
 
         setChartData(last6Months)
 
-        // Calculate Stats Trend (comparing this month to last month)
+        // Calculate Stats Trend
         const now = new Date()
         const thisMonth = now.getMonth()
         const thisYear = now.getFullYear()
@@ -166,7 +194,7 @@ export default function FormAnalyticsPage() {
         setStats({
           totalForms: formsWithSubmissions.length,
           totalSubmissions,
-          avgCompletion: totalSubmissions > 0 ? 84 : 0, // Heuristic
+          avgCompletion: totalSubmissions > 0 ? 84 : 0,
           activeForms,
           subTrend,
           subUp
@@ -195,29 +223,29 @@ export default function FormAnalyticsPage() {
     fetchAnalytics()
   }, [])
 
-  const filteredForms = forms.filter(f =>
-    f.form_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredForms = [...forms]
+    .filter(f => f.form_name?.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      const dateA = new Date(a.updated_at || a.created_at);
+      const dateB = new Date(b.updated_at || b.created_at);
+      return dateB - dateA;
+    })
 
-  // Calculate paginated data
-  const totalPages = Math.ceil(filteredForms.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = Math.min(startIndex + itemsPerPage, filteredForms.length)
-  const paginatedForms = filteredForms.slice(startIndex, endIndex)
-
-  // Reset to first page when search changes
+  // Reset to page 1 when search changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, itemsPerPage])
+  }, [searchTerm])
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredForms.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const paginatedForms = filteredForms.slice(startIndex, startIndex + itemsPerPage)
 
   const handleItemsPerPageChange = (value) => {
-    setItemsPerPage(parseInt(value))
+    setItemsPerPage(Number(value))
     setCurrentPage(1)
   }
 
-  const handlePageChange = (page) => {
-    setCurrentPage(page)
-  }
 
   if (loading) {
     return (
@@ -399,7 +427,7 @@ export default function FormAnalyticsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedForms.length === 0 ? (
+              {filteredForms.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-20 text-muted-foreground">
                     <div className="flex flex-col items-center gap-2">
@@ -410,7 +438,7 @@ export default function FormAnalyticsPage() {
                 </TableRow>
               ) : (
                 paginatedForms.map((form) => (
-                  <TableRow key={form.form_id} className="hover:bg-muted/10 transition-colors h-16 border-b">
+                  <TableRow key={`${form.form_id}-v${form.version || 1}`} className="hover:bg-muted/10 transition-colors h-16 border-b">
                     <TableCell className="pl-8">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
@@ -439,7 +467,7 @@ export default function FormAnalyticsPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={form.is_archived ? "outline" : "default"} className={`rounded-full px-3 py-0.5 ${form.is_archived ? '' : 'bg-emerald-500 hover:bg-emerald-600'}`}>
-                        {form.is_archived ? 'Archived' : 'Active'}
+                        {form.is_archived ? 'Deactive' : 'Active'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
@@ -466,15 +494,15 @@ export default function FormAnalyticsPage() {
           </Table>
         </CardContent>
 
-        {/* Pagination Controls */}
+        {/* Pagination */}
         {filteredForms.length > 0 && (
-          <div className="p-6 border-t">
+          <div className="p-6 border-t bg-muted/5">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground whitespace-nowrap">Show</span>
                   <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
-                    <SelectTrigger className="w-20">
+                    <SelectTrigger className="w-20 rounded-xl">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -487,121 +515,59 @@ export default function FormAnalyticsPage() {
                   <span className="text-sm text-muted-foreground whitespace-nowrap">per page</span>
                 </div>
                 <div className="text-sm text-muted-foreground whitespace-nowrap">
-                  Showing {filteredForms.length === 0 ? 0 : startIndex + 1} to {endIndex} of {filteredForms.length} forms
+                  Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredForms.length)} of {filteredForms.length} forms
                 </div>
               </div>
 
-              <Pagination className="justify-end w-auto mx-0">
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={(e) => {
-                        e.preventDefault()
-                        if (currentPage > 1) handlePageChange(currentPage - 1)
-                      }}
-                      className={currentPage <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      href="#"
-                    />
-                  </PaginationItem>
+              {totalPages > 1 && (
+                <Pagination className="justify-end">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
 
-                  {(() => {
-                    const pages = []
-                    const maxVisible = 5
+                    {(() => {
+                      const pages = [];
+                      const maxVisiblePages = 5;
+                      let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                      let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
-                    if (totalPages <= maxVisible) {
-                      for (let i = 1; i <= totalPages; i++) {
+                      if (endPage - startPage + 1 < maxVisiblePages) {
+                        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                      }
+
+                      for (let i = startPage; i <= endPage; i++) {
                         pages.push(
                           <PaginationItem key={i}>
                             <PaginationLink
-                              onClick={(e) => {
-                                e.preventDefault()
-                                handlePageChange(i)
-                              }}
+                              onClick={() => setCurrentPage(i)}
                               isActive={currentPage === i}
                               className="cursor-pointer"
-                              href="#"
                             >
                               {i}
                             </PaginationLink>
                           </PaginationItem>
-                        )
+                        );
                       }
-                    } else {
-                      // Always show first page
-                      pages.push(
-                        <PaginationItem key={1}>
-                          <PaginationLink
-                            onClick={(e) => { e.preventDefault(); handlePageChange(1) }}
-                            isActive={currentPage === 1}
-                            className="cursor-pointer"
-                            href="#"
-                          >
-                            1
-                          </PaginationLink>
-                        </PaginationItem>
-                      )
+                      return pages;
+                    })()}
 
-                      if (currentPage > 3) {
-                        pages.push(<PaginationItem key="start-ellipsis"><PaginationEllipsis /></PaginationItem>)
-                      }
-
-                      // Middle pages
-                      const start = Math.max(2, currentPage - 1)
-                      const end = Math.min(totalPages - 1, currentPage + 1)
-
-                      for (let i = start; i <= end; i++) {
-                        pages.push(
-                          <PaginationItem key={i}>
-                            <PaginationLink
-                              onClick={(e) => { e.preventDefault(); handlePageChange(i) }}
-                              isActive={currentPage === i}
-                              className="cursor-pointer"
-                              href="#"
-                            >
-                              {i}
-                            </PaginationLink>
-                          </PaginationItem>
-                        )
-                      }
-
-                      if (currentPage < totalPages - 2) {
-                        pages.push(<PaginationItem key="end-ellipsis"><PaginationEllipsis /></PaginationItem>)
-                      }
-
-                      // Always show last page
-                      pages.push(
-                        <PaginationItem key={totalPages}>
-                          <PaginationLink
-                            onClick={(e) => { e.preventDefault(); handlePageChange(totalPages) }}
-                            isActive={currentPage === totalPages}
-                            className="cursor-pointer"
-                            href="#"
-                          >
-                            {totalPages}
-                          </PaginationLink>
-                        </PaginationItem>
-                      )
-                    }
-
-                    return pages
-                  })()}
-
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={(e) => {
-                        e.preventDefault()
-                        if (currentPage < totalPages) handlePageChange(currentPage + 1)
-                      }}
-                      className={currentPage >= totalPages || totalPages === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                      href="#"
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
             </div>
           </div>
         )}
       </Card>
-    </div>
+    </div >
   )
 }
