@@ -8,18 +8,15 @@ export function useRoleManagement({ initialRoles = [] }) {
     const [searchTerm, setSearchTerm] = useState("")
     const [selectedRole, setSelectedRole] = useState(null)
     const [submitting, setSubmitting] = useState(false)
-    const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
     // Dialog states
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
     const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
-    const [roleToDelete, setRoleToDelete] = useState(null)
 
     // Form state
     const [formData, setFormData] = useState({
         role_name: "",
-        priority: 1,
     })
 
     // Fetchers
@@ -56,7 +53,6 @@ export function useRoleManagement({ initialRoles = [] }) {
                 setSelectedRole(roleData)
                 setFormData({
                     role_name: roleData.role_name || roleData.name || "",
-                    priority: roleData.priority || 1,
                 })
                 return roleData
             }
@@ -74,16 +70,10 @@ export function useRoleManagement({ initialRoles = [] }) {
             return
         }
 
-        if (!formData.priority || formData.priority < 1) {
-            toast.error("Priority must be a positive number")
-            return
-        }
-
         try {
             setSubmitting(true)
             const payload = {
                 role_name: formData.role_name.trim(),
-                priority: parseInt(formData.priority) || 1,
             }
 
             const response = await apiClient.post('/api/roles', payload)
@@ -108,18 +98,11 @@ export function useRoleManagement({ initialRoles = [] }) {
 
         const roleId = selectedRole.role_id || selectedRole.id
         const currentName = selectedRole.role_name || selectedRole.name || ""
-        const currentPriority = selectedRole.priority || 1
 
         const newName = formData.role_name?.trim() || ""
-        const newPriority = parseInt(formData.priority) || 1
 
         if (!newName) {
             toast.error("Role name cannot be empty")
-            return
-        }
-
-        if (newPriority < 1) {
-            toast.error("Priority must be a positive number")
             return
         }
 
@@ -131,18 +114,9 @@ export function useRoleManagement({ initialRoles = [] }) {
                 payload.role_name = newName
             }
 
-            if (newPriority !== currentPriority) {
-                payload.priority = newPriority
-            }
-
             if (Object.keys(payload).length === 0) {
                 toast.info("No changes to update")
                 return
-            }
-
-            // If name changed, include priority too
-            if (payload.role_name && !payload.priority) {
-                payload.priority = newPriority
             }
 
             const response = await apiClient.put(
@@ -165,41 +139,11 @@ export function useRoleManagement({ initialRoles = [] }) {
         }
     }
 
-    const handleDeleteRole = async (roleId) => {
-        if (!roleId) {
-            toast.error("Role ID is missing. Cannot delete role.")
-            return
-        }
 
-        try {
-            setDeleteSubmitting(true)
-
-            const response = await apiClient.delete(`/api/roles/${roleId}`)
-
-            if (response.status === 200 || response.status === 204 || response.data) {
-                toast.success("Role deleted successfully")
-                setRoleToDelete(null)
-                fetchRoles()
-            } else {
-                toast.error("Unexpected response from server")
-            }
-        } catch (error) {
-            console.error("Error deleting role:", error)
-            const errorMessage =
-                error.response?.data?.message ||
-                error.response?.data?.error ||
-                error.message ||
-                "Failed to delete role"
-            toast.error(errorMessage)
-        } finally {
-            setDeleteSubmitting(false)
-        }
-    }
 
     const resetForm = () => {
         setFormData({
             role_name: "",
-            priority: 1,
         })
         setSelectedRole(null)
     }
@@ -246,14 +190,11 @@ export function useRoleManagement({ initialRoles = [] }) {
         isCreateDialogOpen, setIsCreateDialogOpen,
         isEditDialogOpen, setIsEditDialogOpen,
         isViewDialogOpen, setIsViewDialogOpen,
-        roleToDelete, setRoleToDelete,
         formData, setFormData,
         submitting,
-        deleteSubmitting,
         filteredRoles,
         handleCreateRole,
         handleUpdateRole,
-        handleDeleteRole,
         fetchRoles,
         resetForm,
         openEditDialog,

@@ -32,7 +32,7 @@ export function RoleDialogs({
                     <DialogHeader>
                         <DialogTitle>Create New Role</DialogTitle>
                         <DialogDescription>
-                            Enter the role details below. Role name and priority are required.
+                            Enter the role details below. Role name is required.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
@@ -46,22 +46,6 @@ export function RoleDialogs({
                                     setFormData({ ...formData, role_name: e.target.value })
                                 }
                             />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="create-priority">Priority *</Label>
-                            <Input
-                                id="create-priority"
-                                type="number"
-                                min="1"
-                                placeholder="Enter priority (e.g., 1, 2, 3...)"
-                                value={formData.priority}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })
-                                }
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Lower numbers indicate higher priority
-                            </p>
                         </div>
                     </div>
                     <DialogFooter>
@@ -92,7 +76,7 @@ export function RoleDialogs({
                     <DialogHeader>
                         <DialogTitle>Edit Role</DialogTitle>
                         <DialogDescription>
-                            Update role information. Role name and priority are required.
+                            Update role information. Role name is required.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
@@ -104,22 +88,6 @@ export function RoleDialogs({
                                 value={formData.role_name}
                                 onChange={(e) => setFormData({ ...formData, role_name: e.target.value })}
                             />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="edit-priority">Priority *</Label>
-                            <Input
-                                id="edit-priority"
-                                type="number"
-                                min="1"
-                                placeholder="Enter priority (e.g., 1, 2, 3...)"
-                                value={formData.priority}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })
-                                }
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Lower numbers indicate higher priority
-                            </p>
                         </div>
                     </div>
                     <DialogFooter>
@@ -154,23 +122,49 @@ export function RoleDialogs({
                                 <p className="text-sm font-medium">{selectedRole.role_name || selectedRole.name || "N/A"}</p>
                             </div>
                             <Separator />
-                            <div>
-                                <Label className="text-muted-foreground">Priority</Label>
-                                <div className="mt-2">
-                                    <Badge variant="secondary" className="text-lg">
-                                        {selectedRole.priority || "N/A"}
-                                    </Badge>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Lower numbers indicate higher priority
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label className="text-muted-foreground">Priority</Label>
+                                    <div className="mt-1">
+                                        <Badge variant="secondary">
+                                            {selectedRole.priority || "N/A"}
+                                        </Badge>
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label className="text-muted-foreground">Role ID</Label>
+                                    <p className="text-sm font-medium font-mono truncate" title={selectedRole.role_id || selectedRole.id}>
+                                        {selectedRole.role_id || selectedRole.id || "N/A"}
                                     </p>
                                 </div>
                             </div>
-                            {(selectedRole.role_id || selectedRole.id) && (
+                            <Separator />
+                            <div>
+                                <Label className="text-muted-foreground">Organization ID</Label>
+                                <p className="text-sm font-medium font-mono truncate" title={selectedRole.organization_id}>
+                                    {selectedRole.organization_id || "N/A"}
+                                </p>
+                            </div>
+                            <Separator />
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <Label className="text-muted-foreground">Role ID</Label>
-                                    <p className="text-sm font-medium font-mono">{selectedRole.role_id || selectedRole.id}</p>
+                                    <Label className="text-muted-foreground">Created At</Label>
+                                    <p className="text-sm font-medium">
+                                        {selectedRole.created_at ? new Date(selectedRole.created_at).toLocaleString() : "N/A"}
+                                    </p>
                                 </div>
-                            )}
+                                <div>
+                                    <Label className="text-muted-foreground">Updated At</Label>
+                                    <p className="text-sm font-medium">
+                                        {selectedRole.updated_at ? new Date(selectedRole.updated_at).toLocaleString() : "N/A"}
+                                    </p>
+                                </div>
+                            </div>
+                            <Separator />
+                            <div>
+                                <Label className="text-muted-foreground">Created By</Label>
+                                <p className="text-sm font-medium">{selectedRole.created_by || "N/A"}</p>
+                            </div>
                         </div>
                     )}
                     <DialogFooter>

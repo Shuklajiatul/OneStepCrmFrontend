@@ -33,17 +33,6 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import {
     ArrowUpDown,
     ChevronLeft,
     ChevronRight,
@@ -51,7 +40,6 @@ import {
     Eye,
     Loader2,
     Shield,
-    Trash2,
 } from "lucide-react"
 
 export function RoleTable({
@@ -59,10 +47,6 @@ export function RoleTable({
     loading,
     onView,
     onEdit,
-    onDelete,
-    roleToDelete,
-    setRoleToDelete,
-    deleteSubmitting
 }) {
     const [sorting, setSorting] = useState([])
     const [pagination, setPagination] = useState({
@@ -153,56 +137,6 @@ export function RoleTable({
                                 </TooltipTrigger>
                                 <TooltipContent>Edit</TooltipContent>
                             </Tooltip>
-
-                            <AlertDialog open={roleToDelete?.role_id === roleId} onOpenChange={(open) => {
-                                if (!open) {
-                                    setRoleToDelete(null)
-                                } else {
-                                    setRoleToDelete(role)
-                                }
-                            }}>
-                                <AlertDialogTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        onClick={() => setRoleToDelete(role)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action cannot be undone. This will permanently delete the role &quot;
-                                            {role.role_name || role.name || 'this role'}&quot; and remove it from the system.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel
-                                            onClick={() => setRoleToDelete(null)}
-                                            disabled={deleteSubmitting}
-                                        >
-                                            Cancel
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={() => onDelete(roleId)}
-                                            disabled={deleteSubmitting}
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-white"
-                                        >
-                                            {deleteSubmitting ? (
-                                                <>
-                                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                    Deleting...
-                                                </>
-                                            ) : (
-                                                "Delete Role"
-                                            )}
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
                         </TooltipProvider>
                     </div>
                 )
