@@ -357,25 +357,28 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
             properties: {}
         }
 
-        if (path.length === 1) { // Single index meaning it's the root column's option
-            if (!clonedNestedFields[optionIndex]) clonedNestedFields[optionIndex] = []
-            clonedNestedFields[optionIndex].push(newField)
-        } else {
-            // Navigate to deeper level
-            let current = clonedNestedFields
-            for (let i = 0; i < path.length; i += 2) {
-                const optIdx = path[i]
-                const fieldIdx = path[i + 1]
-                if (i + 2 < path.length) {
-                    if (!current[optIdx][fieldIdx].nestedFields) current[optIdx][fieldIdx].nestedFields = {}
-                    current = current[optIdx][fieldIdx].nestedFields
-                } else {
-                    if (!current[optIdx][fieldIdx].nestedFields) current[optIdx][fieldIdx].nestedFields = {}
-                    if (!current[optIdx][fieldIdx].nestedFields[optionIndex]) current[optIdx][fieldIdx].nestedFields[optionIndex] = []
-                    current[optIdx][fieldIdx].nestedFields[optionIndex].push(newField)
-                }
+        let current = clonedNestedFields
+
+        // Traverse to the nestedFields object that will hold the new field
+        // A path like [rootOptIdx, subFieldIdx, subOptIdx] has an odd length.
+        // We traverse pairs [optIdx, fieldIdx] until we reach the last optIdx.
+        for (let i = 0; i < path.length - 1; i += 2) {
+            const optIdx = path[i]
+            const fieldIdx = path[i + 1]
+
+            if (!current[optIdx]) current[optIdx] = []
+            if (!current[optIdx][fieldIdx]) {
+                // Create placeholders if they don't exist for some reason
+                current[optIdx][fieldIdx] = { id: uuidv4(), name: "Sub-field", type: "text" }
             }
+            if (!current[optIdx][fieldIdx].nestedFields) current[optIdx][fieldIdx].nestedFields = {}
+            current = current[optIdx][fieldIdx].nestedFields
         }
+
+        // The final element in the path is the index of the option we are adding to
+        const lastOptIdx = path[path.length - 1]
+        if (!current[lastOptIdx]) current[lastOptIdx] = []
+        current[lastOptIdx].push(newField)
 
         handleUpdate({ nestedFields: clonedNestedFields })
     }
@@ -625,14 +628,17 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                     <PopoverContent className="w-[250px] p-0">
                                         <Command>
                                             <CommandInput placeholder="Search country..." />
-                                            <CommandList className="max-h-[300px] overflow-y-auto">
+                                            <CommandList
+                                                className="max-h-[300px] overflow-y-auto"
+                                                onWheel={(e) => e.stopPropagation()}
+                                            >
                                                 <CommandEmpty>No country found.</CommandEmpty>
                                                 <CommandGroup>
                                                     {allCountries
                                                         .filter(c => !(column.validation?.allowedCountries || []).includes(c.name))
-                                                        .map(country => (
+                                                        .map((country, idx) => (
                                                             <CommandItem
-                                                                key={country.name}
+                                                                key={`${country.name}-${idx}`}
                                                                 onSelect={() => {
                                                                     const current = column.validation?.allowedCountries || []
                                                                     handleUpdate({
@@ -669,7 +675,10 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                                     <PopoverContent className="w-[250px] p-0">
                                                         <Command>
                                                             <CommandInput placeholder="Search states..." />
-                                                            <CommandList>
+                                                            <CommandList
+                                                                className="max-h-[300px] overflow-y-auto"
+                                                                onWheel={(e) => e.stopPropagation()}
+                                                            >
                                                                 {loadingStates[countryName] ? (
                                                                     <div className="p-4 text-center text-xs text-muted-foreground">Loading states...</div>
                                                                 ) : (
@@ -678,9 +687,9 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                                                         <CommandGroup>
                                                                             {(statesPerCountry[countryName] || [])
                                                                                 .filter(s => !allowedStates.includes(s.name))
-                                                                                .map(state => (
+                                                                                .map((state, idx) => (
                                                                                     <CommandItem
-                                                                                        key={state.name}
+                                                                                        key={`${state.name}-${idx}`}
                                                                                         onSelect={() => {
                                                                                             handleUpdate({
                                                                                                 validation: {
@@ -766,7 +775,10 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                                                         {!showManualCityInput[stateName] && (
                                                                             <Command>
                                                                                 <CommandInput placeholder="Search cities..." />
-                                                                                <CommandList>
+                                                                                <CommandList
+                                                                                    className="max-h-[300px] overflow-y-auto"
+                                                                                    onWheel={(e) => e.stopPropagation()}
+                                                                                >
                                                                                     {loadingCities[`${countryName}-${stateName}`] ? (
                                                                                         <div className="p-4 text-center text-xs text-muted-foreground">Loading cities...</div>
                                                                                     ) : (
@@ -775,9 +787,9 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                                                                             <CommandGroup>
                                                                                                 {(citiesPerState[`${countryName}-${stateName}`] || [])
                                                                                                     .filter(c => !(column.validation?.allowedCities?.[stateName] || []).includes(c.name))
-                                                                                                    .map(city => (
+                                                                                                    .map((city, idx) => (
                                                                                                         <CommandItem
-                                                                                                            key={city.name}
+                                                                                                            key={`${city.name}-${idx}`}
                                                                                                             onSelect={() => {
                                                                                                                 const currentCities = column.validation?.allowedCities?.[stateName] || []
                                                                                                                 handleUpdate({

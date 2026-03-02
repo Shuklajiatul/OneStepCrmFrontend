@@ -205,7 +205,12 @@ const MappingInterface = ({
 
   const handleAutogenerateChange = (sourceField, checked) => {
     const current = mappings[sourceField] || {};
-    onMappingChange(sourceField, { ...current, autogenerate: checked });
+    // When autogenerate is set to true, it should be required true by default
+    onMappingChange(sourceField, {
+      ...current,
+      autogenerate: checked,
+      required: checked ? true : (current.required ?? false)
+    });
   };
 
   const handleNewNameChange = (sourceField, newName) => {

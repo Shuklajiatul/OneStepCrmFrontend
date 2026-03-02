@@ -19,14 +19,11 @@ export default function RolesClient(props) {
         isCreateDialogOpen, setIsCreateDialogOpen,
         isEditDialogOpen, setIsEditDialogOpen,
         isViewDialogOpen, setIsViewDialogOpen,
-        roleToDelete, setRoleToDelete,
         formData, setFormData,
         submitting,
-        deleteSubmitting,
         filteredRoles,
         handleCreateRole,
         handleUpdateRole,
-        handleDeleteRole,
         fetchRoles,
         openEditDialog,
         openViewDialog,
@@ -74,10 +71,6 @@ export default function RolesClient(props) {
                     loading={loading}
                     onView={openViewDialog}
                     onEdit={openEditDialog}
-                    onDelete={handleDeleteRole}
-                    roleToDelete={roleToDelete}
-                    setRoleToDelete={setRoleToDelete}
-                    deleteSubmitting={deleteSubmitting}
                 />
             </div>
 

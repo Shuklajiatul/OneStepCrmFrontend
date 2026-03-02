@@ -176,9 +176,9 @@ const processNestedFieldsRecursively = (nestedFields) => {
 }
 
 // API configuration
-const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
+// TABLE_ID is now handled via props and state from parent
 
-export function FormPreview({ fields, isEditMode = false, formData = null, onRetryCountChange = null }) {
+export function FormPreview({ fields, isEditMode = false, formData = null, onRetryCountChange = null, onTableChange = null }) {
   const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
   const [formName, setFormName] = useState("")
@@ -190,6 +190,13 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
   const [availableTables, setAvailableTables] = useState([])
   const [selectedTable, setSelectedTable] = useState("")
   const [isLoadingTables, setIsLoadingTables] = useState(false)
+
+  // Notify parent of selected table changes
+  useEffect(() => {
+    if (onTableChange && selectedTable) {
+      onTableChange(selectedTable)
+    }
+  }, [selectedTable, onTableChange])
 
   // Check authentication
   useEffect(() => {
@@ -266,9 +273,6 @@ export function FormPreview({ fields, isEditMode = false, formData = null, onRet
       // If in edit mode and formData has table_id, set it
       if (isEditMode && formData?.table_id) {
         setSelectedTable(prev => prev || formData.table_id)
-      } else if (TABLE_ID) {
-        // Fallback to env var if available
-        setSelectedTable(prev => prev || TABLE_ID)
       }
     } catch (error) {
       console.error('Error fetching tables:', error)

@@ -27,7 +27,8 @@ import {
   getFieldValue,
   inferFilenameFromDataUrl,
   isFileObject,
-  safeParseJSON
+  safeParseJSON,
+  hasNestedData
 } from "@/lib/utils"
 import {
   ArrowLeft,
@@ -71,8 +72,9 @@ import { authUtils } from '@/lib/auth-utils'
 import { usersApi, datatablesApi, recordsApi } from '@/lib/api-endpoint'
 import CreateActivityDialog from "@/app/activities/components/create-activity-dialog"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
-import { fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
+import { RecordModal } from "@/components/records/RecordModal"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { fetchPhoneCountries } from "@/lib/constants/location-api"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
@@ -109,205 +111,20 @@ export default function TableDataView({ table, onBack }) {
   const [isFileModalOpen, setIsFileModalOpen] = useState(false)
   const [filePreview, setFilePreview] = useState(null)
 
-  // Add/Edit record dialog state
-  const [isAddRecordDialogOpen, setIsAddRecordDialogOpen] = useState(false)
+  // Edit record dialog state
   const [isEditRecordDialogOpen, setIsEditRecordDialogOpen] = useState(false)
-  const [recordFormData, setRecordFormData] = useState({})
+  const [isAddRecordDialogOpen, setIsAddRecordDialogOpen] = useState(false)
   const [recordToEdit, setRecordToEdit] = useState(null)
-  const [isSubmittingRecord, setIsSubmittingRecord] = useState(false)
   const [users, setUsers] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(false)
 
   const [activeOptionPopover, setActiveOptionPopover] = useState(null)
   const [nestedModalContext, setNestedModalContext] = useState('record')
+  const [phoneCountries, setPhoneCountries] = useState([])
 
-  const handleRecursiveFieldChange = (fieldId, newValue, path = []) => {
-    setRecordFormData(prev => updateNestedState(prev, [...path, fieldId], newValue))
-  }
 
-  const handleRecursiveCheckboxToggle = (fieldId, optionValue, path = []) => {
-    setRecordFormData(prev => {
-      // Traverse to find current container
-      let currentData = prev
-      for (const key of path) {
-        currentData = currentData?.[key]
-      }
 
-      const currentValues = Array.isArray(currentData?.[fieldId]) ? currentData[fieldId] : []
-      const index = currentValues.findIndex(item => (typeof item === 'object' ? item.value : item) === optionValue)
 
-      let newFieldVal
-      if (index > -1) {
-        newFieldVal = [...currentValues]
-        newFieldVal.splice(index, 1)
-      } else {
-        newFieldVal = [...currentValues, { value: optionValue, nestedValues: {} }]
-      }
-
-      return updateNestedState(prev, [...path, fieldId], newFieldVal)
-    })
-  }
-
-  const renderFormFieldsRecursive = (fields, currentData, path = [], depth = 0) => {
-    if (!fields || !Array.isArray(fields)) return null
-
-    return fields.map((field) => {
-      const fieldId = field.id || field.column_id
-      const fieldType = getColumnFieldType(field)
-      const fieldName = field.column_name || field.label || field.name
-      const storedValue = currentData?.[fieldId]
-      const columnOptions = getColumnOptions(field)
-
-      const primitiveValue = (fieldType === 'select' || fieldType === 'radio')
-        ? (storedValue?.value || '')
-        : (typeof storedValue === 'object' ? JSON.stringify(storedValue) : String(storedValue || ''))
-
-      const checkboxSelections = (fieldType === 'checkbox' && Array.isArray(storedValue))
-        ? storedValue.map(item => typeof item === 'object' ? item.value : item).filter(Boolean)
-        : []
-
-      // Special handling for phone
-      if (fieldType === 'phone') {
-        let phoneData = { countryCode: '', number: '' }
-        if (typeof storedValue === 'string') {
-          try { phoneData = JSON.parse(storedValue) } catch (e) { }
-        } else if (storedValue && typeof storedValue === 'object') {
-          phoneData = { ...phoneData, ...storedValue }
-        }
-
-        return (
-          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
-            <Label className="text-sm font-semibold">{fieldName}</Label>
-            <div className="grid grid-cols-12 gap-2">
-              <Input
-                className="col-span-4 h-10"
-                placeholder="+91"
-                value={phoneData.countryCode}
-                onChange={e => handleRecursiveFieldChange(fieldId, JSON.stringify({ ...phoneData, countryCode: e.target.value }), path)}
-              />
-              <Input
-                className="col-span-8 h-10"
-                placeholder="Number"
-                value={phoneData.number}
-                onChange={e => handleRecursiveFieldChange(fieldId, JSON.stringify({ ...phoneData, number: e.target.value }), path)}
-              />
-            </div>
-          </div>
-        )
-      }
-
-      // Handle Select/Radio
-      if ((fieldType === 'select' || fieldType === 'radio') && columnOptions.length > 0) {
-        const selectedOption = columnOptions.find(opt => (opt.value || opt.label) === primitiveValue)
-        const nestedFields = selectedOption?.nestedFields || []
-
-        return (
-          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
-            <Label className="text-sm font-semibold">{fieldName}</Label>
-            <Select
-              value={primitiveValue}
-              onValueChange={val => handleRecursiveFieldChange(fieldId, { value: val, nestedValues: {} }, path)}
-            >
-              <SelectTrigger className="h-10">
-                <SelectValue placeholder={`Select ${fieldName}`} />
-              </SelectTrigger>
-              <SelectContent>
-                {columnOptions.map((opt, i) => (
-                  <SelectItem key={i} value={opt.value || opt.label || String(opt)}>{opt.label || opt.value || String(opt)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {nestedFields.length > 0 && primitiveValue && (
-              <div className="mt-2 text-xs font-medium text-muted-foreground flex items-center gap-2">
-                <Plus className="h-3 w-3" /> Nested Fields for {primitiveValue}
-              </div>
-            )}
-            {nestedFields.length > 0 && primitiveValue && (
-              <div className="mt-2">
-                {renderFormFieldsRecursive(nestedFields, storedValue?.nestedValues || {}, [...path, fieldId, 'nestedValues'], depth + 1)}
-              </div>
-            )}
-          </div>
-        )
-      }
-
-      // Handle Checkbox
-      if (fieldType === 'checkbox' && columnOptions.length > 0) {
-        return (
-          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
-            <Label className="text-sm font-semibold">{fieldName}</Label>
-            <div className="space-y-2">
-              {columnOptions.map((opt, i) => {
-                const optVal = opt.value || opt.label || String(opt)
-                const isChecked = checkboxSelections.includes(optVal)
-                const selectionIdx = isChecked ? (storedValue || []).findIndex(s => (s.value || s) === optVal) : -1
-
-                return (
-                  <div key={i} className="space-y-2">
-                    <div
-                      onClick={() => handleRecursiveCheckboxToggle(fieldId, optVal, path)}
-                      className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover:bg-muted/50 transition-colors"
-                    >
-                      <div className={`h-4 w-4 rounded border flex items-center justify-center ${isChecked ? 'bg-primary border-primary' : 'border-muted-foreground'}`}>
-                        {isChecked && <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
-                      </div>
-                      <span className="text-sm">{opt.label || opt.value || String(opt)}</span>
-                    </div>
-                    {isChecked && opt.nestedFields && opt.nestedFields.length > 0 && selectionIdx !== -1 && (
-                      <div className="mt-2">
-                        {renderFormFieldsRecursive(opt.nestedFields, (storedValue || [])[selectionIdx]?.nestedValues || {}, [...path, fieldId, selectionIdx, 'nestedValues'], depth + 1)}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )
-      }
-
-      // Location
-      if (fieldType === 'location') {
-        const locationVal = (typeof storedValue === 'object' && storedValue !== null) ? storedValue : { country: undefined, state: undefined, city: undefined }
-        return (
-          <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
-            <Label className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold">{fieldName}</span>
-            </Label>
-            <LocationPicker
-              value={locationVal}
-              onChange={val => handleRecursiveFieldChange(fieldId, val, path)}
-              validation={field.validation || field.properties?.validation ? (typeof field.properties.validation === 'string' ? JSON.parse(field.properties.validation) : field.properties.validation) : {}}
-            />
-          </div>
-        )
-      }
-
-      // Regular inputs
-      return (
-        <div key={fieldId} className={`${depth > 0 ? 'ml-4 border-l-2 pl-4 py-1 border-primary/10' : ''} space-y-2`}>
-          <Label className="text-sm font-semibold">{fieldName}</Label>
-          {fieldType === 'textarea' ? (
-            <Textarea
-              className="min-h-[80px]"
-              value={primitiveValue}
-              onChange={e => handleRecursiveFieldChange(fieldId, e.target.value, path)}
-              placeholder={`Enter ${fieldName}`}
-            />
-          ) : (
-            <Input
-              className="h-10"
-              type={fieldType === 'number' ? 'number' : fieldType === 'email' ? 'email' : fieldType === 'date' ? 'date' : fieldType === 'datetime' ? 'datetime-local' : 'text'}
-              value={primitiveValue}
-              onChange={e => handleRecursiveFieldChange(fieldId, e.target.value, path)}
-              placeholder={`Enter ${fieldName}`}
-            />
-          )}
-        </div>
-      )
-    })
-  }
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -336,6 +153,7 @@ export default function TableDataView({ table, onBack }) {
   // Fetch users when component mounts
   useEffect(() => {
     fetchUsers()
+    fetchCountriesData()
   }, [])
 
   // Reset pagination when search term changes
@@ -363,6 +181,15 @@ export default function TableDataView({ table, onBack }) {
       setUsers([])
     } finally {
       setLoadingUsers(false)
+    }
+  }
+
+  const fetchCountriesData = async () => {
+    try {
+      const data = await fetchPhoneCountries()
+      setPhoneCountries(data)
+    } catch (err) {
+      console.error("Error fetching phone countries:", err)
     }
   }
 
@@ -397,7 +224,9 @@ export default function TableDataView({ table, onBack }) {
 
       setColumns(normalizedColumns)
       setRecords(recordsData)
-      toast.success(`Loaded ${recordsData.length} records successfully!`)
+      toast.success(`Loaded ${recordsData.length} records successfully!`, {
+        id: `leadpage-records-loaded-${table.table_id}`,
+      })
 
     } catch (err) {
       const errorMsg = `Access Denied - view feature not found for this table in policies: ${err.message}`
@@ -440,171 +269,21 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  const openAddRecordDialog = () => {
-    const initialFormState = {
-      assigned_to: null,
-    }
 
-    columns.forEach((column) => {
-      const fieldType = getColumnFieldType(column)
-      if (fieldType === 'checkbox') {
-        initialFormState[column.column_id] = []
-      } else if (fieldType === 'select' || fieldType === 'radio') {
-        initialFormState[column.column_id] = { value: '', nestedValues: {} }
-      } else if (fieldType === 'phone') {
-        initialFormState[column.column_id] = JSON.stringify({ countryCode: '', number: '' })
-      } else if (fieldType === 'location') {
-        initialFormState[column.column_id] = { country: undefined, state: undefined, city: undefined }
-      } else {
-        initialFormState[column.column_id] = ''
-      }
-    })
-
-    setRecordFormData(initialFormState)
-    setIsAddRecordDialogOpen(true)
-  }
-
-const openEditRecordDialog = (record) => {
-
+  const openEditRecordDialog = (record) => {
     setRecordToEdit(record)
-
-    const formData = {
-      assigned_to: record.assigned_to === "NA" || !record.assigned_to ? null : record.assigned_to
-    }
-
-    columns.forEach(column => {
-      const rawValue = getFieldValue(record, column.column_id, column)
-
-      formData[column.column_id] = normalizeFieldValueForForm(rawValue, column)
-    })
-
-
-    setRecordFormData(formData)
     setIsEditRecordDialogOpen(true)
   }
 
-
-
-  const handleAddRecord = async () => {
-    setIsSubmittingRecord(true)
-
-    try {
-      const tokens = authUtils.getTokens()
-      const user = tokens?.user
-      let gId = null
-
-      if (user?.g_ids) {
-        if (Array.isArray(user.g_ids)) {
-          gId = user.g_ids.length > 0 ? user.g_ids[0] : null
-        } else {
-          gId = user.g_ids
-        }
-      }
-
-      const gIds = authUtils.getGIds()
-      const pIds = authUtils.getPIds()
-
-      if (!gId && (!gIds || gIds.length === 0)) {
-        toast.error("User g_id not found. Please ensure you are properly logged in.")
-        setIsSubmittingRecord(false)
-        return
-      }
-
-      const fieldValues = {}
-      columns.forEach(column => {
-        const payloadValue = buildFieldValuePayload(column, recordFormData[column.column_id])
-        if (payloadValue !== null) {
-          fieldValues[column.column_id] = payloadValue
-        }
-      })
-
-      const assignedToValue = recordFormData.assigned_to
-      const finalAssignedTo = assignedToValue === "none" || !assignedToValue ? null : assignedToValue
-
-      const payload = {
-        g_id: gId || (gIds && gIds[0]),
-        g_ids: gIds,
-        p_id: pIds,
-        assigned_to: finalAssignedTo,
-        field_values: fieldValues
-      }
-
-      const response = await recordsApi.create(table.table_id, payload)
-
-      toast.success("Record added successfully!")
-      setIsAddRecordDialogOpen(false)
-      setRecordFormData({})
-      fetchTableData()
-
-    } catch (err) {
-      toast.error(`Failed to add record: ${err.response?.data?.message || err.message}`)
-      console.error("Error adding record:", err)
-    } finally {
-      setIsSubmittingRecord(false)
-    }
+  const openAddRecordDialog = () => {
+    setIsAddRecordDialogOpen(true)
   }
 
-  const handleUpdateRecord = async () => {
-    if (!recordToEdit) return
 
-    setIsSubmittingRecord(true)
 
-    try {
-      const tokens = authUtils.getTokens()
-      const user = tokens?.user
-      let gId = null
 
-      if (user?.g_ids) {
-        if (Array.isArray(user.g_ids)) {
-          gId = user.g_ids.length > 0 ? user.g_ids[0] : null
-        } else {
-          gId = user.g_ids
-        }
-      }
 
-      const gIds = authUtils.getGIds()
-      const pIds = authUtils.getPIds()
 
-      if (!gId && (!gIds || gIds.length === 0)) {
-        toast.error("User g_id not found. Please ensure you are properly logged in.")
-        setIsSubmittingRecord(false)
-        return
-      }
-
-      const fieldValues = {}
-      columns.forEach(column => {
-        const payloadValue = buildFieldValuePayload(column, recordFormData[column.column_id])
-        if (payloadValue !== null) {
-          fieldValues[column.column_id] = payloadValue
-        }
-      })
-
-      const assignedToValue = recordFormData.assigned_to
-      const finalAssignedTo = assignedToValue === "none" || !assignedToValue ? null : assignedToValue
-
-      const payload = {
-        g_id: gId || (gIds && gIds[0]),
-        g_ids: gIds,
-        p_id: pIds,
-        assigned_to: finalAssignedTo,
-        field_values: fieldValues
-      }
-
-      const response = await recordsApi.update(table.table_id, recordToEdit.record_id, payload)
-
-      toast.success("Record updated successfully!")
-      setIsEditRecordDialogOpen(false)
-      setRecordToEdit(null)
-      setRecordFormData({})
-      fetchTableData()
-
-    } catch (err) {
-      toast.error(`Failed to update record: ${err.response?.data?.message || err.message}`)
-      console.error("Error updating record:", err)
-    } finally {
-      setIsSubmittingRecord(false)
-    }
-  }
 
   const isBase64File = (str) => {
     if (typeof str !== 'string') return false
@@ -998,26 +677,6 @@ const openEditRecordDialog = (record) => {
     return null
   }
 
-  const hasNestedData = (column) => {
-    const modalEditableTypes = ['select', 'radio', 'checkbox']
-    const parentDatatype = getColumnFieldType(column)
-
-    if (parentDatatype && !modalEditableTypes.includes(parentDatatype)) {
-      return false
-    }
-
-    const options = getColumnOptions(column)
-    if (!options.length) {
-      return false
-    }
-
-    const hasNestedFields = options.some(option =>
-      option.nestedFields && Array.isArray(option.nestedFields) && option.nestedFields.length > 0
-    )
-
-    return hasNestedFields || modalEditableTypes.includes(parentDatatype)
-  }
-
   const parseNestedData = (fieldValue, column) => {
     try {
       let parsed = fieldValue
@@ -1285,7 +944,11 @@ const openEditRecordDialog = (record) => {
 
     // Handle Arrays (Multi-select)
     if (Array.isArray(valueToDisplay)) {
-      return (
+      const hasNested = valueToDisplay.some(
+        (item) => item && typeof item === "object" && item.nestedValues && Object.keys(item.nestedValues).length > 0,
+      )
+      
+      const badgesNode = (
         <div className="flex flex-wrap gap-1">
           {valueToDisplay.map((item, i) => {
             const displayItem = (typeof item === 'object' && item !== null) ? (item.label || item.value || JSON.stringify(item)) : String(item)
@@ -1296,6 +959,24 @@ const openEditRecordDialog = (record) => {
             )
           })}
         </div>
+      )
+      
+      const onOpenNested = (hasNested || hasNestedData(column))
+        ? () => openNestedModal({
+            fieldValue: rawValue,
+            column,
+            recordId: record?.record_id,
+            source: 'record',
+          })
+        : undefined
+      
+      return renderOptionsDropdown(
+        badgesNode,
+        column,
+        valueToDisplay.map(v => typeof v === 'object' ? v.value : v),
+        onOpenNested,
+        record,
+        parsed
       )
     }
 
@@ -2551,16 +2232,7 @@ const openEditRecordDialog = (record) => {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* <Button
-            variant="outline"
-            onClick={fetchTableData}
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button> */}
-
-          <Button className="gap-2" onClick={openAddRecordDialog}>
+          <Button onClick={openAddRecordDialog} className="gap-2 shadow-sm">
             <Plus className="h-4 w-4" />
             Add Record
           </Button>
@@ -3410,364 +3082,26 @@ const openEditRecordDialog = (record) => {
         </DialogContent>
       </Dialog>
 
-      {/* Add Record Dialog */}
-      <Dialog open={isAddRecordDialogOpen} onOpenChange={setIsAddRecordDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b shrink-0">
-            <DialogTitle className="text-xl font-bold">Add New Record</DialogTitle>
-            <DialogDescription className="text-base">
-              Fill in the fields below to create a new record
-            </DialogDescription>
-          </DialogHeader>
 
-          {/* Scrollable Content Area */}
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <ScrollArea className="h-full w-full">
-              <div className="p-6 space-y-6">
-                {/* ASSIGNED TO FIELD */}
-                <div className="space-y-4 bg-muted/20 p-4 rounded-lg border">
-                  <Label htmlFor="add-assigned_to" className="text-base font-semibold">
-                    Assigned To
-                  </Label>
-                  <Select
-                    value={recordFormData.assigned_to || "none"}
-                    onValueChange={(value) => setRecordFormData(prev => ({
-                      ...prev,
-                      assigned_to: value === "none" ? null : value
-                    }))}
-                  >
-                    <SelectTrigger id="add-assigned_to" className="h-12 text-base">
-                      <SelectValue placeholder="Select user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none" className="text-base">None</SelectItem>
-                      {loadingUsers ? (
-                        <SelectItem value="loading" disabled className="text-base">Loading users...</SelectItem>
-                      ) : (
-                        users.map((user) => {
-                          const userId = user.user_id || user.id
-                          const userName = user.first_name && user.last_name
-                            ? `${user.first_name} ${user.last_name}`
-                            : user.name || user.email || userId
-                          return (
-                            <SelectItem key={userId} value={userId} className="text-base">
-                              {userName}
-                            </SelectItem>
-                          )
-                        })
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+      <RecordModal
+        open={isEditRecordDialogOpen}
+        onOpenChange={setIsEditRecordDialogOpen}
+        table={{ ...table, columns }}
+        countries={phoneCountries}
+        recordToEdit={recordToEdit}
+        onSuccess={fetchTableData}
+        users={users}
+      />
 
-                {/* REST OF THE COLUMNS */}
-                <div className="space-y-6">
-                  {renderFormFieldsRecursive(columns, recordFormData)}
-                </div>
-              </div>
-            </ScrollArea>
-          </div>
-
-          <DialogFooter className="px-6 py-4 border-t bg-muted/20 shrink-0 gap-3">
-            <Button
-              variant="outline"
-              onClick={() => setIsAddRecordDialogOpen(false)}
-              className="h-12 text-base flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAddRecord}
-              disabled={isSubmittingRecord}
-              className="h-12 text-base flex-1 gap-2"
-            >
-              {isSubmittingRecord ? (
-                <>
-                  <RefreshCw className="h-5 w-5 animate-spin" />
-                  Adding...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-5 w-5" />
-                  Add Record
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Record Dialog */}
-      <Dialog open={isEditRecordDialogOpen} onOpenChange={setIsEditRecordDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[1200px] h-[90vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="px-6 py-4 border-b shrink-0">
-            <DialogTitle className="text-xl font-bold">Edit Record</DialogTitle>
-            <DialogDescription className="text-base">
-              Update the fields below to modify this record
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Scrollable Content Area */}
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <ScrollArea className="h-full w-full">
-              <div className="p-6 space-y-6">
-                {/* ASSIGNED TO FIELD */}
-                <div className="space-y-4 bg-muted/20 p-4 rounded-lg border">
-                  <Label htmlFor="edit-assigned_to" className="text-base font-semibold">
-                    Assigned To
-                  </Label>
-                  <Select
-                    value={recordFormData.assigned_to || "none"}
-                    onValueChange={(value) => {
-                      setRecordFormData(prev => ({
-                        ...prev,
-                        assigned_to: value === "none" ? null : value
-                      }))
-                    }}
-                  >
-                    <SelectTrigger id="edit-assigned_to" className="h-12 text-base">
-                      <SelectValue placeholder="Select user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none" className="text-base">None</SelectItem>
-                      {loadingUsers ? (
-                        <SelectItem value="loading" disabled className="text-base">Loading users...</SelectItem>
-                      ) : (
-                        users.map((user) => {
-                          const userId = user.user_id || user.id
-                          const userName = user.first_name && user.last_name
-                            ? `${user.first_name} ${user.last_name}`
-                            : user.name || user.email || userId
-                          return (
-                            <SelectItem key={userId} value={userId} className="text-base">
-                              {userName}
-                            </SelectItem>
-                          )
-                        })
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* REST OF THE COLUMNS */}
-                <div className="space-y-6">
-                  {renderFormFieldsRecursive(columns, recordFormData)}
-                </div>
-              </div>
-            </ScrollArea>
-          </div>
-
-          <DialogFooter className="px-6 py-4 border-t bg-muted/20 shrink-0 gap-3">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditRecordDialogOpen(false)
-                setRecordToEdit(null)
-                setRecordFormData({})
-              }}
-              className="h-12 text-base flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleUpdateRecord}
-              disabled={isSubmittingRecord}
-              className="h-12 text-base flex-1 gap-2"
-            >
-              {isSubmittingRecord ? (
-                <>
-                  <RefreshCw className="h-5 w-5 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Update Record
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RecordModal
+        open={isAddRecordDialogOpen}
+        onOpenChange={setIsAddRecordDialogOpen}
+        table={{ ...table, columns }}
+        countries={phoneCountries}
+        onSuccess={fetchTableData}
+        users={users}
+      />
     </div >
   )
 }
 
-function LocationPicker({ value, onChange, validation = {} }) {
-  const [countries, setCountries] = useState([])
-  const [states, setStates] = useState([])
-  const [cities, setCities] = useState([])
-  const [loadingStates, setLoadingStates] = useState(false)
-  const [loadingCities, setLoadingCities] = useState(false)
-  const [open, setOpen] = useState({ country: false, state: false, city: false })
-  const [search, setSearch] = useState({ country: "", state: "", city: "" })
-
-  const current = value || { country: undefined, state: undefined, city: undefined }
-
-  useEffect(() => {
-    const loadCountries = async () => {
-      const data = await fetchCountries()
-      setCountries(data)
-    }
-    loadCountries()
-  }, [])
-
-  useEffect(() => {
-    const loadStates = async () => {
-      if (current.country) {
-        setLoadingStates(true)
-        try {
-          const data = await fetchStates(current.country)
-          setStates(data)
-        } finally {
-          setLoadingStates(false)
-        }
-      } else {
-        setStates([])
-      }
-    }
-    loadStates()
-  }, [current.country])
-
-  useEffect(() => {
-    const loadCities = async () => {
-      if (current.state && current.country) {
-        setLoadingCities(true)
-        try {
-          const data = await fetchCities(current.country, current.state)
-          setCities(data)
-        } finally {
-          setLoadingCities(false)
-        }
-      } else {
-        setCities([])
-      }
-    }
-    loadCities()
-  }, [current.state, current.country])
-
-  const filteredCountries = countries.filter(c => {
-    if (validation.allowedCountries?.length > 0 && !validation.allowedCountries.includes(c.name)) return false
-    return c.name.toLowerCase().includes(search.country.toLowerCase())
-  })
-
-  const filteredStates = states.filter(s => {
-    if (validation.allowedStates?.[current.country]?.length > 0 && !validation.allowedStates[current.country].includes(s.name)) return false
-    return s.name.toLowerCase().includes(search.state.toLowerCase())
-  })
-
-  const filteredCities = cities.filter(c => {
-    if (validation.allowedCities?.[current.state]?.length > 0 && !validation.allowedCities[current.state].includes(c.name)) return false
-    return c.name.toLowerCase().includes(search.city.toLowerCase())
-  })
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-3">
-      <div className="space-y-1">
-        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Country</Label>
-        <SelectPopover
-          title="Country"
-          open={open.country}
-          setOpen={(o) => setOpen(prev => ({ ...prev, country: o }))}
-          value={current.country}
-          onSelect={(val) => {
-            onChange({ country: val, state: undefined, city: undefined })
-            setOpen(prev => ({ ...prev, country: false, state: true }))
-          }}
-          options={filteredCountries}
-          search={search.country}
-          setSearch={(s) => setSearch(prev => ({ ...prev, country: s }))}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label className="text-[10px] uppercase font-bold text-muted-foreground">State</Label>
-        <SelectPopover
-          title="State"
-          disabled={!current.country}
-          loading={loadingStates}
-          open={open.state}
-          setOpen={(o) => setOpen(prev => ({ ...prev, state: o }))}
-          value={current.state}
-          onSelect={(val) => {
-            onChange({ ...current, state: val, city: undefined })
-            setOpen(prev => ({ ...prev, state: false, city: true }))
-          }}
-          options={filteredStates}
-          search={search.state}
-          setSearch={(s) => setSearch(prev => ({ ...prev, state: s }))}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label className="text-[10px] uppercase font-bold text-muted-foreground">City</Label>
-        <SelectPopover
-          title="City"
-          disabled={!current.state}
-          loading={loadingCities}
-          open={open.city}
-          setOpen={(o) => setOpen(prev => ({ ...prev, city: o }))}
-          value={current.city}
-          onSelect={(val) => {
-            onChange({ ...current, city: val })
-            setOpen(prev => ({ ...prev, city: false }))
-          }}
-          options={filteredCities}
-          search={search.city}
-          setSearch={(s) => setSearch(prev => ({ ...prev, city: s }))}
-        />
-      </div>
-    </div>
-  )
-}
-
-function SelectPopover({ title, open, setOpen, value, onSelect, options, search, setSearch, disabled, loading }) {
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          disabled={disabled}
-          className="w-full justify-between h-9 text-xs font-normal bg-background"
-        >
-          <span className="truncate">{value || "Select " + title + "..."}</span>
-          {loading ? <Loader2 className="h-3 w-3 animate-spin opacity-50" /> : <ChevronDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0" align="start">
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder={"Search " + title.toLowerCase() + "..."}
-            value={search}
-            onValueChange={setSearch}
-            className="h-8"
-          />
-          <CommandList className="max-h-[200px]">
-            {options.length === 0 ? (
-              <CommandEmpty>{"No " + title.toLowerCase() + " found."}</CommandEmpty>
-            ) : (
-              <CommandGroup>
-                {options.map((opt) => (
-                  <CommandItem
-                    key={opt.name}
-                    onSelect={() => onSelect(opt.name)}
-                    className="flex items-center justify-between cursor-pointer py-1.5 text-xs"
-                  >
-                    <span className="truncate">{opt.name}</span>
-                    <Check
-                      className={cn(
-                        "h-3.5 w-3.5",
-                        value === opt.name ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
-}

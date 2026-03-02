@@ -16,6 +16,7 @@ export default function FormPreviewPage() {
   const [isEditMode, setIsEditMode] = useState(false)
   const [editFormData, setEditFormData] = useState(null)
   const [currentRetryCount, setCurrentRetryCount] = useState("2")
+  const [selectedTable, setSelectedTable] = useState("")
   const [userData, setUserData] = useState(null)
   const router = useRouter()
 
@@ -48,6 +49,7 @@ export default function FormPreviewPage() {
           setIsEditMode(true)
           setEditFormData(data)
           setCurrentRetryCount(data.max_retry_count?.toString() || "2")
+          setSelectedTable(data.table_id || "")
 
           // If form data doesn't have g_id but user has genes, set the first one
           if (!data.g_id && userData?.g_ids?.length > 0) {
@@ -183,9 +185,7 @@ export default function FormPreviewPage() {
         }
 
         // Generate the same payload structure as Generate Link
-        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
         const ORGANIZATION_ID = authUtils.getOrganizationId()
-        const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 
         // Separate fields by type
         const groupFieldsList = latestFields.filter(field => field.type === 'group')
@@ -465,7 +465,7 @@ export default function FormPreviewPage() {
         const updatePayload = {
           form_id: editFormData.formId,
           organization_id: ORGANIZATION_ID,
-          table_id: TABLE_ID,
+          table_id: selectedTable,
           form_name: editFormData.formName,
           description: editFormData.description,
           g_id: latestGId,
@@ -546,6 +546,7 @@ export default function FormPreviewPage() {
         isEditMode={isEditMode}
         formData={editFormData}
         onRetryCountChange={setCurrentRetryCount}
+        onTableChange={setSelectedTable}
       />
     </div>
   )

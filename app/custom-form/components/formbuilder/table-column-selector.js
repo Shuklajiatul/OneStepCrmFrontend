@@ -21,14 +21,14 @@ import { v4 as uuidv4 } from 'uuid'
 import { authUtils } from '@/lib/auth-utils'
 import { datatablesApi } from '@/lib/api-endpoint'
 
-export function TableColumnSelector({ field, onUpdateField, existingFields = [] }) {
+export function TableColumnSelector({ field, onUpdateField, existingFields = [], initialTableId }) {
   const [tableColumns, setTableColumns] = useState([])
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedColumns, setSelectedColumns] = useState([])
   const [autoFetched, setAutoFetched] = useState(false)
   const [availableTables, setAvailableTables] = useState([])
-  const [selectedTableId, setSelectedTableId] = useState(process.env.NEXT_PUBLIC_TABLE_ID || "")
+  const [selectedTableId, setSelectedTableId] = useState(initialTableId || "")
   const [isLoadingTables, setIsLoadingTables] = useState(false)
 
   // Fetch tables and columns when component mounts

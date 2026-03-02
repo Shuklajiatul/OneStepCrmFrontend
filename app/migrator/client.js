@@ -205,7 +205,7 @@ const MigratorClient = ({ initialTables = [] }) => {
                             column_Id: createdId,
                             column_name: m.newColumnName || sourceField,
                             required: !!m.required,
-                            Autogenerate: !!m.autogenerate
+                            autogenerate: !!m.autogenerate
                         };
                     }
                 } else if (m.destinationColumnId) {
@@ -214,7 +214,7 @@ const MigratorClient = ({ initialTables = [] }) => {
                         column_Id: m.destinationColumnId || null,
                         column_name: m.column_name || null,
                         required: !!m.required,
-                        Autogenerate: !!m.autogenerate
+                        autogenerate: !!m.autogenerate
                     };
                 }
             });

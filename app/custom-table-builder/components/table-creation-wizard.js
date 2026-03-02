@@ -156,7 +156,7 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
 
                         <div className="flex-1 flex overflow-hidden">
                             {/* Left Sidebar - Column List */}
-                            <div className="w-[300px] border-r bg-muted/20 flex flex-col h-full">
+                            <div className="w-[300px] border-r bg-muted/20 flex flex-col h-full min-h-0">
                                 <div className="p-3 border-b bg-background/50 flex items-center justify-between shrink-0">
                                     <span className="text-xs font-semibold text-muted-foreground uppercase">Fields</span>
                                     <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => {
@@ -167,7 +167,7 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
                                         <Plus className="h-3 w-3" /> Add Field
                                     </Button>
                                 </div>
-                                <ScrollArea className="flex-1">
+                                <ScrollArea className="flex-1 min-h-0">
                                     <div className="p-2 space-y-1">
                                         {columns.map((col, idx) => {
                                             const typeInfo = columnTypes.find(t => t.value === col.type) || columnTypes[0]
@@ -208,13 +208,13 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
 
                             {/* Middle - Type Selection & Main Config */}
                             {columns[activeColumnIndex] && (
-                                <div className="flex-1 flex overflow-hidden bg-background">
+                                <div className="flex-1 flex overflow-hidden min-h-0 bg-background">
                                     {/* Type Selector */}
-                                    <div className="w-[240px] border-r bg-muted/10 flex flex-col h-full overflow-hidden">
+                                    <div className="w-[240px] border-r bg-muted/10 flex flex-col h-full min-h-0 overflow-hidden">
                                         <div className="p-4 border-b shrink-0">
                                             <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Field Type</h4>
                                         </div>
-                                        <ScrollArea className="flex-1">
+                                        <ScrollArea className="flex-1 min-h-0">
                                             <div className="p-3 space-y-6">
                                                 {[
                                                     { label: "ESSENTIAL", types: essentialTypes },
@@ -245,8 +245,8 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
                                     </div>
 
                                     {/* Main Config Panel */}
-                                    <div className="flex-1 flex flex-col h-full overflow-hidden bg-background/50">
-                                        <ScrollArea className="flex-1">
+                                    <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-background/50">
+                                        <ScrollArea className="flex-1 min-h-0">
                                             <div className="p-8 lg:p-10 max-w-2xl mx-auto w-full">
                                                 <div className="mb-6 pb-4 border-b">
                                                     <h2 className="text-lg font-semibold flex items-center gap-2">

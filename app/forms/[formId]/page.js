@@ -11,7 +11,7 @@ import { useState, useEffect, Suspense } from "react"
 import { toast } from "sonner"
 import { authUtils } from "@/lib/auth-utils"
 import { formatFileSize } from "@/lib/utils"
-import { formsApi, submissionsApi } from "@/lib/api-endpoint"
+import { formsApi, submissionsApi, datatablesApi } from "@/lib/api-endpoint"
 import Link from "next/link"
 import Image from "next/image"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
@@ -282,8 +282,8 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
           return
         }
 
-        // Check if this is a phone field (has countryCode and number properties)
-        if (value.countryCode !== undefined && value.number !== undefined) {
+        // Check if this is a phone field (has countryCode/dial_code and number properties)
+        if ((value.countryCode !== undefined || value.dial_code !== undefined) && value.number !== undefined) {
           // This is a phone field - send the phone object directly without wrapping
           fieldValues[fieldId] = value
           return
@@ -1000,6 +1000,19 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
         }
         break
 
+      case "phone":
+        if (typeof fieldValue === 'object' && fieldValue !== null) {
+          // Ensure phone object is passed directly to API
+          transformedValues[finalFieldKey] = {
+            country: fieldValue.country || "",
+            dial_code: fieldValue.dial_code || fieldValue.countryCode || "",
+            number: fieldValue.number || ""
+          }
+        } else {
+          transformedValues[finalFieldKey] = { value: fieldValue }
+        }
+        break
+
       case "location":
         if (typeof fieldValue === 'object' && fieldValue !== null) {
           // Create location object in the direct format expected by API
@@ -1008,6 +1021,7 @@ const transformFormValues = (formValues, fields, phoneCountries = []) => {
             state: fieldValue.state || "",
             city: fieldValue.city || ""
           }
+          transformedValues[finalFieldKey] = locationData
         }
         break
       default:
@@ -1580,8 +1594,13 @@ function PublicFormContent() {
   const submissionId = searchParams.get('submission_id')
   const userIdFromUrl = searchParams.get('user_id')
   const versionParam = searchParams.get('version')
+  const ORGANIZATION_ID_FROM_URL = searchParams.get('org_id')
+  const TABLE_ID_FROM_URL = searchParams.get('table_id')
+  // const ORGANIZATION_ID = (ORGANIZATION_ID_FROM_URL && ORGANIZATION_ID_FROM_URL !== 'undefined')
+  //   ? ORGANIZATION_ID_FROM_URL
+  //   : authUtils.getOrganizationId()
   const ORGANIZATION_ID = authUtils.getOrganizationId()
-
+  // console.log(organizationId1, '===============organizationId1', ORGANIZATION_ID, '=========================ORGANIZATION_ID')
   // Properly handle null, undefined, or "undefined" string values
   const tokens = authUtils.getTokens()
   const storedUserId =
@@ -1797,8 +1816,10 @@ function PublicFormContent() {
             // Fetch the specific form version from the backend
             try {
 
-              // Try the most common API pattern: query parameter
-              const versionResponse = await formsApi.getById(formId, result.form_version)
+              // Try to get table_id from query params for form version fetch
+              const resOrgId = ORGANIZATION_ID || authUtils.getOrganizationId()
+              const resTableId = TABLE_ID_FROM_URL || searchParams.get('table_id') || TABLE_ID
+              const versionResponse = await formsApi.getById(formId, result.form_version, resOrgId, resTableId)
 
               if (versionResponse.data.success && versionResponse.data.data) {
                 const originalFormData = parseFormData(versionResponse.data.data)
@@ -1883,7 +1904,7 @@ function PublicFormContent() {
             console.error('❌ Fallback fetchFormData failed:', fetchError)
             setLoading(false)
           }
-          toast.warning("Submission loaded - Using latest form version (original not available)")
+          toast.warning(`Submission loaded - Using latest form version${versionParam ? ` (v-${versionParam})` : " (original not available)"}`)
         }
       } else if (result.data) {
         // Handle case where submission data is in result.data
@@ -1923,7 +1944,7 @@ function PublicFormContent() {
             console.error('❌ Fallback fetchFormData failed:', fetchError)
             setLoading(false)
           }
-          toast.warning("Submission loaded - Using latest form version (original not available)")
+          toast.warning(`Submission loaded - Using latest form version${versionParam ? ` (v-${versionParam})` : " (original not available)"}`)
         }
       } else if (result.values) {
         // Handle case where values are directly in result
@@ -1963,7 +1984,7 @@ function PublicFormContent() {
             console.error('❌ Fallback fetchFormData failed:', fetchError)
             setLoading(false)
           }
-          toast.warning("Submission loaded - Using latest form version (original not available)")
+          toast.warning(`Submission loaded - Using latest form version${versionParam ? ` (v-${versionParam})` : " (original not available)"}`)
         }
       } else {
         console.warn('Unexpected response format:', result)
@@ -2383,7 +2404,26 @@ function PublicFormContent() {
 
   const fetchFormData = async () => {
     try {
-      const baseUrl = `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}`
+      const orgId = ORGANIZATION_ID || authUtils.getOrganizationId()
+
+      // Determine tableId: prioritize query parameter, then fallback
+      let currentTableId = TABLE_ID_FROM_URL || searchParams.get('table_id') || TABLE_ID
+
+      if (!currentTableId || currentTableId === 'undefined' || currentTableId === 'null') {
+        try {
+          const tablesRes = await datatablesApi.getAll()
+          const tablesData = tablesRes.data?.data || tablesRes.data?.tables || []
+          currentTableId = tablesData[0]?.table_id
+        } catch (tablesErr) {
+          console.warn('Failed to fetch tables for fallback tableId:', tablesErr)
+        }
+      }
+
+      if (!currentTableId) {
+        throw new Error('Table ID is required to fetch form data')
+      }
+
+      const baseUrl = `${API_BASE_URL}/api/forms/${orgId}/${currentTableId}/${formId}`
 
       let result
       let usedVersionEndpoint = null
@@ -2392,7 +2432,7 @@ function PublicFormContent() {
         // Try primary query-param endpoint first
         const primaryUrl = `${baseUrl}?version=${versionParam}`
         try {
-          const resp = await formsApi.getById(formId, versionParam)
+          const resp = await formsApi.getById(formId, versionParam, orgId, currentTableId)
           // Handle both response formats - with wrapper and without
           if (resp.data) {
             result = resp.data.success ? resp.data.data : resp.data
@@ -2405,8 +2445,8 @@ function PublicFormContent() {
           const alternatives = [
             `${API_BASE_URL}/api/forms/version/${formId}/${versionParam}`,
             `${API_BASE_URL}/api/forms/${formId}/version/${versionParam}`,
-            `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${formId}/version/${versionParam}`,
-            `${API_BASE_URL}/api/forms/${ORGANIZATION_ID}/${TABLE_ID}/${formId}/version/${versionParam}`
+            `${API_BASE_URL}/api/forms/${orgId}/${formId}/version/${versionParam}`,
+            `${API_BASE_URL}/api/forms/${orgId}/${currentTableId}/${formId}/version/${versionParam}`
           ]
           for (const alt of alternatives) {
             try {
@@ -2430,7 +2470,7 @@ function PublicFormContent() {
 
       // Fallback to latest if no version or version-specific fetch failed
       if (!result) {
-        const response = await formsApi.getById(formId)
+        const response = await formsApi.getById(formId, null, orgId, currentTableId)
         // Handle both response formats
         result = response.data.success ? response.data.data : response.data
       }
@@ -2447,7 +2487,7 @@ function PublicFormContent() {
             if (!usedVersionEndpoint) {
               latestVersion = result.version;
             } else {
-              const latestResp = await formsApi.getById(formId)
+              const latestResp = await formsApi.getById(formId, null, orgId, currentTableId)
               const latestData = latestResp.data.success ? latestResp.data.data : latestResp.data
               if (latestData) {
                 latestVersion = latestData.version;
@@ -2643,10 +2683,16 @@ function PublicFormContent() {
     })
 
     if (savedSubmissionId && savedEditToken) {
-      const editUrl = `${window.location.origin}${window.location.pathname}?token=${savedEditToken}&submission_id=${savedSubmissionId}`
+      const url = new URL(window.location.href)
+      url.searchParams.set('token', savedEditToken)
+      url.searchParams.set('submission_id', savedSubmissionId)
+      const editUrl = url.toString()
       window.location.href = editUrl
     } else if (lastSubmissionId && lastSubmissionToken) {
-      const editUrl = `${window.location.origin}${window.location.pathname}?token=${lastSubmissionToken}&submission_id=${lastSubmissionId}`
+      const url = new URL(window.location.href)
+      url.searchParams.set('token', lastSubmissionToken)
+      url.searchParams.set('submission_id', lastSubmissionId)
+      const editUrl = url.toString()
       console.log('Navigating to edit URL (fallback):', editUrl)
       window.location.href = editUrl
     } else {

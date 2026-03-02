@@ -502,62 +502,65 @@ export default function GeneModal({
                   <Button
                     variant="outline"
                     role="combobox"
-                    className="w-full justify-between min-h-[52px] h-auto py-2 px-3"
+                    asChild
+                    className="w-full justify-between min-h-[52px] h-auto py-2 px-3 cursor-pointer"
                   >
-                    <div className="flex-1 flex items-center min-w-0">
-                      {selectedUsers.length === 0 ? (
-                        <span className="text-muted-foreground text-sm">Select users...</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5 w-full">
-                          {selectedUsers.map((user) => {
-                            const userId = user.id || user.user_id;
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex-1 flex items-center min-w-0">
+                        {selectedUsers.length === 0 ? (
+                          <span className="text-muted-foreground text-sm">Select users...</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 w-full">
+                            {selectedUsers.map((user) => {
+                              const userId = user.id || user.user_id;
 
-                            // Improved display name logic that handles temporary user objects
-                            let displayName = 'Unknown User';
+                              // Improved display name logic that handles temporary user objects
+                              let displayName = 'Unknown User';
 
-                            if (user.username && user.username.trim() && !user.username.startsWith('User ')) {
-                              displayName = user.username;
-                            } else if (user.name && user.name.trim() && !user.name.startsWith('User ')) {
-                              displayName = user.name;
-                            } else if (user.first_name || user.last_name) {
-                              const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
-                              if (fullName) displayName = fullName;
-                            } else if (user.email && user.email.trim()) {
-                              displayName = user.email;
-                            } else {
-                              // Check if this is a temporary placeholder name
-                              const tempName = user.username || user.name;
-                              if (tempName && tempName.startsWith('User ')) {
-                                displayName = tempName;
+                              if (user.username && user.username.trim() && !user.username.startsWith('User ')) {
+                                displayName = user.username;
+                              } else if (user.name && user.name.trim() && !user.name.startsWith('User ')) {
+                                displayName = user.name;
+                              } else if (user.first_name || user.last_name) {
+                                const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+                                if (fullName) displayName = fullName;
+                              } else if (user.email && user.email.trim()) {
+                                displayName = user.email;
                               } else {
-                                displayName = `User ${userId.substring(0, 8)}...`;
+                                // Check if this is a temporary placeholder name
+                                const tempName = user.username || user.name;
+                                if (tempName && tempName.startsWith('User ')) {
+                                  displayName = tempName;
+                                } else {
+                                  displayName = `User ${userId.substring(0, 8)}...`;
+                                }
                               }
-                            }
 
-                            return (
-                              <Badge
-                                key={userId}
-                                variant="secondary"
-                                className="flex items-center gap-1 text-xs"
-                              >
-                                {displayName}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeUser(userId);
-                                  }}
-                                  className="ml-1 hover:bg-destructive/20 rounded-full p-0.5 -mr-1"
+                              return (
+                                <Badge
+                                  key={userId}
+                                  variant="secondary"
+                                  className="flex items-center gap-1 text-xs"
                                 >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                      )}
+                                  {displayName}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeUser(userId);
+                                    }}
+                                    className="ml-1 hover:bg-destructive/20 rounded-full p-0.5 -mr-1"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <Users className="ml-2 h-4 w-4 shrink-0 opacity-50 flex-shrink-0" />
                     </div>
-                    <Users className="ml-2 h-4 w-4 shrink-0 opacity-50 flex-shrink-0" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent

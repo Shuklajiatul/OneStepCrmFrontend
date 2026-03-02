@@ -31,7 +31,7 @@ const useDebouncedUpdate = (callback, delay = 3000) => {
   return debouncedCallback
 }
 
-export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
+export function FieldConfigPanel({ field, onUpdateField, allFields = [], tableId }) {
   const [newOption, setNewOption] = useState("")
   const [expandedNestedFields, setExpandedNestedFields] = useState({})
   const [forceRenderKey, setForceRenderKey] = useState(0)
@@ -1921,6 +1921,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [] }) {
                 field={field}
                 onUpdateField={onUpdateField}
                 existingFields={allFields}
+                initialTableId={tableId}
               />
             </CardContent>
           </Card>

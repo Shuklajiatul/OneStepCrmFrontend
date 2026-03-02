@@ -34,6 +34,7 @@ import { authUtils } from '@/lib/auth-utils'
 import { useRouter, usePathname } from 'next/navigation'
 import { cn } from "@/lib/utils"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
+import { datatablesApi } from '@/lib/api-endpoint'
 
 const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID;
 
@@ -71,6 +72,10 @@ export default function MyFormsPage() {
 
   // View mode state
   const [viewMode, setViewMode] = useState("table")
+
+  // Tables state for filtering
+  const [tables, setTables] = useState([])
+  const [selectedTableId, setSelectedTableId] = useState("all")
 
   useEffect(() => {
     fetchForms()
@@ -197,9 +202,9 @@ export default function MyFormsPage() {
   }
 
   // Function to get form details for editing
-  const getFormDetails = async (formId) => {
+  const getFormDetails = async (formId, tableId = null) => {
     try {
-      const response = await formsApi.getById(formId)
+      const response = await formsApi.getById(formId, null, authUtils.getOrganizationId(), tableId)
       const result = response.data
 
       if (result.success && result.data) {
@@ -345,21 +350,51 @@ export default function MyFormsPage() {
     try {
       setLoading(true)
 
-      const response = await formsApi.getAll()
-      const result = response.data
+      const orgId = authUtils.getOrganizationId()
 
+      // Fetch all tables first
+      const tablesResponse = await datatablesApi.getAll()
+      const tablesData = tablesResponse.data?.data || tablesResponse.data?.tables || []
+      setTables(tablesData)
 
-      if (result.success && Array.isArray(result.data)) {
+      // Parallel fetch forms for all tables
+      const formPromises = tablesData.map(table => {
+        const tId = table.table_id || table.id;
+        return formsApi.getAll(orgId, tId)
+          .then(res => {
+            const data = res.data?.data || [];
+            // Inject table_id to ensure each form knows its origin
+            return data.map(f => ({ ...f, table_id: tId }));
+          })
+          .catch(err => {
+            console.warn(`Failed to fetch forms for table ${table.table_name || tId}:`, err)
+            return []
+          })
+      })
+
+      const allFormsResults = await Promise.all(formPromises)
+      const aggregatedFormsRaw = allFormsResults.flat()
+
+      // Deduplicate forms by form_id and version (in case a form is somehow linked to multiple tables)
+      const seenForms = new Set()
+      const aggregatedForms = aggregatedFormsRaw.filter(form => {
+        const uniqueKey = `${form.form_id || form.id}-${form.version || 1}`
+        if (seenForms.has(uniqueKey)) return false
+        seenForms.add(uniqueKey)
+        return true
+      })
+
+      if (aggregatedForms.length >= 0) {
         // Group forms by form_id to find latest versions
         const formGroups = {}
-        result.data.forEach(form => {
+        aggregatedForms.forEach(form => {
           const formId = form.form_id || form.id
           if (!formGroups[formId]) formGroups[formId] = []
           formGroups[formId].push(form)
         })
 
         // Process the forms to add field counts and format dates
-        const processedForms = result.data.map(form => {
+        const processedForms = aggregatedForms.map(form => {
           const formId = form.form_id || form.id
           const currentVersion = form.version || 1
           const latestVersion = Math.max(...formGroups[formId].map(f => f.version || 1))
@@ -398,12 +433,9 @@ export default function MyFormsPage() {
   }
 
   const copyFormLink = async (form) => {
-    if (form.archived) {
-      toast.error("Cannot copy link: Form is archived")
-      return
-    }
-
-    const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}`
+    const orgId = authUtils.getOrganizationId()
+    const tableId = form.table_id || process.env.NEXT_PUBLIC_TABLE_ID
+    const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}&org_id=${orgId}&table_id=${tableId}`
 
     try {
       // Check if clipboard API is available
@@ -442,40 +474,39 @@ export default function MyFormsPage() {
   }
 
   const openFormInNewTab = async (form) => {
-    if (form.archived) {
-      toast.error("Cannot open form: Form is archived")
-      return
-    }
-
     try {
+      const orgId = authUtils.getOrganizationId()
+      const tableId = form.table_id || process.env.NEXT_PUBLIC_TABLE_ID
+
       // Fetch the latest version of the form
-      const response = await formsApi.getById(form.form_id)
+      const response = await formsApi.getById(form.form_id, null, orgId, tableId)
 
       const result = response.data
       if (result.success && result.form) {
         const latestVersion = result.form.version || 1
-        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${latestVersion}`
+        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${latestVersion}&org_id=${orgId}&table_id=${tableId}`
         window.open(link, '_blank', 'noopener,noreferrer')
         toast.info("Opening form in new tab")
       } else {
         // Fallback to form.version if API call fails
-        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}`
+        const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}&org_id=${orgId}&table_id=${tableId}`
         window.open(link, '_blank', 'noopener,noreferrer')
         toast.info("Opening form in new tab")
       }
-    } catch (error) {
-      console.error('Error fetching latest form version:', error)
-      // Fallback to form.version if API call fails
-      const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}`
+    } catch (err) {
+      console.error('Failed to open form:', err)
+      const orgId = authUtils.getOrganizationId()
+      const tableId = form.table_id || process.env.NEXT_PUBLIC_TABLE_ID
+      const link = `${window.location.origin}/forms/${form.form_id}?user_id=${resolvedUserId}&version=${form.version || 1}&org_id=${orgId}&table_id=${tableId}`
       window.open(link, '_blank', 'noopener,noreferrer')
       toast.info("Opening form in new tab")
     }
   }
 
-  const handleEditForm = async (formId) => {
+  const handleEditForm = async (form) => {
     try {
       toast.info("Loading form details...")
-      const formDetails = await getFormDetails(formId)
+      const formDetails = await getFormDetails(form.form_id, form.table_id)
 
       // Parse the fields for editing
       const parsedFields = formDetails.fields.map(field => {
@@ -1045,9 +1076,13 @@ export default function MyFormsPage() {
         (statusFilter === "draft" && !form.published && !form.archived) ||
         (statusFilter === "archived" && form.archived)
 
-      return matchesSearch && matchesStatus
+      const matchesTable = selectedTableId === "all" ||
+        form.table_id === selectedTableId ||
+        form.tableId === selectedTableId
+
+      return matchesSearch && matchesStatus && matchesTable
     })
-  }, [forms, searchTerm, statusFilter])
+  }, [forms, searchTerm, statusFilter, selectedTableId])
 
   // Sort functions
   const sortedForms = useMemo(() => {
@@ -1095,7 +1130,7 @@ export default function MyFormsPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, statusFilter])
+  }, [searchTerm, statusFilter, selectedTableId])
 
   // Loading state
   if (loading) {
@@ -1155,14 +1190,32 @@ export default function MyFormsPage() {
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 {/* Status Filter */}
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Filter by status" />
+                  <SelectTrigger className="w-full sm:w-[150px]">
+                    <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
                     <SelectItem value="published">Published</SelectItem>
                     <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Table Filter */}
+                <Select value={selectedTableId} onValueChange={setSelectedTableId}>
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                    <div className="flex items-center gap-2 truncate">
+                      <TableIcon className="h-4 w-4 shrink-0" />
+                      <SelectValue placeholder="All Tables" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Tables</SelectItem>
+                    {tables.map(table => (
+                      <SelectItem key={table.table_id || table.id} value={table.table_id || table.id}>
+                        {table.table_name || table.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 
@@ -1213,12 +1266,13 @@ export default function MyFormsPage() {
                 </div>
 
                 {/* Clear Filters Button */}
-                {(statusFilter !== "all" || searchTerm) && (
+                {(statusFilter !== "all" || searchTerm || selectedTableId !== "all") && (
                   <Button
                     variant="outline"
                     onClick={() => {
                       setSearchTerm("")
                       setStatusFilter("all")
+                      setSelectedTableId("all")
                     }}
                     className="whitespace-nowrap"
                   >
@@ -1346,7 +1400,7 @@ export default function MyFormsPage() {
                                         <Button
                                           variant="ghost"
                                           size="icon"
-                                          onClick={() => handleEditForm(form.form_id)}
+                                          onClick={() => handleEditForm(form)}
                                           disabled={form.archived}
                                           className="h-8 w-8"
                                         >
@@ -1394,7 +1448,7 @@ export default function MyFormsPage() {
                                         <Button
                                           variant="ghost"
                                           size="icon"
-                                          onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                                          onClick={() => router.push(`/form-submissions/${form.form_id}?table_id=${form.table_id}`)}
                                           disabled={form.archived}
                                           className="h-8 w-8"
                                         >
@@ -1501,7 +1555,7 @@ export default function MyFormsPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleEditForm(form.form_id)}
+                                  onClick={() => handleEditForm(form)}
                                   disabled={form.archived}
                                 >
                                   <Edit className="h-4 w-4" />
@@ -1546,7 +1600,7 @@ export default function MyFormsPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                                  onClick={() => router.push(`/form-submissions/${form.form_id}?table_id=${form.table_id}`)}
                                   disabled={form.archived}
                                 >
                                   <Database className="h-4 w-4" />
@@ -1645,7 +1699,7 @@ export default function MyFormsPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleEditForm(form.form_id)}
+                                  onClick={() => handleEditForm(form)}
                                   disabled={form.archived}
                                   className="flex-1"
                                 >
@@ -1692,7 +1746,7 @@ export default function MyFormsPage() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => router.push(`/form-submissions/${form.form_id}`)}
+                                  onClick={() => router.push(`/form-submissions/${form.form_id}?table_id=${form.table_id}`)}
                                   disabled={form.archived}
                                 >
                                   <Database className="h-4 w-4" />
