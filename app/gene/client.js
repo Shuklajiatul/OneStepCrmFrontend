@@ -9,7 +9,8 @@ import { genesApi, usersApi, organizationsApi } from '@/lib/api-endpoint';
 import {
   Eye, Edit, Trash2, Plus, Search, Upload, Table2, List, LayoutGrid,
   Loader2, AlertCircle, RefreshCw, X, CheckCircle2, Building,
-  Layers, Users as UsersIcon, Calendar, BarChart3, Filter, Network
+  Layers, Users as UsersIcon, Calendar, BarChart3, Filter, Network,
+  ArrowUpDown, ChevronUp, ChevronDown
 } from 'lucide-react';
 
 // Shadcn UI Components
@@ -49,6 +50,13 @@ import {
 } from "@/components/ui/tooltip";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
 
+const SortIcon = ({ config, sortKey }) => {
+  if (config.key !== sortKey) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />;
+  if (config.direction === 'asc') return <ChevronUp className="ml-2 h-4 w-4 text-primary" />;
+  if (config.direction === 'desc') return <ChevronDown className="ml-2 h-4 w-4 text-primary" />;
+  return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />;
+};
+
 
 
 export default function GeneClient({ initialGenes = [], initialPagination = null }) {
@@ -78,16 +86,17 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   const [searches, setSearhes] = useState(null);
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [pagination, setPagination] = useState(initialPagination || {
     page: 1,
-    limit: 10,
+    limit: 5,
     total: 0
   });
   const [organizations, setOrganizations] = useState([]);
   const [loadingOrganizations, setLoadingOrganizations] = useState(false);
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [sortConfig, setSortConfig] = useState({ key: 'g_name', direction: 'asc' }); // 'asc', 'desc', 'none'
 
   // Track initial render to avoid double fetch
   const isFirstRender = useRef(true);
@@ -108,6 +117,17 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
     setSearchTerm(value);
     console.log('Search query:', value);
     debouncedSearchHandler(value);
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'none';
+    }
+    setSortConfig({ key, direction });
+    setCurrentPage(1);
   };
 
   const fetchGenes = async () => {
@@ -355,7 +375,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   useEffect(() => {
     if (debouncedSearch !== undefined && debouncedSearch !== null) {
       setCurrentPage(1);
-            // eslint-disable-next-line react-hooks/exhaustive-deps
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }
   }, [debouncedSearch]);
 
@@ -668,7 +688,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
     }
   };
 
-const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
+  const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
 
   const openViewModal = async (gene) => {
     setSelectedGene(gene);
@@ -676,15 +696,7 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
     setLoadingGeneDetails(true);
     try {
       // Fetch detailed gene information with users and organizations
-      const response = await axios.get(
-        `${API_CONSTANTS.BASE_URL}/api/genes/by-geneId/${gene.g_id || gene.id}`,
-        {
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await genesApi.getById(gene.g_id || gene.id);
 
       if (response.data.success && response.data.data) {
         // Transform the API response to match your expected structure
@@ -788,6 +800,58 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
     return matchesSearch;
   });
 
+  // Apply Sorting
+  if (sortConfig.key && sortConfig.direction !== 'none') {
+    filteredGenes.sort((a, b) => {
+      let valA, valB;
+
+      switch (sortConfig.key) {
+        case 'g_name':
+        case 'name':
+          valA = (a.g_name || a.name || "").toLowerCase();
+          valB = (b.g_name || b.name || "").toLowerCase();
+          break;
+        case 'createdBy':
+          valA = (a.createdBy || "").toLowerCase();
+          valB = (b.createdBy || "").toLowerCase();
+          break;
+        case 'is_active':
+          valA = a.is_active ? 1 : 0;
+          valB = b.is_active ? 1 : 0;
+          break;
+        case 'hierarchyLevels':
+          valA = a.hierarchyLevels || 0;
+          valB = b.hierarchyLevels || 0;
+          break;
+        case 'users':
+          valA = a.users || 0;
+          valB = b.users || 0;
+          break;
+        case 'totalMembers':
+          valA = a.totalMembers || 0;
+          valB = b.totalMembers || 0;
+          break;
+        case 'lastUpdated':
+          // Attempt to compare based on the string date, or use createdAt if available
+          valA = new Date(a.createdAt || a.lastUpdated).getTime();
+          valB = new Date(b.createdAt || b.lastUpdated).getTime();
+          break;
+        default:
+          valA = a[sortConfig.key];
+          valB = b[sortConfig.key];
+      }
+
+      if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  const paginatedGenes = filteredGenes.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
   const handleShowCsvModal = () => {
     setShowCsvModal(true);
   };
@@ -808,17 +872,7 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
     const loadingToast = toast.loading('Importing genes from CSV...');
 
     try {
-      const baseUrl = API_CONSTANTS.BASE_URL;
-
-      const response = await axios.post(
-        `${baseUrl}/api/genes/uploadCSV`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        }
-      );
+      const response = await genesApi.uploadCSV(formData);
 
       if (response.data.success || response.data.message) {
         toast.success(response.data.message || 'Genes imported successfully from CSV!', {
@@ -856,11 +910,9 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
     const loadingToast = toast.loading('Importing user mappings from CSV...');
 
     try {
-      // Get token from auth utils, localStorage, or sessionStorage
+      // Get token from auth utils
       const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken');
+      const token = tokens?.accessToken;
 
       if (!token) {
         toast.error('Authentication required. Please login again.', { id: loadingToast });
@@ -868,18 +920,7 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
         return;
       }
 
-      const baseUrl = API_CONSTANTS.BASE_URL;
-
-      const response = await axios.post(
-        `${baseUrl}/api/genes/assign-users-csv`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
+      const response = await genesApi.assignUsersCsv(formData);
 
       // Check if response contains error data (could be CSV string or object)
       let errorCsvData = null;
@@ -965,7 +1006,7 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
   // Render Cards View
   const renderCardsView = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-      {filteredGenes.map((gene) => {
+      {paginatedGenes.map((gene) => {
         const geneName = gene.g_name || gene.name || 'Unnamed Gene';
         return (
           <Card key={gene.id} className="hover:shadow-lg transition-shadow">
@@ -1051,7 +1092,7 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
   // Render List View
   const renderListView = () => (
     <div className="space-y-3 md:space-y-4">
-      {filteredGenes.map((gene) => {
+      {paginatedGenes.map((gene) => {
         const geneName = gene.g_name || gene.name || 'Unnamed Gene';
         return (
           <Card key={gene.id} className="hover:shadow-md transition-shadow">
@@ -1153,18 +1194,53 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
           <Table className="w-full table-auto">
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">
-                <TableHead className="font-semibold text-foreground">Gene Name</TableHead>
-                <TableHead className="hidden lg:table-cell font-semibold text-foreground">Created By</TableHead>
-                <TableHead className="hidden sm:table-cell font-semibold text-foreground">Status</TableHead>
-                <TableHead className="hidden md:table-cell text-center font-semibold text-foreground">Levels</TableHead>
-                <TableHead className="hidden md:table-cell text-center font-semibold text-foreground">Users</TableHead>
-                <TableHead className="text-center font-semibold text-foreground">Organizations</TableHead>
-                <TableHead className="hidden xl:table-cell whitespace-nowrap font-semibold text-foreground">Last Updated</TableHead>
+                <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('g_name')}>
+                  <div className="flex items-center">
+                    Gene Name
+                    <SortIcon config={sortConfig} sortKey="g_name" />
+                  </div>
+                </TableHead>
+                <TableHead className="hidden lg:table-cell font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('createdBy')}>
+                  <div className="flex items-center">
+                    Created By
+                    <SortIcon config={sortConfig} sortKey="createdBy" />
+                  </div>
+                </TableHead>
+                <TableHead className="hidden sm:table-cell font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('is_active')}>
+                  <div className="flex items-center">
+                    Status
+                    <SortIcon config={sortConfig} sortKey="is_active" />
+                  </div>
+                </TableHead>
+                <TableHead className="hidden md:table-cell text-center font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('hierarchyLevels')}>
+                  <div className="flex items-center justify-center">
+                    Levels
+                    <SortIcon config={sortConfig} sortKey="hierarchyLevels" />
+                  </div>
+                </TableHead>
+                <TableHead className="hidden md:table-cell text-center font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('users')}>
+                  <div className="flex items-center justify-center">
+                    Users
+                    <SortIcon config={sortConfig} sortKey="users" />
+                  </div>
+                </TableHead>
+                <TableHead className="text-center font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('totalMembers')}>
+                  <div className="flex items-center justify-center">
+                    Organizations
+                    <SortIcon config={sortConfig} sortKey="totalMembers" />
+                  </div>
+                </TableHead>
+                <TableHead className="hidden xl:table-cell whitespace-nowrap font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('lastUpdated')}>
+                  <div className="flex items-center">
+                    Last Updated
+                    <SortIcon config={sortConfig} sortKey="lastUpdated" />
+                  </div>
+                </TableHead>
                 <TableHead className="w-[120px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredGenes.map((gene, index) => {
+              {paginatedGenes.map((gene, index) => {
                 const geneName = gene.g_name || gene.name || 'Unnamed Gene';
                 return (
                   <TableRow
@@ -1421,8 +1497,8 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-4">
-                <div className="relative">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
+                <div className="relative w-full lg:w-72">
                   <Input
                     type="text"
                     placeholder="Search genes..."
@@ -1439,26 +1515,29 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
                     />
                   )}
                 </div>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Types" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="gene">Gene</SelectItem>
-                    <SelectItem value="department">Department</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+                  <Select>
+                    <SelectTrigger className="w-full sm:w-40">
+                      <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="gene">Gene</SelectItem>
+                      <SelectItem value="department">Department</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select>
+                    <SelectTrigger className="w-full sm:w-40">
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -1593,10 +1672,10 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="5">5 per page</SelectItem>
                       <SelectItem value="10">10 per page</SelectItem>
+                      <SelectItem value="15">15 per page</SelectItem>
                       <SelectItem value="20">20 per page</SelectItem>
-                      <SelectItem value="50">50 per page</SelectItem>
-                      <SelectItem value="100">100 per page</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1605,10 +1684,10 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
             <CardContent className="w-full">
               {renderGeneView()}
             </CardContent>
-            {pagination.total > 0 && (
+            {filteredGenes.length > 0 && (
               <div className="flex items-center justify-between border-t px-4 py-3">
                 <div className="text-sm text-muted-foreground">
-                  Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} genes
+                  Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, filteredGenes.length)} of {filteredGenes.length} genes
                 </div>
                 <Pagination>
                   <PaginationContent>
@@ -1618,9 +1697,9 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
                         className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                       />
                     </PaginationItem>
-                    {Array.from({ length: Math.min(5, Math.ceil(pagination.total / pageSize)) }, (_, i) => {
+                    {Array.from({ length: Math.min(5, Math.ceil(filteredGenes.length / pageSize)) }, (_, i) => {
                       const pageNum = i + 1;
-                      const totalPages = Math.ceil(pagination.total / pageSize);
+                      const totalPages = Math.ceil(filteredGenes.length / pageSize);
                       let displayPage;
 
                       if (totalPages <= 5) {
@@ -1647,8 +1726,8 @@ const [loadingGeneDetails, setLoadingGeneDetails] = useState(false);
                     })}
                     <PaginationItem>
                       <PaginationNext
-                        onClick={() => setCurrentPage(prev => Math.min(Math.ceil(pagination.total / pageSize), prev + 1))}
-                        className={currentPage >= Math.ceil(pagination.total / pageSize) ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        onClick={() => setCurrentPage(prev => Math.min(Math.ceil(filteredGenes.length / pageSize), prev + 1))}
+                        className={currentPage >= Math.ceil(filteredGenes.length / pageSize) ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                       />
                     </PaginationItem>
                   </PaginationContent>

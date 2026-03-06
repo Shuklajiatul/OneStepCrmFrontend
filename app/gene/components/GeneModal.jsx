@@ -219,12 +219,18 @@ export default function GeneModal({
       }
 
       // Normalize user objects
-      const normalizedUsers = usersData.map(user => ({
-        ...user,
-        id: user.id || user.user_id,
-        username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
-        name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
-      }));
+      const normalizedUsers = usersData.map(user => {
+        const fullName = user.first_name && user.last_name
+          ? `${user.first_name} ${user.last_name}`.trim()
+          : (user.first_name || user.last_name || '').trim();
+
+        return {
+          ...user,
+          id: user.id || user.user_id,
+          username: user.username || user.email || fullName || user.id || user.user_id,
+          name: fullName || user.name || user.username || user.email || user.id || user.user_id
+        };
+      });
 
       setUsers(normalizedUsers);
 
@@ -294,12 +300,18 @@ export default function GeneModal({
       }
 
       // Normalize user objects from gene response
-      const normalizedGeneUsers = geneUsersData.map(user => ({
-        ...user,
-        id: user.id || user.user_id,
-        username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
-        name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
-      }));
+      const normalizedGeneUsers = geneUsersData.map(user => {
+        const fullName = user.first_name && user.last_name
+          ? `${user.first_name} ${user.last_name}`.trim()
+          : (user.first_name || user.last_name || '').trim();
+
+        return {
+          ...user,
+          id: user.id || user.user_id,
+          username: user.username || user.email || fullName || user.id || user.user_id,
+          name: fullName || user.name || user.username || user.email || user.id || user.user_id
+        };
+      });
 
       setUsers(normalizedGeneUsers);
       setSelectedUsers(normalizedGeneUsers);
@@ -358,12 +370,18 @@ export default function GeneModal({
       }
 
       // Normalize user objects
-      const normalizedUsers = usersData.map(user => ({
-        ...user,
-        id: user.id || user.user_id,
-        username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
-        name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
-      }));
+      const normalizedUsers = usersData.map(user => {
+        const fullName = user.first_name && user.last_name
+          ? `${user.first_name} ${user.last_name}`.trim()
+          : (user.first_name || user.last_name || '').trim();
+
+        return {
+          ...user,
+          id: user.id || user.user_id,
+          username: user.username || user.email || fullName || user.id || user.user_id,
+          name: fullName || user.name || user.username || user.email || user.id || user.user_id
+        };
+      });
 
       setUsers(normalizedUsers);
 
@@ -517,13 +535,16 @@ export default function GeneModal({
                               // Improved display name logic that handles temporary user objects
                               let displayName = 'Unknown User';
 
-                              if (user.username && user.username.trim() && !user.username.startsWith('User ')) {
-                                displayName = user.username;
+                              const fullName = user.first_name && user.last_name
+                                ? `${user.first_name} ${user.last_name}`.trim()
+                                : (user.first_name || user.last_name || '').trim();
+
+                              if (fullName) {
+                                displayName = fullName;
                               } else if (user.name && user.name.trim() && !user.name.startsWith('User ')) {
                                 displayName = user.name;
-                              } else if (user.first_name || user.last_name) {
-                                const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim();
-                                if (fullName) displayName = fullName;
+                              } else if (user.username && user.username.trim() && !user.username.startsWith('User ')) {
+                                displayName = user.username;
                               } else if (user.email && user.email.trim()) {
                                 displayName = user.email;
                               } else {
@@ -623,10 +644,11 @@ export default function GeneModal({
                               const userId = user.id || user.user_id;
                               const fullName = user.first_name && user.last_name
                                 ? `${user.first_name} ${user.last_name}`.trim()
-                                : null;
-                              const displayName = (user.name && user.name.trim()) ||
+                                : (user.first_name || user.last_name || '').trim();
+
+                              const displayName = fullName ||
+                                (user.name && user.name.trim()) ||
                                 (user.username && user.username.trim()) ||
-                                fullName ||
                                 (user.email && user.email.trim()) ||
                                 `User ${userId}`;
                               const showEmail = user.email && user.email.trim() && user.email !== displayName;

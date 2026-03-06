@@ -52,7 +52,26 @@ import {
     Loader2,
     Building,
     Trash2,
+    ChevronUp,
+    ChevronDown,
 } from "lucide-react"
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination"
+
+const SortIcon = ({ column }) => {
+    const isSorted = column.getIsSorted()
+    if (!isSorted) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />
+    if (isSorted === 'asc') return <ChevronUp className="ml-2 h-4 w-4 text-primary" />
+    if (isSorted === 'desc') return <ChevronDown className="ml-2 h-4 w-4 text-primary" />
+    return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />
+}
 
 export function OrganizationTable({
     organizations,
@@ -97,7 +116,7 @@ export function OrganizationTable({
                         className="-ml-4 h-8 data-[state=open]:bg-accent"
                     >
                         Organization Name
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                        <SortIcon column={column} />
                     </Button>
                 )
             },
@@ -119,7 +138,7 @@ export function OrganizationTable({
                         className="-ml-4 h-8 data-[state=open]:bg-accent"
                     >
                         Subscription Tier
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                        <SortIcon column={column} />
                     </Button>
                 )
             },
@@ -149,7 +168,7 @@ export function OrganizationTable({
                         className="-ml-4 h-8 data-[state=open]:bg-accent"
                     >
                         Created At
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                        <SortIcon column={column} />
                     </Button>
                 )
             },
@@ -342,50 +361,81 @@ export function OrganizationTable({
             </div>
 
             {/* Pagination Controls */}
-            <div className="flex items-center justify-between px-2">
-                <div className="flex items-center space-x-2">
-                    <p className="text-sm font-medium">Rows per page</p>
-                    <Select
-                        value={`${table.getState().pagination.pageSize}`}
-                        onValueChange={(value) => {
-                            table.setPageSize(Number(value))
-                        }}
-                    >
-                        <SelectTrigger className="h-8 w-[70px]">
-                            <SelectValue placeholder={table.getState().pagination.pageSize} />
-                        </SelectTrigger>
-                        <SelectContent side="top">
-                            {[5, 10, 20, 30, 40, 50].map((pageSize) => (
-                                <SelectItem key={pageSize} value={`${pageSize}`}>
-                                    {pageSize}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+            <div className="flex items-center justify-between border-t px-4 py-3">
+                <div className="text-sm text-muted-foreground">
+                    Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
+                    {Math.min(
+                        (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                        table.getFilteredRowModel().rows.length
+                    )}{" "}
+                    of {table.getFilteredRowModel().rows.length} organizations
                 </div>
-                <div className="flex items-center space-x-2">
-                    <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-                        Page {table.getState().pagination.pageIndex + 1} of{" "}
-                        {table.getPageCount()}
+                <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Select
+                            value={`${table.getState().pagination.pageSize}`}
+                            onValueChange={(value) => {
+                                table.setPageSize(Number(value))
+                            }}
+                        >
+                            <SelectTrigger className="h-9 w-[130px]">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent side="top">
+                                {[5, 10, 15, 20].map((pageSize) => (
+                                    <SelectItem key={pageSize} value={`${pageSize}`}>
+                                        {pageSize} per page
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
-                    <Button
-                        variant="outline"
-                        className="h-8 w-8 p-0"
-                        onClick={() => table.previousPage()}
-                        disabled={!table.getCanPreviousPage()}
-                    >
-                        <span className="sr-only">Go to previous page</span>
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        className="h-8 w-8 p-0"
-                        onClick={() => table.nextPage()}
-                        disabled={!table.getCanNextPage()}
-                    >
-                        <span className="sr-only">Go to next page</span>
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
+
+                    <Pagination>
+                        <PaginationContent>
+                            <PaginationItem>
+                                <PaginationPrevious
+                                    onClick={() => table.previousPage()}
+                                    className={!table.getCanPreviousPage() ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                            </PaginationItem>
+
+                            {Array.from({ length: Math.min(5, table.getPageCount()) }, (_, i) => {
+                                const totalPages = table.getPageCount()
+                                const currentPage = table.getState().pagination.pageIndex + 1
+                                let displayPage
+
+                                if (totalPages <= 5) {
+                                    displayPage = i + 1
+                                } else if (currentPage <= 3) {
+                                    displayPage = i + 1
+                                } else if (currentPage >= totalPages - 2) {
+                                    displayPage = totalPages - 4 + i
+                                } else {
+                                    displayPage = currentPage - 2 + i
+                                }
+
+                                return (
+                                    <PaginationItem key={displayPage}>
+                                        <PaginationLink
+                                            onClick={() => table.setPageIndex(displayPage - 1)}
+                                            isActive={currentPage === displayPage}
+                                            className="cursor-pointer"
+                                        >
+                                            {displayPage}
+                                        </PaginationLink>
+                                    </PaginationItem>
+                                )
+                            })}
+
+                            <PaginationItem>
+                                <PaginationNext
+                                    onClick={() => table.nextPage()}
+                                    className={!table.getCanNextPage() ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
                 </div>
             </div>
         </div>

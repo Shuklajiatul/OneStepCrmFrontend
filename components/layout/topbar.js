@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { 
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -18,13 +18,18 @@ import { authUtils } from "@/lib/auth-utils"
 import GlobalSearch from "@/components/global-search"
 import { usePathname } from "next/navigation"
 
-export default function Topbar({darkMode, toggleDarkMode, toggleSidebar}) {
+export default function Topbar({ darkMode, toggleDarkMode, toggleSidebar }) {
     const router = useRouter()
     const pathname = usePathname()
     const [userName, setUserName] = useState("")
     const [userEmail, setUserEmail] = useState("")
     const [userInitials, setUserInitials] = useState("AP")
     const [isSearchOpen, setIsSearchOpen] = useState(false)
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     // Check authentication and redirect if not authenticated
     useEffect(() => {
@@ -43,10 +48,10 @@ export default function Topbar({darkMode, toggleDarkMode, toggleSidebar}) {
                 ? `${user.first_name} ${user.last_name}`.trim()
                 : user.name || user.username || "User"
             setUserName(name)
-            
+
             // Get user email
             setUserEmail(user.email || "")
-            
+
             // Generate initials for avatar
             if (user.first_name && user.last_name) {
                 setUserInitials(`${user.first_name[0]}${user.last_name[0]}`.toUpperCase())
@@ -76,19 +81,23 @@ export default function Topbar({darkMode, toggleDarkMode, toggleSidebar}) {
         }
     }
 
+    if (!mounted) {
+        return <div className="h-[57px]" /> // Placeholder with approximate height of Topbar
+    }
+
     return (
         <>
             <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <Button 
-                        variant="ghost" 
+                    <Button
+                        variant="ghost"
                         size="icon"
                         onClick={toggleSidebar}
                         className="md:hidden"
                     >
                         <Menu className="size-5" />
                     </Button>
-                    
+
                     {/* Global Search Trigger - Replaced the old search bar */}
                     <Button
                         variant="outline"
@@ -151,7 +160,7 @@ export default function Topbar({darkMode, toggleDarkMode, toggleSidebar}) {
                                     </span>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                     className="text-destructive focus:text-destructive"
                                     onClick={handleLogout}
                                 >

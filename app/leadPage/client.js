@@ -46,8 +46,9 @@ import { toast } from "sonner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getStatusBadge } from '@/lib/utils'
 import { datatablesApi } from '@/lib/api-endpoint'
+import { authUtils } from '@/lib/auth-utils'
 
-export default function LeadsPageClient({ initialTables = [] }) {
+export default function LeadsPageClient({ initialTables = [], newAccessToken = null }) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [tables, setTables] = useState(initialTables)
@@ -64,6 +65,14 @@ export default function LeadsPageClient({ initialTables = [] }) {
     const [currentPage, setCurrentPage] = useState(1)
     const [pageSize] = useState(9)
 
+    // Sync new token from server to browser cookies if it was refreshed
+    useEffect(() => {
+        if (newAccessToken) {
+            console.log('Syncing new server-side token to cookies');
+            authUtils.setTokens({ accessToken: newAccessToken });
+        }
+    }, [newAccessToken]);
+
     // Handle deep linking to specific table
     useEffect(() => {
         const tableId = searchParams.get("tableId")
@@ -75,6 +84,15 @@ export default function LeadsPageClient({ initialTables = [] }) {
             }
         }
     }, [searchParams, tables])
+
+    // Fallback fetch if server-side fetch failed or returned empty
+    // This allows the client-side interceptor to handle token refresh if needed
+    useEffect(() => {
+        if (!initialTables || initialTables.length === 0) {
+            console.log('Initial tables empty, performing client-side fetch...');
+            fetchTables();
+        }
+    }, [initialTables]);
 
     const fetchTables = async () => {
         setLoading(true)
@@ -205,7 +223,7 @@ export default function LeadsPageClient({ initialTables = [] }) {
     const handleBackToTables = () => {
         setCurrentView("tables")
         setSelectedTable(null)
-        router.replace("/leadPage") 
+        router.replace("/leadPage")
     }
 
     if (currentView === "data" && selectedTable) {

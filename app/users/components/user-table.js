@@ -35,7 +35,24 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Eye, Edit, Shield, MoreVertical, Loader2, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { Eye, Edit, Shield, MoreVertical, Loader2, ArrowUpDown, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react"
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination"
+
+const SortIcon = ({ column }) => {
+    const isSorted = column.getIsSorted()
+    if (!isSorted) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />
+    if (isSorted === 'asc') return <ChevronUp className="ml-2 h-4 w-4 text-primary" />
+    if (isSorted === 'desc') return <ChevronDown className="ml-2 h-4 w-4 text-primary" />
+    return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />
+}
 
 export function UserTable({
     users = [],
@@ -68,7 +85,7 @@ export function UserTable({
                         className="hover:bg-transparent p-0 h-auto font-semibold"
                     >
                         User
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                        <SortIcon column={column} />
                     </Button>
                 )
             },
@@ -107,7 +124,7 @@ export function UserTable({
                         className="hover:bg-transparent p-0 h-auto font-semibold"
                     >
                         Role
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                        <SortIcon column={column} />
                     </Button>
                 )
             },
@@ -145,7 +162,7 @@ export function UserTable({
                         className="hover:bg-transparent p-0 h-auto font-semibold"
                     >
                         Status
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                        <SortIcon column={column} />
                     </Button>
                 )
             },
@@ -278,56 +295,81 @@ export function UserTable({
             </div>
 
             {/* Pagination Controls */}
-            <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>Show</span>
-                    <Select
-                        value={`${table.getState().pagination.pageSize}`}
-                        onValueChange={(value) => {
-                            table.setPageSize(Number(value))
-                        }}
-                    >
-                        <SelectTrigger className="h-8 w-[70px]">
-                            <SelectValue placeholder={table.getState().pagination.pageSize} />
-                        </SelectTrigger>
-                        <SelectContent side="top">
-                            {[5, 10, 20, 30, 40, 50].map((pageSize) => (
-                                <SelectItem key={pageSize} value={`${pageSize}`}>
-                                    {pageSize}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                    <span>per page</span>
+            <div className="flex items-center justify-between border-t px-4 py-3">
+                <div className="text-sm text-muted-foreground">
+                    Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
+                    {Math.min(
+                        (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                        table.getFilteredRowModel().rows.length
+                    )}{" "}
+                    of {table.getFilteredRowModel().rows.length} users
                 </div>
-
                 <div className="flex items-center gap-6">
-                    <div className="text-sm font-medium">
-                        Page {table.getState().pagination.pageIndex + 1} of{" "}
-                        {table.getPageCount()}
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.previousPage()}
-                            disabled={!table.getCanPreviousPage()}
-                            className="h-8 w-8 p-0"
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Select
+                            value={`${table.getState().pagination.pageSize}`}
+                            onValueChange={(value) => {
+                                table.setPageSize(Number(value))
+                            }}
                         >
-                            <ChevronLeft className="h-4 w-4" />
-                            <span className="sr-only">Go to previous page</span>
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => table.nextPage()}
-                            disabled={!table.getCanNextPage()}
-                            className="h-8 w-8 p-0"
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                            <span className="sr-only">Go to next page</span>
-                        </Button>
+                            <SelectTrigger className="h-9 w-[130px]">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent side="top">
+                                {[5, 10, 15, 20].map((pageSize) => (
+                                    <SelectItem key={pageSize} value={`${pageSize}`}>
+                                        {pageSize} per page
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
+
+                    <Pagination>
+                        <PaginationContent>
+                            <PaginationItem>
+                                <PaginationPrevious
+                                    onClick={() => table.previousPage()}
+                                    className={!table.getCanPreviousPage() ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                            </PaginationItem>
+
+                            {Array.from({ length: Math.min(5, table.getPageCount()) }, (_, i) => {
+                                const totalPages = table.getPageCount()
+                                const currentPage = table.getState().pagination.pageIndex + 1
+                                let displayPage
+
+                                if (totalPages <= 5) {
+                                    displayPage = i + 1
+                                } else if (currentPage <= 3) {
+                                    displayPage = i + 1
+                                } else if (currentPage >= totalPages - 2) {
+                                    displayPage = totalPages - 4 + i
+                                } else {
+                                    displayPage = currentPage - 2 + i
+                                }
+
+                                return (
+                                    <PaginationItem key={displayPage}>
+                                        <PaginationLink
+                                            onClick={() => table.setPageIndex(displayPage - 1)}
+                                            isActive={currentPage === displayPage}
+                                            className="cursor-pointer"
+                                        >
+                                            {displayPage}
+                                        </PaginationLink>
+                                    </PaginationItem>
+                                )
+                            })}
+
+                            <PaginationItem>
+                                <PaginationNext
+                                    onClick={() => table.nextPage()}
+                                    className={!table.getCanNextPage() ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                />
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
                 </div>
             </div>
         </div>

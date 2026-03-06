@@ -1629,6 +1629,7 @@ function PublicFormContent() {
   const [lastSubmissionToken, setLastSubmissionToken] = useState(null)
   const [phoneCountries, setPhoneCountries] = useState([])
   const [formInitialized, setFormInitialized] = useState(false)
+  const [submissionError, setSubmissionError] = useState(null)
 
   useEffect(() => {
     if (formId) {
@@ -1761,6 +1762,7 @@ function PublicFormContent() {
     }
 
     try {
+      setSubmissionError(null)
 
       const response = await submissionsApi.getForEdit(token, {
         organization_id: ORGANIZATION_ID,
@@ -1988,26 +1990,35 @@ function PublicFormContent() {
         }
       } else {
         console.warn('Unexpected response format:', result)
-        setLoading(false) // ✅ FIX: Stop loading even on unexpected response format
+        setLoading(false)
         throw new Error('Submission data not found in response')
       }
 
     } catch (error) {
       console.error('Error fetching submission data:', error)
-      setLoading(false) // ✅ FIX: Stop loading on error
+      setLoading(false)
 
-      // Check for specific error messages
+      const isTokenExpired = error.response?.status === 404 &&
+        error.response?.data?.error === "Token expired for editing form"
+
+      if (isTokenExpired) {
+        setSubmissionError("TOKEN_EXPIRED")
+        return
+      }
+
       if (error.response?.data?.error) {
         const errorMessage = error.response.data.error
+        setSubmissionError(errorMessage)
 
-        // Handle edit limit reached error
         if (errorMessage.includes("Edit limit reached") || errorMessage.includes("edit this form only")) {
           toast.error(errorMessage)
         } else {
           toast.error(`Unable to load submission data: ${errorMessage}`)
         }
       } else {
-        toast.error(`Unable to load submission data: ${error.message}`)
+        const fallbackError = error.message || "Failed to load submission data"
+        setSubmissionError(fallbackError)
+        toast.error(`Unable to load submission data: ${fallbackError}`)
       }
     }
   }
@@ -3226,7 +3237,7 @@ function PublicFormContent() {
   }
 
   // Loading state
-  if (loading || (isEditMode && !formInitialized)) {
+  if ((loading || (isEditMode && !formInitialized)) && !submissionError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <Card className="w-full max-w-md mx-4">
@@ -3235,6 +3246,49 @@ function PublicFormContent() {
             <p className="text-muted-foreground">
               {isEditMode ? "Loading your submission..." : "Loading form..."}
             </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Submission Error state
+  if (submissionError) {
+    const isTokenExpired = submissionError === "TOKEN_EXPIRED"
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <Card className="w-full max-w-md mx-4 overflow-hidden border-none shadow-xl">
+          <div className={`h-2 ${isTokenExpired ? 'bg-amber-500' : 'bg-red-500'}`} />
+          <CardHeader className="text-center pb-2 pt-8">
+            <div className={`w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center ${isTokenExpired ? 'bg-amber-100' : 'bg-red-100'}`}>
+              {isTokenExpired ? (
+                <AlertCircle className="h-10 w-10 text-amber-600" />
+              ) : (
+                <AlertCircle className="h-10 w-10 text-red-600" />
+              )}
+            </div>
+            <CardTitle className={`text-2xl font-bold ${isTokenExpired ? 'text-amber-700' : 'text-red-700'}`}>
+              {isTokenExpired ? "Edit Link Expired" : "Unable to Load Submission"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-8 text-center space-y-6">
+            <p className="text-slate-600 leading-relaxed">
+              {isTokenExpired
+                ? "This edit link was valid for 8 hours and has now expired for security reasons. Please submit a new form if you need to make changes."
+                : submissionError}
+            </p>
+            {!isTokenExpired && (
+              <div className="flex flex-col gap-3 pt-2">
+                <Button
+                  onClick={() => fetchSubmissionData()}
+                  className="w-full h-11 text-base font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

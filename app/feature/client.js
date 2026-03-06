@@ -16,7 +16,18 @@ import {
     Loader2,
     ArrowLeft,
     Clock,
-    X
+    X,
+    Table2,
+    List,
+    LayoutGrid,
+    BarChart3,
+    CheckCircle2,
+    Layers,
+    ArrowUpDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronUp,
+    ChevronDown
 } from "lucide-react"
 
 // Shadcn UI Components
@@ -55,8 +66,31 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
+
+const SortIcon = ({ config, sortKey }) => {
+    if (config.key !== sortKey) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />;
+    if (config.direction === 'asc') return <ChevronUp className="ml-2 h-4 w-4 text-primary" />;
+    if (config.direction === 'desc') return <ChevronDown className="ml-2 h-4 w-4 text-primary" />;
+    return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />;
+};
 
 export default function Client({ initialFeatures = [] }) {
+    const [view, setView] = useState('table')
     const [features, setFeatures] = useState(initialFeatures)
     const [loading, setLoading] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
@@ -75,8 +109,9 @@ export default function Client({ initialFeatures = [] }) {
     })
     const [submitting, setSubmitting] = useState(false)
     const [currentPage, setCurrentPage] = useState(1)
-    const [pageSize] = useState(5)
+    const [pageSize, setPageSize] = useState(5)
     const [totalResults, setTotalResults] = useState(initialFeatures.length)
+    const [sortConfig, setSortConfig] = useState({ key: 'feature_name', direction: 'asc' })
 
     useEffect(() => {
         setFeatures(initialFeatures)
@@ -337,21 +372,493 @@ export default function Client({ initialFeatures = [] }) {
         return matchesSearch && matchesModule && matchesStatus
     })
 
+    const handleSort = (key) => {
+        let direction = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+            direction = 'none';
+        }
+        setSortConfig({ key, direction });
+        setCurrentPage(1);
+    };
+
+    const sortedFeatures = [...filteredFeatures];
+    if (sortConfig.key && sortConfig.direction !== 'none') {
+        sortedFeatures.sort((a, b) => {
+            let valA, valB;
+
+            switch (sortConfig.key) {
+                case 'feature_name':
+                case 'name':
+                    valA = (a.feature_name || a.name || "").toLowerCase();
+                    valB = (b.feature_name || b.name || "").toLowerCase();
+                    break;
+                case 'description':
+                    valA = (a.description || "").toLowerCase();
+                    valB = (b.description || "").toLowerCase();
+                    break;
+                case 'module':
+                    valA = (a.module || "").toLowerCase();
+                    valB = (b.module || "").toLowerCase();
+                    break;
+                case 'is_active':
+                    valA = (a.is_active !== undefined ? a.is_active : true) ? 1 : 0;
+                    valB = (b.is_active !== undefined ? b.is_active : true) ? 1 : 0;
+                    break;
+                case 'created_at':
+                    valA = new Date(a.created_at).getTime();
+                    valB = new Date(b.created_at).getTime();
+                    break;
+                default:
+                    valA = a[sortConfig.key];
+                    valB = b[sortConfig.key];
+            }
+
+            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+
     const startIndex = (currentPage - 1) * pageSize
     const endIndex = startIndex + pageSize
-    const paginatedFeatures = filteredFeatures.slice(startIndex, endIndex)
+    const paginatedFeatures = sortedFeatures.slice(startIndex, endIndex)
     const totalPages = Math.ceil(filteredFeatures.length / pageSize)
 
+    const renderCardsView = () => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            {paginatedFeatures.map((feature) => {
+                const featureId = feature.feature_id || feature.id
+                const featureName = feature.feature_name || feature.name || "N/A"
+                const isActive = feature.is_active !== undefined ? feature.is_active : true
+                return (
+                    <Card key={featureId} className="hover:shadow-lg transition-shadow">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <Shield className="h-4 w-4 text-primary" />
+                                        <CardTitle className="text-base truncate">{featureName}</CardTitle>
+                                    </div>
+                                    <CardDescription className="text-xs truncate">{feature.module}</CardDescription>
+                                </div>
+                                <Badge variant={isActive ? "default" : "secondary"} className={isActive ? "bg-green-500 hover:bg-green-600" : ""}>
+                                    {isActive ? 'Active' : 'Inactive'}
+                                </Badge>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <div className="text-sm text-muted-foreground line-clamp-2 h-10">
+                                {feature.description || "No description provided"}
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground text-xs">Action:</span>
+                                <span className="font-semibold text-xs">{feature.action || "N/A"}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground text-xs">Created:</span>
+                                <span className="font-semibold text-xs">{formatDate(feature.created_at)}</span>
+                            </div>
+                            <Separator />
+                            <div className="flex items-center justify-between">
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => openViewDialog(feature)}
+                                            >
+                                                <Eye className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>View</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => openEditDialog(feature)}
+                                            >
+                                                <Edit className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Edit</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="sm">
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Delete Feature</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Are you sure you want to delete the feature <strong>{featureName}</strong>? This action cannot be undone.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteFeature(featureId)} className="bg-destructive text-white hover:bg-destructive/90">
+                                                            Delete
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Delete</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            })}
+        </div>
+    );
+
+    const renderListView = () => (
+        <div className="space-y-3 md:space-y-4">
+            {paginatedFeatures.map((feature) => {
+                const featureId = feature.feature_id || feature.id
+                const featureName = feature.feature_name || feature.name || "N/A"
+                const isActive = feature.is_active !== undefined ? feature.is_active : true
+                return (
+                    <Card key={featureId} className="hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4 flex-1 min-w-0">
+                                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <Shield className="text-primary h-5 w-5" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <CardTitle className="text-base truncate">{featureName}</CardTitle>
+                                            <Badge variant="outline" className="text-[10px] h-4">
+                                                {feature.module}
+                                            </Badge>
+                                        </div>
+                                        <CardDescription className="text-sm truncate">
+                                            {feature.description || "No description"} • {feature.action} • Created {formatDate(feature.created_at)}
+                                        </CardDescription>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center space-x-4 ml-6">
+                                    <div className="flex items-center gap-2 mr-4">
+                                        <Switch
+                                            checked={isActive}
+                                            onCheckedChange={() => handleToggleStatus(featureId, isActive)}
+                                            disabled={submitting}
+                                        />
+                                        <span className="text-xs text-muted-foreground hidden lg:inline">
+                                            {isActive ? 'Active' : 'Inactive'}
+                                        </span>
+                                    </div>
+
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => openViewDialog(feature)}
+                                                    className="h-8 w-8"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>View</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => openEditDialog(feature)}
+                                                    className="h-8 w-8"
+                                                >
+                                                    <Edit className="h-4 w-4" />
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Edit</TooltipContent>
+                                        </Tooltip>
+
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Delete Feature</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                Are you sure you want to delete <strong>{featureName}</strong>?
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteFeature(featureId)} className="bg-destructive text-white hover:bg-destructive/90">
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </TooltipTrigger>
+                                            <TooltipContent>Delete</TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                );
+            })}
+        </div>
+    );
+
+    const renderTableView = () => (
+        <div className="rounded-md border overflow-hidden w-full">
+            <div className="overflow-x-auto w-full">
+                <Table className="w-full table-auto">
+                    <TableHeader>
+                        <TableRow className="bg-muted/50 hover:bg-muted/50">
+                            <TableHead className="font-semibold text-foreground cursor-pointer" onClick={() => handleSort('feature_name')}>
+                                <div className="flex items-center">
+                                    FEATURE NAME
+                                    <SortIcon config={sortConfig} sortKey="feature_name" />
+                                </div>
+                            </TableHead>
+                            <TableHead className="font-semibold text-foreground cursor-pointer" onClick={() => handleSort('description')}>
+                                <div className="flex items-center">
+                                    DESCRIPTION
+                                    <SortIcon config={sortConfig} sortKey="description" />
+                                </div>
+                            </TableHead>
+                            <TableHead className="font-semibold text-foreground cursor-pointer" onClick={() => handleSort('module')}>
+                                <div className="flex items-center">
+                                    MODULE
+                                    <SortIcon config={sortConfig} sortKey="module" />
+                                </div>
+                            </TableHead>
+                            <TableHead className="font-semibold text-foreground cursor-pointer" onClick={() => handleSort('created_at')}>
+                                <div className="flex items-center">
+                                    CREATED AT
+                                    <SortIcon config={sortConfig} sortKey="created_at" />
+                                </div>
+                            </TableHead>
+                            <TableHead className="font-semibold text-foreground cursor-pointer" onClick={() => handleSort('is_active')}>
+                                <div className="flex items-center">
+                                    STATUS
+                                    <SortIcon config={sortConfig} sortKey="is_active" />
+                                </div>
+                            </TableHead>
+                            <TableHead className="w-[120px] whitespace-nowrap text-center font-semibold text-foreground">ACTION</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {paginatedFeatures.map((feature) => {
+                            const featureId = feature.feature_id || feature.id
+                            const featureName = feature.feature_name || feature.name || "N/A"
+                            const isActive = feature.is_active !== undefined ? feature.is_active : true
+                            return (
+                                <TableRow
+                                    key={featureId}
+                                    className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
+                                >
+                                    <TableCell className="py-4">
+                                        <span className="font-medium text-primary">
+                                            {featureName}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                        <span className="text-sm text-muted-foreground line-clamp-1">
+                                            {feature.description || "N/A"}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                        <Badge variant="outline">
+                                            {feature.module || "N/A"}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="py-4 whitespace-nowrap">
+                                        <div className="flex items-center gap-2">
+                                            <Clock className="h-3 w-3 text-muted-foreground" />
+                                            <span className="text-sm text-muted-foreground">
+                                                {formatDate(feature.created_at)}
+                                            </span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                        <div className="flex items-center gap-2">
+                                            <Switch
+                                                checked={isActive}
+                                                onCheckedChange={() => handleToggleStatus(featureId, isActive)}
+                                                disabled={submitting}
+                                            />
+                                            <span className="text-sm text-muted-foreground">
+                                                {isActive ? 'Active' : 'Inactive'}
+                                            </span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="w-[120px] whitespace-nowrap text-right py-4">
+                                        <div className="flex items-center justify-end space-x-1">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => openViewDialog(feature)}
+                                                            className="h-8 w-8"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>View</TooltipContent>
+                                                </Tooltip>
+
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => openEditDialog(feature)}
+                                                            className="h-8 w-8"
+                                                        >
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Edit</TooltipContent>
+                                                </Tooltip>
+
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Delete Feature</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        Are you sure you want to delete <strong>{featureName}</strong>?
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleDeleteFeature(featureId)} className="bg-destructive text-white hover:bg-destructive/90">
+                                                                        Delete
+                                                                    </AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>Delete</TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            )
+                        })}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+    );
+
+    const renderFeatureView = () => {
+        if (loading) {
+            return (
+                <div className="flex justify-center items-center py-12">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                </div>
+            );
+        }
+
+        if (filteredFeatures.length === 0) {
+            return (
+                <div className="text-center py-12 text-muted-foreground">
+                    <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No features found</p>
+                </div>
+            );
+        }
+
+        switch (view) {
+            case 'list':
+                return renderListView();
+            case 'table':
+                return renderTableView();
+            case 'cards':
+            default:
+                return renderCardsView();
+        }
+    };
     const uniqueModules = [...new Set(features.map(f => f.module).filter(Boolean))]
+    const activeFeaturesCount = features.filter(f => f.is_active !== false).length
 
     return (
         <main className="min-h-screen bg-background">
             <div className="flex-1 p-0 md:p-0 bg-background">
-                <div className="container mx-auto py-0 space-y-6">
+                <div className="container mx-auto py-0 space-y-4">
                     <PageBreadcrumb />
+
+                    {/* Stats Section */}
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Total Features</CardTitle>
+                                <Shield className="h-4 w-4 text-muted-foreground" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{features.length}</div>
+                                <p className="text-xs text-muted-foreground">Across all modules</p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Active Features</CardTitle>
+                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{activeFeaturesCount}</div>
+                                <p className="text-xs text-muted-foreground">Currently enabled</p>
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                <CardTitle className="text-sm font-medium">Modules</CardTitle>
+                                <Layers className="h-4 w-4 text-blue-500" />
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold">{uniqueModules.length}</div>
+                                <p className="text-xs text-muted-foreground">Unique functional areas</p>
+                            </CardContent>
+                        </Card>
+                    </div>
+
                     <Card>
                         <CardHeader>
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                 <div>
                                     <CardTitle className="flex items-center gap-2 text-2xl">
                                         <Button
@@ -383,64 +890,44 @@ export default function Client({ initialFeatures = [] }) {
                                             <DialogHeader>
                                                 <DialogTitle>Create New Feature</DialogTitle>
                                                 <DialogDescription>
-                                                    Enter the feature details below. Feature name, action, and module are required.
+                                                    Add a new feature to the system. Feature name, action, and module are required.
                                                 </DialogDescription>
                                             </DialogHeader>
                                             <div className="space-y-4 py-4">
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="create-feature-name">Feature Name *</Label>
+                                                    <Label htmlFor="feature-name">Feature Name *</Label>
                                                     <Input
-                                                        id="create-feature-name"
+                                                        id="feature-name"
                                                         placeholder="e.g., ticket_Create, tasks_view"
                                                         value={formData.feature_name}
-                                                        onChange={(e) =>
-                                                            setFormData({ ...formData, feature_name: e.target.value })
-                                                        }
+                                                        onChange={(e) => setFormData({ ...formData, feature_name: e.target.value })}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="create-action">Action *</Label>
+                                                    <Label htmlFor="action">Action *</Label>
                                                     <Input
-                                                        id="create-action"
+                                                        id="action"
                                                         placeholder="e.g., create, view, update, delete"
                                                         value={formData.action}
-                                                        onChange={(e) =>
-                                                            setFormData({ ...formData, action: e.target.value })
-                                                        }
+                                                        onChange={(e) => setFormData({ ...formData, action: e.target.value })}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="create-description">Description</Label>
+                                                    <Label htmlFor="description">Description</Label>
                                                     <Input
-                                                        id="create-description"
+                                                        id="description"
                                                         placeholder="e.g., ticket creations"
                                                         value={formData.description}
-                                                        onChange={(e) =>
-                                                            setFormData({ ...formData, description: e.target.value })
-                                                        }
+                                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="create-module">Module *</Label>
+                                                    <Label htmlFor="module">Module *</Label>
                                                     <Input
-                                                        id="create-module"
+                                                        id="module"
                                                         placeholder="e.g., ticket, task, organization"
                                                         value={formData.module}
-                                                        onChange={(e) =>
-                                                            setFormData({ ...formData, module: e.target.value })
-                                                        }
-                                                    />
-                                                </div>
-                                                <div className="flex items-center justify-between space-x-2 py-2">
-                                                    <Label htmlFor="create-is-active" className="flex-1">
-                                                        Active Status
-                                                    </Label>
-                                                    <Switch
-                                                        id="create-is-active"
-                                                        checked={formData.is_active}
-                                                        onCheckedChange={(checked) =>
-                                                            setFormData({ ...formData, is_active: checked })
-                                                        }
+                                                        onChange={(e) => setFormData({ ...formData, module: e.target.value })}
                                                     />
                                                 </div>
                                             </div>
@@ -468,269 +955,270 @@ export default function Client({ initialFeatures = [] }) {
                                 </div>
                             </div>
                         </CardHeader>
-                        <CardContent>
-                            <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                                <div className="relative flex-1">
-                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Search by name, description, or module..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10 pr-10"
-                                    />
-                                    {searchTerm && (
-                                        <X
-                                            className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
-                                            onClick={() => setSearchTerm("")}
+                        <CardContent className="space-y-4">
+                            {/* Filters and View Switcher */}
+                            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-2  rounded-lg">
+                                <div className="flex flex-wrap items-center gap-3 flex-1">
+                                    <div className="relative w-full md:w-64">
+                                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search features..."
+                                            className="pl-8"
+                                            value={searchTerm}
+                                            onChange={(e) => {
+                                                setSearchTerm(e.target.value)
+                                                setCurrentPage(1)
+                                            }}
                                         />
+                                    </div>
+
+                                    <Select
+                                        value={moduleFilter}
+                                        onValueChange={(value) => {
+                                            setModuleFilter(value)
+                                            setCurrentPage(1)
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-[150px] bg-background">
+                                            <SelectValue placeholder="Module" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Modules</SelectItem>
+                                            {uniqueModules.map((mod) => (
+                                                <SelectItem key={mod} value={mod}>
+                                                    {mod}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+
+                                    <Select
+                                        value={statusFilter}
+                                        onValueChange={(value) => {
+                                            setStatusFilter(value)
+                                            setCurrentPage(1)
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-[150px] bg-background">
+                                            <SelectValue placeholder="Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="active">Active</SelectItem>
+                                            <SelectItem value="inactive">Inactive</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+
+                                    {(searchTerm || moduleFilter !== "all" || statusFilter !== "all") && (
+                                        <Button
+                                            variant="ghost"
+                                            onClick={() => {
+                                                setSearchTerm("")
+                                                setModuleFilter("all")
+                                                setStatusFilter("all")
+                                                setCurrentPage(1)
+                                            }}
+                                            className="h-9 px-2 lg:px-3 text-muted-foreground"
+                                        >
+                                            Reset
+                                            <X className="ml-2 h-4 w-4" />
+                                        </Button>
                                     )}
                                 </div>
 
-                                <Select value={moduleFilter} onValueChange={setModuleFilter}>
-                                    <SelectTrigger className="w-full sm:w-[180px]">
-                                        <SelectValue placeholder="Filter by module" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Modules</SelectItem>
-                                        {uniqueModules.map((module) => (
-                                            <SelectItem key={module} value={module.toLowerCase()}>
-                                                {module}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center bg-background border rounded-md p-1 shadow-sm">
+                                        <Button
+                                            variant={view === "table" ? "secondary" : "ghost"}
+                                            size="sm"
+                                            className="h-8 w-8 p-0"
+                                            onClick={() => setView("table")}
+                                        >
+                                            <Table2 className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant={view === "list" ? "secondary" : "ghost"}
+                                            size="sm"
+                                            className="h-8 w-8 p-0"
+                                            onClick={() => setView("list")}
+                                        >
+                                            <List className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant={view === "cards" ? "secondary" : "ghost"}
+                                            size="sm"
+                                            className="h-8 w-8 p-0"
+                                            onClick={() => setView("cards")}
+                                        >
+                                            <LayoutGrid className="h-4 w-4" />
+                                        </Button>
+                                    </div>
 
-                                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                    <SelectTrigger className="w-full sm:w-[180px]">
-                                        <SelectValue placeholder="Filter by status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">All Status</SelectItem>
-                                        <SelectItem value="active">Active</SelectItem>
-                                        <SelectItem value="inactive">Inactive</SelectItem>
-                                    </SelectContent>
-                                </Select>
-
-                                {(moduleFilter !== "all" || statusFilter !== "all" || searchTerm) && (
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => {
-                                            setSearchTerm("")
-                                            setModuleFilter("all")
-                                            setStatusFilter("all")
-                                        }}
-                                        className="whitespace-nowrap"
-                                    >
-                                        Clear Filters
-                                    </Button>
-                                )}
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground whitespace-nowrap">Show:</span>
+                                        <Select
+                                            value={pageSize.toString()}
+                                            onValueChange={(value) => {
+                                                setPageSize(parseInt(value))
+                                                setCurrentPage(1)
+                                            }}
+                                        >
+                                            <SelectTrigger className="w-[70px] h-8 bg-background">
+                                                <SelectValue placeholder="Size" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {[5, 10, 15, 20].map((size) => (
+                                                    <SelectItem key={size} value={size.toString()}>
+                                                        {size}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
                             </div>
 
-                            {loading ? (
-                                <div className="flex items-center justify-center py-12">
-                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                </div>
-                            ) : filteredFeatures.length === 0 ? (
-                                <div className="text-center py-12 text-muted-foreground">
-                                    <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                    <p>No features found</p>
-                                    {features.length === 0 && (
-                                        <p className="text-sm mt-2">Create your first feature to get started</p>
-                                    )}
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="rounded-md border overflow-hidden w-full">
-                                        <div className="overflow-x-auto w-full">
-                                            <Table className="w-full table-auto">
-                                                <TableHeader>
-                                                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                                        <TableHead className="font-semibold text-foreground">FEATURE NAME</TableHead>
-                                                        <TableHead className="font-semibold text-foreground">DESCRIPTION</TableHead>
-                                                        <TableHead className="font-semibold text-foreground">MODULE</TableHead>
-                                                        <TableHead className="font-semibold text-foreground">CREATED AT</TableHead>
-                                                        <TableHead className="font-semibold text-foreground">STATUS</TableHead>
-                                                        <TableHead className="w-[120px] whitespace-nowrap text-center font-semibold text-foreground">ACTION</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {paginatedFeatures.map((feature) => {
-                                                        const featureId = feature.feature_id || feature.id
-                                                        const featureName = feature.feature_name || feature.name || "N/A"
-                                                        const isActive = feature.is_active !== undefined ? feature.is_active : true
-                                                        const status = isActive ? "active" : "inactive"
+                            {/* Main Content Area */}
+                            <div className="min-h-[200px]">
+                                {renderFeatureView()}
+                            </div>
+
+                            {/* Pagination */}
+                            {filteredFeatures.length > 0 && (
+                                <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t">
+                                    <div className="text-sm text-muted-foreground">
+                                        Showing {Math.min(startIndex + 1, filteredFeatures.length)} to {Math.min(startIndex + pageSize, filteredFeatures.length)} of {filteredFeatures.length} features
+                                    </div>
+                                    <Pagination className="w-auto mx-0">
+                                        <PaginationContent>
+                                            <PaginationItem>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={currentPage === 1}
+                                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                                    className="gap-1 pl-2.5"
+                                                >
+                                                    <ChevronLeft className="h-4 w-4" />
+                                                    <span>Previous</span>
+                                                </Button>
+                                            </PaginationItem>
+
+                                            {totalPages <= 7 ? (
+                                                Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                                    <PaginationItem key={page}>
+                                                        <PaginationLink
+                                                            isActive={currentPage === page}
+                                                            onClick={() => setCurrentPage(page)}
+                                                            className="cursor-pointer"
+                                                        >
+                                                            {page}
+                                                        </PaginationLink>
+                                                    </PaginationItem>
+                                                ))
+                                            ) : (
+                                                <>
+                                                    <PaginationItem>
+                                                        <PaginationLink
+                                                            isActive={currentPage === 1}
+                                                            onClick={() => setCurrentPage(1)}
+                                                            className="cursor-pointer"
+                                                        >
+                                                            1
+                                                        </PaginationLink>
+                                                    </PaginationItem>
+                                                    {currentPage > 3 && <PaginationEllipsis />}
+                                                    {Array.from({ length: 3 }, (_, i) => {
+                                                        const page = Math.min(Math.max(currentPage - 1 + i, 2), totalPages - 1);
+                                                        if (page === 1 || page === totalPages) return null;
                                                         return (
-                                                            <TableRow
-                                                                key={featureId}
-                                                                className="hover:bg-muted/30 transition-colors border-b last:border-b-0"
-                                                            >
-                                                                <TableCell className="py-4">
-                                                                    <span className="font-medium text-primary truncate text-sm md:text-base">
-                                                                        {featureName}
-                                                                    </span>
-                                                                </TableCell>
-                                                                <TableCell className="py-4">
-                                                                    <span className="text-sm text-muted-foreground">
-                                                                        {feature.description || "N/A"}
-                                                                    </span>
-                                                                </TableCell>
-                                                                <TableCell className="py-4">
-                                                                    <Badge variant="outline">
-                                                                        {feature.module || "N/A"}
-                                                                    </Badge>
-                                                                </TableCell>
-                                                                <TableCell className="py-4">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <Clock className="h-3 w-3 text-muted-foreground" />
-                                                                        <span className="text-sm text-muted-foreground">
-                                                                            {formatDate(feature.created_at)}
-                                                                        </span>
-                                                                    </div>
-                                                                </TableCell>
-                                                                <TableCell className="py-4">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <Switch
-                                                                            checked={isActive}
-                                                                            onCheckedChange={() => handleToggleStatus(featureId, isActive)}
-                                                                            disabled={submitting}
-                                                                        />
-                                                                        <span className="text-sm text-muted-foreground">
-                                                                            {status.charAt(0).toUpperCase() + status.slice(1)}
-                                                                        </span>
-                                                                    </div>
-                                                                </TableCell>
-                                                                <TableCell className="w-[120px] whitespace-nowrap text-right py-4">
-                                                                    <div className="flex items-center justify-end space-x-2">
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            onClick={() => openViewDialog(feature)}
-                                                                            title="View"
-                                                                            className="h-8 w-8"
-                                                                        >
-                                                                            <Eye className="h-4 w-4" />
-                                                                        </Button>
-                                                                        <AlertDialog>
-                                                                            <AlertDialogTrigger asChild>
-                                                                                <Button
-                                                                                    variant="ghost"
-                                                                                    size="sm"
-                                                                                    className="h-8 px-3 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                                                >
-                                                                                    Delete
-                                                                                </Button>
-                                                                            </AlertDialogTrigger>
-                                                                            <AlertDialogContent>
-                                                                                <AlertDialogHeader>
-                                                                                    <AlertDialogTitle>Delete Feature</AlertDialogTitle>
-                                                                                    <AlertDialogDescription>
-                                                                                        Are you sure you want to delete the feature{" "}
-                                                                                        <strong>{featureName}</strong>?
-                                                                                        <br />
-                                                                                        <br />
-                                                                                        This action cannot be undone.
-                                                                                    </AlertDialogDescription>
-                                                                                </AlertDialogHeader>
-                                                                                <AlertDialogFooter>
-                                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                                    <AlertDialogAction
-                                                                                        onClick={() => handleDeleteFeature(featureId)}
-                                                                                        className="bg-destructive text-white hover:bg-destructive/90 hover:text-white"
-                                                                                        disabled={submitting}
-                                                                                    >
-                                                                                        {submitting ? (
-                                                                                            <>
-                                                                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                                                                Deleting...
-                                                                                            </>
-                                                                                        ) : (
-                                                                                            "Delete"
-                                                                                        )}
-                                                                                    </AlertDialogAction>
-                                                                                </AlertDialogFooter>
-                                                                            </AlertDialogContent>
-                                                                        </AlertDialog>
-                                                                    </div>
-                                                                </TableCell>
-                                                            </TableRow>
+                                                            <PaginationItem key={page}>
+                                                                <PaginationLink
+                                                                    isActive={currentPage === page}
+                                                                    onClick={() => setCurrentPage(page)}
+                                                                    className="cursor-pointer"
+                                                                >
+                                                                    {page}
+                                                                </PaginationLink>
+                                                            </PaginationItem>
                                                         )
                                                     })}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
-                                    </div>
+                                                    {currentPage < totalPages - 2 && <PaginationEllipsis />}
+                                                    <PaginationItem>
+                                                        <PaginationLink
+                                                            isActive={currentPage === totalPages}
+                                                            onClick={() => setCurrentPage(totalPages)}
+                                                            className="cursor-pointer"
+                                                        >
+                                                            {totalPages}
+                                                        </PaginationLink>
+                                                    </PaginationItem>
+                                                </>
+                                            )}
 
-                                    <div className="flex items-center justify-between mt-4">
-                                        <div className="text-sm text-muted-foreground">
-                                            Showing {startIndex + 1} to {Math.min(endIndex, filteredFeatures.length)} of {filteredFeatures.length} results
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                                disabled={currentPage === 1}
-                                            >
-                                                Previous
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                                disabled={currentPage === totalPages}
-                                            >
-                                                Next
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </>
+                                            <PaginationItem>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={currentPage === totalPages}
+                                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                                    className="gap-1 pl-2.5"
+                                                >
+                                                    <span>Next</span>
+                                                    <ChevronRight className="h-4 w-4" />
+                                                </Button>
+                                            </PaginationItem>
+                                        </PaginationContent>
+                                    </Pagination>
+                                </div>
                             )}
                         </CardContent>
                     </Card>
 
+                    {/* Dialogs */}
                     <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-                        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+                        <DialogContent className="sm:max-w-[500px]">
                             <DialogHeader>
-                                <DialogTitle>Feature Details</DialogTitle>
-                                <DialogDescription>View detailed information about this feature</DialogDescription>
+                                <DialogTitle className="flex items-center gap-2">
+                                    <Shield className="h-5 w-5 text-primary" />
+                                    Feature Details
+                                </DialogTitle>
+                                <DialogDescription>
+                                    Comprehensive overview of the feature configuration.
+                                </DialogDescription>
                             </DialogHeader>
                             {selectedFeature && (
-                                <div className="space-y-4 py-4">
-                                    <div>
-                                        <Label className="text-muted-foreground">Feature Name</Label>
-                                        <p className="text-sm font-medium">{selectedFeature.feature_name || selectedFeature.name || "N/A"}</p>
-                                    </div>
-                                    <Separator />
-                                    <div>
-                                        <Label className="text-muted-foreground">Action</Label>
-                                        <p className="text-sm font-medium">{selectedFeature.action || "N/A"}</p>
-                                    </div>
-                                    <Separator />
-                                    <div>
-                                        <Label className="text-muted-foreground">Description</Label>
-                                        <p className="text-sm font-medium">{selectedFeature.description || "N/A"}</p>
+                                <div className="space-y-6 py-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="space-y-1">
+                                            <Label className="text-muted-foreground">Status</Label>
+                                            <div className="flex items-center gap-2">
+                                                <Badge variant={(selectedFeature.is_active !== undefined ? selectedFeature.is_active : true) ? "default" : "secondary"}>
+                                                    {(selectedFeature.is_active !== undefined ? selectedFeature.is_active : true) ? 'Active' : 'Inactive'}
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1 text-right">
+                                            <Label className="text-muted-foreground">Module</Label>
+                                            <p className="font-semibold">{selectedFeature.module || "N/A"}</p>
+                                        </div>
                                     </div>
                                     <Separator />
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <Label className="text-muted-foreground">Module</Label>
-                                            <div className="mt-2">
-                                                <Badge variant="outline">
-                                                    {selectedFeature.module || "N/A"}
-                                                </Badge>
-                                            </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-muted-foreground">Feature Name</Label>
+                                            <p className="font-medium text-primary">{selectedFeature.feature_name || selectedFeature.name || "N/A"}</p>
                                         </div>
-                                        <div>
-                                            <Label className="text-muted-foreground">Status</Label>
-                                            <div className="mt-2">
-                                                <Badge
-                                                    variant={(selectedFeature.is_active !== undefined ? selectedFeature.is_active : true) ? "default" : "secondary"}
-                                                    className={(selectedFeature.is_active !== undefined ? selectedFeature.is_active : true) ? "bg-green-500 hover:bg-green-600" : ""}
-                                                >
-                                                    {(selectedFeature.is_active !== undefined ? selectedFeature.is_active : true) ? "Active" : "Inactive"}
-                                                </Badge>
-                                            </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-muted-foreground">Action</Label>
+                                            <p className="font-medium">{selectedFeature.action || "N/A"}</p>
                                         </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-muted-foreground">Description</Label>
+                                        <p className="text-sm border p-3 rounded-md bg-muted/20">
+                                            {selectedFeature.description || "No description provided."}
+                                        </p>
                                     </div>
                                     <Separator />
                                     <div>

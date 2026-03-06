@@ -18,7 +18,10 @@ import {
     CalendarCheck,
     ListTodo,
     AlertCircle,
-    X
+    X,
+    ArrowUpDown,
+    ChevronUp,
+    ChevronDown
 } from "lucide-react"
 import {
     Table,
@@ -77,6 +80,13 @@ const activityTypeColors = {
     email: "bg-amber-100 text-amber-700 border-amber-200",
 }
 
+const SortIcon = ({ config, sortKey }) => {
+    if (config.key !== sortKey) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />
+    if (config.direction === 'asc') return <ChevronUp className="ml-2 h-4 w-4" />
+    if (config.direction === 'desc') return <ChevronDown className="ml-2 h-4 w-4" />
+    return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />
+}
+
 export default function ActivitiesClient({ initialActivities = [], initialUsers = [], initialTables = [] }) {
     const [activities, setActivities] = useState(initialActivities)
     const [filteredActivities, setFilteredActivities] = useState(initialActivities)
@@ -92,8 +102,9 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
     const [filterType, setFilterType] = useState("all")
     const [filterStatus, setFilterStatus] = useState("all")
     const [currentPage, setCurrentPage] = useState(1)
-    const [itemsPerPage, setItemsPerPage] = useState(10)
+    const [itemsPerPage, setItemsPerPage] = useState(5)
     const [filterTable, setFilterTable] = useState("all")
+    const [sortConfig, setSortConfig] = useState({ key: 'due_date', direction: 'desc' }) // 'asc', 'desc', 'none'
 
     // Related Records State
     const [relatedRecords, setRelatedRecords] = useState([])
@@ -137,6 +148,18 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
             setIsCreateDialogOpen(true)
         }
     }, [searchParams])
+
+    // Sort logic
+    const handleSort = (key) => {
+        let direction = 'asc'
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc'
+        } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+            direction = 'none'
+        }
+        setSortConfig({ key, direction })
+        setCurrentPage(1)
+    }
 
 
     // Filter and search logic
@@ -225,8 +248,53 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
             filtered = filtered.filter(activity => String(activity.related_table_id) === String(filterTable))
         }
 
+        // Apply Sorting
+        if (sortConfig.key && sortConfig.direction !== 'none') {
+            filtered.sort((a, b) => {
+                let valA, valB
+
+                switch (sortConfig.key) {
+                    case 'title':
+                        valA = (a.title || "").toLowerCase()
+                        valB = (b.title || "").toLowerCase()
+                        break
+                    case 'activity_type':
+                        valA = (a.activity_type || "").toLowerCase()
+                        valB = (b.activity_type || "").toLowerCase()
+                        break
+                    case 'assigned_to':
+                        valA = getUserName(a.assigned_to).toLowerCase()
+                        valB = getUserName(b.assigned_to).toLowerCase()
+                        break
+                    case 'due_date':
+                        valA = new Date(a.due_date).getTime()
+                        valB = new Date(b.due_date).getTime()
+                        break
+                    case 'status':
+                        const statusA = getActivityStatus(a).label
+                        const statusB = getActivityStatus(b).label
+                        // Priority: Overdue (0) > Pending (1) > Completed (2)
+                        const priority = { "Overdue": 0, "Pending": 1, "Completed": 2 }
+                        valA = priority[statusA] ?? 3
+                        valB = priority[statusB] ?? 3
+                        break
+                    case 'related_table':
+                        valA = getTableName(a.related_table_id).toLowerCase()
+                        valB = getTableName(b.related_table_id).toLowerCase()
+                        break
+                    default:
+                        valA = a[sortConfig.key]
+                        valB = b[sortConfig.key]
+                }
+
+                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1
+                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1
+                return 0
+            })
+        }
+
         setFilteredActivities(filtered)
-    }, [activities, filterType, filterStatus, searchQuery, searchParams, filterTable])
+    }, [activities, filterType, filterStatus, searchQuery, searchParams, filterTable, sortConfig, users, tables])
 
 
     // Reset to page 1 when filters change
@@ -539,12 +607,42 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                         <Table className="w-full">
                             <TableHeader>
                                 <TableRow className="bg-muted/30">
-                                    <TableHead className="pl-6">Activity</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Assigned To</TableHead>
-                                    <TableHead>Due Date</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Related Table</TableHead>
+                                    <TableHead className="pl-6">
+                                        <button onClick={() => handleSort('title')} className="flex items-center hover:text-foreground">
+                                            Activity
+                                            <SortIcon config={sortConfig} sortKey="title" />
+                                        </button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <button onClick={() => handleSort('activity_type')} className="flex items-center hover:text-foreground">
+                                            Type
+                                            <SortIcon config={sortConfig} sortKey="activity_type" />
+                                        </button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <button onClick={() => handleSort('assigned_to')} className="flex items-center hover:text-foreground">
+                                            Assigned To
+                                            <SortIcon config={sortConfig} sortKey="assigned_to" />
+                                        </button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <button onClick={() => handleSort('due_date')} className="flex items-center hover:text-foreground">
+                                            Due Date
+                                            <SortIcon config={sortConfig} sortKey="due_date" />
+                                        </button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <button onClick={() => handleSort('status')} className="flex items-center hover:text-foreground">
+                                            Status
+                                            <SortIcon config={sortConfig} sortKey="status" />
+                                        </button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <button onClick={() => handleSort('related_table')} className="flex items-center hover:text-foreground">
+                                            Related Table
+                                            <SortIcon config={sortConfig} sortKey="related_table" />
+                                        </button>
+                                    </TableHead>
                                     <TableHead className="text-right pr-6">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -556,12 +654,12 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    paginatedActivities.map((activity) => {
+                                    paginatedActivities.map((activity, index) => {
                                         const ActivityIcon = activityTypeIcons[activity.activity_type] || ListTodo
                                         const status = getActivityStatus(activity)
 
                                         return (
-                                            <TableRow key={activity.activity_id} className="hover:bg-accent/5">
+                                            <TableRow key={`${activity.activity_id}-${index}`} className="hover:bg-accent/5">
                                                 <TableCell className="pl-6">
                                                     <div className="flex items-center gap-3">
                                                         <div className={`p-2 rounded-lg ${activityTypeColors[activity.activity_type]}`}>

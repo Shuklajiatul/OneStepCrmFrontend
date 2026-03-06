@@ -29,7 +29,10 @@ import {
     MoreVertical,
     Calendar,
     LayoutDashboard,
-    X
+    X,
+    ArrowUpDown,
+    ChevronUp,
+    ChevronDown
 } from "lucide-react"
 import {
     Table,
@@ -56,6 +59,13 @@ import {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444']
 
+const SortIcon = ({ config, sortKey }) => {
+    if (config.key !== sortKey) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />
+    if (config.direction === 'asc') return <ChevronUp className="ml-2 h-4 w-4" />
+    if (config.direction === 'desc') return <ChevronDown className="ml-2 h-4 w-4" />
+    return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />
+}
+
 export default function FormAnalyticsClient({ initialTables = [], initialForms = [] }) {
     const [loading, setLoading] = useState(false)
     const [forms, setForms] = useState(initialForms)
@@ -70,6 +80,7 @@ export default function FormAnalyticsClient({ initialTables = [], initialForms =
     const [selectedTableId, setSelectedTableId] = useState("all")
     const [tables, setTables] = useState(initialTables)
     const [searchTerm, setSearchTerm] = useState("")
+    const [sortConfig, setSortConfig] = useState({ key: 'last_activity', direction: 'desc' }) // 'asc', 'desc', 'none'
 
     // Pagination states
     const [currentPage, setCurrentPage] = useState(1)
@@ -90,11 +101,55 @@ export default function FormAnalyticsClient({ initialTables = [], initialForms =
                 return matchesSearch && matchesTable
             })
             .sort((a, b) => {
-                const dateA = new Date(a.updated_at || a.created_at);
-                const dateB = new Date(b.updated_at || b.created_at);
-                return dateB - dateA;
+                if (sortConfig.key && sortConfig.direction !== 'none') {
+                    let valA, valB
+
+                    switch (sortConfig.key) {
+                        case 'form_name':
+                            valA = (a.form_name || "").toLowerCase()
+                            valB = (b.form_name || "").toLowerCase()
+                            break
+                        case 'submissions':
+                            valA = a.submissionCount || 0
+                            valB = b.submissionCount || 0
+                            break
+                        case 'status':
+                            valA = a.is_archived ? 1 : 0 // Active (0) > Deactive (1)
+                            valB = b.is_archived ? 1 : 0
+                            break
+                        case 'last_activity':
+                            valA = new Date(a.updated_at || a.created_at).getTime()
+                            valB = new Date(b.updated_at || b.created_at).getTime()
+                            break
+                        default:
+                            valA = a[sortConfig.key]
+                            valB = b[sortConfig.key]
+                    }
+
+                    if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1
+                    if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1
+                } else {
+                    // Default sorting by last activity if no sort is applied
+                    const dateA = new Date(a.updated_at || a.created_at)
+                    const dateB = new Date(b.updated_at || b.created_at)
+                    return dateB - dateA
+                }
+                return 0
             })
-    }, [forms, searchTerm, selectedTableId])
+    }, [forms, searchTerm, selectedTableId, sortConfig])
+
+
+    // Sort logic
+    const handleSort = (key) => {
+        let direction = 'asc'
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc'
+        } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+            direction = 'none'
+        }
+        setSortConfig({ key, direction })
+        setCurrentPage(1)
+    }
 
     // Dynamic calculations for Stats and Charts based on filtered data
     useEffect(() => {
@@ -190,11 +245,6 @@ export default function FormAnalyticsClient({ initialTables = [], initialForms =
             subUp
         })
     }, [filteredForms, loading])
-
-    // Reset to page 1 when search changes
-    useEffect(() => {
-        setCurrentPage(1)
-    }, [searchTerm, selectedTableId])
 
     // Pagination calculations
     const totalPages = Math.ceil(filteredForms.length / itemsPerPage)
@@ -393,10 +443,30 @@ export default function FormAnalyticsClient({ initialTables = [], initialForms =
                     <Table className="w-full">
                         <TableHeader className="sticky top-0 z-10 bg-white shadow-sm">
                             <TableRow className="bg-muted/30">
-                                <TableHead className="pl-8 font-bold text-xs uppercase tracking-wider h-12">Form Name</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-wider h-12">Submissions</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-wider h-12">Status</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-wider h-12">Last Activity</TableHead>
+                                <TableHead className="pl-8 font-bold text-xs uppercase tracking-wider h-12">
+                                    <button onClick={() => handleSort('form_name')} className="flex items-center hover:text-foreground">
+                                        Form Name
+                                        <SortIcon config={sortConfig} sortKey="form_name" />
+                                    </button>
+                                </TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-wider h-12">
+                                    <button onClick={() => handleSort('submissions')} className="flex items-center hover:text-foreground">
+                                        Submissions
+                                        <SortIcon config={sortConfig} sortKey="submissions" />
+                                    </button>
+                                </TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-wider h-12">
+                                    <button onClick={() => handleSort('status')} className="flex items-center hover:text-foreground">
+                                        Status
+                                        <SortIcon config={sortConfig} sortKey="status" />
+                                    </button>
+                                </TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-wider h-12">
+                                    <button onClick={() => handleSort('last_activity')} className="flex items-center hover:text-foreground">
+                                        Last Activity
+                                        <SortIcon config={sortConfig} sortKey="last_activity" />
+                                    </button>
+                                </TableHead>
                                 <TableHead className="text-right pr-8 font-bold text-xs uppercase tracking-wider h-12">Actions</TableHead>
                             </TableRow>
                         </TableHeader>

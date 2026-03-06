@@ -947,7 +947,7 @@ export default function TableDataView({ table, onBack }) {
       const hasNested = valueToDisplay.some(
         (item) => item && typeof item === "object" && item.nestedValues && Object.keys(item.nestedValues).length > 0,
       )
-      
+
       const badgesNode = (
         <div className="flex flex-wrap gap-1">
           {valueToDisplay.map((item, i) => {
@@ -960,16 +960,16 @@ export default function TableDataView({ table, onBack }) {
           })}
         </div>
       )
-      
+
       const onOpenNested = (hasNested || hasNestedData(column))
         ? () => openNestedModal({
-            fieldValue: rawValue,
-            column,
-            recordId: record?.record_id,
-            source: 'record',
-          })
+          fieldValue: rawValue,
+          column,
+          recordId: record?.record_id,
+          source: 'record',
+        })
         : undefined
-      
+
       return renderOptionsDropdown(
         badgesNode,
         column,

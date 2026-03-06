@@ -33,7 +33,7 @@ import { authUtils } from '@/lib/auth-utils'
 import { parseOptionalValuesArray, inferTypeFromColumnName, getColumnFieldType, getColumnOptions, hasNestedData, formatDateOnly, formatLocationDisplay, getFieldValue, safeParseJSON, formatPhoneDisplay } from '@/lib/utils'
 import { activitiesApi } from '@/lib/api-endpoint'
 import CreateActivityDialog from "@/app/activities/components/create-activity-dialog"
-
+import { AlertCircle } from "lucide-react"
 export default function RecordDetailsClient({
     tableId,
     recordId,
@@ -224,7 +224,7 @@ export default function RecordDetailsClient({
                     if (item && typeof item === 'object') {
                         const selectedOption = options.find((opt) => opt.value === item.value || opt.label === item.value)
                         const nestedFields = selectedOption?.nestedFields || []
-                        
+
                         // Always process the item, even if nestedValues is empty
                         const itemFormData = item.nestedValues && Object.keys(item.nestedValues).length > 0
                             ? extractFormData(item.nestedValues, nestedFields)
@@ -801,7 +801,7 @@ export default function RecordDetailsClient({
                             Viewing nested values for {nestedData?.isMulti ? "multi-selection" : "selection"}
                         </DialogDescription>
                     </DialogHeader>
-                    
+
                     {/* Scrollable content area */}
                     <ScrollArea className="flex-1 overflow-y-auto">
                         <div className="px-6 py-6">
@@ -843,7 +843,7 @@ export default function RecordDetailsClient({
                             )}
                         </div>
                     </ScrollArea>
-                    
+
                     <DialogFooter className="px-6 py-4 border-t bg-muted/20 shrink-0">
                         <Button variant="outline" onClick={() => setIsNestedModalOpen(false)}>Close</Button>
                     </DialogFooter>

@@ -266,21 +266,24 @@ export default function MyFormsPage() {
         const targetVersion = version || 1
 
         setForms(prevForms => {
-          const updatedForms = prevForms.map(f => {
+          return prevForms.map(f => {
             const fVersion = f.version || 1
-            if (f.form_id === formId && Number(fVersion) === Number(targetVersion)) {
+            const targetVersion = version || 1
+            if (String(f.form_id) === String(formId) && Number(fVersion) === Number(targetVersion)) {
+              // Use the returned status if available, otherwise toggle based on currentStatus
+              const updatedStatus = (result.archieve_status !== undefined) ? result.archieve_status : !currentStatus;
               return {
                 ...f,
-                archived: newArchiveStatus,
-                isarchieved: newArchiveStatus
+                archived: updatedStatus,
+                isarchieved: updatedStatus,
+                archieve_status: updatedStatus
               }
             }
             return f
           })
-          return updatedForms
         })
 
-        const action = newArchiveStatus ? "archived" : "unarchived"
+        const action = result.archieve_status === true || (result.archieve_status === undefined && !currentStatus) ? "archived" : "unarchived"
         const formName = forms.find(f => f.form_id === formId)?.form_name || "Form"
         toast.success(`Form "${formName}" v-${targetVersion} ${action} successfully!`)
       } else {

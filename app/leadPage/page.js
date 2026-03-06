@@ -5,16 +5,47 @@ import LeadsPageClient from './client'
 import { Suspense } from 'react'
 
 async function getTables() {
-  try {
-    const cookieStore = await cookies()
-    const headers = authUtils.getServerHeaders(cookieStore)
+  const cookieStore = await cookies()
+  let headers = authUtils.getServerHeaders(cookieStore)
+  let newAccessToken = null
 
-    const response = await fetch(`${API_BASE_URL}${DATATABLE_ENDPOINTS.LIST}`, {
+  try {
+    let response = await fetch(`${API_BASE_URL}${DATATABLE_ENDPOINTS.LIST}`, {
       headers,
       next: { revalidate: 0 }
     })
-    console.log('Fetch URL:', `${API_BASE_URL}${DATATABLE_ENDPOINTS.LIST}`)
-    console.log('Fetch Response Status:', response.status, response.statusText)
+
+    console.log('Initial Fetch Status:', response.status, response.statusText)
+
+    // Handle 401 Unauthorized - attempt server-side refresh
+    if (response.status === 401) {
+      const refreshToken = cookieStore.get('refreshToken')?.value
+      if (refreshToken) {
+        try {
+          console.log('Attempting server-side token refresh...')
+          const refreshData = await authUtils.serverRefresh(refreshToken)
+
+          if (refreshData?.accessToken) {
+            newAccessToken = refreshData.accessToken
+            console.log('Refresh successful, retrying fetch with new token')
+
+            // Retry with new token
+            const retryHeaders = {
+              ...headers,
+              'Authorization': `Bearer ${newAccessToken}`
+            }
+
+            response = await fetch(`${API_BASE_URL}${DATATABLE_ENDPOINTS.LIST}`, {
+              headers: retryHeaders,
+              next: { revalidate: 0 }
+            })
+            console.log('Retry Fetch Status:', response.status, response.statusText)
+          }
+        } catch (refreshError) {
+          console.error('Server-side token refresh failed:', refreshError)
+        }
+      }
+    }
 
     if (!response.ok) {
       console.error('Failed to fetch tables in server component:', response.status, response.statusText)
@@ -23,39 +54,35 @@ async function getTables() {
         console.error('Error details:', errorData)
       } catch (e) {
         console.error('Could not parse error response body as JSON')
-        try {
-          const textData = await response.text()
-          console.error('Error text body:', textData)
-        } catch (textErr) {
-          console.error('Could not read error response body at all')
-        }
       }
-      return []
+      return { tables: [], newAccessToken }
     }
 
     const data = await response.json()
+    let tables = []
 
-    // Handle different response formats exactly like the old client
+    // Handle different response formats
     if (Array.isArray(data)) {
-      return data
+      tables = data
     } else if (data?.data && Array.isArray(data.data)) {
-      return data.data
+      tables = data.data
     } else if (data?.tables && Array.isArray(data.tables)) {
-      return data.tables
+      tables = data.tables
     }
-    return []
+
+    return { tables, newAccessToken }
   } catch (error) {
     console.error('Error fetching tables:', error)
-    return []
+    return { tables: [], newAccessToken }
   }
 }
 
 export default async function LeadsPage() {
-  const initialTables = await getTables()
+  const { tables, newAccessToken } = await getTables()
 
   return (
     <Suspense fallback={<div>Loading data...</div>}>
-      <LeadsPageClient initialTables={initialTables} />
+      <LeadsPageClient initialTables={tables} newAccessToken={newAccessToken} />
     </Suspense>
   )
 }
