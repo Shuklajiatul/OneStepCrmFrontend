@@ -102,8 +102,11 @@ export default function DashboardClient({
         icon: ICON_MAP[a.iconKey] || Flag
     }))
 
+    const [mounted, setMounted] = useState(false)
+
     // Get current user from client-side cookies for personalization if not passed from server
     useEffect(() => {
+        setMounted(true)
         if (!currentUser) {
             const tokens = authUtils.getTokens()
             if (tokens?.user) {
@@ -212,22 +215,26 @@ export default function DashboardClient({
                             </div>
                         </CardHeader>
                         <CardContent className="h-[320px] pt-6">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ecf0f1" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} dy={10} />
-                                    <YAxis axisLine={false} tickLine={false} />
-                                    <Tooltip
-                                        cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                    />
-                                    <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={50}>
-                                        {chartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.8} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
+                            {mounted ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={chartData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ecf0f1" />
+                                        <XAxis dataKey="name" axisLine={false} tickLine={false} dy={10} />
+                                        <YAxis axisLine={false} tickLine={false} />
+                                        <Tooltip
+                                            cursor={{ fill: 'rgba(0,0,0,0.02)' }}
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                        />
+                                        <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={50}>
+                                            {chartData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.8} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="w-full h-full bg-muted/10 animate-pulse rounded-lg" />
+                            )}
                         </CardContent>
                     </Card>
 

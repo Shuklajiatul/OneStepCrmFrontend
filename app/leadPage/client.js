@@ -42,15 +42,20 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { toast } from "sonner"
+import { toast as useToast } from "sonner" // Renamed to avoid conflict with local toast
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getStatusBadge } from '@/lib/utils'
 import { datatablesApi } from '@/lib/api-endpoint'
 import { authUtils } from '@/lib/auth-utils'
+import { Skeleton } from "@/components/ui/skeleton"
+import LeadPageSkeleton from "./components/lead-page-skeleton"
 
-export default function LeadsPageClient({ initialTables = [], newAccessToken = null }) {
+export default function LeadsPageClient({ initialTables = [], newAccessToken: propNewAccessToken = null }) {
     const router = useRouter()
     const searchParams = useSearchParams()
+    const { toast } = useToast()
+    const [mounted, setMounted] = useState(false)
+
     const [tables, setTables] = useState(initialTables)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
@@ -67,11 +72,11 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
 
     // Sync new token from server to browser cookies if it was refreshed
     useEffect(() => {
-        if (newAccessToken) {
+        if (propNewAccessToken) {
             console.log('Syncing new server-side token to cookies');
-            authUtils.setTokens({ accessToken: newAccessToken });
+            authUtils.setTokens({ accessToken: propNewAccessToken });
         }
-    }, [newAccessToken]);
+    }, [propNewAccessToken]);
 
     // Handle deep linking to specific table
     useEffect(() => {
@@ -154,6 +159,10 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
 
         return matchesSearch && matchesTab
     })
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     // Pagination
     const startIndex = (currentPage - 1) * pageSize
@@ -301,7 +310,11 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
                         <div className="flex flex-col gap-1">
                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Tables</span>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-foreground">{tables.length}</span>
+                                {loading ? (
+                                    <Skeleton className="h-8 w-12" />
+                                ) : (
+                                    <span className="text-2xl font-black text-foreground">{tables.length}</span>
+                                )}
                                 <span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full">Global</span>
                             </div>
                             <div className="mt-2 flex items-center text-xs text-muted-foreground">
@@ -320,9 +333,13 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
                         <div className="flex flex-col gap-1">
                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Tables</span>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-foreground">
-                                    {tables.filter(t => t.is_active).length}
-                                </span>
+                                {loading ? (
+                                    <Skeleton className="h-8 w-12" />
+                                ) : (
+                                    <span className="text-2xl font-black text-foreground">
+                                        {tables.filter(t => t.is_active).length}
+                                    </span>
+                                )}
                             </div>
                             <div className="mt-2 flex items-center text-xs text-muted-foreground">
                                 <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
@@ -340,9 +357,13 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
                         <div className="flex flex-col gap-1">
                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Inactive Tables</span>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-foreground">
-                                    {tables.filter(t => !t.is_active).length}
-                                </span>
+                                {loading ? (
+                                    <Skeleton className="h-8 w-12" />
+                                ) : (
+                                    <span className="text-2xl font-black text-foreground">
+                                        {tables.filter(t => !t.is_active).length}
+                                    </span>
+                                )}
                                 <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">Archived</span>
                             </div>
                             <div className="mt-2 flex items-center text-xs text-muted-foreground">
@@ -361,14 +382,18 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
                         <div className="flex flex-col gap-1">
                             <span className="text-xs font-semibold text-purple-100 uppercase tracking-wider">Growth Factor</span>
                             <div className="flex items-baseline gap-1">
-                                <span className="text-2xl font-black text-white">
-                                    {tables.filter(t => {
-                                        const createdDate = new Date(t.created_at)
-                                        const weekAgo = new Date()
-                                        weekAgo.setDate(weekAgo.getDate() - 7)
-                                        return createdDate >= weekAgo
-                                    }).length}
-                                </span>
+                                {loading ? (
+                                    <Skeleton className="h-8 w-12 bg-purple-400" />
+                                ) : (
+                                    <span className="text-2xl font-black text-white">
+                                        {tables.filter(t => {
+                                            const createdDate = new Date(t.created_at)
+                                            const weekAgo = new Date()
+                                            weekAgo.setDate(weekAgo.getDate() - 7)
+                                            return createdDate >= weekAgo
+                                        }).length}
+                                    </span>
+                                )}
                                 <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">This Week</span>
                             </div>
                             <div className="mt-2 flex items-center text-xs text-purple-200">
@@ -398,43 +423,57 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
                         )}
                     </div>
 
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
-                        <TabsList className="bg-muted/30 p-1 h-10 border-none">
-                            <TabsTrigger value="all" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4">
-                                All
-                                <Badge variant="secondary" className="ml-2 bg-primary/10 text-primary border-none text-[10px]">
-                                    {tables.length}
-                                </Badge>
-                            </TabsTrigger>
-                            <TabsTrigger value="active" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4">
-                                Active
-                                <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700 border-none text-[10px]">
-                                    {tables.filter(t => t.is_active).length}
-                                </Badge>
-                            </TabsTrigger>
-                            <TabsTrigger value="inactive" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4">
-                                Inactive
-                                <Badge variant="secondary" className="ml-2 bg-gray-200 text-gray-700 border-none text-[10px]">
-                                    {tables.filter(t => !t.is_active).length}
-                                </Badge>
-                            </TabsTrigger>
-                        </TabsList>
-                    </Tabs>
+                    {mounted ? (
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full sm:w-auto">
+                            <TabsList className="bg-muted/30 p-1 h-10 border-none">
+                                <TabsTrigger value="all" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4">
+                                    All
+                                    <Badge variant="secondary" className="ml-2 bg-primary/10 text-primary border-none text-[10px]">
+                                        {tables.length}
+                                    </Badge>
+                                </TabsTrigger>
+                                <TabsTrigger value="active" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4">
+                                    Active
+                                    <Badge variant="secondary" className="ml-2 bg-green-100 text-green-700 border-none text-[10px]">
+                                        {tables.filter(t => t.is_active).length}
+                                    </Badge>
+                                </TabsTrigger>
+                                <TabsTrigger value="inactive" className="data-[state=active]:bg-background data-[state=active]:shadow-sm px-4">
+                                    Inactive
+                                    <Badge variant="secondary" className="ml-2 bg-gray-200 text-gray-700 border-none text-[10px]">
+                                        {tables.filter(t => !t.is_active).length}
+                                    </Badge>
+                                </TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+                    ) : (
+                        <div className="w-full sm:w-auto h-10 bg-muted/30 p-1 border-none rounded-md flex items-center">
+                            <div className="px-4 text-sm font-medium">All</div>
+                            <div className="px-4 text-sm font-medium">Active</div>
+                            <div className="px-4 text-sm font-medium">Inactive</div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
                     <div className="flex items-center gap-3">
                         <span className="text-sm font-semibold text-muted-foreground whitespace-nowrap">Sort & Group:</span>
-                        <Select value={groupBy} onValueChange={setGroupBy}>
-                            <SelectTrigger className="w-44 h-10 bg-muted/30 border-none focus:ring-primary">
-                                <SelectValue placeholder="Select grouping" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Default Listing</SelectItem>
-                                <SelectItem value="status">By Connectivity</SelectItem>
-                                <SelectItem value="date">By Creation Date</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        {mounted ? (
+                            <Select value={groupBy} onValueChange={setGroupBy}>
+                                <SelectTrigger className="w-44 h-10 bg-muted/30 border-none focus:ring-primary">
+                                    <SelectValue placeholder="Select grouping" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">Default Listing</SelectItem>
+                                    <SelectItem value="status">By Connectivity</SelectItem>
+                                    <SelectItem value="date">By Creation Date</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <div className="w-44 h-10 bg-muted/30 border-none rounded-md flex items-center px-3 text-sm">
+                                No Grouping
+                            </div>
+                        )}
                     </div>
 
                     <div className="h-6 w-px bg-border hidden sm:block mx-2"></div>
@@ -463,7 +502,9 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
             </div>
 
             <div className="space-y-10">
-                {Object.entries(groupedTables()).map(([groupName, groupTables]) => {
+                {loading ? (
+                    <LeadPageSkeleton displayMode={displayMode} />
+                ) : Object.entries(groupedTables()).map(([groupName, groupTables]) => {
                     if (groupTables.length === 0) return null
 
                     return (
@@ -499,30 +540,24 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
                                                             </CardTitle>
                                                         </div>
                                                     </div>
-
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="sm" className="w-8 h-8 p-0 rounded-full hover:bg-muted">
-                                                                <MoreHorizontal className="h-4 w-4" />
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground hover:bg-muted">
+                                                                <MoreVertical className="h-4 w-4" />
                                                             </Button>
                                                         </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-xl border-primary/5">
+                                                        <DropdownMenuContent align="end" className="w-48">
                                                             <DropdownMenuItem
-                                                                className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary"
                                                                 onClick={() => {
                                                                     setSelectedTable(table)
                                                                     setCurrentView("data")
                                                                     router.push(`/leadPage?tableId=${table.table_id}`)
                                                                 }}
+                                                                className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary"
                                                             >
                                                                 <Eye className="h-4 w-4 mr-3" />
-                                                                <span className="font-semibold">View Data</span>
+                                                                <span className="font-semibold">View Table</span>
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuItem className="rounded-lg cursor-pointer focus:bg-primary/10 focus:text-primary">
-                                                                <Edit className="h-4 w-4 mr-3" />
-                                                                <span className="font-semibold">Edit Structure</span>
-                                                            </DropdownMenuItem>
-                                                            <DropdownMenuSeparator />
                                                             <DropdownMenuItem
                                                                 onClick={() => {
                                                                     setTableToDelete(table)
@@ -786,6 +821,6 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken = n
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div >
+        </div>
     )
 }

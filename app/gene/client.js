@@ -12,6 +12,7 @@ import {
   Layers, Users as UsersIcon, Calendar, BarChart3, Filter, Network,
   ArrowUpDown, ChevronUp, ChevronDown
 } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Shadcn UI Components
 import { Button } from "@/components/ui/button";
@@ -1240,7 +1241,20 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedGenes.map((gene, index) => {
+              {loading ? (
+                Array.from({ length: pageSize }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="py-4"><Skeleton className="h-5 w-40" /></TableCell>
+                    <TableCell className="hidden lg:table-cell"><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell className="hidden sm:table-cell"><Skeleton className="h-5 w-20" /></TableCell>
+                    <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-12 mx-auto" /></TableCell>
+                    <TableCell className="hidden md:table-cell"><Skeleton className="h-5 w-12 mx-auto" /></TableCell>
+                    <TableCell className="text-center"><Skeleton className="h-5 w-12 mx-auto" /></TableCell>
+                    <TableCell className="hidden xl:table-cell"><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell className="text-right pr-6"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                  </TableRow>
+                ))
+              ) : paginatedGenes.map((gene, index) => {
                 const geneName = gene.g_name || gene.name || 'Unnamed Gene';
                 return (
                   <TableRow
@@ -1344,13 +1358,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   );
 
   const renderGeneView = () => {
-    if (loading) {
-      return (
-        <div className="flex justify-center items-center py-12">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </div>
-      );
-    }
+    // Remove early return for loading to show skeletons in the main layout
 
     if (error) {
       return (
@@ -1571,55 +1579,18 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Genes</CardTitle>
-                <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{genes.length}</div>
-                <p className="text-xs text-muted-foreground">All genes</p>
-              </CardContent>
-            </Card>
-
-            {/* <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Levels</CardTitle>
-              <Layers className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {genes.reduce((sum, h) => sum + h.level_depth, 0)}
-              </div>
-              <p className="text-xs text-muted-foreground">Across all genes</p>
-            </CardContent>
-          </Card> */}
-
-            {/* <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg. Depth</CardTitle>
-              <Building className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {genes.length > 0 ? (genes.reduce((sum, h) => sum + h.level_depth, 0) / genes.length).toFixed(1) : 0}
-              </div>
-              <p className="text-xs text-muted-foreground">Average levels</p>
-            </CardContent>
-          </Card> */}
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Genes</CardTitle>
-                <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {genes.filter(g => g.is_active).length}
-                </div>
-                <p className="text-xs text-muted-foreground">Currently active</p>
-              </CardContent>
-            </Card>
+            {[1, 2].map((_, i) => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-4 rounded-full" />
+                </CardHeader>
+                <CardContent>
+                  {loading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{i === 0 ? genes.length : genes.filter(g => g.is_active).length}</div>}
+                  <Skeleton className="h-3 w-20 mt-1" />
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Genes View */}

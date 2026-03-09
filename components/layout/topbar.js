@@ -123,53 +123,67 @@ export default function Topbar({ darkMode, toggleDarkMode, toggleSidebar, initia
                     </Button>
 
                     <div className="border border-gray-200 dark:border-gray-700 rounded-md">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="gap-2 h-auto py-2">
-                                    <Avatar className="size-8">
-                                        <AvatarFallback>{userInitials}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="hidden md:flex flex-col items-start min-w-[100px]">
-                                        <span className="font-medium text-sm">{userName || "User"}</span>
+                        {mounted ? (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="gap-2 h-auto py-2">
+                                        <Avatar className="size-8">
+                                            <AvatarFallback>{userInitials}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="hidden md:flex flex-col items-start min-w-[100px]">
+                                            <span className="font-medium text-sm">{userName || "User"}</span>
+                                            {userEmail && (
+                                                <span className="text-xs text-muted-foreground">{userEmail}</span>
+                                            )}
+                                        </div>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56">
+                                    <DropdownMenuLabel className="flex flex-col gap-1">
+                                        <span>{userName || "User"}</span>
                                         {userEmail && (
-                                            <span className="text-xs text-muted-foreground">{userEmail}</span>
+                                            <span className="text-xs font-normal text-muted-foreground">{userEmail}</span>
                                         )}
-                                    </div>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                                <DropdownMenuLabel className="flex flex-col gap-1">
-                                    <span>{userName || "User"}</span>
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => router.push('/profile')}>
+                                        <User className="mr-2 size-4" />
+                                        <span>Profile</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem>
+                                        <Settings className="mr-2 size-4" />
+                                        <span>Settings</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={toggleDarkMode}>
+                                        <Palette className="mr-2 size-4" />
+                                        <span>Appearance</span>
+                                        <span className="ml-auto text-xs bg-secondary px-2 py-1 rounded">
+                                            {darkMode ? 'Dark' : 'Light'}
+                                        </span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onClick={handleLogout}
+                                    >
+                                        <LogOut className="mr-2 size-4" />
+                                        <span>Logout</span>
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        ) : (
+                            <Button variant="ghost" className="gap-2 h-auto py-2">
+                                <Avatar className="size-8">
+                                    <AvatarFallback>{userInitials}</AvatarFallback>
+                                </Avatar>
+                                <div className="hidden md:flex flex-col items-start min-w-[100px]">
+                                    <span className="font-medium text-sm">{userName || "User"}</span>
                                     {userEmail && (
-                                        <span className="text-xs font-normal text-muted-foreground">{userEmail}</span>
+                                        <span className="text-xs text-muted-foreground">{userEmail}</span>
                                     )}
-                                </DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => router.push('/profile')}>
-                                    <User className="mr-2 size-4" />
-                                    <span>Profile</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Settings className="mr-2 size-4" />
-                                    <span>Settings</span>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={toggleDarkMode}>
-                                    <Palette className="mr-2 size-4" />
-                                    <span>Appearance</span>
-                                    <span className="ml-auto text-xs bg-secondary px-2 py-1 rounded">
-                                        {darkMode ? 'Dark' : 'Light'}
-                                    </span>
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    className="text-destructive focus:text-destructive"
-                                    onClick={handleLogout}
-                                >
-                                    <LogOut className="mr-2 size-4" />
-                                    <span>Logout</span>
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                                </div>
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>

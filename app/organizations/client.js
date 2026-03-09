@@ -61,7 +61,7 @@ export default function OrganizationsClient(props) {
                 </div>
             </div>
 
-            <OrganizationStats organizations={organizations} />
+            <OrganizationStats organizations={organizations} loading={loading} />
 
             <div className="space-y-4">
                 <OrganizationFilters

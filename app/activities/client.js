@@ -23,6 +23,7 @@ import {
     ChevronUp,
     ChevronDown
 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
     Table,
     TableBody,
@@ -125,7 +126,10 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
 
     const [editingActivity, setEditingActivity] = useState(null)
 
+    const [mounted, setMounted] = useState(false)
+
     useEffect(() => {
+        setMounted(true)
         const tokens = authUtils.getTokens()
         if (tokens?.user) {
             setCurrentUser(tokens.user)
@@ -314,12 +318,15 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
     }
 
     const refreshActivities = async () => {
+        setLoading(true)
         try {
             const activitiesRes = await activitiesApi.getByOrganization()
             const activitiesData = activitiesRes.data?.data || activitiesRes.data || []
             setActivities(activitiesData)
         } catch (error) {
             console.error("Failed to refresh activities:", error)
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -479,16 +486,8 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
         completed: filteredActivities.filter(a => a.completed).length,
     }
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[50vh]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        )
-    }
-
     return (
-        <div className="p-0Data Tables md:p-0 space-y-6 max-w-[1600px] mx-auto">
+        <div className="p-0 md:p-0 space-y-6 max-w-[1600px] mx-auto">
             <PageBreadcrumb />
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -507,17 +506,29 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                     { title: "Pending", value: stats.pending, icon: Clock, color: "text-yellow-500", bg: "bg-yellow-50" },
                     { title: "Overdue", value: stats.overdue, icon: AlertCircle, color: "text-red-500", bg: "bg-red-50" },
                     { title: "Completed", value: stats.completed, icon: CheckCircle2, color: "text-green-500", bg: "bg-green-50" },
-                ].map((stat, i) => (
-                    <Card key={i} className={`border-none ${stat.bg} rounded-xl`}>
-                        <CardHeader className="flex flex-row items-center justify-between pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-                            <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{stat.value}</div>
-                        </CardContent>
-                    </Card>
-                ))}
+                ].map((stat, i) => {
+                    const Icon = stat.icon;
+                    return (
+                        <Card key={i} className={`border-none ${stat.bg} rounded-xl hover:bg-muted/50 transition-colors`}>
+                            <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                {loading ? (
+                                    <>
+                                        <Skeleton className="h-4 w-16" />
+                                        <Skeleton className="h-4 w-4 rounded-full" />
+                                    </>
+                                ) : (
+                                    <>
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
+                                        <Icon className={`h-4 w-4 ${stat.color}`} />
+                                    </>
+                                )}
+                            </CardHeader>
+                            <CardContent>
+                                {loading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{stat.value}</div>}
+                            </CardContent>
+                        </Card>
+                    )
+                })}
             </div>
 
             <Card className="rounded-xl">
@@ -540,42 +551,52 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                                 )}
                             </div>
                         </div>
-                        <Select value={filterType} onValueChange={setFilterType}>
-                            <SelectTrigger className="w-full md:w-[180px]">
-                                <SelectValue placeholder="Filter by type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Types</SelectItem>
-                                <SelectItem value="task">Tasks</SelectItem>
-                                <SelectItem value="call">Calls</SelectItem>
-                                <SelectItem value="meeting">Meetings</SelectItem>
-                                <SelectItem value="email">Emails</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <Select value={filterStatus} onValueChange={setFilterStatus}>
-                            <SelectTrigger className="w-full md:w-[180px]">
-                                <SelectValue placeholder="Filter by status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Status</SelectItem>
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="overdue">Overdue</SelectItem>
-                                <SelectItem value="completed">Completed</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <Select value={filterTable} onValueChange={setFilterTable}>
-                            <SelectTrigger className="w-full md:w-[180px]">
-                                <SelectValue placeholder="Filter by table" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Tables</SelectItem>
-                                {tables.map((table) => (
-                                    <SelectItem key={table.table_id} value={table.table_id}>
-                                        {table.table_name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        {mounted ? (
+                            <>
+                                <Select value={filterType} onValueChange={setFilterType}>
+                                    <SelectTrigger className="w-full md:w-[180px]">
+                                        <SelectValue placeholder="Filter by type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Types</SelectItem>
+                                        <SelectItem value="task">Tasks</SelectItem>
+                                        <SelectItem value="call">Calls</SelectItem>
+                                        <SelectItem value="meeting">Meetings</SelectItem>
+                                        <SelectItem value="email">Emails</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                                    <SelectTrigger className="w-full md:w-[180px]">
+                                        <SelectValue placeholder="Filter by status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Status</SelectItem>
+                                        <SelectItem value="pending">Pending</SelectItem>
+                                        <SelectItem value="overdue">Overdue</SelectItem>
+                                        <SelectItem value="completed">Completed</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <Select value={filterTable} onValueChange={setFilterTable}>
+                                    <SelectTrigger className="w-full md:w-[180px]">
+                                        <SelectValue placeholder="Filter by table" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Tables</SelectItem>
+                                        {tables.map((table) => (
+                                            <SelectItem key={table.table_id} value={table.table_id}>
+                                                {table.table_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </>
+                        ) : (
+                            <div className="flex gap-4">
+                                <div className="w-full md:w-[180px] h-10 bg-muted/20 border rounded-md"></div>
+                                <div className="w-full md:w-[180px] h-10 bg-muted/20 border rounded-md"></div>
+                                <div className="w-full md:w-[180px] h-10 bg-muted/20 border rounded-md"></div>
+                            </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -647,7 +668,19 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredActivities.length === 0 ? (
+                                {loading ? (
+                                    Array.from({ length: itemsPerPage }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell className="pl-6 py-4"><Skeleton className="h-5 w-40" /></TableCell>
+                                            <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                                            <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                                            <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                                            <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                                            <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+                                            <TableCell className="text-right pr-6"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : filteredActivities.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                                             No activities found. Create your first activity to get started.
@@ -752,21 +785,25 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 border-t">
                             <div className="flex items-center gap-2">
                                 <p className="text-sm text-muted-foreground whitespace-nowrap">Rows per page:</p>
-                                <Select
-                                    value={itemsPerPage.toString()}
-                                    onValueChange={handleItemsPerPageChange}
-                                >
-                                    <SelectTrigger className="w-[70px] h-8">
-                                        <SelectValue placeholder={itemsPerPage} />
-                                    </SelectTrigger>
-                                    <SelectContent side="top">
-                                        {[5, 10, 20, 50].map((pageSize) => (
-                                            <SelectItem key={pageSize} value={pageSize.toString()}>
-                                                {pageSize}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                {mounted ? (
+                                    <Select
+                                        value={itemsPerPage.toString()}
+                                        onValueChange={handleItemsPerPageChange}
+                                    >
+                                        <SelectTrigger className="w-[70px] h-8">
+                                            <SelectValue placeholder={itemsPerPage} />
+                                        </SelectTrigger>
+                                        <SelectContent side="top">
+                                            {[5, 10, 20, 50].map((pageSize) => (
+                                                <SelectItem key={pageSize} value={pageSize.toString()}>
+                                                    {pageSize}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <div className="w-[70px] h-8 bg-muted/20 border rounded-md"></div>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-4">

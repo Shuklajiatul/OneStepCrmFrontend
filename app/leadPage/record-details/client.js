@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import {
@@ -61,8 +62,10 @@ export default function RecordDetailsClient({
     const [isNestedModalOpen, setIsNestedModalOpen] = useState(false)
     const [nestedData, setNestedData] = useState(null)
     const [currentField, setCurrentField] = useState(null)
+    const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
+        setMounted(true)
         // Get current user for activity creation
         const tokens = authUtils.getTokens()
         if (tokens?.user) {
@@ -629,107 +632,133 @@ export default function RecordDetailsClient({
                         </div>
 
                         <div className="lg:col-span-5 space-y-6">
-                            <Tabs defaultValue="history" className="h-full flex flex-col">
-                                <TabsList className="grid w-full grid-cols-2">
-                                    <TabsTrigger value="history" className="flex items-center gap-2">
-                                        <History className="h-4 w-4" /> History
-                                    </TabsTrigger>
-                                    <TabsTrigger value="activities" className="flex items-center gap-2">
-                                        <ListTodo className="h-4 w-4" /> Activities
-                                    </TabsTrigger>
-                                </TabsList>
-
-                                <TabsContent value="history" className="mt-4 flex-1">
-                                    <Card className="shadow-sm">
-                                        <CardHeader className="pb-2">
-                                            <CardTitle className="text-sm font-bold flex items-center gap-2">
-                                                <Clock className="h-4 w-4 text-amber-500" /> Record History
-                                            </CardTitle>
-                                        </CardHeader>
-                                        <CardContent className="h-[600px] overflow-y-auto">
-                                            {history.length > 0 ? (
-                                                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:w-0.5 before:bg-muted-foreground/20">
-                                                    {history.map((item, idx) => (
-                                                        <div key={idx} className="relative flex items-start gap-4 group">
-                                                            <div className="w-10 h-10 rounded-full bg-background border-2 border-primary z-10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                                                                <Clock className="h-4 w-4 text-primary" />
-                                                            </div>
-                                                            <div className="flex-1 bg-muted/10 p-4 rounded-xl border group-hover:bg-muted/20 transition-colors">
-                                                                <div className="flex justify-between items-center text-xs mb-2">
-                                                                    <span className="font-bold text-primary">{getUserName(item.user_id)}</span>
-                                                                    <span className="text-muted-foreground bg-background px-2 py-0.5 rounded-full border" suppressHydrationWarning>{new Date(item.event_timestamp).toLocaleString()}</span>
+                            {mounted ? (
+                                <Tabs defaultValue="history" className="h-full flex flex-col">
+                                    <TabsList className="grid w-full grid-cols-2">
+                                        <TabsTrigger value="history" className="flex items-center gap-2">
+                                            <History className="h-4 w-4" /> History
+                                        </TabsTrigger>
+                                        <TabsTrigger value="activities" className="flex items-center gap-2">
+                                            <ListTodo className="h-4 w-4" /> Activities
+                                        </TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent value="history" className="mt-4 flex-1">
+                                        <Card className="shadow-sm">
+                                            <CardHeader className="pb-2">
+                                                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                                                    <Clock className="h-4 w-4 text-amber-500" /> Record History
+                                                </CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="h-[600px] overflow-y-auto">
+                                                {history.length > 0 ? (
+                                                    <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:w-0.5 before:bg-muted-foreground/20">
+                                                        {history.map((item, idx) => (
+                                                            <div key={idx} className="relative flex items-start gap-4 group">
+                                                                <div className="w-10 h-10 rounded-full bg-background border-2 border-primary z-10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                                                                    <Clock className="h-4 w-4 text-primary" />
                                                                 </div>
-                                                                <div className="text-xs space-y-1.5">
-                                                                    <p className="font-semibold text-foreground/80">{item.event_type === 'UPDATE' ? 'Field modified' : item.event_type}</p>
-                                                                    <div className="p-2 bg-background/50 rounded border border-transparent group-hover:border-primary/10">
-                                                                        <span className="font-medium">{columns.find(c => c.column_id === item.changed_field)?.column_name || item.changed_field}:</span>
-                                                                        <div className="flex items-center flex-wrap gap-1 mt-1">
-                                                                            <span className="text-red-500 line-through opacity-60 bg-red-50/50 px-1 rounded" suppressHydrationWarning>{parseHistoryValue(item.old_value)}</span>
-                                                                            <span className="text-muted-foreground mx-1">→</span>
-                                                                            <span className="text-green-600 font-medium bg-green-50/50 px-1 rounded" suppressHydrationWarning>{parseHistoryValue(item.new_value)}</span>
+                                                                <div className="flex-1 bg-muted/10 p-4 rounded-xl border group-hover:bg-muted/20 transition-colors">
+                                                                    <div className="flex justify-between items-center text-xs mb-2">
+                                                                        <span className="font-bold text-primary">{getUserName(item.user_id)}</span>
+                                                                        <span className="text-muted-foreground bg-background px-2 py-0.5 rounded-full border" suppressHydrationWarning>{new Date(item.event_timestamp).toLocaleString()}</span>
+                                                                    </div>
+                                                                    <div className="text-xs space-y-1.5">
+                                                                        <p className="font-semibold text-foreground/80">{item.event_type === 'UPDATE' ? 'Field modified' : item.event_type}</p>
+                                                                        <div className="p-2 bg-background/50 rounded border border-transparent group-hover:border-primary/10">
+                                                                            <span className="font-medium">{columns.find(c => c.column_id === item.changed_field)?.column_name || item.changed_field}:</span>
+                                                                            <div className="flex items-center flex-wrap gap-1 mt-1">
+                                                                                <span className="text-red-500 line-through opacity-60 bg-red-50/50 px-1 rounded" suppressHydrationWarning>{parseHistoryValue(item.old_value)}</span>
+                                                                                <span className="text-muted-foreground mx-1">→</span>
+                                                                                <span className="text-green-600 font-medium bg-green-50/50 px-1 rounded" suppressHydrationWarning>{parseHistoryValue(item.new_value)}</span>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                                                    <History className="h-10 w-10 opacity-20 mb-2" />
-                                                    <p>No history found</p>
-                                                </div>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                </TabsContent>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                                                        <History className="h-10 w-10 opacity-20 mb-2" />
+                                                        <p>No history found</p>
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    </TabsContent>
 
-                                <TabsContent value="activities" className="mt-4 flex-1">
-                                    <Card className="shadow-sm">
-                                        <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                                            <CardTitle className="text-sm font-bold flex items-center gap-2">
-                                                <ListTodo className="h-4 w-4 text-blue-500" /> Recent Activities
-                                            </CardTitle>
-                                            <Button size="sm" variant="outline" onClick={() => setIsCreateActivityOpen(true)} className="gap-1">
-                                                <Plus className="h-4 w-4" /> Add
-                                            </Button>
-                                        </CardHeader>
-                                        <CardContent className="h-[600px] overflow-y-auto">
-                                            {loadingActivities ? (
-                                                <div className="flex justify-center py-10"><RefreshCw className="animate-spin h-6 w-6" /></div>
-                                            ) : activities.length > 0 ? (
-                                                <div className="space-y-3">
-                                                    {activities.map((activity) => (
-                                                        <div key={activity.activity_id} className="p-4 bg-muted/5 rounded-xl border hover:bg-muted/20 transition-all cursor-pointer group shadow-sm">
-                                                            <div className="flex items-center justify-between mb-2">
-                                                                <Badge variant="outline" className="bg-background text-[10px]">{activity.activity_type}</Badge>
-                                                                <span className="text-[10px] text-muted-foreground flex items-center gap-1" suppressHydrationWarning>
-                                                                    <Clock className="h-3 w-3" />
-                                                                    {new Date(activity.due_date).toLocaleDateString()}
-                                                                </span>
+                                    <TabsContent value="activities" className="mt-4 flex-1">
+                                        <Card className="shadow-sm">
+                                            <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                                                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                                                    <ListTodo className="h-4 w-4 text-blue-500" /> Recent Activities
+                                                </CardTitle>
+                                                <Button size="sm" variant="outline" onClick={() => setIsCreateActivityOpen(true)} className="gap-1">
+                                                    <Plus className="h-4 w-4" /> Add
+                                                </Button>
+                                            </CardHeader>
+                                            <CardContent className="h-[600px] overflow-y-auto">
+                                                {loadingActivities ? (
+                                                    <div className="space-y-3">
+                                                        {[1, 2, 3].map(i => (
+                                                            <div key={i} className="p-4 bg-muted/5 rounded-xl border space-y-3">
+                                                                <div className="flex items-center justify-between">
+                                                                    <Skeleton className="h-5 w-16" />
+                                                                    <Skeleton className="h-4 w-20" />
+                                                                </div>
+                                                                <Skeleton className="h-5 w-3/4" />
+                                                                <Skeleton className="h-4 w-full" />
+                                                                <div className="pt-2 flex items-center justify-between">
+                                                                    <Skeleton className="h-5 w-16" />
+                                                                </div>
                                                             </div>
-                                                            <h4 className="text-sm font-bold group-hover:text-primary transition-colors">{activity.title}</h4>
-                                                            <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{activity.description || 'No description provided'}</p>
-                                                            <div className="mt-3 pt-2 border-t flex items-center justify-between">
-                                                                <Badge variant={activity.completed ? "default" : "secondary"} className="text-[9px] scale-90">
-                                                                    {activity.completed ? "Completed" : "Pending"}
-                                                                </Badge>
-                                                                <span className="text-[10px] font-mono text-primary opacity-0 group-hover:opacity-100 transition-opacity">View Details →</span>
+                                                        ))}
+                                                    </div>
+                                                ) : activities.length > 0 ? (
+                                                    <div className="space-y-3">
+                                                        {activities.map((activity) => (
+                                                            <div key={activity.activity_id} className="p-4 bg-muted/5 rounded-xl border hover:bg-muted/20 transition-all cursor-pointer group shadow-sm">
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                    <Badge variant="outline" className="bg-background text-[10px]">{activity.activity_type}</Badge>
+                                                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1" suppressHydrationWarning>
+                                                                        <Clock className="h-3 w-3" />
+                                                                        {new Date(activity.due_date).toLocaleDateString()}
+                                                                    </span>
+                                                                </div>
+                                                                <h4 className="text-sm font-bold group-hover:text-primary transition-colors">{activity.title}</h4>
+                                                                <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{activity.description || 'No description provided'}</p>
+                                                                <div className="mt-3 pt-2 border-t flex items-center justify-between">
+                                                                    <Badge variant={activity.completed ? "default" : "secondary"} className="text-[9px] scale-90">
+                                                                        {activity.completed ? "Completed" : "Pending"}
+                                                                    </Badge>
+                                                                    <span className="text-[10px] font-mono text-primary opacity-0 group-hover:opacity-100 transition-opacity">View Details →</span>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                                                    <ListTodo className="h-10 w-10 opacity-20 mb-2" />
-                                                    <p>No activities scheduled</p>
-                                                    <Button variant="link" size="sm" onClick={() => setIsCreateActivityOpen(true)}>Create one now</Button>
-                                                </div>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                                </TabsContent>
-                            </Tabs>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                                                        <ListTodo className="h-10 w-10 opacity-20 mb-2" />
+                                                        <p>No activities scheduled</p>
+                                                        <Button variant="link" size="sm" onClick={() => setIsCreateActivityOpen(true)}>Create one now</Button>
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    </TabsContent>
+                                </Tabs>
+                            ) : (
+                                <div className="h-full flex flex-col">
+                                    <div className="grid w-full grid-cols-2 bg-muted p-1 rounded-md mb-4 h-10">
+                                        <div className="flex items-center justify-center gap-2 text-sm font-medium h-full">
+                                            <History className="h-4 w-4" /> History
+                                        </div>
+                                        <div className="flex items-center justify-center gap-2 text-sm font-medium h-full">
+                                            <ListTodo className="h-4 w-4" /> Activities
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

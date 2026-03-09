@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -2189,11 +2190,68 @@ export default function TableDataView({ table, onBack }) {
 
   if (loading && safeRecords.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading table data...</p>
+      <div className="space-y-6 w-full max-w-full">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-10 w-32" />
+            <div>
+              <Skeleton className="h-8 w-48 mb-2" />
+              <Skeleton className="h-4 w-64" />
+            </div>
+          </div>
+          <Skeleton className="h-10 w-32" />
         </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-8 w-12" />
+                  </div>
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <Card>
+          <CardHeader className="pb-0">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-5 w-8 rounded-full" />
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 space-y-4">
+            <div className="flex justify-between">
+              <Skeleton className="h-10 w-1/3" />
+              <Skeleton className="h-10 w-24" />
+            </div>
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <TableHead key={i}><Skeleton className="h-4 w-20" /></TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <TableRow key={i}>
+                      {[1, 2, 3, 4, 5].map(j => (
+                        <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
@@ -2261,7 +2319,7 @@ export default function TableDataView({ table, onBack }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Records</p>
-                <p className="text-2xl font-bold">{safeRecords.length}</p>
+                {loading ? <Skeleton className="h-8 w-12" /> : <p className="text-2xl font-bold">{safeRecords.length}</p>}
               </div>
               <Database className="h-8 w-8 text-blue-500" />
             </div>
@@ -2273,7 +2331,7 @@ export default function TableDataView({ table, onBack }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Columns</p>
-                <p className="text-2xl font-bold">{columns.length}</p>
+                {loading ? <Skeleton className="h-8 w-12" /> : <p className="text-2xl font-bold">{columns.length}</p>}
               </div>
               <Settings className="h-8 w-8 text-green-500" />
             </div>
@@ -2285,9 +2343,13 @@ export default function TableDataView({ table, onBack }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">With Data</p>
-                <p className="text-2xl font-bold">
-                  {safeRecords.filter(r => r.field_values && Object.keys(r.field_values).length > 0).length}
-                </p>
+                {loading ? (
+                  <Skeleton className="h-8 w-12" />
+                ) : (
+                  <p className="text-2xl font-bold">
+                    {safeRecords.filter(r => r.field_values && Object.keys(r.field_values).length > 0).length}
+                  </p>
+                )}
               </div>
               <AlertCircle className="h-8 w-8 text-orange-500" />
             </div>
@@ -2299,9 +2361,13 @@ export default function TableDataView({ table, onBack }) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Empty Records</p>
-                <p className="text-2xl font-bold">
-                  {safeRecords.filter(r => !r.field_values || Object.keys(r.field_values).length === 0).length}
-                </p>
+                {loading ? (
+                  <Skeleton className="h-8 w-12" />
+                ) : (
+                  <p className="text-2xl font-bold">
+                    {safeRecords.filter(r => !r.field_values || Object.keys(r.field_values).length === 0).length}
+                  </p>
+                )}
               </div>
               <Database className="h-8 w-8 text-purple-500" />
             </div>

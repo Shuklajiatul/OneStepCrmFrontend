@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Plus, Edit, Save, X, Trash2, Settings, Settings2, Type, Hash, Calendar, CheckSquare,
   Database, Mail, Phone, Users, FileText, List, Calculator, User, Sparkles, GripVertical,
@@ -393,6 +394,7 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
             onAddRecord={openAddRecordDialog}
             records={records}
             countries={phoneCountries}
+            loading={loading}
           />
         )}
       </Card>
@@ -473,7 +475,7 @@ function SortableColumn({ column, table, onUpdate, onDelete, onEditName }) {
 }
 
 // Table Content Component
-function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTables, onFetchRecords, onAddRecord, records, countries }) {
+function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTables, onFetchRecords, onAddRecord, records, countries, loading }) {
   const [activeColumn, setActiveColumn] = useState(null)
 
   const sensors = useSensors(
@@ -699,7 +701,17 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(records || table.rows || []).map(row => (
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i} className="hover:bg-muted/50">
+                      {table.columns.map(column => (
+                        <TableCell key={`${i}-${column.id}`} className="border-r border-border last:border-r-0 py-4">
+                          <Skeleton className="h-5 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (records || table.rows || []).map(row => (
                   <TableRow key={row.id} className="hover:bg-muted/50">
                     {table.columns.map(column => (
                       <TableCell
@@ -2207,238 +2219,332 @@ export default function CustomTableBuilderClient({
       {/* Tables Display Area */}
       {view === 'list' ? (
         <>
-          <div className="space-y-10">
-            {Object.entries(groupedTables()).map(([groupName, groupTables]) => {
-              if (groupTables.length === 0) return null
+          {loading && tables.length === 0 ? (
+            <div className="space-y-6 animate-pulse mt-10">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-7 w-32 bg-muted-foreground/10" />
+                <div className="h-6 w-px bg-border"></div>
+                <Skeleton className="h-6 w-20 rounded-full bg-muted-foreground/10" />
+              </div>
 
-              return (
-                <div key={groupName} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-extrabold tracking-tight text-foreground">{groupName}</h2>
-                    <div className="h-6 w-px bg-border"></div>
-                    <Badge variant="outline" className="rounded-full bg-background font-bold px-3">
-                      {groupTables.length} Total
-                    </Badge>
-                  </div>
-
-                  {tableListViewMode === 'card' ? (
-                    // Updated Card View
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {groupTables.map((table) => (
-                        <Card key={table.id} className="card-elevated group flex flex-col border-none hover:ring-2 hover:ring-primary/20 transition-all duration-300">
-                          <CardHeader className="pb-3 pt-5 px-5">
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
-                                  <Database className="h-4 w-4" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <CardTitle
-                                    className="text-base font-semibold truncate hover:text-primary transition-colors cursor-pointer"
-                                    onClick={() => handleSelectTable(table)}
-                                  >
-                                    {table.name}
-                                  </CardTitle>
-                                </div>
-                              </div>
-
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="w-7 h-7 p-0 rounded-full hover:bg-muted" onClick={(e) => e.stopPropagation()}>
-                                    <MoreHorizontal className="h-3.5 w-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-xl border-primary/5">
-                                  <DropdownMenuItem
-                                    className="cursor-pointer"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSelectTable(table);
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    View Data
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="cursor-pointer"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSelectTable(table);
-                                    }}
-                                  >
-                                    <Settings2 className="h-4 w-4 mr-2" />
-                                    Table Settings
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deleteTable(table.id);
-                                    }}
-                                    className="text-destructive cursor-pointer focus:text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete Table
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+              {tableListViewMode === 'card' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {[1, 2, 3, 4, 5, 6].map(i => (
+                    <Card key={i} className="card-elevated border-none h-[260px] flex flex-col">
+                      <CardHeader className="pb-3 pt-5 px-5">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
+                            <Skeleton className="h-5 w-3/4" />
+                          </div>
+                          <Skeleton className="h-7 w-7 rounded-sm shrink-0" />
+                        </div>
+                      </CardHeader>
+                      <CardContent className="px-5 pb-5 flex-1 flex flex-col justify-between">
+                        <div>
+                          <Skeleton className="h-[60px] w-full rounded-md mb-3" />
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center">
+                            <Skeleton className="h-5 w-16 rounded-full" />
+                            <div className="flex items-center gap-1">
+                              <Skeleton className="h-3 w-3 rounded-full" />
+                              <Skeleton className="h-3 w-16" />
                             </div>
-                          </CardHeader>
+                          </div>
+                          <Skeleton className="h-9 w-full rounded-md" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="border rounded-xl overflow-hidden shadow-sm bg-card">
+                  <Table className="w-full">
+                    <TableHeader className="bg-muted/30">
+                      <TableRow>
+                        <TableHead className="w-[60px]"></TableHead>
+                        <TableHead>Table Identity</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="text-center">Structure</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <TableRow key={i}>
+                          <TableCell><Skeleton className="h-8 w-8 rounded-lg" /></TableCell>
+                          <TableCell>
+                            <div className="space-y-2">
+                              <Skeleton className="h-5 w-32" />
+                              <Skeleton className="h-3 w-20" />
+                            </div>
+                          </TableCell>
+                          <TableCell><Skeleton className="h-4 w-full max-w-[200px]" /></TableCell>
+                          <TableCell className="text-center"><Skeleton className="h-5 w-16 mx-auto rounded-full" /></TableCell>
+                          <TableCell className="text-center"><Skeleton className="h-5 w-16 mx-auto rounded-full" /></TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Skeleton className="h-8 w-8 rounded-md" />
+                              <Skeleton className="h-8 w-8 rounded-md" />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-10">
+              {tables.length === 0 && !loading && (
+                <div className="flex flex-col items-center justify-center p-12 text-center border rounded-2xl border-dashed bg-muted/10 h-64 mt-6">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
+                    <Database className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-lg font-semibold tracking-tight">No tables found</h3>
+                  <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                    You haven't created any custom tables yet, or your search didn't match any results.
+                  </p>
+                  <Button variant="outline" className="mt-6" onClick={() => setIsCreatingTable(true)}>
+                    <Plus className="mr-2 h-4 w-4" /> Create Table
+                  </Button>
+                </div>
+              )}
+              {Object.entries(groupedTables()).map(([groupName, groupTables]) => {
+                if (groupTables.length === 0) return null
 
-                          <CardContent className="pt-0 flex-1 flex flex-col justify-between px-5 pb-5">
-                            <div className="flex-1">
-                              <div className="bg-muted/20 rounded-lg p-3 mb-3 min-h-[60px]">
-                                {table.description ? (
-                                  <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-                                    {table.description}
-                                  </p>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground/50 italic flex items-center gap-1.5">
-                                    <AlertCircle className="h-2.5 w-2.5" /> No description
-                                  </p>
-                                )}
+                return (
+                  <div key={groupName} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xl font-extrabold tracking-tight text-foreground">{groupName}</h2>
+                      <div className="h-6 w-px bg-border"></div>
+                      <Badge variant="outline" className="rounded-full bg-background font-bold px-3">
+                        {groupTables.length} Total
+                      </Badge>
+                    </div>
+
+                    {tableListViewMode === 'card' ? (
+                      // Updated Card View
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {groupTables.map((table) => (
+                          <Card key={table.id} className="card-elevated group flex flex-col border-none hover:ring-2 hover:ring-primary/20 transition-all duration-300">
+                            <CardHeader className="pb-3 pt-5 px-5">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors duration-300">
+                                    <Database className="h-4 w-4" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <CardTitle
+                                      className="text-base font-semibold truncate hover:text-primary transition-colors cursor-pointer"
+                                      onClick={() => handleSelectTable(table)}
+                                    >
+                                      {table.name}
+                                    </CardTitle>
+                                  </div>
+                                </div>
+
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="w-7 h-7 p-0 rounded-full hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+                                      <MoreHorizontal className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-xl border-primary/5">
+                                    <DropdownMenuItem
+                                      className="cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSelectTable(table);
+                                      }}
+                                    >
+                                      <Eye className="h-4 w-4 mr-2" />
+                                      View Data
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSelectTable(table);
+                                      }}
+                                    >
+                                      <Settings2 className="h-4 w-4 mr-2" />
+                                      Table Settings
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        deleteTable(table.id);
+                                      }}
+                                      className="text-destructive cursor-pointer focus:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete Table
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
-                              <div className="flex flex-wrap gap-1.5 mb-3">
-                                {/* <Badge variant="secondary" className="text-xs bg-primary/5 text-primary border-primary/10 px-2 py-0.5">
+                            </CardHeader>
+
+                            <CardContent className="pt-0 flex-1 flex flex-col justify-between px-5 pb-5">
+                              <div className="flex-1">
+                                <div className="bg-muted/20 rounded-lg p-3 mb-3 min-h-[60px]">
+                                  {table.description ? (
+                                    <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                                      {table.description}
+                                    </p>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground/50 italic flex items-center gap-1.5">
+                                      <AlertCircle className="h-2.5 w-2.5" /> No description
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap gap-1.5 mb-3">
+                                  {/* <Badge variant="secondary" className="text-xs bg-primary/5 text-primary border-primary/10 px-2 py-0.5">
                                   {table.columns.length} Columns
                                 </Badge> */}
-                              </div>
-                            </div>
-
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  {getStatusBadge(table.isActive)}
-                                </div>
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Calendar className="h-2.5 w-2.5" />
-                                  {new Date(table.createdAt || table.created_at).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                  })}
                                 </div>
                               </div>
 
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full justify-between h-9 group-hover:border-primary/50 group-hover:text-primary transition-all"
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    {getStatusBadge(table.isActive)}
+                                  </div>
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Calendar className="h-2.5 w-2.5" />
+                                    {new Date(table.createdAt || table.created_at).toLocaleDateString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })}
+                                  </div>
+                                </div>
+
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full justify-between h-9 group-hover:border-primary/50 group-hover:text-primary transition-all"
+                                  onClick={() => handleSelectTable(table)}
+                                >
+                                  <span className="text-sm font-semibold">Access Table</span>
+                                  <ArrowLeft className="h-3.5 w-3.5 rotate-180 transition-transform group-hover:translate-x-0.5" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      // Updated List View
+                      <div className="border rounded-xl overflow-hidden shadow-sm bg-card">
+                        <Table className="w-full">
+                          <TableHeader className="bg-muted/30">
+                            <TableRow>
+                              <TableHead className="w-[60px]"></TableHead>
+                              <TableHead className="font-bold">Table Identity</TableHead>
+                              <TableHead className="font-bold">Description</TableHead>
+                              <TableHead className="text-center font-bold">Structure</TableHead>
+                              <TableHead className="text-center font-bold">Status</TableHead>
+                              <TableHead className="text-right font-bold">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {groupTables.map((table) => (
+                              <TableRow
+                                key={table.id}
+                                className="cursor-pointer hover:bg-muted/50 transition-colors"
                                 onClick={() => handleSelectTable(table)}
                               >
-                                <span className="text-sm font-semibold">Access Table</span>
-                                <ArrowLeft className="h-3.5 w-3.5 rotate-180 transition-transform group-hover:translate-x-0.5" />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    // Updated List View
-                    <div className="border rounded-xl overflow-hidden shadow-sm bg-card">
-                      <Table className="w-full">
-                        <TableHeader className="bg-muted/30">
-                          <TableRow>
-                            <TableHead className="w-[60px]"></TableHead>
-                            <TableHead className="font-bold">Table Identity</TableHead>
-                            <TableHead className="font-bold">Description</TableHead>
-                            <TableHead className="text-center font-bold">Structure</TableHead>
-                            <TableHead className="text-center font-bold">Status</TableHead>
-                            <TableHead className="text-right font-bold">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {groupTables.map((table) => (
-                            <TableRow
-                              key={table.id}
-                              className="cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => handleSelectTable(table)}
-                            >
-                              <TableCell>
-                                <div className="p-2 bg-primary/10 rounded-lg inline-flex items-center justify-center">
-                                  <Database className="h-4 w-4 text-primary" />
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-foreground">{table.name}</span>
-                                  <span className="text-xs text-muted-foreground font-mono">ID: {String(table.id).slice(0, 8)}</span>
-                                </div>
-                              </TableCell>
-                              <TableCell className="max-w-md">
-                                {table.description ? (
-                                  <p className="text-sm text-muted-foreground line-clamp-1">
-                                    {table.description}
-                                  </p>
-                                ) : (
-                                  <span className="text-muted-foreground/40 italic text-sm">No description</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Badge variant="outline" className="bg-background">{table.columns.length} Fields</Badge>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <div className="flex justify-center">
-                                  {getStatusBadge(table.isActive)}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={(e) => { e.stopPropagation(); handleSelectTable(table); }}>
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="w-8 h-8 p-0 rounded-full hover:bg-muted" onClick={(e) => e.stopPropagation()}>
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-xl border-primary/5">
-                                      <DropdownMenuItem
-                                        className="cursor-pointer"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleSelectTable(table);
-                                        }}
-                                      >
-                                        <Eye className="h-4 w-4 mr-2" />
-                                        View Data
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        className="cursor-pointer"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleSelectTable(table);
-                                        }}
-                                      >
-                                        <Settings2 className="h-4 w-4 mr-2" />
-                                        Table Settings
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          deleteTable(table.id);
-                                        }}
-                                        className="text-destructive cursor-pointer focus:text-destructive"
-                                      >
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        Delete Table
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                                <TableCell>
+                                  <div className="p-2 bg-primary/10 rounded-lg inline-flex items-center justify-center">
+                                    <Database className="h-4 w-4 text-primary" />
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-foreground">{table.name}</span>
+                                    <span className="text-xs text-muted-foreground font-mono">ID: {String(table.id).slice(0, 8)}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="max-w-md">
+                                  {table.description ? (
+                                    <p className="text-sm text-muted-foreground line-clamp-1">
+                                      {table.description}
+                                    </p>
+                                  ) : (
+                                    <span className="text-muted-foreground/40 italic text-sm">No description</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant="outline" className="bg-background">{table.columns.length} Fields</Badge>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <div className="flex justify-center">
+                                    {getStatusBadge(table.isActive)}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={(e) => { e.stopPropagation(); handleSelectTable(table); }}>
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="w-8 h-8 p-0 rounded-full hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+                                          <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end" className="w-48 p-2 rounded-xl shadow-xl border-primary/5">
+                                        <DropdownMenuItem
+                                          className="cursor-pointer"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSelectTable(table);
+                                          }}
+                                        >
+                                          <Eye className="h-4 w-4 mr-2" />
+                                          View Data
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          className="cursor-pointer"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSelectTable(table);
+                                          }}
+                                        >
+                                          <Settings2 className="h-4 w-4 mr-2" />
+                                          Table Settings
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            deleteTable(table.id);
+                                          }}
+                                          className="text-destructive cursor-pointer focus:text-destructive"
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete Table
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/* Tables Pagination */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t mt-4 bg-muted/5 rounded-xl border">

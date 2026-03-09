@@ -57,7 +57,7 @@ export default function RolesClient(props) {
                 </div>
             </div>
 
-            <RoleStats roles={roles} />
+            <RoleStats roles={roles} loading={loading} />
 
             <div className="space-y-4">
                 <RoleFilters

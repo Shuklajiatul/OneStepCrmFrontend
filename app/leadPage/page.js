@@ -3,6 +3,7 @@ import { authUtils } from '@/lib/auth-utils'
 import { API_BASE_URL, DATATABLE_ENDPOINTS } from '@/lib/api-endpoint'
 import LeadsPageClient from './client'
 import { Suspense } from 'react'
+import LeadPageSkeleton from './components/lead-page-skeleton'
 
 async function getTables() {
   const cookieStore = await cookies()
@@ -81,7 +82,7 @@ export default async function LeadsPage() {
   const { tables, newAccessToken } = await getTables()
 
   return (
-    <Suspense fallback={<div>Loading data...</div>}>
+    <Suspense fallback={<LeadPageSkeleton />}>
       <LeadsPageClient initialTables={tables} newAccessToken={newAccessToken} />
     </Suspense>
   )

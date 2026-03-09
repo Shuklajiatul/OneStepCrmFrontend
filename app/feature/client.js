@@ -26,9 +26,9 @@ import {
     ArrowUpDown,
     ChevronLeft,
     ChevronRight,
-    ChevronUp,
     ChevronDown
 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // Shadcn UI Components
 import { Button } from "@/components/ui/button"
@@ -672,7 +672,18 @@ export default function Client({ initialFeatures = [] }) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {paginatedFeatures.map((feature) => {
+                        {loading ? (
+                            Array.from({ length: pageSize }).map((_, i) => (
+                                <TableRow key={i}>
+                                    <TableCell className="py-4"><Skeleton className="h-5 w-48" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-64" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                                    <TableCell className="whitespace-nowrap"><Skeleton className="h-5 w-28" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                                    <TableCell className="text-right py-4"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                                </TableRow>
+                            ))
+                        ) : paginatedFeatures.map((feature) => {
                             const featureId = feature.feature_id || feature.id
                             const featureName = feature.feature_name || feature.name || "N/A"
                             const isActive = feature.is_active !== undefined ? feature.is_active : true
@@ -786,13 +797,7 @@ export default function Client({ initialFeatures = [] }) {
     );
 
     const renderFeatureView = () => {
-        if (loading) {
-            return (
-                <div className="flex justify-center items-center py-12">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                </div>
-            );
-        }
+        // Removed early loading return to show skeletons in layout
 
         if (filteredFeatures.length === 0) {
             return (
@@ -830,7 +835,7 @@ export default function Client({ initialFeatures = [] }) {
                                 <Shield className="h-4 w-4 text-muted-foreground" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">{features.length}</div>
+                                {loading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{features.length}</div>}
                                 <p className="text-xs text-muted-foreground">Across all modules</p>
                             </CardContent>
                         </Card>
@@ -840,7 +845,7 @@ export default function Client({ initialFeatures = [] }) {
                                 <CheckCircle2 className="h-4 w-4 text-green-500" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">{activeFeaturesCount}</div>
+                                {loading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{activeFeaturesCount}</div>}
                                 <p className="text-xs text-muted-foreground">Currently enabled</p>
                             </CardContent>
                         </Card>
@@ -850,7 +855,7 @@ export default function Client({ initialFeatures = [] }) {
                                 <Layers className="h-4 w-4 text-blue-500" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">{uniqueModules.length}</div>
+                                {loading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{uniqueModules.length}</div>}
                                 <p className="text-xs text-muted-foreground">Unique functional areas</p>
                             </CardContent>
                         </Card>

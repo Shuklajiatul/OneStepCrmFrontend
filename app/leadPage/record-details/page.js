@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { authUtils } from '@/lib/auth-utils'
 import { API_BASE_URL, DATATABLE_ENDPOINTS, RECORD_ENDPOINTS, USER_ENDPOINTS, ACTIVITY_ENDPOINTS } from '@/lib/api-endpoint'
 import RecordDetailsClient from './client'
+import RecordDetailsSkeleton from './record-details-skeleton'
 import { Suspense } from 'react'
 
 async function getRecordDetailsData(tableId, recordId) {
@@ -81,7 +82,7 @@ export default async function RecordDetailsPage({ searchParams }) {
     }
 
     return (
-        <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading record data...</div>}>
+        <Suspense fallback={<RecordDetailsSkeleton />}>
             <RecordDetailsClient
                 tableId={tableId}
                 recordId={recordId}

@@ -43,6 +43,7 @@ import {
     ChevronUp,
     ChevronDown,
 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
     Pagination,
     PaginationContent,
@@ -178,13 +179,7 @@ export function RoleTable({
         },
     })
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        )
-    }
+    // Remove early return for loading to show skeletons in the table
 
     if (roles.length === 0) {
         return (
@@ -220,7 +215,17 @@ export function RoleTable({
                             ))}
                         </TableHeader>
                         <TableBody>
-                            {table.getRowModel().rows?.length ? (
+                            {loading ? (
+                                Array.from({ length: pagination.pageSize }).map((_, i) => (
+                                    <TableRow key={i}>
+                                        {columns.map((_, j) => (
+                                            <TableCell key={j} className="pl-6 pr-6 py-4">
+                                                <Skeleton className="h-4 w-full" />
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))
+                            ) : table.getRowModel().rows?.length ? (
                                 table.getRowModel().rows.map((row) => (
                                     <TableRow
                                         key={row.id}
