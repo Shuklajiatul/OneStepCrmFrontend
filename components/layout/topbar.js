@@ -18,12 +18,38 @@ import { authUtils } from "@/lib/auth-utils"
 import GlobalSearch from "@/components/global-search"
 import { usePathname } from "next/navigation"
 
-export default function Topbar({ darkMode, toggleDarkMode, toggleSidebar }) {
+const getInitials = (user) => {
+    if (!user) return "User";
+    if (user.first_name && user.last_name) {
+        return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
+    } else if (user.name) {
+        const nameParts = user.name.trim().split(" ");
+        if (nameParts.length >= 2) {
+            return `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase();
+        } else {
+            return nameParts[0][0].toUpperCase();
+        }
+    } else if (user.username) {
+        return user.username.substring(0, 2).toUpperCase();
+    } else if (user.email) {
+        return user.email.substring(0, 2).toUpperCase();
+    }
+    return "User";
+};
+
+const getUserName = (user) => {
+    if (!user) return "User";
+    return user.first_name && user.last_name
+        ? `${user.first_name} ${user.last_name}`.trim()
+        : user.name || user.username || "User";
+};
+
+export default function Topbar({ darkMode, toggleDarkMode, toggleSidebar, initialUser }) {
     const router = useRouter()
     const pathname = usePathname()
-    const [userName, setUserName] = useState("")
-    const [userEmail, setUserEmail] = useState("")
-    const [userInitials, setUserInitials] = useState("AP")
+    const [userName, setUserName] = useState(getUserName(initialUser))
+    const [userEmail, setUserEmail] = useState(initialUser?.email || "")
+    const [userInitials, setUserInitials] = useState(getInitials(initialUser))
     const [isSearchOpen, setIsSearchOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
 
@@ -41,34 +67,13 @@ export default function Topbar({ darkMode, toggleDarkMode, toggleSidebar }) {
 
     useEffect(() => {
         const tokens = authUtils.getTokens()
-        if (tokens?.user) {
-            const user = tokens.user
-            // Get user name - try first_name + last_name, then name, then username
-            const name = user.first_name && user.last_name
-                ? `${user.first_name} ${user.last_name}`.trim()
-                : user.name || user.username || "User"
-            setUserName(name)
-
-            // Get user email
+        const user = tokens?.user || initialUser;
+        if (user) {
+            setUserName(getUserName(user))
             setUserEmail(user.email || "")
-
-            // Generate initials for avatar
-            if (user.first_name && user.last_name) {
-                setUserInitials(`${user.first_name[0]}${user.last_name[0]}`.toUpperCase())
-            } else if (user.name) {
-                const nameParts = user.name.trim().split(" ")
-                if (nameParts.length >= 2) {
-                    setUserInitials(`${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase())
-                } else {
-                    setUserInitials(nameParts[0][0].toUpperCase())
-                }
-            } else if (user.username) {
-                setUserInitials(user.username.substring(0, 2).toUpperCase())
-            } else if (user.email) {
-                setUserInitials(user.email.substring(0, 2).toUpperCase())
-            }
+            setUserInitials(getInitials(user))
         }
-    }, [])
+    }, [initialUser])
 
     const handleLogout = async () => {
         try {
@@ -81,13 +86,9 @@ export default function Topbar({ darkMode, toggleDarkMode, toggleSidebar }) {
         }
     }
 
-    if (!mounted) {
-        return <div className="h-[57px]" /> // Placeholder with approximate height of Topbar
-    }
-
     return (
         <>
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-4 h-[57px]">
                 <div className="flex items-center gap-3">
                     <Button
                         variant="ghost"
@@ -128,7 +129,7 @@ export default function Topbar({ darkMode, toggleDarkMode, toggleSidebar }) {
                                     <Avatar className="size-8">
                                         <AvatarFallback>{userInitials}</AvatarFallback>
                                     </Avatar>
-                                    <div className="hidden md:flex flex-col items-start">
+                                    <div className="hidden md:flex flex-col items-start min-w-[100px]">
                                         <span className="font-medium text-sm">{userName || "User"}</span>
                                         {userEmail && (
                                             <span className="text-xs text-muted-foreground">{userEmail}</span>

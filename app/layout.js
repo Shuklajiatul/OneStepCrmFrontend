@@ -23,13 +23,27 @@ export const metadata = {
   description: "This is Slash Rtc CRM",
 };
 
-export default function RootLayout({ children }) {
+import { cookies } from "next/headers";
+
+export default async function RootLayout({ children }) {
+  const cookieStore = await cookies();
+  const userCookie = cookieStore.get('user')?.value;
+  let user = null;
+
+  if (userCookie) {
+    try {
+      user = JSON.parse(decodeURIComponent(userCookie));
+    } catch (e) {
+      console.warn('Failed to parse user cookie in RootLayout', e);
+    }
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ClientLayout>{children}</ClientLayout>
+        <ClientLayout initialUser={user}>{children}</ClientLayout>
         <Toaster position="top-right" />
       </body>
     </html>

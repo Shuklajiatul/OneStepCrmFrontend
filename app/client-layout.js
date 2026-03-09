@@ -6,7 +6,7 @@ import Sidebar from "@/components/layout/sidebar.js"
 import Topbar from "@/components/layout/topbar.js"
 import { cn } from "@/lib/utils"
 
-export default function ClientLayout({ children }) {
+export default function ClientLayout({ children, initialUser }) {
     const pathname = usePathname()
     const [isCollapsed, setIsCollapsed] = useState(false)
     const [darkMode, setDarkMode] = useState(false)
@@ -52,6 +52,7 @@ export default function ClientLayout({ children }) {
                             darkMode={darkMode}
                             toggleDarkMode={() => setDarkMode(!darkMode)}
                             toggleSidebar={() => setIsCollapsed(!isCollapsed)}
+                            initialUser={initialUser}
                         />
                     </div>
 
