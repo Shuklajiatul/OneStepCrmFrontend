@@ -20,6 +20,7 @@ import {
     Edit,
     Trash2,
     MoreHorizontal,
+    MoreVertical,
     Calendar,
     User,
     Settings,
@@ -42,7 +43,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { toast as useToast } from "sonner" // Renamed to avoid conflict with local toast
+import { toast } from "sonner" // Renamed to avoid conflict with local toast
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { getStatusBadge } from '@/lib/utils'
 import { datatablesApi } from '@/lib/api-endpoint'
@@ -53,9 +54,8 @@ import LeadPageSkeleton from "./components/lead-page-skeleton"
 export default function LeadsPageClient({ initialTables = [], newAccessToken: propNewAccessToken = null }) {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const { toast } = useToast()
     const [mounted, setMounted] = useState(false)
-
+    // const { toast } = useToast(true);
     const [tables, setTables] = useState(initialTables)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
@@ -90,14 +90,15 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken: pr
         }
     }, [searchParams, tables])
 
-    // Fallback fetch if server-side fetch failed or returned empty
-    // This allows the client-side interceptor to handle token refresh if needed
-    useEffect(() => {
+        useEffect(() => {
+        if (!mounted) return;
+
         if (!initialTables || initialTables.length === 0) {
-            console.log('Initial tables empty, performing client-side fetch...');
             fetchTables();
+        } else {
+            toast.success(`Loaded ${initialTables.length} tables successfully!`)
         }
-    }, [initialTables]);
+    }, [mounted]);
 
     const fetchTables = async () => {
         setLoading(true)
@@ -115,7 +116,6 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken: pr
             } else if (response.data?.tables && Array.isArray(response.data.tables)) {
                 tablesData = response.data.tables
             }
-
             setTables(tablesData)
             toast.success(`Loaded ${tablesData.length} tables successfully!`)
 
