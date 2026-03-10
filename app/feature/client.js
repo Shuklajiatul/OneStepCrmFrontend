@@ -9,6 +9,7 @@ import {
     Shield,
     ShieldPlus,
     Edit,
+    ChevronUp,
     Trash2,
     RefreshCw,
     Search,
