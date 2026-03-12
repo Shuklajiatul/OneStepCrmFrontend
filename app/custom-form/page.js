@@ -254,18 +254,23 @@ export default function CustomFormPage() {
   }, [isEditMode, fields.length])
 
   // Save fields to sessionStorage whenever they change (only if not in edit mode)
+  // Note: Filter out the internal 'table_column' selector widget – it is a UI-only component
+  // and should never be saved or rendered as a real form field.
   useEffect(() => {
     if (!isEditMode && fields.length > 0) {
-      sessionStorage.setItem('form-preview-fields', JSON.stringify(fields))
+      const savableFields = fields.filter(field => field.type !== 'table_column')
+      sessionStorage.setItem('form-preview-fields', JSON.stringify(savableFields))
     }
   }, [fields, isEditMode])
 
   // Save fields to localStorage when in edit mode (for persistence across refreshes)
+  // Note: Filter out the internal 'table_column' selector widget before saving
   useEffect(() => {
     if (isEditMode && editFormData && fields.length > 0) {
+      const savableFields = fields.filter(field => field.type !== 'table_column')
       const formBuilderData = {
         ...editFormData,
-        fields: fields
+        fields: savableFields
       }
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
 
@@ -279,9 +284,11 @@ export default function CustomFormPage() {
     if (isEditMode && editFormData && fields.length > 0) {
       // Use a timeout to ensure the state has been updated
       const timeoutId = setTimeout(() => {
+        // Filter out internal 'table_column' selector widget before saving
+        const savableFields = fields.filter(field => field.type !== 'table_column')
         const formBuilderData = {
           ...editFormData,
-          fields: fields
+          fields: savableFields
         }
         localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
 
