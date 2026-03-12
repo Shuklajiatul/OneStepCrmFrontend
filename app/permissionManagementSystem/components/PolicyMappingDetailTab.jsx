@@ -50,23 +50,27 @@ export function PolicyMappingDetailTab({ mapping, onBack, onUpdate, allFeatures 
 
       const policyId = mapping.p_id || mapping.policy_id || mapping.id || mapping.policy?.p_id || mapping.policy?.policy_id || mapping.policy?.id
       const token = authUtils.getAuthHeader()
+      // IMPORTANT: On "View Feature" we should not hit any API.
+      // Only fetch from API when we explicitly need a refresh (e.g. after updating mapping).
+      if (forceRefresh && token && policyId) {
+        try {
+          const response = await policiesApi.getById(policyId, { skipToast: true })
 
-      // Always fetch from API if forceRefresh is true (after update) or if token is available
-      if (forceRefresh || token) {
-        if (token && policyId) {
-          try {
-            const response = await policiesApi.getFeaturesByPolicy(policyId)
+          const featureData = Array.isArray(response.data)
+            ? response.data
+            : response.data?.data || response.data?.features || []
 
-            const featureData = Array.isArray(response.data)
-              ? response.data
-              : response.data?.data || response.data?.features || []
+          setFeatures(featureData)
+          return
+        } catch (apiError) {
+          const status = apiError?.response?.status
 
-            setFeatures(featureData)
-            return
-          } catch (apiError) {
-            console.error("Error fetching features from API:", apiError)
-            // Fall through to use mapping prop as fallback
+          // 404 is expected when endpoint is missing; silently fall back to mapping prop data
+          if (status && status !== 404) {
+            toast.error(apiError.response?.data?.message || "Failed to refresh mapped features")
           }
+
+          // Fall through to use mapping prop as fallback
         }
       }
 
