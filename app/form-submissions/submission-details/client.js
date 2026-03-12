@@ -324,7 +324,7 @@ export default function SubmissionDetailsClient({
 
         // Structural Detection
         if (typeof valueToDisplay === 'object' && valueToDisplay !== null) {
-            if (valueToDisplay.countryCode || valueToDisplay.number) return formatPhoneDisplay(valueToDisplay)
+            if (valueToDisplay.countryCode || valueToDisplay.dial_code || valueToDisplay.number) return formatPhoneDisplay(valueToDisplay)
             if (valueToDisplay.address || valueToDisplay.city) return formatLocationDisplay(valueToDisplay)
         }
 
@@ -399,7 +399,10 @@ export default function SubmissionDetailsClient({
             return value.map(item => (typeof item === 'object' && item !== null ? (item.label || item.value || JSON.stringify(item)) : String(item))).join(", ");
         }
         if (typeof value === 'object' && value !== null) {
-            if (value.number || value.countryCode) return `${value.countryCode || ''} ${value.number || ''}`.trim();
+            if (value.number || value.countryCode || value.dial_code) {
+                const code = value.countryCode || value.dial_code || ''
+                return `${code} ${value.number || ''}`.trim()
+            }
             if (value.address || value.city) return [value.address, value.city, value.state].filter(Boolean).join(', ');
             return JSON.stringify(value);
         }
@@ -540,24 +543,70 @@ export default function SubmissionDetailsClient({
                             <CardContent className="flex-1 overflow-y-auto p-4 sm:p-6 pt-4 sm:pt-6">
                                 {history.length > 0 ? (
                                     <div className="space-y-4 relative before:absolute before:inset-0 before:ml-[1.125rem] before:w-0.5 before:bg-muted-foreground/20">
-                                        {history.map((item, idx) => (
-                                            <div key={idx} className="relative flex items-start gap-3 sm:gap-4 group">
-                                                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-background border-2 border-primary z-10 flex items-center justify-center shrink-0 ml-0.5 mt-0.5">
-                                                    <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
-                                                </div>
-                                                <div className="flex-1 bg-muted/10 p-3 sm:p-4 rounded-xl border min-w-0 overflow-hidden">
-                                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center text-[10px] sm:text-xs mb-1 sm:mb-2 gap-1">
-                                                        <span className="font-bold text-primary truncate" title={getUserName(item.user_id)}>{getUserName(item.user_id)}</span>
-                                                        <span className="text-muted-foreground whitespace-nowrap" suppressHydrationWarning>{new Date(item.event_timestamp).toLocaleString()}</span>
+                                        {history.map((item, idx) => {
+                                            const isCreate = item.event_type === 'CREATE'
+                                            const isUpdate = item.event_type === 'UPDATE'
+                                            
+                                            // Find field name from form fields using the changed_field ID
+                                            let fieldName = item.changed_field
+                                            if (item.changed_field && form?.fields) {
+                                                const field = form.fields.find(f => {
+                                                    const parsedField = typeof f === 'string' ? safeParseJSON(f) : f
+                                                    return parsedField?.id === item.changed_field
+                                                })
+                                                if (field) {
+                                                    const parsedField = typeof field === 'string' ? safeParseJSON(field) : field
+                                                    fieldName = parsedField?.label || parsedField?.name || item.changed_field
+                                                }
+                                            }
+                                            
+                                            return (
+                                                <div key={item.event_id || idx} className="relative flex items-start gap-3 sm:gap-4 group">
+                                                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-background border-2 z-10 flex items-center justify-center shrink-0 ml-0.5 mt-0.5 ${
+                                                        isCreate ? 'border-green-500' : isUpdate ? 'border-blue-500' : 'border-primary'
+                                                    }`}>
+                                                        {isCreate ? (
+                                                            <div className="h-3 w-3 sm:h-4 sm:w-4 bg-green-500 rounded-full" />
+                                                        ) : isUpdate ? (
+                                                            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500" />
+                                                        ) : (
+                                                            <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
+                                                        )}
                                                     </div>
-                                                    <div className="text-xs sm:text-sm break-words overflow-hidden">
-                                                        Changed <span className="font-semibold">{item.column_name}</span> from{' '}
-                                                        <span className="text-red-500 line-through opacity-70 break-all">{parseHistoryValue(item.old_value)}</span> to{' '}
-                                                        <span className="text-green-600 font-medium break-all">{parseHistoryValue(item.new_value)}</span>
+                                                    <div className="flex-1 bg-muted/10 p-3 sm:p-4 rounded-xl border min-w-0 overflow-hidden">
+                                                        <div className="flex flex-col sm:flex-row justify-between sm:items-center text-[10px] sm:text-xs mb-1 sm:mb-2 gap-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-primary truncate" title={getUserName(item.user_id)}>{getUserName(item.user_id)}</span>
+                                                                <Badge variant={isCreate ? 'default' : isUpdate ? 'secondary' : 'outline'} className="text-[8px] h-4">
+                                                                    {item.event_type || 'UNKNOWN'}
+                                                                </Badge>
+                                                            </div>
+                                                            <span className="text-muted-foreground whitespace-nowrap" suppressHydrationWarning>{new Date(item.event_timestamp).toLocaleString()}</span>
+                                                        </div>
+                                                        <div className="text-xs sm:text-sm break-words overflow-hidden">
+                                                            {isCreate ? (
+                                                                <div className="text-green-600 font-medium">
+                                                                    {item.note || 'Record created'}
+                                                                </div>
+                                                            ) : isUpdate && item.changed_field ? (
+                                                                <div>
+                                                                    Changed <span className="font-semibold">{fieldName}</span> from{' '}
+                                                                    <span className="text-red-500 line-through opacity-70 break-all">{parseHistoryValue(item.old_value)}</span> to{' '}
+                                                                    <span className="text-green-600 font-medium break-all">{parseHistoryValue(item.new_value)}</span>
+                                                                    {item.note && (
+                                                                        <div className="text-muted-foreground text-[10px] mt-1 italic">{item.note}</div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="text-muted-foreground">
+                                                                    {item.note || 'Activity recorded'}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
                                 ) : (
                                     <div className="text-center py-12 space-y-2 h-full flex flex-col items-center justify-center">

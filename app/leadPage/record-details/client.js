@@ -463,7 +463,7 @@ export default function RecordDetailsClient({
                 // Final avoid [object Object] check
                 if (typeof valueToDisplay === 'object' && valueToDisplay !== null) {
                     // Try to format as phone or location if structure matches
-                    if (valueToDisplay.countryCode || valueToDisplay.number) {
+                    if (valueToDisplay.countryCode || valueToDisplay.dial_code || valueToDisplay.number) {
                         return formatPhoneDisplay(valueToDisplay)
                     }
                     if (valueToDisplay.address || valueToDisplay.city || valueToDisplay.state || valueToDisplay.country) {
@@ -509,8 +509,9 @@ export default function RecordDetailsClient({
 
         if (typeof valueToDisplay === 'object' && valueToDisplay !== null) {
             // Check for phone object structure inside value
-            if (valueToDisplay.number || valueToDisplay.countryCode) {
-                return `${valueToDisplay.countryCode || ''} ${valueToDisplay.number || valueToDisplay.value || ''}`.trim();
+            if (valueToDisplay.number || valueToDisplay.countryCode || valueToDisplay.dial_code) {
+                const code = valueToDisplay.countryCode || valueToDisplay.dial_code || ''
+                return `${code} ${valueToDisplay.number || valueToDisplay.value || ''}`.trim();
             }
             // Check for location object structure
             if (valueToDisplay.address || valueToDisplay.city) {

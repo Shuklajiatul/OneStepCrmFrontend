@@ -521,11 +521,11 @@ export default function TableDataView({ table, onBack }) {
               }
 
               if (typeof fieldValue === 'object' && fieldValue !== null) {
+                if (fieldValue.countryCode || fieldValue.dial_code || fieldValue.number) {
+                  return formatPhoneDisplay(fieldValue)
+                }
                 if (fieldValue.country || fieldValue.state || fieldValue.city) {
                   return formatLocationDisplay(fieldValue)
-                }
-                if (fieldValue.countryCode || fieldValue.number) {
-                  return formatPhoneDisplay(fieldValue)
                 }
               }
 
@@ -1057,7 +1057,7 @@ export default function TableDataView({ table, onBack }) {
         // Final avoid [object Object] check
         if (typeof valueToDisplay === 'object' && valueToDisplay !== null) {
           // Try to format as phone or location if structure matches
-          if (valueToDisplay.countryCode || valueToDisplay.number) {
+          if (valueToDisplay.countryCode || valueToDisplay.dial_code || valueToDisplay.number) {
             return formatPhoneDisplay(valueToDisplay)
           }
           if (valueToDisplay.address || valueToDisplay.city || valueToDisplay.state || valueToDisplay.country) {
