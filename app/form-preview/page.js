@@ -188,8 +188,9 @@ export default function FormPreviewPage() {
         const ORGANIZATION_ID = authUtils.getOrganizationId()
 
         // Separate fields by type
-        const groupFieldsList = latestFields.filter(field => field.type === 'group')
-        const regularFormFields = latestFields.filter(field => field.type !== 'group' && !field.tableColumnId && field.source !== 'table')
+        // Note: 'table_column' is an internal UI widget (column selector) and should never be saved as a form field
+        const groupFieldsList = latestFields.filter(field => field.type === 'group' && field.type !== 'table_column')
+        const regularFormFields = latestFields.filter(field => field.type !== 'group' && field.type !== 'table_column' && !field.tableColumnId && field.source !== 'table')
         const tableColumnFields = latestFields.filter(field => field.tableColumnId || field.source === 'table')
 
         // Recursive function to process nested fields for API payload
