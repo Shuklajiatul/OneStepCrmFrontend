@@ -379,12 +379,12 @@ export default function FormSubmissionsClient({ formId, initialFormDetails, init
                 }
             }
 
-            if (rawValue.country || rawValue.state || rawValue.city) {
-                return formatLocationDisplay(rawValue)
+            if (rawValue.countryCode || rawValue.dial_code || rawValue.number) {
+                return formatPhoneDisplay(rawValue)
             }
 
-            if (rawValue.countryCode || rawValue.number) {
-                return formatPhoneDisplay(rawValue)
+            if (rawValue.country || rawValue.state || rawValue.city) {
+                return formatLocationDisplay(rawValue)
             }
         }
 
