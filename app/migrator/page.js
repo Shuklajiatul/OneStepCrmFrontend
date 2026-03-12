@@ -15,7 +15,7 @@ async function getTables() {
         })
 
         if (!res.ok) {
-            console.error('Failed to fetch tables:', res.status, res.statusText)
+            console.warn('Failed to fetch tables on server:', res.status, res.statusText)
             return []
         }
 
@@ -27,7 +27,7 @@ async function getTables() {
 
         return []
     } catch (error) {
-        console.error('SSR Tables Fetch Error:', error)
+        console.warn('SSR Tables Fetch Error:', error.message)
         return []
     }
 }
