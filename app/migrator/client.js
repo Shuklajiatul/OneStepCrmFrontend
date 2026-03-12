@@ -80,7 +80,7 @@ const MigratorClient = ({ initialTables = [] }) => {
         setValidationError(null);
 
         // If it's a CSV upload mode, just pass the file object
-        if (sourceType === 'csv' || sourceType === 'excel' && newConfig.file) {
+        if ((sourceType === 'csv' || sourceType === 'excel') && newConfig.file) {
             finalConfig.file = newConfig.file;
         }
 
@@ -89,6 +89,7 @@ const MigratorClient = ({ initialTables = [] }) => {
         if (sourceType) {
             try {
                 console.log(`[Migrator] Starting validation for ${sourceType}...`, finalConfig);
+                console.log(`[Migrator] Current sourceType state:`, sourceType);
                 const result = await migrationService.validateSource(sourceType, finalConfig);
                 console.log("[Migrator] Validation result:", result);
                 setIsValidating(false);
@@ -148,6 +149,13 @@ const MigratorClient = ({ initialTables = [] }) => {
     const startMigration = async () => {
         if (!selectedTableId || !sourceType) {
             toast.error("Please select a table before starting migration.");
+            return;
+        }
+
+        // Validate partition_key columns are mapped
+        const validationError = validatePartitionKeys();
+        if (validationError) {
+            toast.error(validationError);
             return;
         }
 
@@ -263,6 +271,42 @@ const MigratorClient = ({ initialTables = [] }) => {
             setValidationError(msg);
             toast.error(msg);
         }
+    };
+
+    const validatePartitionKeys = () => {
+        if (destinationType !== 'static') return null;
+        
+        // Find the selected table from initialTables (system tables)
+        const selectedTable = initialTables.find(table => 
+            (table.table || table.table_id || table.id) === selectedTableId
+        );
+        
+        if (!selectedTable || !selectedTable.columns) return null;
+        
+        // Find all partition_key columns
+        const partitionKeyColumns = selectedTable.columns.filter(col => col.kind === 'partition_key');
+        
+        if (partitionKeyColumns.length === 0) return null;
+        
+        // Check if all partition_key columns are mapped
+        const unmappedPartitionKeys = [];
+        
+        partitionKeyColumns.forEach(col => {
+            const isMapped = Object.values(mappings).some(mapping => 
+                mapping.destinationColumnId === col.name || 
+                mapping.column_name === col.name
+            );
+            
+            if (!isMapped) {
+                unmappedPartitionKeys.push(col.name);
+            }
+        });
+        
+        if (unmappedPartitionKeys.length > 0) {
+            return `Required partition key columns must be mapped: ${unmappedPartitionKeys.join(', ')}`;
+        }
+        
+        return null;
     };
 
     const reset = () => {
@@ -396,6 +440,9 @@ const MigratorClient = ({ initialTables = [] }) => {
                                         initialTables={initialTables}
                                         destinationType={destinationType}
                                         onDestinationTypeChange={setDestinationType}
+                                        validatePartitionKeys={validatePartitionKeys}
+                                        isMigrating={isMigrating}
+                                        onStartMigration={startMigration}
                                     />
                                 </CardContent>
                                 {selectedTableId && (
@@ -408,7 +455,7 @@ const MigratorClient = ({ initialTables = [] }) => {
                                         </div>
                                         <Button
                                             onClick={startMigration}
-                                            disabled={isMigrating}
+                                            disabled={isMigrating || !!validatePartitionKeys()}
                                             size="lg"
                                             className="w-full sm:w-auto gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all font-semibold"
                                         >
