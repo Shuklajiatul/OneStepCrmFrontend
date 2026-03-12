@@ -29,13 +29,15 @@ const MappingInterface = ({
   onMappingChange,
   initialTables = [],
   destinationType,
-  onDestinationTypeChange
+  onDestinationTypeChange,
+  onPartitionKeysChange = () => {} // Default empty function
 }) => {
   const [sourceFields, setSourceFields] = useState([]);
   const [targetColumns, setTargetColumns] = useState([]);
   const [availableTables, setAvailableTables] = useState(initialTables); // Initialize with initialTables
   const [isLoadingTables, setIsLoadingTables] = useState(false);
   const [isLoadingColumns, setIsLoadingColumns] = useState(false);
+  const [partitionKeyColumns, setPartitionKeyColumns] = useState([]);
 
   useEffect(() => {
     if (previewData.length > 0) {
@@ -105,6 +107,8 @@ const MappingInterface = ({
     const fetchColumns = async () => {
       if (!selectedTableId) {
         setTargetColumns([]);
+        setPartitionKeyColumns([]);
+        onPartitionKeysChange([]);
         return;
       }
 
@@ -114,9 +118,17 @@ const MappingInterface = ({
           const formattedColumns = tableObj.columns.map(col => ({
             id: col.name,
             name: col.name,
-            type: col.type || 'string'
+            type: col.type || 'string',
+            kind: col.kind
           }));
           setTargetColumns(formattedColumns);
+
+          // Extract partition key columns for validation
+          const partitionKeys = tableObj.columns
+            .filter(col => col.kind === 'partition_key')
+            .map(col => col.name);
+          setPartitionKeyColumns(partitionKeys);
+          onPartitionKeysChange(partitionKeys);
           setIsLoadingColumns(false);
           return;
         }
@@ -140,10 +152,13 @@ const MappingInterface = ({
         const formattedColumns = columns.map(col => ({
           id: col.column_id,
           name: col.column_name,
-          type: col.parent_datatype || 'string'
+          type: col.parent_datatype || 'string',
+          kind: 'regular' // Dynamic tables don't have partition keys
         }));
 
         setTargetColumns(formattedColumns);
+        setPartitionKeyColumns([]); // Dynamic tables don't have partition key requirements
+        onPartitionKeysChange([]); // Reset for dynamic tables
       } catch (error) {
         console.error("Error fetching columns:", error);
         toast.error("Failed to fetch table columns");
@@ -155,6 +170,24 @@ const MappingInterface = ({
 
     fetchColumns();
   }, [selectedTableId, destinationType, availableTables]);
+
+  // Check if a column is a required partition key
+  const isPartitionKeyColumn = (columnName) => {
+    return destinationType === 'static' && partitionKeyColumns.includes(columnName);
+  };
+
+  // Get unmapped partition key columns for validation display
+  const getUnmappedPartitionKeys = () => {
+    if (destinationType !== 'static') return [];
+
+    return partitionKeyColumns.filter(colName => {
+      const isMapped = Object.values(mappings).some(mapping =>
+        mapping.destinationColumnId === colName ||
+        mapping.column_name === colName
+      );
+      return !isMapped;
+    });
+  };
 
   // Build the enriched mapping object for a field
   const buildMappingObject = (sourceField, columnId, extraProps = {}) => {
@@ -186,21 +219,35 @@ const MappingInterface = ({
 
   const handleMappingUpdate = (sourceField, value) => {
     const current = mappings[sourceField] || {};
-    const preserved = {
-      required: current.required ?? false,
-      autogenerate: current.autogenerate ?? false
-    };
+    let autogenerate = false;
+    let required = false;
+
+    // For static group, automatically set autogenerate/required if it's a timestamp or uuid
+    if (destinationType === 'static' && value && value !== 'create_new') {
+      const col = targetColumns.find(c => c.id === value);
+      if (col) {
+        const type = (col.type || '').toLowerCase();
+        if (type === 'uuid' || type === 'timestamp') {
+          autogenerate = true;
+          required = true;
+        }
+      }
+    }
+
+    const extraProps = { autogenerate, required };
 
     if (value === 'create_new') {
-      onMappingChange(sourceField, buildMappingObject(sourceField, 'create_new', preserved));
+      onMappingChange(sourceField, buildMappingObject(sourceField, 'create_new', extraProps));
     } else {
-      onMappingChange(sourceField, buildMappingObject(sourceField, value, preserved));
+      onMappingChange(sourceField, buildMappingObject(sourceField, value, extraProps));
     }
   };
 
   const handleRequiredChange = (sourceField, checked) => {
     const current = mappings[sourceField] || {};
-    onMappingChange(sourceField, { ...current, required: checked });
+    // If autogenerate is on, it must be required
+    const isAutogen = !!current.autogenerate;
+    onMappingChange(sourceField, { ...current, required: isAutogen ? true : checked });
   };
 
   const handleAutogenerateChange = (sourceField, checked) => {
@@ -346,7 +393,12 @@ const MappingInterface = ({
         >
           <div className="pl-3">Source Field</div>
           <div></div>
-          <div className="pl-1">Destination Column</div>
+          <div className="pl-1 flex items-center gap-1">
+            Destination Column
+            {destinationType === 'static' && partitionKeyColumns.length > 0 && (
+              <span className="text-red-500 text-xs" title="* indicates required partition key columns">*</span>
+            )}
+          </div>
           <div className="text-center">Required</div>
           <div className="text-center">Autogenerate</div>
         </div>
@@ -401,9 +453,14 @@ const MappingInterface = ({
                           <option value="create_new" className="font-semibold text-blue-600 bg-blue-50">+ Create New Column</option>
                         )}
                         <optgroup label="Existing Columns">
-                          {targetColumns.map(col => (
-                            <option key={col.id} value={col.id}>{col.name} ({col.type})</option>
-                          ))}
+                          {targetColumns.map(col => {
+                            const isRequired = isPartitionKeyColumn(col.name);
+                            return (
+                              <option key={col.id} value={col.id}>
+                                {col.name} ({col.type}){isRequired ? ' *' : ''}
+                              </option>
+                            );
+                          })}
                         </optgroup>
                       </select>
                     </div>
@@ -441,8 +498,9 @@ const MappingInterface = ({
                       <input
                         type="checkbox"
                         checked={!!mapping.required}
+                        disabled={!!mapping.autogenerate}
                         onChange={(e) => handleRequiredChange(field, e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-300 text-primary accent-primary cursor-pointer"
+                        className={`w-4 h-4 rounded border-slate-300 text-primary accent-primary ${mapping.autogenerate ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
                       />
                     </label>
                   </div>
@@ -468,6 +526,21 @@ const MappingInterface = ({
           </div>
         )}
       </div>
+
+      {/* Validation Alert for Unmapped Partition Keys */}
+      {destinationType === 'static' && getUnmappedPartitionKeys().length > 0 && (
+        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-center gap-2 text-red-800 font-medium mb-2">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            Required Partition Key Columns Missing
+          </div>
+          <p className="text-red-700 text-sm">
+            The following partition key columns must be mapped: <strong>{getUnmappedPartitionKeys().join(', ')}</strong>
+          </p>
+        </div>
+      )}
     </div>
   );
 };
