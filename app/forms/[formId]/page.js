@@ -1599,7 +1599,9 @@ function PublicFormContent() {
   // const ORGANIZATION_ID = (ORGANIZATION_ID_FROM_URL && ORGANIZATION_ID_FROM_URL !== 'undefined')
   //   ? ORGANIZATION_ID_FROM_URL
   //   : authUtils.getOrganizationId()
-  const ORGANIZATION_ID = authUtils.getOrganizationId()
+  const ORGANIZATION_ID = (ORGANIZATION_ID_FROM_URL && ORGANIZATION_ID_FROM_URL !== 'undefined')
+    ? ORGANIZATION_ID_FROM_URL
+    : authUtils.getOrganizationId()
   // console.log(organizationId1, '===============organizationId1', ORGANIZATION_ID, '=========================ORGANIZATION_ID')
   // Properly handle null, undefined, or "undefined" string values
   const tokens = authUtils.getTokens()
