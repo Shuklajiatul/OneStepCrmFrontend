@@ -575,7 +575,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
       }
 
       // Get organization_id from localStorage user data
-      let organization_id = null;
+      let organization_id = authUtils.getOrganizationId();
       try {
         const userData = localStorage.getItem('user');
         if (userData) {
@@ -1007,7 +1007,45 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   // Render Cards View
   const renderCardsView = () => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-      {paginatedGenes.map((gene) => {
+      {loading ? (
+        Array.from({ length: pageSize }).map((_, i) => (
+          <Card key={i} className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0 pr-4">
+                  <Skeleton className="h-6 w-3/4 mb-2" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+                <Skeleton className="h-6 w-16" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Organizations</span>
+                <Skeleton className="h-4 w-8" />
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Levels</span>
+                <Skeleton className="h-4 w-8" />
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Users</span>
+                <Skeleton className="h-4 w-8" />
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Updated</span>
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-8 w-8 rounded-md" />
+                <Skeleton className="h-8 w-8 rounded-md" />
+                <Skeleton className="h-8 w-8 rounded-md" />
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      ) : paginatedGenes.map((gene) => {
         const geneName = gene.g_name || gene.name || 'Unnamed Gene';
         return (
           <Card key={gene.id} className="hover:shadow-lg transition-shadow">
@@ -1093,7 +1131,48 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   // Render List View
   const renderListView = () => (
     <div className="space-y-3 md:space-y-4">
-      {paginatedGenes.map((gene) => {
+      {loading ? (
+        Array.from({ length: pageSize }).map((_, i) => (
+          <Card key={i} className="hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4 flex-1 min-w-0">
+                  <Skeleton className="w-10 h-10 rounded-lg flex-shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <Skeleton className="h-5 w-48" />
+                    <Skeleton className="h-4 w-64" />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-6 text-sm flex-1 justify-end min-w-0">
+                  <div className="text-center hidden sm:block space-y-2">
+                    <Skeleton className="h-4 w-8 mx-auto" />
+                    <Skeleton className="h-3 w-16 mx-auto" />
+                  </div>
+                  <div className="text-center hidden sm:block space-y-2">
+                    <Skeleton className="h-4 w-8 mx-auto" />
+                    <Skeleton className="h-3 w-16 mx-auto" />
+                  </div>
+                  <div className="hidden lg:block">
+                    <Skeleton className="h-6 w-16 rounded-full" />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2 ml-6">
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                  <Skeleton className="h-8 w-8 rounded-md" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-2 sm:hidden pt-2 border-t">
+                <div className="flex items-center space-x-4">
+                  <Skeleton className="h-4 w-16" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+                <Skeleton className="h-6 w-16 rounded-full" />
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      ) : paginatedGenes.map((gene) => {
         const geneName = gene.g_name || gene.name || 'Unnamed Gene';
         return (
           <Card key={gene.id} className="hover:shadow-md transition-shadow">
@@ -1380,7 +1459,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
       );
     }
 
-    if (filteredGenes.length === 0) {
+    if (filteredGenes.length === 0 && !loading) {
       return (
         <div className="flex justify-center items-center py-12">
           <div className="text-center">
@@ -1582,12 +1661,34 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
             {[1, 2].map((_, i) => (
               <Card key={i}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-4 w-4 rounded-full" />
+                  {loading ? (
+                    <Skeleton className="h-4 w-24" />
+                  ) : (
+                    <CardTitle className="text-sm font-medium">
+                      {i === 0 ? "Total Genes" : "Active Genes"}
+                    </CardTitle>
+                  )}
+                  {loading ? (
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                  ) : (
+                    i === 0 ? <Network className="h-4 w-4 text-muted-foreground" /> : <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                  )}
                 </CardHeader>
                 <CardContent>
-                  {loading ? <Skeleton className="h-8 w-16" /> : <div className="text-2xl font-bold">{i === 0 ? genes.length : genes.filter(g => g.is_active).length}</div>}
-                  <Skeleton className="h-3 w-20 mt-1" />
+                  {loading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <div className="text-2xl font-bold">
+                      {i === 0 ? genes.length : genes.filter(g => g.is_active).length}
+                    </div>
+                  )}
+                  {loading ? (
+                    <Skeleton className="h-3 w-20 mt-1" />
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {i === 0 ? "Total genes in system" : "Currently active genes"}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ))}
