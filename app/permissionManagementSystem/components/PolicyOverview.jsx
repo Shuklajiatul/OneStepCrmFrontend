@@ -392,30 +392,6 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">Show:</span>
-                <Select
-                  value={pageSize.toString()}
-                  onValueChange={(value) => {
-                    setPageSize(parseInt(value))
-                    setCurrentPageAllPolicies(1)
-                    setCurrentPageFeatureMappings(1)
-                  }}
-                >
-                  <SelectTrigger className="w-[80px] h-9 bg-background">
-                    <SelectValue placeholder="Size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[5, 10, 15, 20].map((size) => (
-                      <SelectItem key={size} value={size.toString()}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
@@ -557,11 +533,35 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
 
                   {/* Pagination for All Policies */}
                   {filteredPolicies.length > 0 && (
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-3 border-t mt-3">
-                      <div className="text-sm text-muted-foreground font-medium order-2 md:order-1">
-                        Showing {Math.min(allPoliciesStartIndex + 1, filteredPolicies.length)} to {Math.min(allPoliciesEndIndex, filteredPolicies.length)} of {filteredPolicies.length} policies
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5 mt-3">
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={pageSize.toString()}
+                            onValueChange={(value) => {
+                              setPageSize(parseInt(value))
+                              setCurrentPageAllPolicies(1)
+                            }}
+                          >
+                            <SelectTrigger className="w-[80px] h-9 rounded-xl shadow-none">
+                              <SelectValue placeholder="Size" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[5, 10, 15, 20].map((size) => (
+                                <SelectItem key={size} value={size.toString()}>
+                                  {size}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-sm text-muted-foreground">per page</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Showing {Math.min(allPoliciesStartIndex + 1, filteredPolicies.length)} to {Math.min(allPoliciesEndIndex, filteredPolicies.length)} of {filteredPolicies.length} policies
+                        </div>
                       </div>
-                      <Pagination className="w-auto mx-0 order-1 md:order-2">
+
+                      <Pagination className="w-auto mx-0">
                         <PaginationContent>
                           <PaginationItem>
                             <Button
@@ -569,64 +569,66 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                               size="sm"
                               disabled={currentPageAllPolicies === 1}
                               onClick={() => setCurrentPageAllPolicies(prev => Math.max(1, prev - 1))}
-                              className="gap-1 pl-2.5 h-8"
+                              className="gap-1 rounded-lg h-9"
                             >
                               <ChevronLeft className="h-4 w-4" />
                               <span>Previous</span>
                             </Button>
                           </PaginationItem>
 
-                          {totalPagesAllPolicies <= 5 ? (
-                            Array.from({ length: totalPagesAllPolicies }, (_, i) => i + 1).map((page) => (
-                              <PaginationItem key={page}>
-                                <PaginationLink
-                                  isActive={currentPageAllPolicies === page}
-                                  onClick={() => setCurrentPageAllPolicies(page)}
-                                  className="cursor-pointer h-8 w-8 text-xs"
-                                >
-                                  {page}
-                                </PaginationLink>
-                              </PaginationItem>
-                            ))
-                          ) : (
-                            <>
-                              <PaginationItem>
-                                <PaginationLink
-                                  isActive={currentPageAllPolicies === 1}
-                                  onClick={() => setCurrentPageAllPolicies(1)}
-                                  className="cursor-pointer h-8 w-8 text-xs"
-                                >
-                                  1
-                                </PaginationLink>
-                              </PaginationItem>
-                              {currentPageAllPolicies > 3 && <PaginationEllipsis />}
-                              {Array.from({ length: 3 }, (_, i) => {
-                                const page = Math.min(Math.max(currentPageAllPolicies - 1 + i, 2), totalPagesAllPolicies - 1);
-                                if (page === 1 || page === totalPagesAllPolicies) return null;
-                                return (
-                                  <PaginationItem key={page}>
-                                    <PaginationLink
-                                      isActive={currentPageAllPolicies === page}
-                                      onClick={() => setCurrentPageAllPolicies(page)}
-                                      className="cursor-pointer h-8 w-8 text-xs"
-                                    >
-                                      {page}
-                                    </PaginationLink>
-                                  </PaginationItem>
-                                )
-                              })}
-                              {currentPageAllPolicies < totalPagesAllPolicies - 2 && <PaginationEllipsis />}
-                              <PaginationItem>
-                                <PaginationLink
-                                  isActive={currentPageAllPolicies === totalPagesAllPolicies}
-                                  onClick={() => setCurrentPageAllPolicies(totalPagesAllPolicies)}
-                                  className="cursor-pointer h-8 w-8 text-xs"
-                                >
-                                  {totalPagesAllPolicies}
-                                </PaginationLink>
-                              </PaginationItem>
-                            </>
-                          )}
+                          <div className="flex items-center gap-1 mx-2">
+                            {totalPagesAllPolicies <= 5 ? (
+                              Array.from({ length: totalPagesAllPolicies }, (_, i) => i + 1).map((page) => (
+                                <PaginationItem key={page}>
+                                  <PaginationLink
+                                    isActive={currentPageAllPolicies === page}
+                                    onClick={() => setCurrentPageAllPolicies(page)}
+                                    className="cursor-pointer h-9 w-9 text-xs rounded-lg"
+                                  >
+                                    {page}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              ))
+                            ) : (
+                              <>
+                                <PaginationItem>
+                                  <PaginationLink
+                                    isActive={currentPageAllPolicies === 1}
+                                    onClick={() => setCurrentPageAllPolicies(1)}
+                                    className="cursor-pointer h-9 w-9 text-xs rounded-lg"
+                                  >
+                                    1
+                                  </PaginationLink>
+                                </PaginationItem>
+                                {currentPageAllPolicies > 3 && <PaginationEllipsis />}
+                                {Array.from({ length: 3 }, (_, i) => {
+                                  const page = Math.min(Math.max(currentPageAllPolicies - 1 + i, 2), totalPagesAllPolicies - 1);
+                                  if (page === 1 || page === totalPagesAllPolicies) return null;
+                                  return (
+                                    <PaginationItem key={page}>
+                                      <PaginationLink
+                                        isActive={currentPageAllPolicies === page}
+                                        onClick={() => setCurrentPageAllPolicies(page)}
+                                        className="cursor-pointer h-9 w-9 text-xs rounded-lg"
+                                      >
+                                        {page}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  )
+                                })}
+                                {currentPageAllPolicies < totalPagesAllPolicies - 2 && <PaginationEllipsis />}
+                                <PaginationItem>
+                                  <PaginationLink
+                                    isActive={currentPageAllPolicies === totalPagesAllPolicies}
+                                    onClick={() => setCurrentPageAllPolicies(totalPagesAllPolicies)}
+                                    className="cursor-pointer h-9 w-9 text-xs rounded-lg"
+                                  >
+                                    {totalPagesAllPolicies}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              </>
+                            )}
+                          </div>
 
                           <PaginationItem>
                             <Button
@@ -634,7 +636,7 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                               size="sm"
                               disabled={currentPageAllPolicies === totalPagesAllPolicies}
                               onClick={() => setCurrentPageAllPolicies(prev => Math.min(totalPagesAllPolicies, prev + 1))}
-                              className="gap-1 pl-2.5 h-8"
+                              className="gap-1 rounded-lg h-9"
                             >
                               <span>Next</span>
                               <ChevronRight className="h-4 w-4" />
@@ -808,11 +810,35 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
 
                   {/* Pagination for Policy Feature Mappings */}
                   {filteredPolicies.length > 0 && (
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-3 border-t mt-3">
-                      <div className="text-sm text-muted-foreground font-medium order-2 md:order-1">
-                        Showing {Math.min(featureMappingsStartIndex + 1, filteredPolicies.length)} to {Math.min(featureMappingsEndIndex, filteredPolicies.length)} of {filteredPolicies.length} results
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5 mt-3">
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Select
+                            value={pageSize.toString()}
+                            onValueChange={(value) => {
+                              setPageSize(parseInt(value))
+                              setCurrentPageFeatureMappings(1)
+                            }}
+                          >
+                            <SelectTrigger className="w-[80px] h-9 rounded-xl shadow-none">
+                              <SelectValue placeholder="Size" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[5, 10, 15, 20].map((size) => (
+                                <SelectItem key={size} value={size.toString()}>
+                                  {size}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <span className="text-sm text-muted-foreground">per page</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Showing {Math.min(featureMappingsStartIndex + 1, filteredPolicies.length)} to {Math.min(featureMappingsEndIndex, filteredPolicies.length)} of {filteredPolicies.length} results
+                        </div>
                       </div>
-                      <Pagination className="w-auto mx-0 order-1 md:order-2">
+
+                      <Pagination className="w-auto mx-0">
                         <PaginationContent>
                           <PaginationItem>
                             <Button
@@ -820,64 +846,66 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                               size="sm"
                               disabled={currentPageFeatureMappings === 1}
                               onClick={() => setCurrentPageFeatureMappings(prev => Math.max(1, prev - 1))}
-                              className="gap-1 pl-2.5 h-8"
+                              className="gap-1 rounded-lg h-9"
                             >
                               <ChevronLeft className="h-4 w-4" />
                               <span>Previous</span>
                             </Button>
                           </PaginationItem>
 
-                          {totalPagesFeatureMappings <= 5 ? (
-                            Array.from({ length: totalPagesFeatureMappings }, (_, i) => i + 1).map((page) => (
-                              <PaginationItem key={page}>
-                                <PaginationLink
-                                  isActive={currentPageFeatureMappings === page}
-                                  onClick={() => setCurrentPageFeatureMappings(page)}
-                                  className="cursor-pointer h-8 w-8 text-xs"
-                                >
-                                  {page}
-                                </PaginationLink>
-                              </PaginationItem>
-                            ))
-                          ) : (
-                            <>
-                              <PaginationItem>
-                                <PaginationLink
-                                  isActive={currentPageFeatureMappings === 1}
-                                  onClick={() => setCurrentPageFeatureMappings(1)}
-                                  className="cursor-pointer h-8 w-8 text-xs"
-                                >
-                                  1
-                                </PaginationLink>
-                              </PaginationItem>
-                              {currentPageFeatureMappings > 3 && <PaginationEllipsis />}
-                              {Array.from({ length: 3 }, (_, i) => {
-                                const page = Math.min(Math.max(currentPageFeatureMappings - 1 + i, 2), totalPagesFeatureMappings - 1);
-                                if (page === 1 || page === totalPagesFeatureMappings) return null;
-                                return (
-                                  <PaginationItem key={page}>
-                                    <PaginationLink
-                                      isActive={currentPageFeatureMappings === page}
-                                      onClick={() => setCurrentPageFeatureMappings(page)}
-                                      className="cursor-pointer h-8 w-8 text-xs"
-                                    >
-                                      {page}
-                                    </PaginationLink>
-                                  </PaginationItem>
-                                )
-                              })}
-                              {currentPageFeatureMappings < totalPagesFeatureMappings - 2 && <PaginationEllipsis />}
-                              <PaginationItem>
-                                <PaginationLink
-                                  isActive={currentPageFeatureMappings === totalPagesFeatureMappings}
-                                  onClick={() => setCurrentPageFeatureMappings(totalPagesFeatureMappings)}
-                                  className="cursor-pointer h-8 w-8 text-xs"
-                                >
-                                  {totalPagesFeatureMappings}
-                                </PaginationLink>
-                              </PaginationItem>
-                            </>
-                          )}
+                          <div className="flex items-center gap-1 mx-2">
+                            {totalPagesFeatureMappings <= 5 ? (
+                              Array.from({ length: totalPagesFeatureMappings }, (_, i) => i + 1).map((page) => (
+                                <PaginationItem key={page}>
+                                  <PaginationLink
+                                    isActive={currentPageFeatureMappings === page}
+                                    onClick={() => setCurrentPageFeatureMappings(page)}
+                                    className="cursor-pointer h-9 w-9 text-xs rounded-lg"
+                                  >
+                                    {page}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              ))
+                            ) : (
+                              <>
+                                <PaginationItem>
+                                  <PaginationLink
+                                    isActive={currentPageFeatureMappings === 1}
+                                    onClick={() => setCurrentPageFeatureMappings(1)}
+                                    className="cursor-pointer h-9 w-9 text-xs rounded-lg"
+                                  >
+                                    1
+                                  </PaginationLink>
+                                </PaginationItem>
+                                {currentPageFeatureMappings > 3 && <PaginationEllipsis />}
+                                {Array.from({ length: 3 }, (_, i) => {
+                                  const page = Math.min(Math.max(currentPageFeatureMappings - 1 + i, 2), totalPagesFeatureMappings - 1);
+                                  if (page === 1 || page === totalPagesFeatureMappings) return null;
+                                  return (
+                                    <PaginationItem key={page}>
+                                      <PaginationLink
+                                        isActive={currentPageFeatureMappings === page}
+                                        onClick={() => setCurrentPageFeatureMappings(page)}
+                                        className="cursor-pointer h-9 w-9 text-xs rounded-lg"
+                                      >
+                                        {page}
+                                      </PaginationLink>
+                                    </PaginationItem>
+                                  )
+                                })}
+                                {currentPageFeatureMappings < totalPagesFeatureMappings - 2 && <PaginationEllipsis />}
+                                <PaginationItem>
+                                  <PaginationLink
+                                    isActive={currentPageFeatureMappings === totalPagesFeatureMappings}
+                                    onClick={() => setCurrentPageFeatureMappings(totalPagesFeatureMappings)}
+                                    className="cursor-pointer h-9 w-9 text-xs rounded-lg"
+                                  >
+                                    {totalPagesFeatureMappings}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              </>
+                            )}
+                          </div>
 
                           <PaginationItem>
                             <Button
@@ -885,7 +913,7 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                               size="sm"
                               disabled={currentPageFeatureMappings === totalPagesFeatureMappings}
                               onClick={() => setCurrentPageFeatureMappings(prev => Math.min(totalPagesFeatureMappings, prev + 1))}
-                              className="gap-1 pl-2.5 h-8"
+                              className="gap-1 rounded-lg h-9"
                             >
                               <span>Next</span>
                               <ChevronRight className="h-4 w-4" />

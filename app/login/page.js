@@ -390,11 +390,11 @@ function LoginContent() {
                   </Button>
                 </div>
 
-                <div className="text-center">
+                {/* <div className="text-center">
                   <Link href="/register" className="text-sm text-purple-600 hover:text-purple-700 font-medium transition-colors">
                     Don't have an account? Register here
                   </Link>
-                </div>
+                </div> */}
               </div>
             ) : step === 2 ? (
               // Email Login Step

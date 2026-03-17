@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { ArrowLeft, Loader2, Users, CheckCircle2, XCircle, Shield, Download, Eye, UserMinus, X } from "lucide-react"
+import { ArrowLeft, Loader2, Users, CheckCircle2, XCircle, Shield, Download, UserMinus, X } from "lucide-react"
 import { authUtils } from "@/lib/auth-utils"
 import { toast } from "sonner"
 import { rolesApi, policiesApi, usersApi } from "@/lib/api-endpoint"
@@ -40,12 +40,17 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
 
   useEffect(() => {
     // Prevent duplicate calls in React Strict Mode or rapid updates
-    if (dataLoadedRef.current && policy.p_id === dataLoadedRef.current) {
+    // But allow updates if the policy ID or user list has changed
+    const policyId = policy.p_id || policy.id
+    const userCount = Array.isArray(policy.users) ? policy.users.length : 0
+    const stateKey = `${policyId}-${userCount}`
+
+    if (dataLoadedRef.current === stateKey) {
       return
     }
 
     const loadData = async () => {
-      dataLoadedRef.current = policy.p_id || policy.id
+      dataLoadedRef.current = stateKey
 
       // Only fetch roles if not already loaded
       if (roles.length === 0) {
@@ -187,7 +192,7 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
     }
   }
 
-  const policyName = policy.p_name || policy.policy_name || policy.name || "Unknown Policy"
+  const policyName = policy.p_id || policy.policy_id || policy.id || "Unknown Policy"
   const policyType = policy.type || policy.policy_type || "internal"
   const isActive = policy.is_active !== false
 
@@ -237,12 +242,10 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
       setDeleteDialogOpen(false)
       setUserToRemove(null)
 
-      // Refresh data after removing user
-      await fetchAllUsersAndSplit(false) // Silent update
-
       // Notify parent to refresh user counts
+      // This will update the policy prop and trigger a refresh via useEffect in parent+child
       if (onUserUpdate) {
-        onUserUpdate()
+        onUserUpdate(true, true)
       }
     } catch (error) {
       console.error("Error removing user:", error)
@@ -255,14 +258,13 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
   const handleExportUsers = () => {
     // Export functionality
     const csvContent = [
-      ["Name", "Email", "Contact", "Status", "Total Policies", "User ID"],
+      ["Name", "Email", "Contact", "Status", "Total Policies"],
       ...filteredMappedUsers.map(user => [
         user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : user.username || user.name || "",
         user.email || "",
         user.phone || user.contact || "",
         user.is_active !== false ? "Active" : "Inactive",
-        user.total_policies || "0",
-        user.user_id || user.id || ""
+        user.total_policies || "0"
       ])
     ].map(row => row.join(",")).join("\n")
 
@@ -453,7 +455,6 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
                             <TableHead className="font-semibold text-foreground">User Details</TableHead>
                             <TableHead className="font-semibold text-foreground">Role</TableHead>
                             <TableHead className="font-semibold text-foreground">Status</TableHead>
-                            <TableHead className="font-semibold text-foreground">User ID</TableHead>
                             <TableHead className="w-[140px] whitespace-nowrap text-center font-semibold text-foreground">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -484,21 +485,8 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
                                   {user.is_active !== false ? "Active" : "Inactive"}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="py-4 font-mono text-xs">
-                                <span className="text-muted-foreground">
-                                  {String(user.user_id || user.id || "").substring(0, 8)}...
-                                </span>
-                              </TableCell>
                               <TableCell className="w-[140px] whitespace-nowrap text-center py-4">
                                 <div className="flex items-center justify-center space-x-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => {/* View user details */ }}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -609,12 +597,9 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
 
                                         toast.success("User added to policy successfully")
 
-                                        // Refresh data after adding user
-                                        await fetchAllUsersAndSplit(false) // Silent update
-
-                                        // Notify parent to refresh user counts
+                                        // Notify parent to refresh user data via page.js
                                         if (onUserUpdate) {
-                                          onUserUpdate()
+                                          onUserUpdate(true, true)
                                         }
                                       } catch (error) {
                                         console.error("Error adding user:", error)
@@ -683,4 +668,3 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
     </div>
   )
 }
-

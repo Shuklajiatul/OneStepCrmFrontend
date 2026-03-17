@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -15,8 +15,12 @@ export function ModuleDetailTab({ moduleName, onBack }) {
   const [features, setFeatures] = useState([])
   const [loading, setLoading] = useState(true)
 
+  const dataLoadedRef = useRef(null)
+ 
   useEffect(() => {
+    if (dataLoadedRef.current === moduleName) return
     fetchModuleFeatures()
+    dataLoadedRef.current = moduleName
   }, [moduleName])
 
   const fetchModuleFeatures = async () => {

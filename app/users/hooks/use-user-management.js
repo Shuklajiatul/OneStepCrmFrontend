@@ -255,10 +255,10 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
 
             if (response.data) {
                 toast.success("Role assigned successfully")
-                setIsRoleDialogOpen(false)
                 setRoleFormData({ role_id: "" })
                 fetchUsers()
-                if (isViewDialogOpen) fetchUserDetails(selectedUser.user_id)
+                // Always fetch updated details to show in the manage roles list
+                fetchUserDetails(selectedUser.user_id)
             }
         } catch (error) {
             toast.error("Failed to assign role")
@@ -275,7 +275,9 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
             if (response.status === 200 || response.status === 204) {
                 toast.success("Role removed successfully")
                 fetchUsers()
-                if (isViewDialogOpen && selectedUser?.user_id === userId) fetchUserDetails(userId)
+                if ((isViewDialogOpen || isRoleDialogOpen) && selectedUser?.user_id === userId) {
+                    fetchUserDetails(userId)
+                }
             }
         } catch (error) {
             toast.error("Failed to remove role")
@@ -312,6 +314,7 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
     }
 
     const getReportingManagerName = (user) => {
+        if (!user) return "N/A"
         const reportingId = user.reporting_id || user.reports_to || user.reporting_to
         if (!reportingId) return "N/A"
         const reportingToUser = users.find(u => (u.user_id || u.id) === reportingId)
@@ -408,6 +411,7 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
         },
         openRoleDialog: async (user) => {
             setSelectedUser(user)
+            setRoleFormData({ role_id: "" }) // Reset selection
             await fetchUserDetails(user.user_id)
             setIsRoleDialogOpen(true)
         },

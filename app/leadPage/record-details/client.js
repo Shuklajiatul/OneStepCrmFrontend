@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -42,9 +42,18 @@ export default function RecordDetailsClient({
     initialColumns,
     initialUsers,
     initialHistory,
-    initialActivities
+    initialActivities,
+    newAccessToken: propNewAccessToken = null
 }) {
-    const router = useRouter()
+    // const router = useRouter()
+    
+    // Sync new token from server to browser cookies if it was refreshed
+    useEffect(() => {
+        if (propNewAccessToken) {
+            console.log('Syncing new server-side token to cookies in record-details');
+            authUtils.setTokens({ accessToken: propNewAccessToken });
+        }
+    }, [propNewAccessToken]);
 
     // State initialization with props
     const [record, setRecord] = useState(initialRecord)
@@ -289,11 +298,9 @@ export default function RecordDetailsClient({
 
         return (
             <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <button className="px-2 py-1 rounded border border-border hover:bg-muted/50 transition-colors flex items-center gap-2">
-                        {displayNode}
-                        {hasNestedData(column) && <Settings className="h-3 w-3 text-muted-foreground animate-pulse" />}
-                    </button>
+                <DropdownMenuTrigger className="px-2 py-1 rounded border border-border hover:bg-muted/50 transition-colors flex items-center gap-2 outline-none">
+                    {displayNode}
+                    {hasNestedData(column) && <Settings className="h-3 w-3 text-muted-foreground animate-pulse" />}
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56">
                     <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Options</div>
@@ -528,8 +535,8 @@ export default function RecordDetailsClient({
             <div className="flex flex-col items-center justify-center min-h-screen">
                 <AlertCircle className="h-10 w-10 text-destructive mb-4" />
                 <p className="text-lg font-medium">Record not found or failed to load.</p>
-                <Button className="mt-4" onClick={() => router.push(`/leadPage`)}>
-                    Back to Tables
+                <Button className="mt-4" asChild>
+                    <Link href={`/leadPage?tableId=${tableId}`}>Back to Tables</Link>
                 </Button>
             </div>
         )
@@ -539,8 +546,10 @@ export default function RecordDetailsClient({
         <div className="container mx-auto py-6 space-y-6">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.push(`/leadPage?tableId=${tableId}`)}>
-                        <ArrowLeft className="h-5 w-5" />
+                    <Button variant="ghost" size="icon" asChild>
+                        <Link href={`/leadPage?tableId=${tableId}`}>
+                            <ArrowLeft className="h-5 w-5" />
+                        </Link>
                     </Button>
                     <div>
                         <h1 className="text-2xl font-bold flex items-center gap-2">

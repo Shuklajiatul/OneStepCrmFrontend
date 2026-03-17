@@ -21,6 +21,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -228,7 +229,7 @@ function TableSettingsDialog({ table, open, onOpenChange, onUpdate }) {
 }
 
 // Sortable Table Component
-function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddRow, currentTable, onUpdateColumns, onUpdateTables, tables, setTables, onToggleStatus, loading, onUpdateTableDetails, onFetchRecords, records, countries: phoneCountries }) {
+function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddRow, currentTable, onUpdateColumns, onUpdateTables, tables, setTables, onToggleStatus, loading, onUpdateTableDetails, onFetchRecords, records, countries: phoneCountries, columnVisibility, setColumnVisibility }) {
   const {
     attributes,
     listeners,
@@ -395,6 +396,8 @@ function SortableTable({ table, onTableClick, onDeleteTable, onAddColumn, onAddR
             records={records}
             countries={phoneCountries}
             loading={loading}
+            columnVisibility={columnVisibility}
+            setColumnVisibility={setColumnVisibility}
           />
         )}
       </Card>
@@ -474,9 +477,203 @@ function SortableColumn({ column, table, onUpdate, onDelete, onEditName }) {
   )
 }
 
+// Helper to resolve technical field IDs to human-readable labels
+function resolveFieldLabel(column, fieldId) {
+  if (!column || !fieldId) return fieldId;
+
+  // Handle internal wrapper keys
+  if (fieldId === 'primary') return "Selected Value";
+  if (fieldId === 'details') return "Additional Information";
+
+  const findInOptions = (options) => {
+    if (!options) return null;
+    let ops = options;
+    if (typeof options === 'string') {
+      try {
+        ops = JSON.parse(options);
+      } catch (e) {
+        return null;
+      }
+    }
+    if (!Array.isArray(ops)) return null;
+
+    for (const opt of ops) {
+      if (!opt || typeof opt !== 'object') continue;
+
+      // Check if the current option itself matches (for value-label mapping)
+      if (opt.value === fieldId) return opt.label || opt.value;
+
+      // Check nested fields inside this option
+      let nestedFields = opt.nestedFields;
+      if (nestedFields) {
+        if (typeof nestedFields === 'string') {
+          try {
+            nestedFields = JSON.parse(nestedFields);
+          } catch (e) {
+            nestedFields = [];
+          }
+        }
+
+        if (Array.isArray(nestedFields)) {
+          for (const f of nestedFields) {
+            if (f.id === fieldId || f.name === fieldId || f.column_id === fieldId || f.column_name === fieldId) {
+              return f.label || f.name || f.column_name;
+            }
+            // Recurse into nested field options if they exist
+            if (f.options) {
+              const found = findInOptions(f.options);
+              if (found) return found;
+            }
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  // Try various possible locations for options structure
+  let label = findInOptions(column.rawOptions || column.options || (column.optional_values?.[0]));
+  if (label) return label;
+
+  // Fallback for location objects
+  const locationLabels = {
+    country: "Country",
+    state: "State",
+    city: "City",
+    address: "Address",
+    zipCode: "Zip Code",
+    lat: "Latitude",
+    lng: "Longitude"
+  };
+
+  if (locationLabels[fieldId]) return locationLabels[fieldId];
+
+  // If no match found, format the technical name (replace underscores, camelCase)
+  return fieldId
+    .replace(/_/g, ' ')
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/\b\w/g, l => l.toUpperCase())
+    .trim();
+}
+
+// Nested Data Modal Component
+function NestedDataModal({ open, onOpenChange, data, columnName, column }) {
+  if (!data) return null
+
+  const renderValue = (val, isNested = false) => {
+    if (val === null || val === undefined) return <span className="text-muted-foreground italic text-[10px]">No data</span>
+    
+    // Primitive handling
+    if (typeof val !== 'object') {
+      if (typeof val === 'boolean') return <Badge variant="outline" className="text-[10px]">{val ? 'True' : 'False'}</Badge>
+      return <span className="text-sm font-medium">{String(val)}</span>
+    }
+
+    // Array handling
+    if (Array.isArray(val)) {
+      if (val.length === 0) return <span className="text-muted-foreground italic text-[10px]">Empty list</span>
+      return (
+        <ul className="list-none space-y-4 my-2">
+          {val.map((item, i) => (
+            <li key={i} className="flex gap-3">
+              <div className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/30" />
+              <div className="flex-1">{renderValue(item, true)}</div>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    // Object handling
+    // 1. CRM pattern: valued-object (value & nestedValues)
+    const hasValue = val && (val.hasOwnProperty('value') || val.value !== undefined);
+    const hasNestedData = val && (val.hasOwnProperty('nestedValues') || val.nestedValues !== undefined);
+
+    if (hasValue || hasNestedData) {
+      return (
+        <div className="space-y-4">
+          {hasValue && val.value !== null && val.value !== undefined && (
+            <div className="text-sm font-semibold text-foreground bg-primary/5 px-3 py-1.5 rounded-md border border-primary/20 shadow-sm w-fit min-w-[80px]">
+              {String(val.value)}
+            </div>
+          )}
+          {hasNestedData && val.nestedValues && typeof val.nestedValues === 'object' && Object.keys(val.nestedValues).length > 0 && (
+            <div className="pl-4 border-l-2 border-primary/20 space-y-5 mt-2 ml-1">
+              {Object.entries(val.nestedValues).map(([k, v]) => (
+                <div key={k} className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80 flex items-center gap-1.5 leading-none">
+                    <div className="h-1 w-1 rounded-full bg-primary/40" />
+                    {resolveFieldLabel(column, k)}
+                  </span>
+                  <div className="pl-2.5">
+                    {renderValue(v, true)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    // 2. Default: Standard Dictionary rendering
+    // Filter out technical keys to avoid "Value" and "Nested Values" labels
+    const entries = Object.entries(val).filter(([k]) => k !== 'value' && k !== 'nestedValues');
+    
+    if (entries.length === 0) {
+      if (hasValue) return <span className="text-sm">{String(val.value)}</span>;
+      return <span className="text-muted-foreground italic text-[10px]">No details</span>;
+    }
+
+    return (
+      <div className={`space-y-6 ${isNested ? 'pt-1' : ''}`}>
+        {entries.map(([k, v]) => (
+          <div key={k} className="flex flex-col gap-2 border-b border-border/30 last:border-0 pb-5 mb-5 last:mb-0 last:pb-0">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/5 px-2.5 py-1 rounded w-fit border border-primary/10">
+              {resolveFieldLabel(column, k)}
+            </span>
+            <div className="text-sm text-foreground pl-1 font-medium">
+              {renderValue(v, true)}
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[700px] w-[95vw] max-h-[85vh] flex flex-col p-0 overflow-hidden shadow-2xl border-none">
+        <DialogHeader className="p-6 border-b bg-muted/5">
+          <DialogTitle className="flex items-center gap-3 text-xl font-bold">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Box className="h-5 w-5 text-primary" />
+            </div>
+            {columnName} Details
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-muted-foreground/20">
+          <div className="space-y-2 pb-4">
+            {renderValue(data)}
+          </div>
+        </div>
+
+        <div className="p-4 border-t bg-muted/20 flex justify-end gap-3">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="px-6">
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // Table Content Component
-function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTables, onFetchRecords, onAddRecord, records, countries, loading }) {
+function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTables, onFetchRecords, onAddRecord, records, countries, loading, columnVisibility, setColumnVisibility }) {
   const [activeColumn, setActiveColumn] = useState(null)
+  const [isCellDataModalOpen, setIsCellDataModalOpen] = useState(false)
+  const [cellModalData, setCellModalData] = useState({ columnName: '', data: null, column: null })
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -591,41 +788,63 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
         ) : "-"
       }
 
-      return (
-        <div className="flex flex-col gap-1">
-          <span>{primaryDisplay || "-"}</span>
-          {hasNested && (
-            <div className="text-xs text-muted-foreground bg-muted/30 p-1 rounded space-y-0.5">
-              {Object.entries(nested).map(([k, v]) => {
+      const handleOpenNestedModal = (e, colName, data, col) => {
+        e.stopPropagation()
+        setCellModalData({ columnName: colName, data, column: col })
+        setIsCellDataModalOpen(true)
+      }
+
+      if (hasNested) {
+        return (
+          <div className="flex flex-col gap-1">
+            <span
+              className="text-blue-600 hover:underline cursor-pointer font-medium"
+              onClick={(e) => handleOpenNestedModal(e, column.name, { primary: primaryVal, details: nested }, column)}
+            >
+              {primaryDisplay || "View Details"}
+            </span>
+            <div className="text-[10px] text-muted-foreground bg-muted/30 p-1 rounded space-y-0.5 max-w-fit">
+              {Object.entries(nested).slice(0, 2).map(([k, v]) => {
                 let nVal = v
                 if (typeof v === 'object' && v !== null) {
                   if (v.hasOwnProperty('value')) {
                     nVal = v.value
                   } else if (Array.isArray(v)) {
-                    // Array of objects with value prop?
-                    nVal = v.map(item => {
-                      if (typeof item === 'object' && item.value) return item.value
-                      return item
-                    }).join(", ")
+                    nVal = v.map(item => (typeof item === 'object' && item.value) ? item.value : item).join(", ")
                   } else {
-                    // Fallback
                     nVal = JSON.stringify(v)
                   }
                 }
-                return <div key={k}>{String(nVal)}</div>
+                return <div key={k} className="truncate max-w-[150px]">{String(nVal)}</div>
               })}
+              {Object.keys(nested).length > 2 && <div className="italic">+ {Object.keys(nested).length - 2} more...</div>}
             </div>
-          )}
+          </div>
+        )
+      }
+
+      return (
+        <div className="flex flex-col gap-1">
+          <span>{primaryDisplay || "-"}</span>
         </div>
       )
     }
 
     // Handle Arrays (Multi-select / Checkbox)
     if (Array.isArray(value)) {
+      const handleOpenNestedModal = (e, colName, data, col) => {
+        e.stopPropagation()
+        setCellModalData({ columnName: colName, data, column: col })
+        setIsCellDataModalOpen(true)
+      }
+
       return (
         <div className="flex flex-col gap-1">
-          <div className="flex flex-wrap gap-1">
-            {value.map((v, i) => {
+          <div
+            className="flex flex-wrap gap-1 cursor-pointer hover:bg-primary/5 p-1 rounded transition-colors"
+            onClick={(e) => handleOpenNestedModal(e, column.name, value, column)}
+          >
+            {value.slice(0, 3).map((v, i) => {
               let val = v
               let nest = {}
               if (typeof v === 'object') {
@@ -633,12 +852,17 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
                 nest = v.nestedValues || {}
               }
               return (
-                <Badge key={i} variant="outline" className="text-xss">
+                <Badge key={i} variant="outline" className="text-[10px] bg-background">
                   {val}
                   {Object.keys(nest).length > 0 && "*"}
                 </Badge>
               )
             })}
+            {value.length > 3 && (
+              <Badge variant="ghost" className="text-[10px] text-blue-600">
+                +{value.length - 3} more
+              </Badge>
+            )}
           </div>
         </div>
       )
@@ -663,9 +887,33 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
       if (column.type === 'location' && value) {
         const { country, state, city } = value
         const parts = [country, state, city].filter(Boolean)
-        return parts.length > 0 ? parts.join(" / ") : "-"
+        const primaryDisplay = parts.length > 0 ? parts.join(" / ") : "-"
+
+        return (
+          <span
+            className="text-blue-600 hover:underline cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation()
+              setCellModalData({ columnName: column.name, data: value, column: column })
+              setIsCellDataModalOpen(true)
+            }}
+          >
+            {primaryDisplay}
+          </span>
+        )
       }
-      return JSON.stringify(value)
+      return (
+        <span
+          className="text-blue-600 hover:underline cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            setCellModalData({ columnName: column.name, data: value, column: column })
+            setIsCellDataModalOpen(true)
+          }}
+        >
+          {JSON.stringify(value)}
+        </span>
+      )
     }
 
     return renderPrimitive(value) || "-"
@@ -686,7 +934,7 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
               <TableHeader>
                 <TableRow>
                   <SortableContext items={table.columns.map(col => col.id)} strategy={horizontalListSortingStrategy}>
-                    {table.columns.map(column => (
+                    {table.columns.filter(col => columnVisibility[col.id] !== false).map(column => (
                       <SortableColumn
                         key={column.id}
                         column={column}
@@ -713,7 +961,7 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
                   ))
                 ) : (records || table.rows || []).map(row => (
                   <TableRow key={row.id} className="hover:bg-muted/50">
-                    {table.columns.map(column => (
+                    {table.columns.filter(col => columnVisibility[col.id] !== false).map(column => (
                       <TableCell
                         key={`${row.id}-${column.id}`}
                         className="border-r border-border last:border-r-0"
@@ -748,6 +996,13 @@ function TableContent({ table, onUpdateColumns, onUpdateTables, tables, setTable
         </div>
       </div>
 
+      <NestedDataModal
+        open={isCellDataModalOpen}
+        onOpenChange={setIsCellDataModalOpen}
+        data={cellModalData.data}
+        columnName={cellModalData.columnName}
+        column={cellModalData.column}
+      />
     </CardContent >
   )
 }
@@ -1292,6 +1547,7 @@ export default function CustomTableBuilderClient({
   })
 
   const [loading, setLoading] = useState(false)
+  const [columnVisibility, setColumnVisibility] = useState({})
 
   // Pagination State
   const [tablesPage, setTablesPage] = useState(1)
@@ -1864,10 +2120,19 @@ export default function CustomTableBuilderClient({
     // Previous
     items.push(
       <PaginationItem key="prev">
-        <PaginationPrevious
-          onClick={() => setPage(Math.max(1, currentPage - 1))}
-          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-        />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.preventDefault();
+            setPage(Math.max(1, currentPage - 1));
+          }}
+          disabled={currentPage === 1}
+          className="gap-1 pl-2.5 h-8 rounded-lg"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          <span>Previous</span>
+        </Button>
       </PaginationItem>
     )
 
@@ -1882,7 +2147,15 @@ export default function CustomTableBuilderClient({
     if (startPage > 1) {
       items.push(
         <PaginationItem key="1">
-          <PaginationLink onClick={() => setPage(1)} className="cursor-pointer">1</PaginationLink>
+          <PaginationLink
+            onClick={(e) => {
+              e.preventDefault();
+              setPage(1);
+            }}
+            className="cursor-pointer h-8 w-8 rounded-lg"
+          >
+            1
+          </PaginationLink>
         </PaginationItem>
       )
       if (startPage > 2) {
@@ -1895,8 +2168,11 @@ export default function CustomTableBuilderClient({
         <PaginationItem key={i}>
           <PaginationLink
             isActive={currentPage === i}
-            onClick={() => setPage(i)}
-            className="cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              setPage(i);
+            }}
+            className="cursor-pointer h-8 w-8 rounded-lg"
           >
             {i}
           </PaginationLink>
@@ -1910,7 +2186,15 @@ export default function CustomTableBuilderClient({
       }
       items.push(
         <PaginationItem key={totalPages}>
-          <PaginationLink onClick={() => setPage(totalPages)} className="cursor-pointer">{totalPages}</PaginationLink>
+          <PaginationLink
+            onClick={(e) => {
+              e.preventDefault();
+              setPage(totalPages);
+            }}
+            className="cursor-pointer h-8 w-8 rounded-lg"
+          >
+            {totalPages}
+          </PaginationLink>
         </PaginationItem>
       )
     }
@@ -1918,10 +2202,19 @@ export default function CustomTableBuilderClient({
     // Next
     items.push(
       <PaginationItem key="next">
-        <PaginationNext
-          onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-          className={currentPage >= totalPages || totalCount === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-        />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.preventDefault();
+            setPage(Math.min(totalPages, currentPage + 1));
+          }}
+          disabled={currentPage >= totalPages || totalCount === 0}
+          className="gap-1 pl-2.5 h-8 rounded-lg"
+        >
+          <span>Next</span>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </PaginationItem>
     )
 
@@ -2547,11 +2840,39 @@ export default function CustomTableBuilderClient({
           )}
 
           {/* Tables Pagination */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t mt-4 bg-muted/5 rounded-xl border">
-            <div className="text-sm font-medium text-muted-foreground order-2 sm:order-1">
-              Showing <span className="text-foreground">{((tablesPage - 1) * tablesRowsPerPage) + 1}</span> to{' '}
-              <span className="text-foreground">{Math.min(tablesPage * tablesRowsPerPage, totalTables)}</span> of{' '}
-              <span className="text-foreground">{totalTables}</span> entries
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t mt-4 bg-muted/5">
+            <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+              <div className="flex items-center gap-2 border-muted-foreground/20">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  Show
+                </span>
+                <Select
+                  value={tablesRowsPerPage.toString()}
+                  onValueChange={(value) => {
+                    setTablesRowsPerPage(Number(value))
+                    setTablesPage(1)
+                  }}
+                >
+                  <SelectTrigger id="page-size-tables" className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[10, 25, 50, 100].map(size => (
+                      <SelectItem key={size} value={size.toString()}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  per page
+                </span>
+              </div>
+              <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                Showing <span className="text-foreground">{((tablesPage - 1) * tablesRowsPerPage) + 1}</span> to{' '}
+                <span className="text-foreground">{Math.min(tablesPage * tablesRowsPerPage, totalTables)}</span> of{' '}
+                <span className="text-foreground">{totalTables}</span> entries
+              </div>
             </div>
 
             <div className="order-1 sm:order-2">
@@ -2575,23 +2896,52 @@ export default function CustomTableBuilderClient({
                 Back to List
               </Button>
             </div>
-            <div className="relative w-64">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search records..."
-                value={recordsSearch}
-                onChange={(e) => setRecordsSearch(e.target.value)}
-                className="pl-8 pr-8"
-              />
-              {recordsSearch && (
-                <X
-                  className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setRecordsSearch("")
-                  }}
+            <div className="flex items-center gap-2">
+              <div className="relative w-64">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search records..."
+                  value={recordsSearch}
+                  onChange={(e) => setRecordsSearch(e.target.value)}
+                  className="pl-8 pr-8"
                 />
-              )}
+                {recordsSearch && (
+                  <X
+                    className="absolute right-2 top-2.5 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRecordsSearch("")
+                    }}
+                  />
+                )}
+              </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-10 gap-2 border-muted-foreground/20">
+                    <Settings className="h-4 w-4" />
+                    Columns
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[200px] max-h-[400px] overflow-y-auto">
+                  {currentTable.columns.map((column) => (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={columnVisibility[column.id] !== false}
+                      onSelect={(e) => e.preventDefault()}
+                      onCheckedChange={(value) =>
+                        setColumnVisibility((prev) => ({
+                          ...prev,
+                          [column.id]: !!value,
+                        }))
+                      }
+                    >
+                      {column.name}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           <DndContext
@@ -2617,14 +2967,44 @@ export default function CustomTableBuilderClient({
               onFetchRecords={fetchRecords}
               records={filteredRecords.slice((recordsPage - 1) * recordsRowsPerPage, recordsPage * recordsRowsPerPage)}
               countries={phoneCountries}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibility}
             />
           </DndContext>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t mt-4">
-            <div className="text-sm font-medium text-muted-foreground order-2 sm:order-1">
-              Showing <span className="text-foreground">{((recordsPage - 1) * recordsRowsPerPage) + 1}</span> to{' '}
-              <span className="text-foreground">{Math.min(recordsPage * recordsRowsPerPage, filteredRecords.length)}</span> of{' '}
-              <span className="text-foreground">{filteredRecords.length}</span> entries
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t mt-4 bg-muted/5">
+            <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+              <div className="flex items-center gap-2 border-muted-foreground/20">
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  Show
+                </span>
+                <Select
+                  value={recordsRowsPerPage.toString()}
+                  onValueChange={(value) => {
+                    setRecordsRowsPerPage(Number(value))
+                    setRecordsPage(1)
+                  }}
+                >
+                  <SelectTrigger id="page-size-records" className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    {[10, 25, 50, 100].map(size => (
+                      <SelectItem key={size} value={size.toString()}>
+                        {size}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                  per page
+                </span>
+              </div>
+              <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                Showing <span className="text-foreground">{((recordsPage - 1) * recordsRowsPerPage) + 1}</span> to{' '}
+                <span className="text-foreground">{Math.min(recordsPage * recordsRowsPerPage, filteredRecords.length)}</span> of{' '}
+                <span className="text-foreground">{filteredRecords.length}</span> entries
+              </div>
             </div>
 
             <div className="order-1 sm:order-2">

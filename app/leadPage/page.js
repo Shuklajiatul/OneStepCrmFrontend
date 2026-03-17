@@ -7,46 +7,16 @@ import LeadPageSkeleton from './components/lead-page-skeleton'
 
 async function getTables() {
   const cookieStore = await cookies()
-  let headers = authUtils.getServerHeaders(cookieStore)
-  let newAccessToken = null
 
   try {
-    let response = await fetch(`${API_BASE_URL}${DATATABLE_ENDPOINTS.LIST}`, {
-      headers,
-      next: { revalidate: 0 }
-    })
+    const { result: response, newAccessToken } = await authUtils.executeWithRefresh(cookieStore, async (headers) => {
+      return fetch(`${API_BASE_URL}${DATATABLE_ENDPOINTS.LIST}`, {
+        headers,
+        next: { revalidate: 0 }
+      });
+    });
 
-    console.log('Initial Fetch Status:', response.status, response.statusText)
-
-    // Handle 401 Unauthorized - attempt server-side refresh
-    if (response.status === 401) {
-      const refreshToken = cookieStore.get('refreshToken')?.value
-      if (refreshToken) {
-        try {
-          console.log('Attempting server-side token refresh...')
-          const refreshData = await authUtils.serverRefresh(refreshToken)
-
-          if (refreshData?.accessToken) {
-            newAccessToken = refreshData.accessToken
-            console.log('Refresh successful, retrying fetch with new token')
-
-            // Retry with new token
-            const retryHeaders = {
-              ...headers,
-              'Authorization': `Bearer ${newAccessToken}`
-            }
-
-            response = await fetch(`${API_BASE_URL}${DATATABLE_ENDPOINTS.LIST}`, {
-              headers: retryHeaders,
-              next: { revalidate: 0 }
-            })
-            console.log('Retry Fetch Status:', response.status, response.statusText)
-          }
-        } catch (refreshError) {
-          console.error('Server-side token refresh failed:', refreshError)
-        }
-      }
-    }
+    console.log('Fetch Status:', response.status, response.statusText);
 
     if (!response.ok) {
       console.error('Failed to fetch tables in server component:', response.status, response.statusText)

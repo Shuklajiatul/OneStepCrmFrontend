@@ -21,6 +21,8 @@ import {
     X,
     ArrowUpDown,
     ChevronUp,
+    ChevronLeft,
+    ChevronRight,
     ChevronDown
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -533,7 +535,7 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
 
             <Card className="rounded-xl">
                 <CardContent className="pt-0">
-                    <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex flex-col md:flex-row md:flex-wrap gap-4">
                         <div className="flex-1">
                             <div className="relative w-full md:w-72">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -591,7 +593,7 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                                 </Select>
                             </>
                         ) : (
-                            <div className="flex gap-4">
+                            <div className="flex flex-col md:flex-row md:flex-wrap gap-4">
                                 <div className="w-full md:w-[180px] h-10 bg-muted/20 border rounded-md"></div>
                                 <div className="w-full md:w-[180px] h-10 bg-muted/20 border rounded-md"></div>
                                 <div className="w-full md:w-[180px] h-10 bg-muted/20 border rounded-md"></div>
@@ -782,43 +784,59 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                     </div>
 
                     {filteredActivities.length > 0 && (
-                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 border-t">
-                            <div className="flex items-center gap-2">
-                                <p className="text-sm text-muted-foreground whitespace-nowrap">Rows per page:</p>
-                                {mounted ? (
-                                    <Select
-                                        value={itemsPerPage.toString()}
-                                        onValueChange={handleItemsPerPageChange}
-                                    >
-                                        <SelectTrigger className="w-[70px] h-8">
-                                            <SelectValue placeholder={itemsPerPage} />
-                                        </SelectTrigger>
-                                        <SelectContent side="top">
-                                            {[5, 10, 20, 50].map((pageSize) => (
-                                                <SelectItem key={pageSize} value={pageSize.toString()}>
-                                                    {pageSize}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
-                                    <div className="w-[70px] h-8 bg-muted/20 border rounded-md"></div>
-                                )}
-                            </div>
-
-                            <div className="flex items-center gap-4">
-                                <div className="text-sm text-muted-foreground">
-                                    Page {currentPage} of {totalPages}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5 mt-0">
+                            <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Show</span>
+                                    {mounted ? (
+                                        <>
+                                            <Select
+                                                value={itemsPerPage.toString()}
+                                                onValueChange={handleItemsPerPageChange}
+                                            >
+                                                <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
+                                                    <SelectValue placeholder={itemsPerPage} />
+                                                </SelectTrigger>
+                                                <SelectContent side="top">
+                                                    {[5, 10, 20, 50].map((pageSize) => (
+                                                        <SelectItem key={pageSize} value={pageSize.toString()}>
+                                                            {pageSize}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">per page</span>
+                                        </>
+                                    ) : (
+                                        <div className="w-[70px] h-8 bg-muted/20 border rounded-md"></div>
+                                    )}
                                 </div>
 
-                                {totalPages > 1 && (
-                                    <Pagination>
+                                <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                                    Showing <span className="text-foreground">{startIndex + 1}</span> to{' '}
+                                    <span className="text-foreground">{Math.min(startIndex + itemsPerPage, filteredActivities.length)}</span> of{' '}
+                                    <span className="text-foreground">{filteredActivities.length}</span> entries
+                                </div>
+                            </div>
+
+                            {totalPages > 1 && (
+                                <div className="order-1 sm:order-2">
+                                    <Pagination className="justify-end w-auto mx-0">
                                         <PaginationContent>
                                             <PaginationItem>
-                                                <PaginationPrevious
-                                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                                                />
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setCurrentPage(prev => Math.max(prev - 1, 1));
+                                                    }}
+                                                    disabled={currentPage === 1}
+                                                    className="gap-1 pl-2.5 h-8 rounded-lg"
+                                                >
+                                                    <ChevronLeft className="h-4 w-4" />
+                                                    <span>Previous</span>
+                                                </Button>
                                             </PaginationItem>
 
                                             {(() => {
@@ -835,9 +853,12 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                                                     pages.push(
                                                         <PaginationItem key={i}>
                                                             <PaginationLink
-                                                                onClick={() => setCurrentPage(i)}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    setCurrentPage(i);
+                                                                }}
                                                                 isActive={currentPage === i}
-                                                                className="cursor-pointer"
+                                                                className="cursor-pointer h-8 w-8 rounded-lg"
                                                             >
                                                                 {i}
                                                             </PaginationLink>
@@ -848,15 +869,24 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                                             })()}
 
                                             <PaginationItem>
-                                                <PaginationNext
-                                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                                                />
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        setCurrentPage(prev => Math.min(prev + 1, totalPages));
+                                                    }}
+                                                    disabled={currentPage === totalPages}
+                                                    className="gap-1 pr-2.5 h-8 rounded-lg"
+                                                >
+                                                    <span>Next</span>
+                                                    <ChevronRight className="h-4 w-4" />
+                                                </Button>
                                             </PaginationItem>
                                         </PaginationContent>
                                     </Pagination>
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </CardContent>

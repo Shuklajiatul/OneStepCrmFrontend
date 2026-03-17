@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { RefreshCw, ArrowLeft, FileText, Search, X, Send, Eye, AlertCircle } from "lucide-react"
+import { RefreshCw, ArrowLeft, FileText, Search, X, Send, Eye, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -732,7 +732,7 @@ export default function FormSubmissionsClient({ formId, initialFormDetails, init
                     </div>
                 </CardHeader>
 
-                <CardContent className="px-6 border-b-0 pb-6 pt-6 bg-muted/10">
+                <CardContent className="px-6 border-b-0 pb-6 bg-muted/10">
                     {/* Search Section */}
                     <div className="flex flex-col sm:flex-row gap-4 mb-6">
                         <div className="relative w-full sm:w-72 md:w-96 lg:w-[28rem]">
@@ -894,38 +894,51 @@ export default function FormSubmissionsClient({ formId, initialFormDetails, init
 
                             {/* Pagination */}
                             {filteredSubmissions.length > 0 && (
-                                <div className="mt-6 px-4 sm:px-0 pb-4 sm:pb-0">
-                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                                        <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm text-muted-foreground whitespace-nowrap">Show</span>
-                                                <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
-                                                    <SelectTrigger className="w-20">
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="5">5</SelectItem>
-                                                        <SelectItem value="10">10</SelectItem>
-                                                        <SelectItem value="20">20</SelectItem>
-                                                        <SelectItem value="50">50</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                <span className="text-sm text-muted-foreground whitespace-nowrap">per page</span>
-                                            </div>
-
-                                            <div className="text-sm text-muted-foreground whitespace-nowrap">
-                                                Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredSubmissions.length)} of {filteredSubmissions.length} submissions
-                                            </div>
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5 mt-6">
+                                    <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Show</span>
+                                            <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                                                <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent side="top">
+                                                    <SelectItem value="5">5</SelectItem>
+                                                    <SelectItem value="10">10</SelectItem>
+                                                    <SelectItem value="20">20</SelectItem>
+                                                    <SelectItem value="50">50</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">per page</span>
                                         </div>
 
-                                        {totalPages > 1 && (
-                                            <Pagination>
+                                        <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                                            Showing <span className="text-foreground">{startIndex + 1}</span> to{' '}
+                                            <span className="text-foreground">
+                                                {Math.min(startIndex + itemsPerPage, filteredSubmissions.length)}
+                                            </span> of{' '}
+                                            <span className="text-foreground">{filteredSubmissions.length}</span> entries
+                                        </div>
+                                    </div>
+
+                                    {totalPages > 1 && (
+                                        <div className="order-1 sm:order-2">
+                                            <Pagination className="justify-end w-auto mx-0">
                                                 <PaginationContent>
                                                     <PaginationItem>
-                                                        <PaginationPrevious
-                                                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                                            className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                                                        />
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setCurrentPage(prev => Math.max(prev - 1, 1));
+                                                            }}
+                                                            disabled={currentPage === 1}
+                                                            className="gap-1 pl-2.5 h-8 rounded-lg"
+                                                        >
+                                                            <ChevronLeft className="h-4 w-4" />
+                                                            <span>Previous</span>
+                                                        </Button>
                                                     </PaginationItem>
 
                                                     {(() => {
@@ -942,9 +955,12 @@ export default function FormSubmissionsClient({ formId, initialFormDetails, init
                                                             pages.push(
                                                                 <PaginationItem key={i}>
                                                                     <PaginationLink
-                                                                        onClick={() => setCurrentPage(i)}
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            setCurrentPage(i);
+                                                                        }}
                                                                         isActive={currentPage === i}
-                                                                        className="cursor-pointer"
+                                                                        className="cursor-pointer h-8 w-8 rounded-lg"
                                                                     >
                                                                         {i}
                                                                     </PaginationLink>
@@ -955,15 +971,24 @@ export default function FormSubmissionsClient({ formId, initialFormDetails, init
                                                     })()}
 
                                                     <PaginationItem>
-                                                        <PaginationNext
-                                                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                                            className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                                                        />
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setCurrentPage(prev => Math.min(prev + 1, totalPages));
+                                                            }}
+                                                            disabled={currentPage === totalPages}
+                                                            className="gap-1 pr-2.5 h-8 rounded-lg"
+                                                        >
+                                                            <span>Next</span>
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        </Button>
                                                     </PaginationItem>
                                                 </PaginationContent>
                                             </Pagination>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </>
@@ -1142,7 +1167,7 @@ export default function FormSubmissionsClient({ formId, initialFormDetails, init
 
     return (
         <main className="min-h-screen bg-muted/20 w-full">
-            <div className="w-full max-w-8xl mx-auto p-4 md:p-6 pb-20">{mainContent}</div>
+            <div className="w-full max-w-8xl mx-auto  pb-20">{mainContent}</div>
         </main>
     )
 }

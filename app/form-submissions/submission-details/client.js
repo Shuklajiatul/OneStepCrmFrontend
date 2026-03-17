@@ -411,7 +411,7 @@ export default function SubmissionDetailsClient({
 
     return (
         <main className="min-h-screen bg-muted/20 w-full overflow-x-hidden">
-            <div className="w-full max-w-full px-2 sm:px-4 md:px-6 space-y-4 sm:space-y-6 pb-20 mt-4 md:mt-0">
+            <div className="w-full max-w-full px-2 sm:px-4 md:px-0 space-y-4 sm:space-y-6 pb-20 mt-4 md:mt-0">
                 <PageBreadcrumb
                     customItems={[
                         { label: "My Forms", href: "/my-forms" },

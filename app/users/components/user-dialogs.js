@@ -20,7 +20,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, CheckCircle2, XCircle, ShieldCheck, ShieldX, Edit } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle, ShieldCheck, ShieldX, Edit, Plus, Trash2, ShieldRing } from "lucide-react"
 
 export function UserDialogs({
     // States
@@ -48,6 +48,7 @@ export function UserDialogs({
     // Helpers
     getFilteredReportingUsers,
     getRoleName,
+    getReportingManagerName,
     getUserRolePriority,
     getSelectedRolePriority
 }) {
@@ -294,30 +295,46 @@ export function UserDialogs({
                                 </div>
                             </div>
 
-                            {selectedUser.roles && Array.isArray(selectedUser.roles) && selectedUser.roles.length > 0 && (
-                                <div>
-                                    <Separator className="my-4" />
-                                    <Label className="mb-2 block">Assigned Roles</Label>
-                                    <div className="space-y-2">
-                                        {selectedUser.roles.map((role, i) => (
-                                            <div key={i} className="flex items-center justify-between p-2 border rounded-md">
-                                                <div className="flex items-center gap-2">
-                                                    <ShieldCheck className="h-4 w-4 text-primary" />
-                                                    <span>{role.name || role.role_name}</span>
+                            {(() => {
+                                // Combine role_id and roles array into a single list
+                                const userRolesList = Array.isArray(selectedUser.roles) ? [...selectedUser.roles] : [];
+                                const primaryRoleId = selectedUser.role_id;
+                                
+                                if (primaryRoleId && !userRolesList.some(r => (r.id === primaryRoleId || r.role_id === primaryRoleId))) {
+                                    const primaryRole = roles.find(r => (r.role_id === primaryRoleId || r.id === primaryRoleId));
+                                    if (primaryRole) {
+                                        userRolesList.push({
+                                            id: primaryRoleId,
+                                            name: primaryRole.role_name || primaryRole.name
+                                        });
+                                    }
+                                }
+
+                                return userRolesList.length > 0 && (
+                                    <div>
+                                        <Separator className="my-4" />
+                                        <Label className="mb-2 block">Assigned Roles</Label>
+                                        <div className="space-y-2">
+                                            {userRolesList.map((role, i) => (
+                                                <div key={i} className="flex items-center justify-between p-2 border rounded-md">
+                                                    <div className="flex items-center gap-2">
+                                                        <ShieldCheck className="h-4 w-4 text-primary" />
+                                                        <span>{role.name || role.role_name}</span>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => onRemoveRole(selectedUser.user_id, role.id || role.role_id)}
+                                                        disabled={submitting}
+                                                    >
+                                                        <ShieldX className="h-4 w-4 text-destructive" />
+                                                    </Button>
                                                 </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => onRemoveRole(selectedUser.user_id, role.id)}
-                                                    disabled={submitting}
-                                                >
-                                                    <ShieldX className="h-4 w-4 text-destructive" />
-                                                </Button>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
                         </div>
                     )}
                     <DialogFooter>
@@ -331,35 +348,122 @@ export function UserDialogs({
 
             {/* Role Dialog */}
             <Dialog open={isRoleOpen} onOpenChange={setIsRoleOpen}>
-                <DialogContent className="sm:max-w-[400px]">
+                <DialogContent className="sm:max-w-[450px]">
                     <DialogHeader>
-                        <DialogTitle>Assign Role</DialogTitle>
-                        <DialogDescription>Assign a new role to {selectedUser?.first_name}.</DialogDescription>
+                        <DialogTitle>Manage User Roles</DialogTitle>
+                        <DialogDescription>
+                            Manage roles for <span className="font-semibold text-foreground">{selectedUser?.first_name} {selectedUser?.last_name}</span>
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4">
-                        <Label>Select Role</Label>
-                        <Select
-                            value={roleFormData.role_id}
-                            onValueChange={(value) => setRoleFormData({ role_id: value })}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {roles.map((role) => (
-                                    <SelectItem key={role.role_id || role.id} value={role.role_id || role.id}>
-                                        {role.role_name || role.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+
+                    <div className="space-y-6 py-4">
+                        {/* Summary Info Section */}
+                        <div className="flex items-center justify-between p-3 bg-primary/5 border border-primary/10 rounded-lg">
+                            <div>
+                                <Label className="text-[10px] font-bold uppercase tracking-wider text-primary/70 block mb-0.5">Reporting To</Label>
+                                <p className="text-sm font-semibold">{getReportingManagerName(selectedUser)}</p>
+                            </div>
+                        </div>
+
+                        {/* Current Roles Section */}
+                        <div className="space-y-3">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Current Roles</Label>
+                            <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+                                {(() => {
+                                    // Combine role_id and roles array into a single list for management
+                                    const userRolesList = Array.isArray(selectedUser?.roles) ? [...selectedUser.roles] : [];
+                                    const primaryRoleId = selectedUser?.role_id;
+                                    
+                                    // If we have a primary role_id and it's not already in the roles array, add it
+                                    if (primaryRoleId && !userRolesList.some(r => (r.id === primaryRoleId || r.role_id === primaryRoleId))) {
+                                        const primaryRole = roles.find(r => (r.role_id === primaryRoleId || r.id === primaryRoleId));
+                                        if (primaryRole) {
+                                            userRolesList.push({
+                                                id: primaryRoleId,
+                                                name: primaryRole.role_name || primaryRole.name
+                                            });
+                                        }
+                                    }
+
+                                    return userRolesList.length > 0 ? (
+                                        userRolesList.map((role, i) => (
+                                            <div key={i} className="flex items-center justify-between p-2.5 bg-muted/30 border rounded-lg transition-colors hover:bg-muted/50">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="p-1.5 bg-primary/10 rounded-md">
+                                                        <ShieldCheck className="h-4 w-4 text-primary" />
+                                                    </div>
+                                                    <span className="text-sm font-medium">{role.name || role.role_name}</span>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                    onClick={() => onRemoveRole(selectedUser.user_id, role.id || role.role_id)}
+                                                    disabled={submitting}
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-6 border border-dashed rounded-lg bg-muted/20 text-muted-foreground">
+                                            <ShieldX className="h-8 w-8 mb-2 opacity-20" />
+                                            <p className="text-xs">No roles assigned yet</p>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+
+                        <Separator />
+
+                        {/* Add Role Section */}
+                        <div className="space-y-3">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Add New Role</Label>
+                            <div className="flex flex-col gap-3">
+                                <Select
+                                    value={roleFormData.role_id}
+                                    onValueChange={(value) => setRoleFormData({ role_id: value })}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Select a role to add" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {roles.map((role) => {
+                                            const roleId = role.role_id || role.id;
+                                            const isAlreadyAssigned = 
+                                                selectedUser?.role_id === roleId || 
+                                                selectedUser?.roles?.some(r => (r.id === roleId || r.role_id === roleId));
+                                            return (
+                                                <SelectItem 
+                                                    key={roleId} 
+                                                    value={roleId}
+                                                    disabled={isAlreadyAssigned}
+                                                >
+                                                    {role.role_name || role.name} {isAlreadyAssigned ? "(Already Assigned)" : ""}
+                                                </SelectItem>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                                <Button 
+                                    onClick={onAssignRole} 
+                                    disabled={submitting || !roleFormData.role_id}
+                                    className="w-full"
+                                >
+                                    {submitting ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Plus className="mr-2 h-4 w-4" />
+                                    )}
+                                    Assign Selected Role
+                                </Button>
+                            </div>
+                        </div>
                     </div>
+
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsRoleOpen(false)}>Cancel</Button>
-                        <Button onClick={onAssignRole} disabled={submitting}>
-                            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Assign
-                        </Button>
+                        <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsRoleOpen(false)}>Close</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

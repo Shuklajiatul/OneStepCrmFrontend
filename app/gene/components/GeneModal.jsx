@@ -47,11 +47,12 @@ export default function GeneModal({
   setGeneData,
   addLevel,
   removeLevel,
-  updateLevel
+  updateLevel,
+  allUsers = []
 }) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [users, setUsers] = useState([]);
+  // const [users, setUsers] = useState([]); // Removed in favor of allUsers prop
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [error, setError] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
@@ -60,16 +61,11 @@ export default function GeneModal({
   const [touchedFields, setTouchedFields] = useState({ name: false, levels: false });
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // Fetch users based on mode (create vs edit)
+  // Fetch users logic removed as we now use allUsers prop
   useEffect(() => {
-    if (showModal) {
-      if (editingGene) {
-        // In edit mode, fetch users assigned to this specific gene
-        fetchGeneUsers();
-      } else {
-        // In create mode, fetch all users
-        fetchAllUsers();
-      }
+    if (showModal && !editingGene) {
+       // In create mode, if users isn't passed or empty, we might have an issue, 
+       // but GeneClient should handle fetching users globally.
     }
   }, [showModal, editingGene]);
 
@@ -79,11 +75,11 @@ export default function GeneModal({
       const userIds = geneData.users.split(',').filter(id => id.trim() !== '').map(id => id.trim());
 
       console.log('Initializing selected users with IDs:', userIds);
-      console.log('Available users:', users);
+      console.log('Available users:', allUsers);
 
-      if (users.length > 0 && userIds.length > 0) {
+      if (allUsers.length > 0 && userIds.length > 0) {
         // Improved user matching - handle different ID formats and cases
-        const userObjects = users.filter(user => {
+        const userObjects = allUsers.filter(user => {
           const userId = user.id || user.user_id;
 
           // Try multiple matching strategies
@@ -107,8 +103,8 @@ export default function GeneModal({
         console.log('Users not loaded yet, storing IDs temporarily');
         // Create temporary user objects with proper display names if possible
         const tempUsers = userIds.map(id => {
-          // Try to find user in the users array even if not fully loaded
-          const foundUser = users.find(user => {
+          // Try to find user in the allUsers array even if not fully loaded
+          const foundUser = allUsers.find(user => {
             const userId = user.id || user.user_id;
             return String(userId) === String(id) ||
               String(userId).toLowerCase() === String(id).toLowerCase();
@@ -134,7 +130,7 @@ export default function GeneModal({
     } else {
       setSelectedUsers([]);
     }
-  }, [geneData.users, editingGene, users]);
+  }, [geneData.users, editingGene, allUsers]);
 
   const handleSubmit = async () => {
     // Mark that user attempted to submit
@@ -164,7 +160,6 @@ export default function GeneModal({
   };
 
   const handleClose = () => {
-    setGeneData({ name: '', levels: [], is_active: true, users: '' });
     setSelectedUsers([]);
     setSearchTerm('');
     setOpenUserPopover(false);
@@ -179,222 +174,6 @@ export default function GeneModal({
       ...prev,
       is_active: checked
     }));
-  };
-
-  // Fetch all users for create mode
-  const fetchAllUsers = async () => {
-    try {
-      setLoadingUsers(true);
-      setError(null);
-
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        sessionStorage.getItem('token') ||
-        sessionStorage.getItem('accessToken');
-
-      if (!token) {
-        setError('Authentication token not found. Please ensure you are logged in.');
-        setLoadingUsers(false);
-        return;
-      }
-
-      const response = await usersApi.getAll();
-
-      console.log('All Users Response:', response.data);
-
-      // Handle different response formats
-      let usersData = [];
-      if (Array.isArray(response.data)) {
-        // Direct array response
-        usersData = response.data;
-      } else if (response.data.success && response.data.data) {
-        // Wrapped in success/data
-        usersData = response.data.data;
-      } else if (response.data.data && Array.isArray(response.data.data)) {
-        usersData = response.data.data;
-      } else if (response.data.users && Array.isArray(response.data.users)) {
-        usersData = response.data.users;
-      }
-
-      // Normalize user objects
-      const normalizedUsers = usersData.map(user => {
-        const fullName = user.first_name && user.last_name
-          ? `${user.first_name} ${user.last_name}`.trim()
-          : (user.first_name || user.last_name || '').trim();
-
-        return {
-          ...user,
-          id: user.id || user.user_id,
-          username: user.username || user.email || fullName || user.id || user.user_id,
-          name: fullName || user.name || user.username || user.email || user.id || user.user_id
-        };
-      });
-
-      setUsers(normalizedUsers);
-
-      if (selectedUsers.length > 0 && selectedUsers[0].username === undefined) {
-        const updatedSelectedUsers = normalizedUsers.filter(user =>
-          selectedUsers.some(selected => selected.id === user.id || selected.id === user.user_id)
-        );
-        setSelectedUsers(updatedSelectedUsers);
-      }
-    } catch (err) {
-      console.error('Fetch all users error:', err);
-      if (err.response?.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('accessToken');
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('accessToken');
-        authUtils.clearTokens();
-        setError('Session expired. Please login again.');
-      } else {
-        setError(err.message || 'Failed to fetch users');
-      }
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
-
-  // Fetch users assigned to specific gene for edit mode
-  const fetchGeneUsers = async () => {
-    try {
-      setLoadingUsers(true);
-      setError(null);
-
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        sessionStorage.getItem('token') ||
-        sessionStorage.getItem('accessToken');
-
-      if (!token) {
-        setError('Authentication token not found. Please ensure you are logged in.');
-        setLoadingUsers(false);
-        return;
-      }
-
-      if (!editingGene || !editingGene.g_id) {
-        setError('Gene ID not found for fetching users');
-        setLoadingUsers(false);
-        return;
-      }
-
-      const response = await genesApi.getById(editingGene.g_id);
-
-      console.log('Gene Users Response:', response.data);
-
-      // Handle different response formats for gene users
-      let geneUsersData = [];
-      if (response.data.success && response.data.data) {
-        const geneData = response.data.data;
-        if (geneData.users && Array.isArray(geneData.users)) {
-          geneUsersData = geneData.users;
-        }
-      } else if (Array.isArray(response.data)) {
-        geneUsersData = response.data;
-      } else if (response.data.users && Array.isArray(response.data.users)) {
-        geneUsersData = response.data.users;
-      }
-
-      // Normalize user objects from gene response
-      const normalizedGeneUsers = geneUsersData.map(user => {
-        const fullName = user.first_name && user.last_name
-          ? `${user.first_name} ${user.last_name}`.trim()
-          : (user.first_name || user.last_name || '').trim();
-
-        return {
-          ...user,
-          id: user.id || user.user_id,
-          username: user.username || user.email || fullName || user.id || user.user_id,
-          name: fullName || user.name || user.username || user.email || user.id || user.user_id
-        };
-      });
-
-      setUsers(normalizedGeneUsers);
-      setSelectedUsers(normalizedGeneUsers);
-
-    } catch (err) {
-      console.error('Fetch gene users error:', err);
-      if (err.response?.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('accessToken');
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('accessToken');
-        authUtils.clearTokens();
-        setError('Session expired. Please login again.');
-      } else {
-        setError(err.message || 'Failed to fetch gene users');
-        // Fallback to fetching all users if gene-specific endpoint fails
-        await fetchAllUsers();
-      }
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
-
-  // Fetch all users for selection (when popover opens in edit mode)
-  const fetchUsersForSelection = async () => {
-    try {
-      setLoadingUsers(true);
-
-      const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        sessionStorage.getItem('token') ||
-        sessionStorage.getItem('accessToken');
-
-      if (!token) {
-        setError('Authentication token not found.');
-        setLoadingUsers(false);
-        return;
-      }
-
-      const response = await usersApi.getAll();
-
-      console.log('Users for Selection Response:', response.data);
-
-      // Handle different response formats
-      let usersData = [];
-      if (Array.isArray(response.data)) {
-        usersData = response.data;
-      } else if (response.data.success && response.data.data) {
-        usersData = response.data.data;
-      } else if (response.data.data && Array.isArray(response.data.data)) {
-        usersData = response.data.data;
-      } else if (response.data.users && Array.isArray(response.data.users)) {
-        usersData = response.data.users;
-      }
-
-      // Normalize user objects
-      const normalizedUsers = usersData.map(user => {
-        const fullName = user.first_name && user.last_name
-          ? `${user.first_name} ${user.last_name}`.trim()
-          : (user.first_name || user.last_name || '').trim();
-
-        return {
-          ...user,
-          id: user.id || user.user_id,
-          username: user.username || user.email || fullName || user.id || user.user_id,
-          name: fullName || user.name || user.username || user.email || user.id || user.user_id
-        };
-      });
-
-      setUsers(normalizedUsers);
-
-    } catch (err) {
-      console.error('Fetch users for selection error:', err);
-      if (err.response?.status === 401) {
-        setError('Session expired. Please login again.');
-      } else {
-        setError(err.message || 'Failed to fetch users');
-      }
-    } finally {
-      setLoadingUsers(false);
-    }
   };
 
   const handleUserSelect = (user) => {
@@ -413,16 +192,12 @@ export default function GeneModal({
     setSelectedUsers([]);
   };
 
-  // Handle popover open to fetch users for selection
+  // API fetch functions removed as they are now handled by the parent
   const handlePopoverOpen = (open) => {
     setOpenUserPopover(open);
-    if (open && editingGene) {
-      // When opening popover in edit mode, fetch all users for selection
-      fetchUsersForSelection();
-    }
   };
 
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = allUsers.filter(user => {
     const userId = user.id || user.user_id;
 
     // Only show active users
@@ -447,11 +222,14 @@ export default function GeneModal({
     return matchesSearch && !isSelected;
   });
 
-  // Check if form is valid
   const isFormValid = geneData.name &&
     geneData.name.trim() !== '' &&
     geneData.levels.length > 0 &&
     !geneData.levels.some(level => !level.title || level.title.trim() === '');
+
+  // Error visibility logic
+  const showNameError = (touchedFields.name || submitAttempted) && !geneData.name && !isSubmitting;
+  const showLevelsError = (touchedFields.levels || submitAttempted) && (geneData.levels.length === 0 || geneData.levels.some(level => !level.title || level.title.trim() === '')) && !isSubmitting;
 
   return (
     <Dialog open={showModal} onOpenChange={handleClose}>
@@ -485,10 +263,10 @@ export default function GeneModal({
                 placeholder="Enter gene name (e.g., test-2)"
                 className={cn(
                   "w-full",
-                  (touchedFields.name || submitAttempted) && !geneData.name && "border-destructive focus-visible:ring-destructive"
+                  showNameError && "border-destructive focus-visible:ring-destructive"
                 )}
               />
-              {(touchedFields.name || submitAttempted) && !geneData.name && (
+              {showNameError && (
                 <Alert variant="destructive" className="py-2">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription className="text-xs">
@@ -626,16 +404,16 @@ export default function GeneModal({
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={editingGene ? fetchUsersForSelection : fetchAllUsers}
+                              onClick={() => onClose()}
                               className="mt-2"
                             >
-                              Retry
+                              Close
                             </Button>
                           </div>
                         ) : filteredUsers.length === 0 ? (
                           <div className="py-6 text-center text-sm text-muted-foreground">
                             <CommandEmpty>
-                              {searchTerm ? 'No active users found' : users.length === 0 ? 'No users available' : 'All active users are selected'}
+                               {searchTerm ? 'No active users found' : allUsers.length === 0 ? 'No users available' : 'All active users are selected'}
                             </CommandEmpty>
                           </div>
                         ) : (
@@ -727,7 +505,7 @@ export default function GeneModal({
               {geneData.levels.length === 0 ? (
                 <Card className={cn(
                   "border-dashed transition-colors",
-                  (touchedFields.levels || submitAttempted) && "border-destructive"
+                  showLevelsError && "border-destructive"
                 )}>
                   <CardContent className="pt-12 pb-12">
                     <div className="text-center">
@@ -736,7 +514,7 @@ export default function GeneModal({
                       <p className="text-sm text-muted-foreground mb-4">
                         Click "Add Level" to start building your gene hierarchy
                       </p>
-                      {(touchedFields.levels || submitAttempted) && geneData.levels.length === 0 && (
+                      {showLevelsError && geneData.levels.length === 0 && (
                         <Alert variant="destructive" className="mt-4">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription className="text-xs">
@@ -793,10 +571,10 @@ export default function GeneModal({
                               placeholder={`Enter level ${index + 1} value (e.g., "india", "maharashtra", "pune")`}
                               className={cn(
                                 "w-full",
-                                (touchedFields.levels || submitAttempted) && (!level.title || level.title.trim() === '') && "border-destructive focus-visible:ring-destructive"
+                                showLevelsError && (!level.title || level.title.trim() === '') && "border-destructive focus-visible:ring-destructive"
                               )}
                             />
-                            {(touchedFields.levels || submitAttempted) && (!level.title || level.title.trim() === '') && (
+                            {showLevelsError && (!level.title || level.title.trim() === '') && (
                               <Alert variant="destructive" className="py-2">
                                 <AlertCircle className="h-4 w-4" />
                                 <AlertDescription className="text-xs">

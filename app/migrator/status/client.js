@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -55,8 +55,13 @@ export default function MigrationStatusClient() {
     const [filterStatus, setFilterStatus] = useState("all")
     const [filterSource, setFilterSource] = useState("all")
 
+    const fetchRef = useRef(false)
+
     useEffect(() => {
-        fetchMigrationStatus()
+        if (!fetchRef.current) {
+            fetchRef.current = true
+            fetchMigrationStatus()
+        }
     }, [])
 
     const fetchMigrationStatus = async () => {
@@ -259,14 +264,14 @@ export default function MigrationStatusClient() {
                         </div>
 
                         {/* Filters Row */}
-                        <div className="flex flex-col md:flex-row gap-4 pt-2 border-t sm:border-t-0 sm:pt-0">
-                            <div className="flex-1">
-                                <div className="relative w-full md:w-80">
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-2 border-t lg:border-t-0 lg:pt-0 w-full">
+                            <div className="w-full lg:w-[320px] shrink-0">
+                                <div className="relative w-full">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input
                                         type="search"
                                         placeholder="Search jobs..."
-                                        className="pl-8 h-9"
+                                        className="pl-8 h-9 w-full"
                                         value={searchTerm}
                                         onChange={(e) => {
                                             setSearchTerm(e.target.value)
@@ -276,10 +281,10 @@ export default function MigrationStatusClient() {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row items-center gap-3">
+                            <div className="flex flex-col sm:flex-row flex-wrap items-center lg:justify-end gap-3 w-full lg:w-auto">
                                 <Select value={filterTable} onValueChange={(v) => { setFilterTable(v); setCurrentPage(1); }}>
-                                    <SelectTrigger className="w-full sm:w-[180px] h-9">
-                                        <div className="flex items-center gap-2 truncate">
+                                    <SelectTrigger className="w-full sm:flex-1 sm:min-w-[140px] lg:flex-none lg:w-[180px] h-9">
+                                        <div className="flex items-center gap-2 mb-0 overflow-hidden text-ellipsis whitespace-nowrap">
                                             <Database className="h-3.5 w-3.5 shrink-0" />
                                             <SelectValue placeholder="All Tables" />
                                         </div>
@@ -293,8 +298,8 @@ export default function MigrationStatusClient() {
                                 </Select>
 
                                 <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setCurrentPage(1); }}>
-                                    <SelectTrigger className="w-full sm:w-[180px] h-9">
-                                        <div className="flex items-center gap-2 truncate">
+                                    <SelectTrigger className="w-full sm:flex-1 sm:min-w-[130px] lg:flex-none lg:w-[150px] h-9">
+                                        <div className="flex items-center gap-2 mb-0 overflow-hidden text-ellipsis whitespace-nowrap">
                                             <RefreshCw className="h-3.5 w-3.5 shrink-0" />
                                             <SelectValue placeholder="All Status" />
                                         </div>
@@ -308,8 +313,8 @@ export default function MigrationStatusClient() {
                                 </Select>
 
                                 <Select value={filterSource} onValueChange={(v) => { setFilterSource(v); setCurrentPage(1); }}>
-                                    <SelectTrigger className="w-full sm:w-[180px] h-9">
-                                        <div className="flex items-center gap-2 truncate">
+                                    <SelectTrigger className="w-full sm:flex-1 sm:min-w-[140px] lg:flex-none lg:w-[180px] h-9">
+                                        <div className="flex items-center gap-2 mb-0 overflow-hidden text-ellipsis whitespace-nowrap">
                                             <Database className="h-3.5 w-3.5 shrink-0" />
                                             <SelectValue placeholder="All Resources" />
                                         </div>
@@ -333,7 +338,7 @@ export default function MigrationStatusClient() {
                                             setSearchTerm("");
                                             setCurrentPage(1);
                                         }}
-                                        className="h-9 px-2 text-muted-foreground hover:text-foreground shrink-0"
+                                        className="h-9 px-2 text-muted-foreground hover:text-foreground shrink-0 w-full sm:w-auto"
                                     >
                                         Clear Filters
                                     </Button>
@@ -461,41 +466,41 @@ export default function MigrationStatusClient() {
                                                 </Button>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                                            <span className="text-muted-foreground">Table</span>
-                                            <span className="font-medium truncate">{migration.table_id}</span>
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm w-full">
+                                            <span className="text-muted-foreground self-center">Table</span>
+                                            <span className="font-medium truncate block max-w-full overflow-hidden text-ellipsis" title={migration.table_id}>{migration.table_id}</span>
 
-                                            <span className="text-muted-foreground">Source</span>
-                                            <span><Badge variant="outline">{migration.source_type}</Badge></span>
+                                            <span className="text-muted-foreground self-center">Source</span>
+                                            <span className="flex"><Badge variant="outline" className="truncate max-w-full">{migration.source_type}</Badge></span>
 
-                                            <span className="text-muted-foreground">Records</span>
-                                            <span>{migration.total_records}</span>
+                                            <span className="text-muted-foreground self-center">Records</span>
+                                            <span className="truncate">{migration.total_records}</span>
 
-                                            <span className="text-muted-foreground">Batches</span>
-                                            <span>{migration.processed_batches} / {migration.total_batches}</span>
+                                            <span className="text-muted-foreground self-center">Batches</span>
+                                            <span className="truncate">{migration.processed_batches} / {migration.total_batches}</span>
 
-                                            <span className="text-muted-foreground">Errors</span>
-                                            <span className="flex items-center gap-2">
+                                            <span className="text-muted-foreground self-center">Errors</span>
+                                            <span className="flex items-center gap-2 min-w-0">
                                                 {migration.error_count > 0 ? (
-                                                    <>
-                                                        <Badge variant="destructive">{migration.error_count}</Badge>
+                                                    <div className="flex items-center gap-1 min-w-0 overflow-hidden">
+                                                        <Badge variant="destructive" className="truncate">{migration.error_count}</Badge>
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            className="h-7 w-7"
+                                                            className="h-7 w-7 shrink-0"
                                                             onClick={() => downloadErrors(migration)}
                                                             title="Download Error CSV"
                                                         >
                                                             <Download className="h-3.5 w-3.5 text-red-500" />
                                                         </Button>
-                                                    </>
+                                                    </div>
                                                 ) : (
                                                     <span className="text-muted-foreground">0</span>
                                                 )}
                                             </span>
 
-                                            <span className="text-muted-foreground">Started</span>
-                                            <span suppressHydrationWarning className="text-xs">
+                                            <span className="text-muted-foreground self-center">Started</span>
+                                            <span suppressHydrationWarning className="text-xs truncate block max-w-full">
                                                 {new Date(migration.started_at).toLocaleString()}
                                             </span>
                                         </div>

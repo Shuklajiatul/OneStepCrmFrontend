@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Plus, Lock, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { authUtils } from "@/lib/auth-utils"
@@ -134,14 +134,23 @@ export default function PermissionManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [policyToDelete, setPolicyToDelete] = useState(null)
   const [deletingPolicy, setDeletingPolicy] = useState(false)
+  const dataLoadedRef = useRef(false)
 
   useEffect(() => {
+    // Prevent duplicate calls in React Strict Mode
+    if (dataLoadedRef.current) return
     loadAllData()
+    dataLoadedRef.current = true
   }, [])
 
-  const loadAllData = async () => {
+  const loadAllData = async (forceRefresh = false, silent = false) => {
+    if (forceRefresh) {
+      dataLoadedRef.current = true
+    }
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       setError(null)
       const data = await fetchAllData()
 
@@ -187,6 +196,19 @@ export default function PermissionManagement() {
                 features: [], // Features will be fetched by the component
               })
             }
+          }
+        }
+      }
+ 
+      // Update selectedPolicy if we're on policy-mapped-users tab to get fresh data
+      if (activeTab === "policy-mapped-users" && selectedPolicy) {
+        const policyId = selectedPolicy.p_id || selectedPolicy.policy_id || selectedPolicy.id
+        if (policyId) {
+          const updatedPolicy = data.policies.find(p =>
+            (p.p_id || p.policy_id || p.id) === policyId
+          )
+          if (updatedPolicy) {
+            setSelectedPolicy(updatedPolicy)
           }
         }
       }
@@ -379,9 +401,9 @@ export default function PermissionManagement() {
                       <PolicyMappedUsersTab
                         policy={selectedPolicy}
                         onBack={handleBackToOverview}
-                        onUserUpdate={async () => {
+                        onUserUpdate={async (force = true, silent = true) => {
                           // Refresh all data to get updated user counts
-                          await loadAllData()
+                          await loadAllData(force, silent)
                         }}
                       />
                     )}

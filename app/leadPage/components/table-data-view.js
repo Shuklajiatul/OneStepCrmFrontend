@@ -67,6 +67,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { activitiesApi } from '@/lib/api-endpoint'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
@@ -79,19 +85,24 @@ import { fetchPhoneCountries } from "@/lib/constants/location-api"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
-
-
-
+// Simple in-memory cache to prevent redundant fetches during navigation
+const apiCache = {
+  users: null,
+  countries: null,
+  tables: {} // { [tableId]: { columns, records, timestamp } }
+};
+const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
 
 export default function TableDataView({ table, onBack }) {
   const router = useRouter()
   const [columns, setColumns] = useState([])
   const [records, setRecords] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [recordToDelete, setRecordToDelete] = useState(null)
   const [viewMode, setViewMode] = useState('table') // 'table' or 'grid'
+  const [columnVisibility, setColumnVisibility] = useState({})
 
   // Ref for the table container to implement sticky header logic if needed
   // or just use CSS sticky
@@ -111,6 +122,10 @@ export default function TableDataView({ table, onBack }) {
   // File preview modal state
   const [isFileModalOpen, setIsFileModalOpen] = useState(false)
   const [filePreview, setFilePreview] = useState(null)
+
+  // Cell data view modal state (for clicking nested column values)
+  const [isCellDataModalOpen, setIsCellDataModalOpen] = useState(false)
+  const [cellModalData, setCellModalData] = useState({ columnName: '', data: null })
 
   // Edit record dialog state
   const [isEditRecordDialogOpen, setIsEditRecordDialogOpen] = useState(false)
@@ -163,6 +178,11 @@ export default function TableDataView({ table, onBack }) {
   }, [searchTerm])
 
   const fetchUsers = async () => {
+    if (apiCache.users) {
+      setUsers(apiCache.users);
+      return;
+    }
+
     try {
       setLoadingUsers(true)
       const response = await usersApi.getAll()
@@ -176,6 +196,7 @@ export default function TableDataView({ table, onBack }) {
         usersData = response.data.users
       }
 
+      apiCache.users = usersData;
       setUsers(usersData)
     } catch (err) {
       console.error("Error fetching users:", err)
@@ -186,17 +207,34 @@ export default function TableDataView({ table, onBack }) {
   }
 
   const fetchCountriesData = async () => {
+    if (apiCache.countries) {
+      setPhoneCountries(apiCache.countries);
+      return;
+    }
+
     try {
       const data = await fetchPhoneCountries()
+      apiCache.countries = data;
       setPhoneCountries(data)
     } catch (err) {
       console.error("Error fetching phone countries:", err)
     }
   }
 
-  const fetchTableData = async () => {
+  const fetchTableData = async (forceRefresh = false) => {
     setLoading(true)
     setError(null)
+
+    const now = Date.now();
+    const cachedData = apiCache.tables[table.table_id];
+
+    // Use cache if available, not forced to refresh, and not expired
+    if (!forceRefresh && cachedData && (now - cachedData.timestamp < CACHE_EXPIRY)) {
+      setColumns(cachedData.columns);
+      setRecords(cachedData.records);
+      setLoading(false);
+      return;
+    }
 
     try {
       const [columnsResponse, recordsResponse] = await Promise.all([
@@ -222,6 +260,12 @@ export default function TableDataView({ table, onBack }) {
       const normalizedColumns = Array.isArray(columnsData)
         ? columnsData.map(normalizeColumnMetadata).filter(Boolean)
         : []
+
+      apiCache.tables[table.table_id] = {
+        columns: normalizedColumns,
+        records: recordsData,
+        timestamp: now
+      };
 
       setColumns(normalizedColumns)
       setRecords(recordsData)
@@ -260,7 +304,7 @@ export default function TableDataView({ table, onBack }) {
       toast.success("Record deleted successfully!")
       setIsDeleteDialogOpen(false)
       setRecordToDelete(null)
-      fetchTableData()
+      fetchTableData(true)
 
     } catch (err) {
       toast.error(`Failed to delete record: ${err.message}`)
@@ -919,6 +963,12 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
+  // Open a simple read-only modal displaying raw parsed cell data
+  const openCellDataModal = (columnName, parsedData) => {
+    setCellModalData({ columnName, data: parsedData })
+    setIsCellDataModalOpen(true)
+  }
+
   const formatFieldValue = (rawValue, dataType, column = null, record = null) => {
     if (rawValue === null || rawValue === undefined || rawValue === "") {
       return <span className="text-muted-foreground italic">-</span>
@@ -935,12 +985,42 @@ export default function TableDataView({ table, onBack }) {
       valueToDisplay = parsed
     }
 
-    // Handle Phone and Location types early
+    // Handle Phone and Location types early - make them clickable to show full data
     if (fieldType === 'phone') {
-      return formatPhoneDisplay(rawValue)
+      const phoneDisplay = formatPhoneDisplay(rawValue)
+      const phoneParsed = safeParseJSON(rawValue)
+      const phoneData = phoneParsed && typeof phoneParsed === 'object' ? phoneParsed : null
+      if (phoneData && (phoneData.country || phoneData.dial_code || phoneData.number || phoneData.countryCode || (phoneData.value && typeof phoneData.value === 'object'))) {
+        return (
+          <button
+            type="button"
+            onClick={() => openCellDataModal(column?.column_name || 'Phone', phoneData.value && typeof phoneData.value === 'object' ? phoneData.value : phoneData)}
+            className="text-blue-600 hover:underline text-left"
+            title="Click to view full details"
+          >
+            {phoneDisplay}
+          </button>
+        )
+      }
+      return phoneDisplay
     }
     if (fieldType === 'location') {
-      return formatLocationDisplay(rawValue)
+      const locationDisplay = formatLocationDisplay(rawValue)
+      const locParsed = safeParseJSON(rawValue)
+      const locData = locParsed && typeof locParsed === 'object' ? (locParsed.value && typeof locParsed.value === 'object' ? locParsed.value : locParsed) : null
+      if (locData && (locData.country || locData.state || locData.city)) {
+        return (
+          <button
+            type="button"
+            onClick={() => openCellDataModal(column?.column_name || 'Location', locData)}
+            className="text-blue-600 hover:underline text-left"
+            title="Click to view full details"
+          >
+            {locationDisplay}
+          </button>
+        )
+      }
+      return locationDisplay
     }
 
     // Handle Arrays (Multi-select)
@@ -1058,12 +1138,42 @@ export default function TableDataView({ table, onBack }) {
         if (typeof valueToDisplay === 'object' && valueToDisplay !== null) {
           // Try to format as phone or location if structure matches
           if (valueToDisplay.countryCode || valueToDisplay.dial_code || valueToDisplay.number) {
-            return formatPhoneDisplay(valueToDisplay)
+            return (
+              <button
+                type="button"
+                onClick={() => openCellDataModal(column?.column_name || 'Phone', valueToDisplay)}
+                className="text-blue-600 hover:underline text-left"
+                title="Click to view full details"
+              >
+                {formatPhoneDisplay(valueToDisplay)}
+              </button>
+            )
           }
           if (valueToDisplay.address || valueToDisplay.city || valueToDisplay.state || valueToDisplay.country) {
-            return formatLocationDisplay(valueToDisplay)
+            return (
+              <button
+                type="button"
+                onClick={() => openCellDataModal(column?.column_name || 'Location', valueToDisplay)}
+                className="text-blue-600 hover:underline text-left"
+                title="Click to view full details"
+              >
+                {formatLocationDisplay(valueToDisplay)}
+              </button>
+            )
           }
-          return <span className="truncate max-w-[200px]">{JSON.stringify(valueToDisplay)}</span>
+          // Generic nested object - show as clickable link
+          const objKeys = Object.keys(valueToDisplay)
+          const previewText = objKeys.slice(0, 2).map(k => `${k}: ${String(valueToDisplay[k]).slice(0, 20)}`).join(', ')
+          return (
+            <button
+              type="button"
+              onClick={() => openCellDataModal(column?.column_name || 'Data', valueToDisplay)}
+              className="text-blue-600 hover:underline text-left text-xs"
+              title="Click to view full details"
+            >
+              {previewText || '{...}'}
+            </button>
+          )
         }
         return <span className="truncate max-w-[200px]">{String(valueToDisplay)}</span>
     }
@@ -2413,32 +2523,37 @@ export default function TableDataView({ table, onBack }) {
               </div>
             </div>
 
-            {/* Page Size Selector - Right Side */}
-            <div className="flex items-center gap-3 ml-auto">
-              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                Show
-              </span>
-              <Select
-                value={pageSize.toString()}
-                onValueChange={(value) => {
-                  setPageSize(Number(value))
-                  setCurrentPage(1)
-                }}
-              >
-                <SelectTrigger id="page-size" className="w-[80px] h-10 border-muted-foreground/20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {pageSizeOptions.map(size => (
-                    <SelectItem key={size} value={size.toString()}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
-                entries
-              </span>
+            {/* Column Selector - Right Side */}
+            <div className="flex items-center gap-2 ml-auto">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="ml-auto h-10 gap-2 border-muted-foreground/20">
+                    <Settings className="h-4 w-4" />
+                    Columns
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[200px] max-h-[400px] overflow-y-auto">
+                  {createDynamicColumns().map((column) => {
+                    const columnId = column.accessorKey || column.id;
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={columnId}
+                        className="capitalize"
+                        checked={columnVisibility[columnId] !== false}
+                        onSelect={(e) => e.preventDefault()}
+                        onCheckedChange={(value) =>
+                          setColumnVisibility((prev) => ({
+                            ...prev,
+                            [columnId]: !!value,
+                          }))
+                        }
+                      >
+                        {column.header}
+                      </DropdownMenuCheckboxItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -2465,11 +2580,11 @@ export default function TableDataView({ table, onBack }) {
               <div className="p-4">
                 {/* Horizontal Scroll Container */}
                 <div className="rounded-lg border shadow-sm overflow-hidden relative mb-6">
-                  <div className="overflow-x-auto w-full max-h-[600px] scrollbar-thin scrollbar-thumb-muted-foreground/20">
+                  <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-muted-foreground/20">
                     <Table className="w-full min-w-max border-collapse">
                       <TableHeader className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md shadow-sm">
                         <TableRow className="hover:bg-transparent border-b">
-                          {tableColumns.map((column) => {
+                          {tableColumns.filter(col => columnVisibility[col.accessorKey || col.id] !== false).map((column) => {
                             const isSortable = column.id !== "actions";
                             const isSorted = sortConfig.key === column.accessorKey;
 
@@ -2511,7 +2626,7 @@ export default function TableDataView({ table, onBack }) {
                             key={record.record_id || record.id || recordIndex}
                             className="border-b even:bg-muted/10 hover:bg-primary/5 transition-all duration-200 group"
                           >
-                            {tableColumns.map((column) => {
+                            {tableColumns.filter(col => columnVisibility[col.accessorKey || col.id] !== false).map((column) => {
                               // Get the cell value based on column type
                               let cellContent = '-'
 
@@ -2692,13 +2807,40 @@ export default function TableDataView({ table, onBack }) {
 
                 {/* Pagination Controls */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5">
-                  <div className="text-sm font-medium text-muted-foreground order-2 sm:order-1 text-center sm:text-left">
-                    Showing <span className="text-foreground">{((currentPage - 1) * pageSize) + 1}</span> to{' '}
-                    <span className="text-foreground">{Math.min(currentPage * pageSize, totalRecords)}</span> of{' '}
-                    <span className="text-foreground">{totalRecords}</span> entries
-                    {searchTerm && totalRecords < safeRecords.length && (
-                      <span className="ml-1 opacity-70">(filtered from {safeRecords.length} total)</span>
-                    )}
+                  <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+                    <div className="flex items-center gap-2 border-muted-foreground/20">
+                      <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                        Show
+                      </span>
+                      <Select
+                        value={pageSize.toString()}
+                        onValueChange={(value) => {
+                          setPageSize(Number(value))
+                          setCurrentPage(1)
+                        }}
+                      >
+                        <SelectTrigger id="page-size-bottom" className="w-[70px] h-8 border-muted-foreground/20 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pageSizeOptions.map(size => (
+                            <SelectItem key={size} value={size.toString()}>
+                              {size}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                      Showing <span className="text-foreground">{((currentPage - 1) * pageSize) + 1}</span> to{' '}
+                      <span className="text-foreground">{Math.min(currentPage * pageSize, totalRecords)}</span> of{' '}
+                      <span className="text-foreground">{totalRecords}</span> entries
+                      {searchTerm && totalRecords < safeRecords.length && (
+                        <span className="ml-1 opacity-70">(filtered from {safeRecords.length} total)</span>
+                      )}
+                    </div>
+
+
                   </div>
 
                   <div className="flex items-center gap-1 order-1 sm:order-2">
@@ -3148,6 +3290,29 @@ export default function TableDataView({ table, onBack }) {
         </DialogContent>
       </Dialog>
 
+      {/* Cell Data View Modal - opens when clicking on nested column values like location/phone/objects */}
+      <Dialog open={isCellDataModalOpen} onOpenChange={setIsCellDataModalOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              {cellModalData.columnName}
+            </DialogTitle>
+            <DialogDescription>Complete data for this field</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {cellModalData.data !== null && cellModalData.data !== undefined && (
+              <CellDataRenderer data={cellModalData.data} />
+            )}
+          </div>
+          <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex justify-end">
+            <Button variant="outline" onClick={() => setIsCellDataModalOpen(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
 
       <RecordModal
         open={isEditRecordDialogOpen}
@@ -3171,3 +3336,58 @@ export default function TableDataView({ table, onBack }) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// CellDataRenderer – recursively renders nested JSON data in the modal
+// ---------------------------------------------------------------------------
+function CellDataRenderer({ data, depth = 0 }) {
+  if (data === null || data === undefined) {
+    return <span className="text-muted-foreground italic text-sm">-</span>
+  }
+
+  if (Array.isArray(data)) {
+    if (data.length === 0) {
+      return <span className="text-muted-foreground italic text-sm">Empty list</span>
+    }
+    return (
+      <ul className={`space-y-2 ${depth > 0 ? 'mt-2 ml-4 pl-3 border-l-2 border-muted-foreground/20' : ''}`}>
+        {data.map((item, idx) => (
+          <li key={idx} className="flex items-start gap-2">
+            <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-primary/60 shrink-0" />
+            <div className="flex-1 text-sm">
+              {typeof item === 'object' && item !== null
+                ? <CellDataRenderer data={item} depth={depth + 1} />
+                : <span className="text-foreground">{String(item)}</span>
+              }
+            </div>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  if (typeof data === 'object') {
+    const entries = Object.entries(data)
+    if (entries.length === 0) {
+      return <span className="text-muted-foreground italic text-sm">Empty object</span>
+    }
+    return (
+      <div className={`space-y-3 ${depth > 0 ? 'mt-2 ml-4 pl-3 border-l-2 border-muted-foreground/20' : ''}`}>
+        {entries.map(([key, value]) => (
+          <div key={key} className="space-y-0.5">
+            <div className="flex items-start gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground min-w-[80px]">{key}</span>
+              {typeof value !== 'object' || value === null ? (
+                <span className="text-sm text-foreground">{value === null || value === undefined ? '-' : String(value)}</span>
+              ) : null}
+            </div>
+            {typeof value === 'object' && value !== null && (
+              <CellDataRenderer data={value} depth={depth + 1} />
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return <span className="text-sm text-foreground">{String(data)}</span>
+}

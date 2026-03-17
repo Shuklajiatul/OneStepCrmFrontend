@@ -54,6 +54,11 @@ import LeadPageSkeleton from "./components/lead-page-skeleton"
 export default function LeadsPageClient({ initialTables = [], newAccessToken: propNewAccessToken = null }) {
     const router = useRouter()
     const searchParams = useSearchParams()
+    const initialTableId = searchParams.get("tableId")
+    const initialSelectedTable = initialTableId && initialTables.length > 0 
+        ? initialTables.find(t => String(t.table_id) === initialTableId) || null 
+        : null
+
     const [mounted, setMounted] = useState(false)
     // const { toast } = useToast(true);
     const [tables, setTables] = useState(initialTables)
@@ -64,8 +69,8 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken: pr
     const [groupBy, setGroupBy] = useState("status")
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
     const [tableToDelete, setTableToDelete] = useState(null)
-    const [selectedTable, setSelectedTable] = useState(null)
-    const [currentView, setCurrentView] = useState("tables")
+    const [selectedTable, setSelectedTable] = useState(initialSelectedTable)
+    const [currentView, setCurrentView] = useState(initialSelectedTable ? "data" : "tables")
     const [activeTab, setActiveTab] = useState("all")
     const [currentPage, setCurrentPage] = useState(1)
     const [pageSize] = useState(9)
@@ -87,6 +92,9 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken: pr
                 setSelectedTable(targetTable)
                 setCurrentView("data")
             }
+        } else if (!tableId) {
+            setCurrentView("tables")
+            setSelectedTable(null)
         }
     }, [searchParams, tables])
 
@@ -95,7 +103,7 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken: pr
 
         if (!initialTables || initialTables.length === 0) {
             fetchTables();
-        } else {
+        } else if (!searchParams.get("tableId")) {
             toast.success(`Loaded ${initialTables.length} tables successfully!`)
         }
     }, [mounted]);
@@ -117,7 +125,9 @@ export default function LeadsPageClient({ initialTables = [], newAccessToken: pr
                 tablesData = response.data.tables
             }
             setTables(tablesData)
-            toast.success(`Loaded ${tablesData.length} tables successfully!`)
+            if (!searchParams.get("tableId")) {
+                toast.success(`Loaded ${tablesData.length} tables successfully!`)
+            }
 
         } catch (err) {
             const errorMsg = `Failed to fetch tables: ${err.message}`

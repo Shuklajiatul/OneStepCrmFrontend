@@ -17,13 +17,11 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -35,7 +33,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Eye, Edit, Shield, MoreVertical, Loader2, ArrowUpDown, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react"
+import { Eye, Edit, Shield, Loader2, ArrowUpDown, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
     Pagination,
@@ -189,28 +187,51 @@ export function UserTable({
             cell: ({ row }) => {
                 const user = row.original
                 return (
-                    <div className="text-right">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <MoreVertical className="h-4 w-4" />
-                                    <span className="sr-only">Open menu</span>
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                <DropdownMenuItem onClick={() => onView(user)}>
-                                    <Eye className="mr-2 h-4 w-4" /> View Details
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => onEdit(user)}>
-                                    <Edit className="mr-2 h-4 w-4" /> Edit User
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => onManageRoles(user)}>
-                                    <Shield className="mr-2 h-4 w-4" /> Manage Roles
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                    <div className="flex items-center justify-end gap-1">
+                        <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                        onClick={() => onView(user)}
+                                    >
+                                        <Eye className="h-4 w-4" />
+                                        <span className="sr-only">View Details</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>View Details</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                        onClick={() => onEdit(user)}
+                                    >
+                                        <Edit className="h-4 w-4" />
+                                        <span className="sr-only">Edit User</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Edit User</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground hover:text-blue-600"
+                                        onClick={() => onManageRoles(user)}
+                                    >
+                                        <Shield className="h-4 w-4" />
+                                        <span className="sr-only">Manage Roles</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Manage Roles</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
                 )
             },
@@ -300,78 +321,110 @@ export function UserTable({
             </div>
 
             {/* Pagination Controls */}
-            <div className="flex items-center justify-between border-t px-4 py-3">
-                <div className="text-sm text-muted-foreground">
-                    Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
-                    {Math.min(
-                        (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                        table.getFilteredRowModel().rows.length
-                    )}{" "}
-                    of {table.getFilteredRowModel().rows.length} users
-                </div>
-                <div className="flex items-center gap-6">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {/* Pagination Controls */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5">
+                <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+                    <div className="flex items-center gap-2 border-muted-foreground/20">
+                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                            Show
+                        </span>
                         <Select
                             value={`${table.getState().pagination.pageSize}`}
                             onValueChange={(value) => {
                                 table.setPageSize(Number(value))
                             }}
                         >
-                            <SelectTrigger className="h-9 w-[130px]">
+                            <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent side="top">
                                 {[5, 10, 15, 20].map((pageSize) => (
                                     <SelectItem key={pageSize} value={`${pageSize}`}>
-                                        {pageSize} per page
+                                        {pageSize}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
+                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                            per page
+                        </span>
                     </div>
 
-                    <Pagination>
+                    <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                        Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
+                        {Math.min(
+                            (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
+                            table.getFilteredRowModel().rows.length
+                        )}{" "}
+                        of {table.getFilteredRowModel().rows.length} users
+                    </div>
+                </div>
+
+                <div className="order-1 sm:order-2">
+                    <Pagination className="justify-end w-auto mx-0">
                         <PaginationContent>
                             <PaginationItem>
-                                <PaginationPrevious
-                                    onClick={() => table.previousPage()}
-                                    className={!table.getCanPreviousPage() ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                                />
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        table.previousPage();
+                                    }}
+                                    disabled={!table.getCanPreviousPage()}
+                                    className="gap-1 pl-2.5 h-8 rounded-lg"
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                    <span>Previous</span>
+                                </Button>
                             </PaginationItem>
 
-                            {Array.from({ length: Math.min(5, table.getPageCount()) }, (_, i) => {
+                            {(() => {
                                 const totalPages = table.getPageCount()
                                 const currentPage = table.getState().pagination.pageIndex + 1
-                                let displayPage
+                                const pages = []
+                                const maxVisiblePages = 5
 
-                                if (totalPages <= 5) {
-                                    displayPage = i + 1
-                                } else if (currentPage <= 3) {
-                                    displayPage = i + 1
-                                } else if (currentPage >= totalPages - 2) {
-                                    displayPage = totalPages - 4 + i
-                                } else {
-                                    displayPage = currentPage - 2 + i
+                                let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2))
+                                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
+
+                                if (endPage - startPage + 1 < maxVisiblePages) {
+                                    startPage = Math.max(1, endPage - maxVisiblePages + 1)
                                 }
 
-                                return (
-                                    <PaginationItem key={displayPage}>
-                                        <PaginationLink
-                                            onClick={() => table.setPageIndex(displayPage - 1)}
-                                            isActive={currentPage === displayPage}
-                                            className="cursor-pointer"
-                                        >
-                                            {displayPage}
-                                        </PaginationLink>
-                                    </PaginationItem>
-                                )
-                            })}
+                                for (let i = startPage; i <= endPage; i++) {
+                                    pages.push(
+                                        <PaginationItem key={i}>
+                                            <PaginationLink
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    table.setPageIndex(i - 1);
+                                                }}
+                                                isActive={currentPage === i}
+                                                className="cursor-pointer h-8 w-8 rounded-lg"
+                                            >
+                                                {i}
+                                            </PaginationLink>
+                                        </PaginationItem>
+                                    )
+                                }
+                                return pages
+                            })()}
 
                             <PaginationItem>
-                                <PaginationNext
-                                    onClick={() => table.nextPage()}
-                                    className={!table.getCanNextPage() ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                                />
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        table.nextPage();
+                                    }}
+                                    disabled={!table.getCanNextPage()}
+                                    className="gap-1 pr-2.5 h-8 rounded-lg"
+                                >
+                                    <span>Next</span>
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
                             </PaginationItem>
                         </PaginationContent>
                     </Pagination>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { User, Loader2, AlertCircle, RefreshCw, Network, Users, ArrowLeft, ChevronDown, Eye, Mail, Badge as BadgeIcon, Award } from "lucide-react"
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -96,16 +96,23 @@ const RolePriorityTree = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
+  const isInitialized = useRef(false);
+  const isFetchingRoles = useRef(false);
+  const isFetchingDetails = useRef(false);
+  const isFetchingMapped = useRef(false);
+
   useEffect(() => {
-    if (gId) {
+    if (gId && !isInitialized.current) {
       fetchGeneDetails();
       fetchRoles();
+      isInitialized.current = true;
     }
   }, [gId]);
 
   useEffect(() => {
-    if (gId && geneDetails !== null) {
+    if (gId && geneDetails !== null && !isFetchingMapped.current) {
       fetchGeanMappedUser();
+      isFetchingMapped.current = true;
     }
   }, [gId, geneDetails]);
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react" // Add useCallback, useMemo, useRef
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { featuresApi } from "@/lib/api-endpoint"
@@ -8,7 +8,6 @@ import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import {
     Shield,
     ShieldPlus,
-    Edit,
     ChevronUp,
     Trash2,
     RefreshCw,
@@ -83,6 +82,23 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip"
 
+// Debounce hook for search input
+function useDebounce(value, delay) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+
+    return debouncedValue;
+}
+
 const SortIcon = ({ config, sortKey }) => {
     if (config.key !== sortKey) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />;
     if (config.direction === 'asc') return <ChevronUp className="ml-2 h-4 w-4 text-primary" />;
@@ -95,11 +111,11 @@ export default function Client({ initialFeatures = [] }) {
     const [features, setFeatures] = useState(initialFeatures)
     const [loading, setLoading] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
+    const [debouncedSearchTerm] = useDebounce(searchTerm, 3000) // Debounce search
     const [moduleFilter, setModuleFilter] = useState("all")
     const [statusFilter, setStatusFilter] = useState("all")
     const [selectedFeature, setSelectedFeature] = useState(null)
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
     const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
     const [formData, setFormData] = useState({
         feature_name: "",
@@ -114,10 +130,88 @@ export default function Client({ initialFeatures = [] }) {
     const [totalResults, setTotalResults] = useState(initialFeatures.length)
     const [sortConfig, setSortConfig] = useState({ key: 'feature_name', direction: 'asc' })
 
+    // Use ref to track if we're just opening the dialog to prevent unnecessary updates
+    const isOpeningDialog = useRef(false);
+
     useEffect(() => {
         setFeatures(initialFeatures)
         setTotalResults(initialFeatures.length)
     }, [initialFeatures])
+
+    // Memoize filtered features to prevent unnecessary recalculations
+    const filteredFeatures = useMemo(() => {
+        return features.filter((feature) => {
+            const featureName = feature.feature_name || feature.name || ""
+            const description = feature.description || ""
+            const featureModule = feature.module || ""
+
+            // Use debounced search term for filtering
+            const matchesSearch =
+                !debouncedSearchTerm ||
+                featureName.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                description.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                featureModule.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+
+            const matchesModule =
+                moduleFilter === "all" ||
+                (feature.module || "").toLowerCase() === moduleFilter.toLowerCase()
+
+            const featureStatus = feature.is_active !== undefined ? feature.is_active : true
+            const statusString = featureStatus ? "active" : "inactive"
+            const matchesStatus =
+                statusFilter === "all" ||
+                statusString === statusFilter.toLowerCase()
+
+            return matchesSearch && matchesModule && matchesStatus
+        })
+    }, [features, debouncedSearchTerm, moduleFilter, statusFilter])
+
+    // Memoize sorted features
+    const sortedFeatures = useMemo(() => {
+        const sorted = [...filteredFeatures];
+        if (sortConfig.key && sortConfig.direction !== 'none') {
+            sorted.sort((a, b) => {
+                let valA, valB;
+
+                switch (sortConfig.key) {
+                    case 'feature_name':
+                    case 'name':
+                        valA = (a.feature_name || a.name || "").toLowerCase();
+                        valB = (b.feature_name || b.name || "").toLowerCase();
+                        break;
+                    case 'description':
+                        valA = (a.description || "").toLowerCase();
+                        valB = (b.description || "").toLowerCase();
+                        break;
+                    case 'module':
+                        valA = (a.module || "").toLowerCase();
+                        valB = (b.module || "").toLowerCase();
+                        break;
+                    case 'is_active':
+                        valA = (a.is_active !== undefined ? a.is_active : true) ? 1 : 0;
+                        valB = (b.is_active !== undefined ? b.is_active : true) ? 1 : 0;
+                        break;
+                    case 'created_at':
+                        valA = new Date(a.created_at).getTime();
+                        valB = new Date(b.created_at).getTime();
+                        break;
+                    default:
+                        valA = a[sortConfig.key];
+                        valB = b[sortConfig.key];
+                }
+
+                if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        return sorted;
+    }, [filteredFeatures, sortConfig])
+
+    const startIndex = (currentPage - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    const paginatedFeatures = useMemo(() => sortedFeatures.slice(startIndex, endIndex), [sortedFeatures, startIndex, endIndex])
+    const totalPages = Math.ceil(filteredFeatures.length / pageSize)
 
     const fetchFeatures = async () => {
         try {
@@ -147,6 +241,13 @@ export default function Client({ initialFeatures = [] }) {
         }
     }
 
+    const openViewDialog = async (feature) => {
+        setSelectedFeature(feature)
+        // Still fetch for view dialog to get full details
+        await fetchFeatureDetails(feature.feature_id || feature.id)
+        setIsViewDialogOpen(true)
+    }
+
     const fetchFeatureDetails = async (featureId) => {
         try {
             const response = await featuresApi.getById(featureId)
@@ -154,13 +255,6 @@ export default function Client({ initialFeatures = [] }) {
             if (response.data) {
                 const featureData = response.data.data || response.data
                 setSelectedFeature(featureData)
-                setFormData({
-                    feature_name: featureData.feature_name || featureData.name || "",
-                    action: featureData.action || "",
-                    description: featureData.description || "",
-                    module: featureData.module || "",
-                    is_active: featureData.is_active !== undefined ? featureData.is_active : true,
-                })
                 return featureData
             }
         } catch (error) {
@@ -237,51 +331,6 @@ export default function Client({ initialFeatures = [] }) {
         }
     }
 
-    const handleUpdateFeature = async () => {
-        const featureId = selectedFeature?.feature_id || selectedFeature?.id
-        if (!featureId) return
-
-        if (!formData.feature_name?.trim()) {
-            toast.error("Feature name is required")
-            return
-        }
-        if (!formData.action?.trim()) {
-            toast.error("Action is required")
-            return
-        }
-        if (!formData.module?.trim()) {
-            toast.error("Module is required")
-            return
-        }
-
-        try {
-            setSubmitting(true)
-            const payload = {
-                feature_name: formData.feature_name.trim(),
-                action: formData.action.trim(),
-                description: formData.description.trim() || "",
-                module: formData.module.trim(),
-                is_active: formData.is_active !== undefined ? formData.is_active : true,
-            }
-
-            const response = await featuresApi.update(featureId, payload)
-
-            if (response.data) {
-                toast.success("Feature updated successfully")
-                setIsEditDialogOpen(false)
-                resetForm()
-                fetchFeatures()
-            }
-        } catch (error) {
-            console.error("Error updating feature:", error)
-            const errorMessage =
-                error.response?.data?.message || error.response?.data?.error || "Failed to update feature"
-            toast.error(errorMessage)
-        } finally {
-            setSubmitting(false)
-        }
-    }
-
     const handleDeleteFeature = async (featureId) => {
         if (!featureId) {
             toast.error("Feature ID is missing")
@@ -322,19 +371,10 @@ export default function Client({ initialFeatures = [] }) {
         setSelectedFeature(null)
     }
 
-    const openEditDialog = async (feature) => {
-        setSelectedFeature(feature)
-        const featureDetails = await fetchFeatureDetails(feature.feature_id || feature.id)
-        if (featureDetails) {
-            setIsEditDialogOpen(true)
-        }
-    }
-
-    const openViewDialog = async (feature) => {
-        setSelectedFeature(feature)
-        await fetchFeatureDetails(feature.feature_id || feature.id)
-        setIsViewDialogOpen(true)
-    }
+    // Handle form input changes - prevent re-renders of parent components
+    const handleFormChange = useCallback((field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }))
+    }, [])
 
     const formatDate = (dateString) => {
         if (!dateString) return "N/A"
@@ -350,29 +390,6 @@ export default function Client({ initialFeatures = [] }) {
         }
     }
 
-    const filteredFeatures = features.filter((feature) => {
-        const featureName = feature.feature_name || feature.name || ""
-        const description = feature.description || ""
-        const featureModule = feature.module || ""
-        const matchesSearch =
-            !searchTerm ||
-            featureName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            featureModule.toLowerCase().includes(searchTerm.toLowerCase())
-
-        const matchesModule =
-            moduleFilter === "all" ||
-            (feature.module || "").toLowerCase() === moduleFilter.toLowerCase()
-
-        const featureStatus = feature.is_active !== undefined ? feature.is_active : true
-        const statusString = featureStatus ? "active" : "inactive"
-        const matchesStatus =
-            statusFilter === "all" ||
-            statusString === statusFilter.toLowerCase()
-
-        return matchesSearch && matchesModule && matchesStatus
-    })
-
     const handleSort = (key) => {
         let direction = 'asc';
         if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -382,51 +399,12 @@ export default function Client({ initialFeatures = [] }) {
         }
         setSortConfig({ key, direction });
         setCurrentPage(1);
-    };
-
-    const sortedFeatures = [...filteredFeatures];
-    if (sortConfig.key && sortConfig.direction !== 'none') {
-        sortedFeatures.sort((a, b) => {
-            let valA, valB;
-
-            switch (sortConfig.key) {
-                case 'feature_name':
-                case 'name':
-                    valA = (a.feature_name || a.name || "").toLowerCase();
-                    valB = (b.feature_name || b.name || "").toLowerCase();
-                    break;
-                case 'description':
-                    valA = (a.description || "").toLowerCase();
-                    valB = (b.description || "").toLowerCase();
-                    break;
-                case 'module':
-                    valA = (a.module || "").toLowerCase();
-                    valB = (b.module || "").toLowerCase();
-                    break;
-                case 'is_active':
-                    valA = (a.is_active !== undefined ? a.is_active : true) ? 1 : 0;
-                    valB = (b.is_active !== undefined ? b.is_active : true) ? 1 : 0;
-                    break;
-                case 'created_at':
-                    valA = new Date(a.created_at).getTime();
-                    valB = new Date(b.created_at).getTime();
-                    break;
-                default:
-                    valA = a[sortConfig.key];
-                    valB = b[sortConfig.key];
-            }
-
-            if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
-        });
     }
 
-    const startIndex = (currentPage - 1) * pageSize
-    const endIndex = startIndex + pageSize
-    const paginatedFeatures = sortedFeatures.slice(startIndex, endIndex)
-    const totalPages = Math.ceil(filteredFeatures.length / pageSize)
+    const uniqueModules = useMemo(() => [...new Set(features.map(f => f.module).filter(Boolean))], [features])
+    const activeFeaturesCount = useMemo(() => features.filter(f => f.is_active !== false).length, [features])
 
+    // Rest of your render functions remain the same...
     const renderCardsView = () => (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {paginatedFeatures.map((feature) => {
@@ -478,20 +456,6 @@ export default function Client({ initialFeatures = [] }) {
                                     </Tooltip>
                                 </TooltipProvider>
 
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => openEditDialog(feature)}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Edit</TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
 
                                 <TooltipProvider>
                                     <Tooltip>
@@ -583,19 +547,6 @@ export default function Client({ initialFeatures = [] }) {
                                             <TooltipContent>View</TooltipContent>
                                         </Tooltip>
 
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => openEditDialog(feature)}
-                                                    className="h-8 w-8"
-                                                >
-                                                    <Edit className="h-4 w-4" />
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>Edit</TooltipContent>
-                                        </Tooltip>
 
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -745,19 +696,6 @@ export default function Client({ initialFeatures = [] }) {
                                                     <TooltipContent>View</TooltipContent>
                                                 </Tooltip>
 
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => openEditDialog(feature)}
-                                                            className="h-8 w-8"
-                                                        >
-                                                            <Edit className="h-4 w-4" />
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>Edit</TooltipContent>
-                                                </Tooltip>
 
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
@@ -798,8 +736,6 @@ export default function Client({ initialFeatures = [] }) {
     );
 
     const renderFeatureView = () => {
-        // Removed early loading return to show skeletons in layout
-
         if (filteredFeatures.length === 0) {
             return (
                 <div className="text-center py-12 text-muted-foreground">
@@ -819,8 +755,6 @@ export default function Client({ initialFeatures = [] }) {
                 return renderCardsView();
         }
     };
-    const uniqueModules = [...new Set(features.map(f => f.module).filter(Boolean))]
-    const activeFeaturesCount = features.filter(f => f.is_active !== false).length
 
     return (
         <main className="min-h-screen bg-background">
@@ -906,7 +840,7 @@ export default function Client({ initialFeatures = [] }) {
                                                         id="feature-name"
                                                         placeholder="e.g., ticket_Create, tasks_view"
                                                         value={formData.feature_name}
-                                                        onChange={(e) => setFormData({ ...formData, feature_name: e.target.value })}
+                                                        onChange={(e) => handleFormChange('feature_name', e.target.value)}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
@@ -915,7 +849,7 @@ export default function Client({ initialFeatures = [] }) {
                                                         id="action"
                                                         placeholder="e.g., create, view, update, delete"
                                                         value={formData.action}
-                                                        onChange={(e) => setFormData({ ...formData, action: e.target.value })}
+                                                        onChange={(e) => handleFormChange('action', e.target.value)}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
@@ -924,7 +858,7 @@ export default function Client({ initialFeatures = [] }) {
                                                         id="description"
                                                         placeholder="e.g., ticket creations"
                                                         value={formData.description}
-                                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                                        onChange={(e) => handleFormChange('description', e.target.value)}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
@@ -933,7 +867,7 @@ export default function Client({ initialFeatures = [] }) {
                                                         id="module"
                                                         placeholder="e.g., ticket, task, organization"
                                                         value={formData.module}
-                                                        onChange={(e) => setFormData({ ...formData, module: e.target.value })}
+                                                        onChange={(e) => handleFormChange('module', e.target.value)}
                                                     />
                                                 </div>
                                             </div>
@@ -1059,28 +993,6 @@ export default function Client({ initialFeatures = [] }) {
                                             <LayoutGrid className="h-4 w-4" />
                                         </Button>
                                     </div>
-
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs text-muted-foreground whitespace-nowrap">Show:</span>
-                                        <Select
-                                            value={pageSize.toString()}
-                                            onValueChange={(value) => {
-                                                setPageSize(parseInt(value))
-                                                setCurrentPage(1)
-                                            }}
-                                        >
-                                            <SelectTrigger className="w-[70px] h-8 bg-background">
-                                                <SelectValue placeholder="Size" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {[5, 10, 15, 20].map((size) => (
-                                                    <SelectItem key={size} value={size.toString()}>
-                                                        {size}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
                                 </div>
                             </div>
 
@@ -1091,91 +1003,139 @@ export default function Client({ initialFeatures = [] }) {
 
                             {/* Pagination */}
                             {filteredFeatures.length > 0 && (
-                                <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t">
-                                    <div className="text-sm text-muted-foreground">
-                                        Showing {Math.min(startIndex + 1, filteredFeatures.length)} to {Math.min(startIndex + pageSize, filteredFeatures.length)} of {filteredFeatures.length} features
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5 mt-4 -mx-6 mb-[-24px]">
+                                    <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Show</span>
+                                            <Select
+                                                value={pageSize.toString()}
+                                                onValueChange={(value) => {
+                                                    setPageSize(parseInt(value))
+                                                    setCurrentPage(1)
+                                                }}
+                                            >
+                                                <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
+                                                    <SelectValue placeholder={pageSize} />
+                                                </SelectTrigger>
+                                                <SelectContent side="top">
+                                                    {[5, 10, 15, 20].map((size) => (
+                                                        <SelectItem key={size} value={size.toString()}>
+                                                            {size}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">per page</span>
+                                        </div>
+
+                                        <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                                            Showing <span className="text-foreground">{Math.min(startIndex + 1, filteredFeatures.length)}</span> to{' '}
+                                            <span className="text-foreground">{Math.min(startIndex + pageSize, filteredFeatures.length)}</span> of{' '}
+                                            <span className="text-foreground">{filteredFeatures.length}</span> entries
+                                        </div>
                                     </div>
-                                    <Pagination className="w-auto mx-0">
-                                        <PaginationContent>
-                                            <PaginationItem>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    disabled={currentPage === 1}
-                                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                                    className="gap-1 pl-2.5"
-                                                >
-                                                    <ChevronLeft className="h-4 w-4" />
-                                                    <span>Previous</span>
-                                                </Button>
-                                            </PaginationItem>
 
-                                            {totalPages <= 7 ? (
-                                                Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                                    <PaginationItem key={page}>
-                                                        <PaginationLink
-                                                            isActive={currentPage === page}
-                                                            onClick={() => setCurrentPage(page)}
-                                                            className="cursor-pointer"
-                                                        >
-                                                            {page}
-                                                        </PaginationLink>
-                                                    </PaginationItem>
-                                                ))
-                                            ) : (
-                                                <>
-                                                    <PaginationItem>
-                                                        <PaginationLink
-                                                            isActive={currentPage === 1}
-                                                            onClick={() => setCurrentPage(1)}
-                                                            className="cursor-pointer"
-                                                        >
-                                                            1
-                                                        </PaginationLink>
-                                                    </PaginationItem>
-                                                    {currentPage > 3 && <PaginationEllipsis />}
-                                                    {Array.from({ length: 3 }, (_, i) => {
-                                                        const page = Math.min(Math.max(currentPage - 1 + i, 2), totalPages - 1);
-                                                        if (page === 1 || page === totalPages) return null;
-                                                        return (
-                                                            <PaginationItem key={page}>
-                                                                <PaginationLink
-                                                                    isActive={currentPage === page}
-                                                                    onClick={() => setCurrentPage(page)}
-                                                                    className="cursor-pointer"
-                                                                >
-                                                                    {page}
-                                                                </PaginationLink>
-                                                            </PaginationItem>
-                                                        )
-                                                    })}
-                                                    {currentPage < totalPages - 2 && <PaginationEllipsis />}
-                                                    <PaginationItem>
-                                                        <PaginationLink
-                                                            isActive={currentPage === totalPages}
-                                                            onClick={() => setCurrentPage(totalPages)}
-                                                            className="cursor-pointer"
-                                                        >
-                                                            {totalPages}
-                                                        </PaginationLink>
-                                                    </PaginationItem>
-                                                </>
-                                            )}
+                                    <div className="flex items-center gap-1 order-1 sm:order-2">
+                                        <Pagination className="w-auto mx-0">
+                                            <PaginationContent>
+                                                <PaginationItem>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        disabled={currentPage === 1}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            setCurrentPage(prev => Math.max(1, prev - 1));
+                                                        }}
+                                                        className="gap-1 pl-2.5 h-8"
+                                                    >
+                                                        <ChevronLeft className="h-4 w-4" />
+                                                        <span>Previous</span>
+                                                    </Button>
+                                                </PaginationItem>
 
-                                            <PaginationItem>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    disabled={currentPage === totalPages}
-                                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                                    className="gap-1 pl-2.5"
-                                                >
-                                                    <span>Next</span>
-                                                    <ChevronRight className="h-4 w-4" />
-                                                </Button>
-                                            </PaginationItem>
-                                        </PaginationContent>
-                                    </Pagination>
+                                                {totalPages <= 7 ? (
+                                                    Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                                        <PaginationItem key={page}>
+                                                        <PaginationLink
+                                                                isActive={currentPage === page}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    setCurrentPage(page);
+                                                                }}
+                                                                className="cursor-pointer h-8 w-8 rounded-lg"
+                                                            >
+                                                                {page}
+                                                            </PaginationLink>
+                                                        </PaginationItem>
+                                                    ))
+                                                ) : (
+                                                    <>
+                                                        <PaginationItem>
+                                                            <PaginationLink
+                                                                isActive={currentPage === 1}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    setCurrentPage(1);
+                                                                }}
+                                                                className="cursor-pointer h-8 w-8"
+                                                            >
+                                                                1
+                                                            </PaginationLink>
+                                                        </PaginationItem>
+                                                        {currentPage > 3 && <PaginationEllipsis />}
+                                                        {Array.from({ length: 3 }, (_, i) => {
+                                                            const page = Math.min(Math.max(currentPage - 1 + i, 2), totalPages - 1);
+                                                            if (page === 1 || page === totalPages) return null;
+                                                            return (
+                                                                <PaginationItem key={page}>
+                                                                    <PaginationLink
+                                                                        isActive={currentPage === page}
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            setCurrentPage(page);
+                                                                        }}
+                                                                        className="cursor-pointer h-8 w-8"
+                                                                    >
+                                                                        {page}
+                                                                    </PaginationLink>
+                                                                </PaginationItem>
+                                                            )
+                                                        })}
+                                                        {currentPage < totalPages - 2 && <PaginationEllipsis />}
+                                                        <PaginationItem>
+                                                            <PaginationLink
+                                                                isActive={currentPage === totalPages}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    setCurrentPage(totalPages);
+                                                                }}
+                                                                className="cursor-pointer h-8 w-8"
+                                                            >
+                                                                {totalPages}
+                                                            </PaginationLink>
+                                                        </PaginationItem>
+                                                    </>
+                                                )}
+
+                                                <PaginationItem>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        disabled={currentPage === totalPages}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                                                        }}
+                                                        className="gap-1 pl-2.5 h-8"
+                                                    >
+                                                        <span>Next</span>
+                                                        <ChevronRight className="h-4 w-4" />
+                                                    </Button>
+                                                </PaginationItem>
+                                            </PaginationContent>
+                                        </Pagination>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
@@ -1249,94 +1209,10 @@ export default function Client({ initialFeatures = [] }) {
                                 <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
                                     Close
                                 </Button>
-                                <Button onClick={() => {
-                                    setIsViewDialogOpen(false)
-                                    openEditDialog(selectedFeature)
-                                }}>
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Edit Feature
-                                </Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
 
-                    <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle>Edit Feature</DialogTitle>
-                                <DialogDescription>
-                                    Update feature information. Feature name, action, and module are required.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-feature-name">Feature Name *</Label>
-                                    <Input
-                                        id="edit-feature-name"
-                                        placeholder="e.g., ticket_Create, tasks_view"
-                                        value={formData.feature_name}
-                                        onChange={(e) => setFormData({ ...formData, feature_name: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-action">Action *</Label>
-                                    <Input
-                                        id="edit-action"
-                                        placeholder="e.g., create, view, update, delete"
-                                        value={formData.action}
-                                        onChange={(e) => setFormData({ ...formData, action: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-description">Description</Label>
-                                    <Input
-                                        id="edit-description"
-                                        placeholder="e.g., ticket creations"
-                                        value={formData.description}
-                                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-module">Module *</Label>
-                                    <Input
-                                        id="edit-module"
-                                        placeholder="e.g., ticket, task, organization"
-                                        value={formData.module}
-                                        onChange={(e) => setFormData({ ...formData, module: e.target.value })}
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between space-x-2 py-2">
-                                    <Label htmlFor="edit-is-active" className="flex-1">
-                                        Active Status
-                                    </Label>
-                                    <Switch
-                                        id="edit-is-active"
-                                        checked={formData.is_active}
-                                        onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                                    />
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setIsEditDialogOpen(false)}
-                                    disabled={submitting}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button onClick={handleUpdateFeature} disabled={submitting}>
-                                    {submitting ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                            Updating...
-                                        </>
-                                    ) : (
-                                        "Update Feature"
-                                    )}
-                                </Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
                 </div>
             </div>
         </main>

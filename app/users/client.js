@@ -122,6 +122,7 @@ export default function UsersClient(props) {
         onRemoveRole={handleRemoveRole}
         getFilteredReportingUsers={getFilteredReportingUsers}
         getRoleName={getRoleName}
+        getReportingManagerName={getReportingManagerName}
         getUserRolePriority={getUserRolePriority}
         getSelectedRolePriority={getSelectedRolePriority}
       />

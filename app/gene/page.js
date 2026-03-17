@@ -4,25 +4,82 @@ import { API_BASE_URL } from '@/lib/api-endpoint'
 import { authUtils } from '@/lib/auth-utils'
 import { extractArray } from '@/lib/utils'
 
-async function getData() {
-    const cookieStore = await cookies()
-    const headers = authUtils.getServerHeaders(cookieStore)
-
+async function getOrganizations(headers) {
     try {
-        const res = await fetch(`${API_BASE_URL}/api/genes`, {
+        const res = await fetch(`${API_BASE_URL}/api/organizations`, {
             headers,
-            next: { revalidate: 60 }
+            next: { revalidate: 3600 } // Cache for 1 hour
         })
 
-        if (!res.ok) {
-            console.error(`Failed to fetch genes: ${res.status} ${res.statusText}`)
-            return { genes: [], pagination: null }
-        }
+        if (!res.ok) return []
+        const data = await res.json()
+        
+        let orgsData = []
+        if (Array.isArray(data)) orgsData = data
+        else if (data.success && data.data) orgsData = data.data
+        else if (data.data && Array.isArray(data.data)) orgsData = data.data
+        else if (data.organizations && Array.isArray(data.organizations)) orgsData = data.organizations
+        
+        return orgsData
+    } catch (error) {
+        console.error('SSR Organizations Fetch Error:', error)
+        return []
+    }
+}
 
+async function getUsers(headers) {
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/users`, {
+            headers,
+            next: { revalidate: 300 } // Cache for 5 minutes
+        })
+
+        if (!res.ok) return []
         const data = await res.json()
 
+        let usersData = []
+        if (Array.isArray(data)) usersData = data
+        else if (data.success && data.data) usersData = data.data
+        else if (data.data && Array.isArray(data.data)) usersData = data.data
+        else if (data.users && Array.isArray(data.users)) usersData = data.users
+
+        // Normalize users
+        return usersData.map(user => ({
+            ...user,
+            id: user.id || user.user_id,
+            username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+            name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
+        }))
+    } catch (error) {
+        console.error('SSR Users Fetch Error:', error)
+        return []
+    }
+}
+
+async function getData() {
+    const cookieStore = await cookies();
+
+    try {
+        const { result, newAccessToken } = await authUtils.executeWithRefresh(cookieStore, async (headers) => {
+            const fetchOptions = { headers, next: { revalidate: 60 } }
+            return Promise.all([
+                fetch(`${API_BASE_URL}/api/genes`, fetchOptions),
+                getOrganizations(headers),
+                getUsers(headers)
+            ]);
+        });
+
+        const [genesRes, organizations, users] = result;
+
+        if (!genesRes.ok) {
+            console.error(`Failed to fetch genes: ${genesRes.status} ${genesRes.statusText}`)
+            return { genes: [], pagination: null, organizations, users, newAccessToken }
+        }
+
+        const data = await genesRes.json()
+
         if (!data.success || !data.data) {
-            return { genes: [], pagination: null }
+            return { genes: [], pagination: null, organizations, users, newAccessToken }
         }
 
         const apiGenes = data.data || []
@@ -76,11 +133,14 @@ async function getData() {
 
         return {
             genes: transformedGenes,
-            pagination: data.pagination || null
+            pagination: data.pagination || null,
+            organizations,
+            users,
+            newAccessToken
         }
     } catch (error) {
         console.error('SSR Data Fetch Error:', error)
-        return { genes: [], pagination: null }
+        return { genes: [], pagination: null, organizations: [], users: [], newAccessToken: null }
     }
 }
 
@@ -91,6 +151,9 @@ export default async function GenePage() {
         <GeneClient
             initialGenes={data.genes}
             initialPagination={data.pagination}
+            initialOrganizations={data.organizations}
+            initialUsers={data.users}
+            newAccessToken={data.newAccessToken}
         />
     )
 }

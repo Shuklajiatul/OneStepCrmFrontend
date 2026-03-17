@@ -15,7 +15,7 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip"
-import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon, Database, FileText, X } from "lucide-react"
+import { Eye, Copy, BarChart3, Calendar, Users, ExternalLink, Loader2, Edit, Trash2, RotateCcw, Search, ArrowUpDown, Archive, ArchiveRestore, LayoutGrid, List, Table as TableIcon, Database, FileText, X, ChevronLeft, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 import { formsApi } from "@/lib/api-endpoint"
 import EditFormDialog from "../custom-form/components/EditForm/edit-form"
@@ -77,9 +77,10 @@ export default function MyFormsPage() {
   const [tables, setTables] = useState([])
   const [selectedTableId, setSelectedTableId] = useState("all")
 
-  useEffect(() => {
-    fetchForms()
-  }, [])
+  // useEffect(() => {
+  //   fetchForms()
+  // }, [])
+  const didInitialFetchRef = useRef(false)
 
   // Helper function to generate unique field IDs
   const generateUniqueFieldId = (prefix = 'field') => {
@@ -349,7 +350,7 @@ export default function MyFormsPage() {
     setDeleteDialogOpen(true)
   }
 
-  const fetchForms = async () => {
+  const fetchForms = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -433,7 +434,13 @@ export default function MyFormsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (didInitialFetchRef.current) return
+    didInitialFetchRef.current = true
+    fetchForms()
+  }, [fetchForms])
 
   const copyFormLink = async (form) => {
     const orgId = authUtils.getOrganizationId()
@@ -1808,80 +1815,98 @@ export default function MyFormsPage() {
 
                 {/* Pagination */}
                 {sortedForms.length > 0 && (
-                  <div className="mt-6 px-4 sm:px-0 pb-4 sm:pb-0">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                      <div className="flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
-                        {/* Items per page selector */}
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground whitespace-nowrap">Show</span>
-                          <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
-                            <SelectTrigger className="w-20">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="5">5</SelectItem>
-                              <SelectItem value="10">10</SelectItem>
-                              <SelectItem value="20">20</SelectItem>
-                              <SelectItem value="50">50</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <span className="text-sm text-muted-foreground whitespace-nowrap">per page</span>
-                        </div>
-
-                        {/* Page info */}
-                        <div className="text-sm text-muted-foreground whitespace-nowrap">
-                          Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, sortedForms.length)} of {sortedForms.length} forms
-                        </div>
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5 mt-4 -mx-6 mb-[-24px]">
+                    <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Show</span>
+                        <Select value={itemsPerPage.toString()} onValueChange={handleItemsPerPageChange}>
+                          <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
+                            <SelectValue placeholder={itemsPerPage} />
+                          </SelectTrigger>
+                          <SelectContent side="top">
+                            {[5, 10, 20, 50].map((size) => (
+                              <SelectItem key={size} value={size.toString()}>
+                                {size}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">per page</span>
                       </div>
 
-                      {/* Pagination controls */}
-                      {totalPages > 1 && (
-                        <Pagination className="justify-end">
-                          <PaginationContent>
-                            <PaginationItem>
-                              <PaginationPrevious
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                              />
-                            </PaginationItem>
+                      <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                        Showing <span className="text-foreground">{startIndex + 1}</span> to{' '}
+                        <span className="text-foreground">{Math.min(startIndex + itemsPerPage, sortedForms.length)}</span> of{' '}
+                        <span className="text-foreground">{sortedForms.length}</span> forms
+                      </div>
+                    </div>
 
-                            {/* Show limited page numbers for better UX */}
-                            {(() => {
-                              const pages = [];
-                              const maxVisiblePages = 5;
-                              let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-                              let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                    <div className="flex items-center gap-1 order-1 sm:order-2">
+                      <Pagination className="w-auto mx-0">
+                        <PaginationContent>
+                          <PaginationItem>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setCurrentPage(prev => Math.max(prev - 1, 1));
+                              }}
+                              disabled={currentPage === 1}
+                              className="gap-1 pl-2.5 h-8"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                              <span>Previous</span>
+                            </Button>
+                          </PaginationItem>
 
-                              // Adjust start page if we're near the end
-                              if (endPage - startPage + 1 < maxVisiblePages) {
-                                startPage = Math.max(1, endPage - maxVisiblePages + 1);
-                              }
+                          {/* Show limited page numbers for better UX */}
+                          {(() => {
+                            const pages = [];
+                            const maxVisiblePages = 5;
+                            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
-                              for (let i = startPage; i <= endPage; i++) {
-                                pages.push(
-                                  <PaginationItem key={i}>
-                                    <PaginationLink
-                                      onClick={() => setCurrentPage(i)}
-                                      isActive={currentPage === i}
-                                      className="cursor-pointer"
-                                    >
-                                      {i}
-                                    </PaginationLink>
-                                  </PaginationItem>
-                                );
-                              }
-                              return pages;
-                            })()}
+                            if (endPage - startPage + 1 < maxVisiblePages) {
+                              startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                            }
 
-                            <PaginationItem>
-                              <PaginationNext
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                              />
-                            </PaginationItem>
-                          </PaginationContent>
-                        </Pagination>
-                      )}
+                            for (let i = startPage; i <= endPage; i++) {
+                              pages.push(
+                                <PaginationItem key={i}>
+                                  <PaginationLink
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      setCurrentPage(i);
+                                    }}
+                                    isActive={currentPage === i}
+                                    className="cursor-pointer h-8 w-8 rounded-lg"
+                                  >
+                                    {i}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              );
+                            }
+                            return pages;
+                          })()}
+
+                          <PaginationItem>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setCurrentPage(prev => Math.min(prev + 1, totalPages));
+                              }}
+                              disabled={currentPage === totalPages}
+                              className="gap-1 pl-2.5 h-8"
+                            >
+                              <span>Next</span>
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
                     </div>
                   </div>
                 )}

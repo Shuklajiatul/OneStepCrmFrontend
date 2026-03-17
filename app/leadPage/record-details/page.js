@@ -9,23 +9,20 @@ async function getRecordDetailsData(tableId, recordId) {
     if (!tableId || !recordId) return null
 
     try {
-        const cookieStore = await cookies()
-        const headers = authUtils.getServerHeaders(cookieStore)
+        const cookieStore = await cookies();
 
-        const fetchRecord = fetch(`${API_BASE_URL}${RECORD_ENDPOINTS.GET_BY_ID(tableId, recordId)}`, { headers, next: { revalidate: 0 } })
-        const fetchColumns = fetch(`${API_BASE_URL}${DATATABLE_ENDPOINTS.GET_COLUMNS(tableId)}`, { headers, next: { revalidate: 0 } })
-        const fetchUsers = fetch(`${API_BASE_URL}${USER_ENDPOINTS.LIST}`, { headers, next: { revalidate: 0 } })
-        const fetchHistory = fetch(`${API_BASE_URL}${RECORD_ENDPOINTS.GET_HISTORY(tableId, recordId)}`, { headers, next: { revalidate: 0 } })
-        const fetchActivities = fetch(`${API_BASE_URL}${ACTIVITY_ENDPOINTS.LIST_BY_ORGANIZATION}`, { headers, next: { revalidate: 0 } })
+        const { result: responses, newAccessToken } = await authUtils.executeWithRefresh(cookieStore, async (headers) => {
+            const fetchOptions = { headers, next: { revalidate: 0 } }
+            return Promise.all([
+                fetch(`${API_BASE_URL}${RECORD_ENDPOINTS.GET_BY_ID(tableId, recordId)}`, fetchOptions),
+                fetch(`${API_BASE_URL}${DATATABLE_ENDPOINTS.GET_COLUMNS(tableId)}`, fetchOptions),
+                fetch(`${API_BASE_URL}${USER_ENDPOINTS.LIST}`, fetchOptions),
+                fetch(`${API_BASE_URL}${RECORD_ENDPOINTS.GET_HISTORY(tableId, recordId)}`, fetchOptions),
+                fetch(`${API_BASE_URL}${ACTIVITY_ENDPOINTS.LIST_BY_ORGANIZATION}`, fetchOptions)
+            ])
+        });
 
-        // Execute all fetches in parallel
-        const responses = await Promise.all([
-            fetchRecord,
-            fetchColumns,
-            fetchUsers,
-            fetchHistory,
-            fetchActivities
-        ])
+        console.log("Record details server responses:", responses.map(res => ({ url: res.url, status: res.status })));
 
         // Parse JSON responses
         const [recordData, columnsData, usersData, historyData, activitiesData] = await Promise.all(
@@ -34,7 +31,6 @@ async function getRecordDetailsData(tableId, recordId) {
 
         // Process Record
         const initialRecord = recordData?.data?.data || recordData?.data || recordData || null
-
         // Process Columns
         const initialColumns = columnsData?.data?.data || columnsData?.data || columnsData || []
 
@@ -56,7 +52,8 @@ async function getRecordDetailsData(tableId, recordId) {
             initialColumns,
             initialUsers,
             initialHistory,
-            initialActivities
+            initialActivities,
+            newAccessToken
         }
 
     } catch (error) {
@@ -91,6 +88,7 @@ export default async function RecordDetailsPage({ searchParams }) {
                 initialUsers={data.initialUsers}
                 initialHistory={data.initialHistory}
                 initialActivities={data.initialActivities}
+                newAccessToken={data.newAccessToken}
             />
         </Suspense>
     )

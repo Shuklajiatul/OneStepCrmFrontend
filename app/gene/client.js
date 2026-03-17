@@ -10,7 +10,7 @@ import {
   Eye, Edit, Trash2, Plus, Search, Upload, Table2, List, LayoutGrid,
   Loader2, AlertCircle, RefreshCw, X, CheckCircle2, Building,
   Layers, Users as UsersIcon, Calendar, BarChart3, Filter, Network,
-  ArrowUpDown, ChevronUp, ChevronDown
+  ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -60,8 +60,22 @@ const SortIcon = ({ config, sortKey }) => {
 
 
 
-export default function GeneClient({ initialGenes = [], initialPagination = null }) {
+export default function GeneClient({
+  initialGenes = [],
+  initialPagination = null,
+  initialOrganizations = [],
+  initialUsers = [],
+  newAccessToken: propNewAccessToken = null
+}) {
   const router = useRouter();
+
+  // Sync new token from server to browser cookies if it was refreshed
+  useEffect(() => {
+    if (propNewAccessToken) {
+      console.log('Syncing new server-side token to cookies in genes page');
+      authUtils.setTokens({ accessToken: propNewAccessToken });
+    }
+  }, [propNewAccessToken]);
   const [view, setView] = useState('table');
   const [showArchived, setShowArchived] = useState(false);
   const [showEmpty, setShowEmpty] = useState(false);
@@ -86,21 +100,24 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
   const [showCsvGeneUserModal, setShowCsvGeneUserModal] = useState(false);
   const [searches, setSearhes] = useState(null);
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [currentPage, setCurrentPage] = useState(initialPagination?.page || 1);
+  const [pageSize, setPageSize] = useState(initialPagination?.limit || 5);
   const [pagination, setPagination] = useState(initialPagination || {
     page: 1,
     limit: 5,
     total: 0
   });
-  const [organizations, setOrganizations] = useState([]);
+  const [organizations, setOrganizations] = useState(initialOrganizations);
   const [loadingOrganizations, setLoadingOrganizations] = useState(false);
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState(initialUsers);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [sortConfig, setSortConfig] = useState({ key: 'g_name', direction: 'asc' }); // 'asc', 'desc', 'none'
 
-  // Track initial render to avoid double fetch
-  const isFirstRender = useRef(true);
+  // Track initialization and mounting to avoid double fetch
+  const isInitialized = useRef(false);
+  const mounted = useRef(false);
 
   // Debounced search function
   const debouncedSearchHandler = useCallback(
@@ -138,7 +155,6 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
 
       // Get token from auth utils, localStorage, or sessionStorage
       const tokens = authUtils.getTokens();
-      const token = tokens?.accessToken;
 
       if (!tokens) {
         setError('Authentication required. Please login again.');
@@ -156,34 +172,14 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
       if (response.data.success && response.data.data) {
         const apiGenes = response.data.data || [];
         console.log('API Genes:', apiGenes);
-        console.log('Sample gene structure:', apiGenes[0]); // Log first gene to see structure
 
-        // Try to fetch users if created_by is just IDs, to create a user ID to name mapping
-        let userMap = {};
-        try {
-          const uniqueUserIds = [...new Set(apiGenes.map(g => g.created_by).filter(Boolean))];
-          if (uniqueUserIds.length > 0) {
-            // Try to fetch users if we have user IDs
-            const tokens = authUtils.getTokens();
-            const token = tokens?.accessToken ||
-              localStorage.getItem('token') ||
-              localStorage.getItem('accessToken') ||
-              sessionStorage.getItem('token') ||
-              sessionStorage.getItem('accessToken');
-            if (token) {
-              const usersResponse = await usersApi.getAll();
-              if (usersResponse.data && Array.isArray(usersResponse.data)) {
-                usersResponse.data.forEach(user => {
-                  userMap[user.user_id || user.id] = user.first_name && user.last_name
-                    ? `${user.first_name} ${user.last_name}`.trim()
-                    : user.username || user.email || user.name || user.user_id || user.id;
-                });
-              }
-            }
-          }
-        } catch (userFetchError) {
-          console.warn('Could not fetch users for name mapping:', userFetchError);
-        }
+        // Use already fetched users state for name mapping
+        const userMap = {};
+        users.forEach(user => {
+          userMap[user.user_id || user.id] = user.first_name && user.last_name
+            ? `${user.first_name} ${user.last_name}`.trim()
+            : user.username || user.email || user.name || user.user_id || user.id;
+        });
 
         // Transform API data to match your component structure
         const transformedGenes = apiGenes.map(gene => {
@@ -359,18 +355,67 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
     }
   };
 
+  // One-time initialization for users and organizations
   useEffect(() => {
-    if (isFirstRender.current && initialGenes.length > 0) {
-      isFirstRender.current = false;
+    if (mounted.current) return;
+    mounted.current = true;
+
+    // Only fetch if we don't have initial data
+    if (initialOrganizations.length === 0) {
       fetchOrganizations();
+    }
+    if (initialUsers.length === 0) {
       fetchUsers();
+    }
+
+    // Initialization is handled by individual effects to be more robust
+
+    return () => {
+      // Don't reset mounted in dev to handle StrictMode double mount
+      // if we want to truly prevent double calls
+    };
+  }, []);
+
+  // Update gene list names when users are loaded without a network call
+  useEffect(() => {
+    if (users.length > 0 && genes.length > 0) {
+      const userMap = {};
+      users.forEach(user => {
+        userMap[user.user_id || user.id] = user.first_name && user.last_name
+          ? `${user.first_name} ${user.last_name}`.trim()
+          : user.username || user.email || user.name || user.user_id || user.id;
+      });
+
+      setGenes(prevGenes => prevGenes.map(gene => {
+        const createdByUserId = gene.createdById || gene.created_by;
+        if (createdByUserId && userMap[createdByUserId]) {
+          return { ...gene, createdBy: userMap[createdByUserId] };
+        }
+        return gene;
+      }));
+    }
+  }, [users]);
+
+  // Main effect to fetch genes
+  useEffect(() => {
+    if (isInitialized.current) return;
+
+    // skip skipping if search query is present
+    const isSearching = searchTerm && searchTerm.trim().length > 0;
+
+    // Skip the very first fetch on mount if SSR data is available
+    if (initialGenes && initialGenes.length > 0 && !isSearching) {
+      console.log("Blocking first fetchGenes call due to SSR data availability");
+      isInitialized.current = true;
       return;
     }
+
+    isInitialized.current = true;
     fetchGenes();
-    fetchOrganizations();
-    fetchUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, pageSize]);
+
+    // Dependencies are empty for now because fetchGenes doesn't use currentPage/pageSize for the API.
+  }, []);
+
 
   // Handle search separately - reset to page 1 when search changes
   useEffect(() => {
@@ -530,8 +575,6 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
 
   const closeModal = () => {
     setShowModal(false);
-    setEditingGene(null);
-    setGeneData({ name: '', levels: [], is_active: true });
   };
 
   const convertLevelsToHierarchy = (levels) => {
@@ -797,8 +840,35 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
     const createdBy = (gene.createdBy || '').toLowerCase();
     const search = searchTerm.toLowerCase().trim();
 
+    const tokens = authUtils.getTokens();
+    const currentUser = tokens?.user;
+
+    // Search filter
     const matchesSearch = !search || geneName.includes(search) || createdBy.includes(search);
-    return matchesSearch;
+
+    // Type filter
+    const matchesType = typeFilter === 'all' || gene.type?.toLowerCase() === typeFilter.toLowerCase();
+
+    // Status & Archived filter
+    let matchesStatus = true;
+    if (statusFilter === 'all') {
+      // If no archived specified, we usually show only active ones unless "Show Archived" is checked
+      if (!showArchived) {
+        matchesStatus = gene.is_active === true;
+      }
+    } else if (statusFilter === 'active') {
+      matchesStatus = gene.is_active === true;
+    } else if (statusFilter === 'inactive') {
+      matchesStatus = gene.is_active === false;
+    }
+
+    // My Hierarchies filter
+    const matchesMyHierarchies = !myHierarchiesOnly || (currentUser && (gene.createdById === currentUser.id || gene.createdById === currentUser.user_id));
+
+    // Show Empty filter
+    const matchesEmpty = !showEmpty || (gene.totalMembers === 0 || gene.users === 0);
+
+    return matchesSearch && matchesType && matchesStatus && matchesMyHierarchies && matchesEmpty;
   });
 
   // Apply Sorting
@@ -1576,6 +1646,8 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
                     setShowArchived(false);
                     setShowEmpty(false);
                     setMyHierarchiesOnly(false);
+                    setTypeFilter('all');
+                    setStatusFilter('all');
                   }}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
@@ -1604,7 +1676,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-                  <Select>
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
                     <SelectTrigger className="w-full sm:w-40">
                       <SelectValue placeholder="All Types" />
                     </SelectTrigger>
@@ -1614,7 +1686,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
                       <SelectItem value="department">Department</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
                     <SelectTrigger className="w-full sm:w-40">
                       <SelectValue placeholder="All Status" />
                     </SelectTrigger>
@@ -1736,20 +1808,6 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
                   >
                     <LayoutGrid className="h-4 w-4" />
                   </Button>
-                  <Select value={pageSize.toString()} onValueChange={(value) => {
-                    setPageSize(parseInt(value));
-                    setCurrentPage(1);
-                  }}>
-                    <SelectTrigger className="w-[130px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="5">5 per page</SelectItem>
-                      <SelectItem value="10">10 per page</SelectItem>
-                      <SelectItem value="15">15 per page</SelectItem>
-                      <SelectItem value="20">20 per page</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
             </CardHeader>
@@ -1757,53 +1815,101 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
               {renderGeneView()}
             </CardContent>
             {filteredGenes.length > 0 && (
-              <div className="flex items-center justify-between border-t px-4 py-3">
-                <div className="text-sm text-muted-foreground">
-                  Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, filteredGenes.length)} of {filteredGenes.length} genes
+              <div className="flex flex-col sm:flex-row items-center justify-between border-t px-4 py-4 gap-4 bg-muted/5">
+                <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Show</span>
+                    <Select value={pageSize.toString()} onValueChange={(value) => {
+                      setPageSize(parseInt(value));
+                      setCurrentPage(1);
+                    }}>
+                      <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent side="top">
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="15">15</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">per page</span>
+                  </div>
+                  <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                    Showing <span className="text-foreground">{((currentPage - 1) * pageSize) + 1}</span> to <span className="text-foreground">{Math.min(currentPage * pageSize, filteredGenes.length)}</span> of <span className="text-foreground">{filteredGenes.length}</span> entries
+                  </div>
                 </div>
-                <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
-                      <PaginationPrevious
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                      />
-                    </PaginationItem>
-                    {Array.from({ length: Math.min(5, Math.ceil(filteredGenes.length / pageSize)) }, (_, i) => {
-                      const pageNum = i + 1;
-                      const totalPages = Math.ceil(filteredGenes.length / pageSize);
-                      let displayPage;
+                <div className="order-1 sm:order-2">
+                  <Pagination className="justify-end w-auto mx-0">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage(prev => Math.max(1, prev - 1));
+                          }}
+                          disabled={currentPage === 1}
+                          className="gap-1 pl-2.5 h-8 rounded-lg"
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          <span>Previous</span>
+                        </Button>
+                      </PaginationItem>
+                      {Array.from({ length: Math.ceil(filteredGenes.length / pageSize) }, (_, i) => i + 1)
+                        .filter(pageNum => {
+                          const totalPages = Math.ceil(filteredGenes.length / pageSize);
+                          if (totalPages <= 5) return true;
+                          if (pageNum === 1 || pageNum === totalPages) return true;
+                          return Math.abs(pageNum - currentPage) <= 1;
+                        })
+                        .map((pageNum, index, array) => {
+                          const elements = [];
+                          const totalPages = Math.ceil(filteredGenes.length / pageSize);
 
-                      if (totalPages <= 5) {
-                        displayPage = pageNum;
-                      } else if (currentPage <= 3) {
-                        displayPage = pageNum;
-                      } else if (currentPage >= totalPages - 2) {
-                        displayPage = totalPages - 4 + pageNum;
-                      } else {
-                        displayPage = currentPage - 2 + pageNum;
-                      }
+                          if (index > 0 && pageNum - array[index - 1] > 1) {
+                            elements.push(
+                              <PaginationItem key={`ellipsis-${pageNum}`}>
+                                <PaginationLink className="pointer-events-none">...</PaginationLink>
+                              </PaginationItem>
+                            );
+                          }
 
-                      return (
-                        <PaginationItem key={displayPage}>
-                          <PaginationLink
-                            onClick={() => setCurrentPage(displayPage)}
-                            isActive={currentPage === displayPage}
-                            className="cursor-pointer"
-                          >
-                            {displayPage}
-                          </PaginationLink>
-                        </PaginationItem>
-                      );
-                    })}
-                    <PaginationItem>
-                      <PaginationNext
-                        onClick={() => setCurrentPage(prev => Math.min(Math.ceil(filteredGenes.length / pageSize), prev + 1))}
-                        className={currentPage >= Math.ceil(filteredGenes.length / pageSize) ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-                      />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
+                          elements.push(
+                            <PaginationItem key={pageNum}>
+                              <PaginationLink
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setCurrentPage(pageNum);
+                                }}
+                                isActive={currentPage === pageNum}
+                                className="cursor-pointer h-8 w-8 rounded-lg"
+                              >
+                                {pageNum}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                          return elements;
+                        })}
+                      <PaginationItem>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setCurrentPage(prev => Math.min(Math.ceil(filteredGenes.length / pageSize), prev + 1));
+                          }}
+                          disabled={currentPage >= Math.ceil(filteredGenes.length / pageSize)}
+                          className="gap-1 pr-2.5 h-8 rounded-lg"
+                        >
+                          <span>Next</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
               </div>
             )}
           </Card>
@@ -2110,6 +2216,7 @@ export default function GeneClient({ initialGenes = [], initialPagination = null
           addLevel={addLevel}
           removeLevel={removeLevel}
           updateLevel={updateLevel}
+          allUsers={users}
         />
 
         {/* Gene CSV Import Modal */}
