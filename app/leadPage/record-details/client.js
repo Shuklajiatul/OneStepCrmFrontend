@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
@@ -296,9 +296,17 @@ export default function RecordDetailsClient({
             (Array.isArray(selectedValues) ? selectedValues : [selectedValues]).filter(Boolean).map((v) => String(v)),
         )
 
+        if (!hasNestedData(column)) {
+            return (
+                <div className="px-2 py-1 rounded border border-border bg-background inline-flex items-center gap-2">
+                    {displayNode}
+                </div>
+            )
+        }
+
         return (
             <DropdownMenu>
-                <DropdownMenuTrigger className="px-2 py-1 rounded border border-border hover:bg-muted/50 transition-colors flex items-center gap-2 outline-none">
+                <DropdownMenuTrigger className="px-2 py-1 rounded border border-border hover:bg-muted/50 transition-colors flex items-center gap-2 outline-none w-full">
                     {displayNode}
                     {hasNestedData(column) && <Settings className="h-3 w-3 text-muted-foreground animate-pulse" />}
                 </DropdownMenuTrigger>
@@ -429,7 +437,6 @@ export default function RecordDetailsClient({
                     })}
                 </div>
             )
-            const onOpenNested = hasNested ? () => openNestedModal(JSON.stringify(valueToDisplay), column) : undefined
             return renderOptionsDropdown(badgesNode, column, valueToDisplay.map(v => typeof v === 'object' ? v.value : v), onOpenNested)
         }
 
@@ -653,48 +660,79 @@ export default function RecordDetailsClient({
                                         </TabsTrigger>
                                     </TabsList>
                                     <TabsContent value="history" className="mt-4 flex-1">
-                                        <Card className="shadow-sm">
-                                            <CardHeader className="pb-2">
-                                                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                                                    <Clock className="h-4 w-4 text-amber-500" /> Record History
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="h-[600px] overflow-y-auto">
-                                                {history.length > 0 ? (
-                                                    <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:w-0.5 before:bg-muted-foreground/20">
-                                                        {history.map((item, idx) => (
-                                                            <div key={idx} className="relative flex items-start gap-4 group">
-                                                                <div className="w-10 h-10 rounded-full bg-background border-2 border-primary z-10 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                                                                    <Clock className="h-4 w-4 text-primary" />
+                                    <Card className="shadow-sm h-[400px] sm:h-[600px] flex flex-col border-t-4 border-t-amber-500 w-full">
+                                        <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3 bg-muted/30 shrink-0">
+                                            <CardTitle className="text-xs sm:text-sm font-bold flex items-center gap-2">
+                                                <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-amber-500" /> Record History
+                                            </CardTitle>
+                                            <CardDescription className="text-xs sm:text-sm">Audit trail for this record</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="flex-1 overflow-y-auto p-4 sm:p-6 pt-4 sm:pt-6">
+                                            {history.length > 0 ? (
+                                                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-[1.125rem] before:w-0.5 before:bg-muted-foreground/20">
+                                                    {history.map((item, idx) => {
+                                                        const isCreate = item.event_type === 'CREATE'
+                                                        const isUpdate = item.event_type === 'UPDATE'
+                                                        
+                                                        // Find field name from columns using the changed_field ID
+                                                        const fieldName = columns.find(c => c.column_id === item.changed_field)?.column_name || item.changed_field
+
+                                                        return (
+                                                            <div key={item.event_id || idx} className="relative flex items-start gap-3 sm:gap-4 group">
+                                                                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-background border-2 z-10 flex items-center justify-center shrink-0 ml-0.5 mt-0.5 ${
+                                                                    isCreate ? 'border-green-500' : isUpdate ? 'border-blue-500' : 'border-primary'
+                                                                }`}>
+                                                                    {isCreate ? (
+                                                                        <div className="h-3 w-3 sm:h-4 sm:w-4 bg-green-500 rounded-full" />
+                                                                    ) : isUpdate ? (
+                                                                        <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500" />
+                                                                    ) : (
+                                                                        <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
+                                                                    )}
                                                                 </div>
-                                                                <div className="flex-1 bg-muted/10 p-4 rounded-xl border group-hover:bg-muted/20 transition-colors">
-                                                                    <div className="flex justify-between items-center text-xs mb-2">
-                                                                        <span className="font-bold text-primary">{getUserName(item.user_id)}</span>
-                                                                        <span className="text-muted-foreground bg-background px-2 py-0.5 rounded-full border" suppressHydrationWarning>{new Date(item.event_timestamp).toLocaleString()}</span>
-                                                                    </div>
-                                                                    <div className="text-xs space-y-1.5">
-                                                                        <p className="font-semibold text-foreground/80">{item.event_type === 'UPDATE' ? 'Field modified' : item.event_type}</p>
-                                                                        <div className="p-2 bg-background/50 rounded border border-transparent group-hover:border-primary/10">
-                                                                            <span className="font-medium">{columns.find(c => c.column_id === item.changed_field)?.column_name || item.changed_field}:</span>
-                                                                            <div className="flex items-center flex-wrap gap-1 mt-1">
-                                                                                <span className="text-red-500 line-through opacity-60 bg-red-50/50 px-1 rounded" suppressHydrationWarning>{parseHistoryValue(item.old_value)}</span>
-                                                                                <span className="text-muted-foreground mx-1">→</span>
-                                                                                <span className="text-green-600 font-medium bg-green-50/50 px-1 rounded" suppressHydrationWarning>{parseHistoryValue(item.new_value)}</span>
-                                                                            </div>
+                                                                <div className="flex-1 bg-muted/10 p-3 sm:p-4 rounded-xl border min-w-0 overflow-hidden">
+                                                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center text-[10px] sm:text-xs mb-1 sm:mb-2 gap-1">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-bold text-primary truncate" title={getUserName(item.user_id)}>{getUserName(item.user_id)}</span>
+                                                                            <Badge variant={isCreate ? 'default' : isUpdate ? 'secondary' : 'outline'} className="text-[8px] h-4">
+                                                                                {item.event_type || 'UNKNOWN'}
+                                                                            </Badge>
                                                                         </div>
+                                                                        <span className="text-muted-foreground whitespace-nowrap" suppressHydrationWarning>{new Date(item.event_timestamp).toLocaleString()}</span>
+                                                                    </div>
+                                                                    <div className="text-xs sm:text-sm break-words overflow-hidden">
+                                                                        {isCreate ? (
+                                                                            <div className="text-green-600 font-medium">
+                                                                                {item.note || 'Record created'}
+                                                                            </div>
+                                                                        ) : isUpdate && item.changed_field ? (
+                                                                            <div>
+                                                                                Changed <span className="font-semibold">{fieldName}</span> from{' '}
+                                                                                <span className="text-red-500 line-through opacity-70 break-all">{parseHistoryValue(item.old_value)}</span> to{' '}
+                                                                                <span className="text-green-600 font-medium break-all">{parseHistoryValue(item.new_value)}</span>
+                                                                                {item.note && (
+                                                                                    <div className="text-muted-foreground text-[10px] mt-1 italic">{item.note}</div>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="text-muted-foreground">
+                                                                                {item.note || 'Activity recorded'}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                                                        <History className="h-10 w-10 opacity-20 mb-2" />
-                                                        <p>No history found</p>
-                                                    </div>
-                                                )}
-                                            </CardContent>
-                                        </Card>
+                                                        )
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-12 space-y-2 h-full flex flex-col items-center justify-center">
+                                                    <History className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground/30 mx-auto" />
+                                                    <p className="text-sm text-muted-foreground italic">No history records found.</p>
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
                                     </TabsContent>
 
                                     <TabsContent value="activities" className="mt-4 flex-1">
