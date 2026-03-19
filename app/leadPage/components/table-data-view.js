@@ -613,7 +613,7 @@ export default function TableDataView({ table, onBack }) {
 
     const popoverKey = `${record?.record_id || 'new'}_${column.column_id}`
 
-    if (!options.length && !hasNestedData(column)) {
+    if (!hasNestedData(column)) {
       return (
         <div className="px-2 py-1 rounded border border-border bg-background">
           {displayNode}
@@ -1051,14 +1051,17 @@ export default function TableDataView({ table, onBack }) {
         })
         : undefined
 
-      return renderOptionsDropdown(
-        badgesNode,
-        column,
-        valueToDisplay.map(v => typeof v === 'object' ? v.value : v),
-        onOpenNested,
-        record,
-        parsed
-      )
+      if (onOpenNested) {
+        return renderOptionsDropdown(
+          badgesNode,
+          column,
+          valueToDisplay.map(v => typeof v === 'object' ? v.value : v),
+          onOpenNested,
+          record,
+          parsed
+        )
+      }
+      return badgesNode
     }
 
     // Handle interactive dropdowns for select/radio/checkbox with nested data
