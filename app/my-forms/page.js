@@ -762,7 +762,10 @@ export default function MyFormsPage() {
         description: formDetails.description,
         fields: parsedFields,
         isEditMode: true,
-        max_retry_count: formDetails.max_retry_count || formDetails.retry_count || 2
+        max_retry_count: formDetails.max_retry_count || formDetails.retry_count || 2,
+        table_id: formDetails.table_id || form.table_id,
+        g_id: formDetails.g_id || form.g_id,
+        mapped_gene: formDetails.mapped_gene || form.mapped_gene || formDetails.g_id || form.g_id
       }
 
       localStorage.setItem('formBuilderData', JSON.stringify(formBuilderData))
@@ -1178,9 +1181,9 @@ export default function MyFormsPage() {
           <CardContent className="pt-0">
 
             {/* Search and Filters */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-4 justify-between items-center">
+            <div className="flex flex-col lg:flex-row gap-4 mb-4 justify-between items-start lg:items-center w-full">
               {/* Search */}
-              <div className="relative w-full sm:w-80">
+              <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search forms..."
@@ -1197,7 +1200,7 @@ export default function MyFormsPage() {
               </div>
 
               {/* Group for right-side controls */}
-              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 w-full lg:w-auto">
                 {/* Status Filter */}
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-full sm:w-[150px]">

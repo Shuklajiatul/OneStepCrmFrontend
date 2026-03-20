@@ -202,7 +202,7 @@ export default function DashboardClient({
                 <div className="lg:col-span-8 space-y-6">
 
                     {/* Analytics Chart */}
-                    <Card className="rounded-xl overflow-hidden shadow-sm">
+                    <Card className="rounded-xl overflow-hidden shadow-sm py-2">
                         <CardHeader className="bg-muted/30 pb-8">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -239,7 +239,7 @@ export default function DashboardClient({
                     </Card>
 
                     {/* Latest 5 Leads */}
-                    <Card className="rounded-xl shadow-sm overflow-hidden">
+                    <Card className="rounded-xl shadow-sm overflow-hidden gap-0 py-2">
                         <CardHeader className="flex flex-row items-center justify-between pb-4 border-b">
                             <div>
                                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -352,7 +352,7 @@ export default function DashboardClient({
                     </Card>
 
                     {/* Recent Activity Log */}
-                    <Card className="rounded-xl shadow-sm">
+                    <Card className="rounded-xl shadow-sm gap-0 py-2">
                         <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
                                 <Activity className="h-4 w-4 text-primary" />
@@ -397,7 +397,7 @@ export default function DashboardClient({
                     </Card>
 
                     {/* Quick Access Grid */}
-                    <Card className="rounded-xl shadow-sm flex-1 flex flex-col">
+                    <Card className="rounded-xl shadow-sm flex-1 flex flex-col gap-0">
                         <CardHeader className="pb-3">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
                                 <LayoutDashboard className="h-4 w-4 text-primary" />
@@ -427,7 +427,7 @@ export default function DashboardClient({
             {/* Role Overview & My Team Section */}
             <div className="grid gap-4 md:grid-cols-2">
                 {/* Role Overview Card */}
-                <Card className="rounded-xl shadow-sm overflow-hidden">
+                <Card className="rounded-xl shadow-sm overflow-hidden gap-0 py-2">
                     <CardHeader className="border-b py-3 px-4 bg-muted/10 flex flex-row items-center justify-between">
                         <div>
                             <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
@@ -478,7 +478,7 @@ export default function DashboardClient({
                 </Card>
 
                 {/* My Team Card */}
-                <Card className="rounded-xl shadow-sm overflow-hidden">
+                <Card className="rounded-xl shadow-sm overflow-hidden gap-0 py-2">
                     <CardHeader className="border-b py-3 px-4 bg-muted/10 flex flex-row items-center justify-between">
                         <div>
                             <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
@@ -545,7 +545,7 @@ export default function DashboardClient({
             {/* System Architecture & Access Section */}
             <div className="grid gap-4 md:grid-cols-2">
                 {/* System Blueprint (Genes) */}
-                <Card className="rounded-xl shadow-sm overflow-hidden">
+                <Card className="rounded-xl shadow-sm overflow-hidden gap-0 py-2">
                     <CardHeader className="border-b py-3 px-4 bg-muted/10 flex flex-row items-center justify-between">
                         <div>
                             <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
@@ -589,7 +589,7 @@ export default function DashboardClient({
                 </Card>
 
                 {/* User Access Mapping (Policies) */}
-                <Card className="rounded-xl shadow-sm overflow-hidden">
+                <Card className="rounded-xl shadow-sm overflow-hidden gap-0 py-2">
                     <CardHeader className="border-b py-3 px-4 bg-muted/10 flex flex-row items-center justify-between">
                         <div>
                             <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
@@ -626,8 +626,8 @@ export default function DashboardClient({
             {/* Bottom Section: Forms & Tables */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                 {/* Recent Forms Table */}
-                <Card className="col-span-full lg:col-span-4 rounded-xl shadow-sm overflow-hidden">
-                    <CardHeader className="flex flex-row items-center justify-between py-4 border-b">
+                <Card className="col-span-full lg:col-span-4 rounded-xl shadow-sm overflow-hidden gap-0 py-2">
+                    <CardHeader className="flex flex-row items-center justify-between py-0 border-b">
                         <div>
                             <CardTitle className="text-lg font-semibold">Latest Forms</CardTitle>
                             <CardDescription className="text-xs">Recently updated form templates</CardDescription>
@@ -705,12 +705,12 @@ export default function DashboardClient({
                 </Card>
 
                 {/* Recent Tables Feed */}
-                <Card className="col-span-full lg:col-span-3 rounded-xl shadow-sm border-t-4 border-t-amber-500">
-                    <CardHeader className="py-4">
+                <Card className="col-span-full lg:col-span-3 rounded-xl shadow-sm border-t-4 border-t-amber-500 gap-0 py-2">
+                    <CardHeader className="py-0">
                         <CardTitle className="text-lg font-semibold italic">Recent Tables</CardTitle>
-                        <CardDescription className="text-xs">Recently active schemas</CardDescription>
+                        <CardDescription className="text-xs">Recently active table</CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-2 pb-6 px-4">
+                    <CardContent className="space-y-2 pb-6 px-4 py-4">
                         {recentTables.length === 0 ? (
                             <div className="text-center py-8 text-muted-foreground text-sm">
                                 No active tables found.

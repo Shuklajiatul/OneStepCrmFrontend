@@ -603,7 +603,7 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
                 </CardContent>
             </Card>
 
-            <Card className="rounded-xl shadow-sm overflow-hidden">
+            <Card className="rounded-xl shadow-sm overflow-hidden gap-0">
                 <CardHeader className="border-b flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>

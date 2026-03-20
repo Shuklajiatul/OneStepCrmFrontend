@@ -187,17 +187,71 @@ export default function FormAnalyticsClient({ initialTables = [], initialForms =
             })
         }
 
-        allSubmissions.forEach(sub => {
-            const subDate = new Date(sub.created_at || sub.last_edited_at || sub.event_timestamp)
+        let missingDateCount = 0;
+        let outsideRangeCount = 0;
+
+        // Helper to extract JS Date from a Cassandra/TimeUUID (v1) string
+        const extractDateFromUUIDv1 = (uuid) => {
+            try {
+                if (!uuid || typeof uuid !== 'string' || uuid.length !== 36) return null;
+                const parts = uuid.split('-');
+                if (parts.length !== 5 || parts[2].charAt(0) !== '1') return null; // Not v1
+                
+                const timeLow = parts[0];
+                const timeMid = parts[1];
+                const timeHi = parts[2].substring(1);
+                const hexTime = timeHi + timeMid + timeLow;
+                
+                const timestamp = BigInt("0x" + hexTime);
+                const offset = 122192928000000000n; // 100-ns intervals since 1582 to 1970
+                return new Date(Number((timestamp - offset) / 10000n));
+            } catch(e) {
+                return null;
+            }
+        }
+
+        allSubmissions.forEach((sub, idx) => {
+            let subDate = null;
+            const potentialDates = [sub.created_at, sub.last_edited_at, sub.event_timestamp, sub.submitted_at, sub.timestamp, sub.date];
+            
+            for (let d of potentialDates) {
+                if (!d) continue;
+                
+                // First try direct Date parse
+                let parsed = new Date(d);
+                if (!isNaN(parsed.getTime())) {
+                    subDate = parsed;
+                    break;
+                }
+                
+                // If direct parse fails (e.g., date is a UUID string), attempt UUIDv1 extraction
+                parsed = extractDateFromUUIDv1(d);
+                if (parsed && !isNaN(parsed.getTime())) {
+                    subDate = parsed;
+                    break;
+                }
+            }
+
+            if (!subDate) {
+                missingDateCount++;
+                return; // skip if we still couldn't resolve a valid date
+            }
+
             const subMonth = subDate.getMonth()
             const subYear = subDate.getFullYear()
+            
             const monthBucket = last6Months.find(m => m.month === subMonth && m.year === subYear)
-            if (monthBucket) monthBucket.submissions++
+            if (monthBucket) {
+                monthBucket.submissions++
+            } else {
+                outsideRangeCount++;
+            }
         })
 
         last6Months.forEach(m => {
             m.completion = m.submissions > 0 ? Math.floor(70 + (Math.random() * 20)) : 0
         })
+        
         setChartData(last6Months)
 
         // Calculate Distribution
@@ -357,7 +411,13 @@ export default function FormAnalyticsClient({ initialTables = [], initialForms =
                             <LineChart data={chartData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} dy={10} style={{ fontSize: '12px' }} />
-                                <YAxis axisLine={false} tickLine={false} style={{ fontSize: '12px' }} />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    style={{ fontSize: '12px' }} 
+                                    allowDecimals={false}
+                                    domain={[0, dataMax => Math.max(dataMax, 5)]}
+                                />
                                 <Tooltip
                                     contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
                                 />
@@ -394,9 +454,9 @@ export default function FormAnalyticsClient({ initialTables = [], initialForms =
                                 <Pie
                                     data={distributionData}
                                     cx="50%"
-                                    cy="50%"
-                                    innerRadius={70}
-                                    outerRadius={100}
+                                    cy="45%"
+                                    innerRadius={60}
+                                    outerRadius={90}
                                     paddingAngle={5}
                                     dataKey="value"
                                 >
@@ -407,7 +467,7 @@ export default function FormAnalyticsClient({ initialTables = [], initialForms =
                                 <Tooltip
                                     contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
                                 />
-                                <Legend layout="vertical" align="right" verticalAlign="middle" />
+                                <Legend layout="horizontal" align="center" verticalAlign="bottom" wrapperStyle={{ paddingTop: "20px" }} />
                             </PieChart>
                         </ResponsiveContainer>
                     </CardContent>

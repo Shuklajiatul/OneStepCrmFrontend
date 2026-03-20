@@ -192,7 +192,8 @@ export function PolicyMappedUsersTab({ policy, onBack, onUserUpdate }) {
     }
   }
 
-  const policyName = policy.p_id || policy.policy_id || policy.id || "Unknown Policy"
+  // const policyName = policy.p_id || policy.policy_id || policy.id || "Unknown Policy"
+  const policyName = policy.p_name || "Unknown Policy"
   const policyType = policy.type || policy.policy_type || "internal"
   const isActive = policy.is_active !== false
 
