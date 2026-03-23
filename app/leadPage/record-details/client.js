@@ -45,8 +45,6 @@ export default function RecordDetailsClient({
     initialActivities,
     newAccessToken: propNewAccessToken = null
 }) {
-    // const router = useRouter()
-    
     // Sync new token from server to browser cookies if it was refreshed
     useEffect(() => {
         if (propNewAccessToken) {
@@ -437,6 +435,7 @@ export default function RecordDetailsClient({
                     })}
                 </div>
             )
+            const onOpenNested = hasNested ? () => openNestedModal(JSON.stringify(parsed || { value: valueToDisplay }), column) : undefined
             return renderOptionsDropdown(badgesNode, column, valueToDisplay.map(v => typeof v === 'object' ? v.value : v), onOpenNested)
         }
 
@@ -612,6 +611,34 @@ export default function RecordDetailsClient({
                                             <p className="text-sm" suppressHydrationWarning>
                                                 {record?.updated_at ? new Date(record.updated_at).toLocaleString() : '-'}
                                             </p>
+                                        </div>
+                                        <div className="p-3 bg-blue-50/50 rounded-lg space-y-1 border border-blue-100/50">
+                                            <Label className="text-xs font-semibold text-blue-600 uppercase">Lead Score</Label>
+                                            <p className="text-sm font-bold text-blue-700">
+                                                {record?.lead_score ?? '-'}
+                                            </p>
+                                        </div>
+                                        <div className="p-3 bg-blue-50/50 rounded-lg space-y-1 border border-blue-100/50">
+                                            <Label className="text-xs font-semibold text-blue-600 uppercase">Lead Score %</Label>
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 bg-muted h-1.5 rounded-full overflow-hidden max-w-[100px]">
+                                                    <div 
+                                                        className="bg-blue-500 h-full transition-all" 
+                                                        style={{ width: `${Math.min(100, Math.max(0, parseFloat(record?.lead_score_percentage || 0)))}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-sm font-bold text-blue-700">{record?.lead_score_percentage ?? '0'}%</span>
+                                            </div>
+                                        </div>
+                                        <div className="p-3 bg-blue-50/50 rounded-lg space-y-1 border border-blue-100/50">
+                                            <Label className="text-xs font-semibold text-blue-600 uppercase">Lead Stage</Label>
+                                            <div>
+                                                {record?.lead_stage ? (
+                                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 uppercase text-[10px]">
+                                                        {record.lead_stage}
+                                                    </Badge>
+                                                ) : <span className="text-sm text-muted-foreground">-</span>}
+                                            </div>
                                         </div>
                                     </div>
                                 </CardContent>

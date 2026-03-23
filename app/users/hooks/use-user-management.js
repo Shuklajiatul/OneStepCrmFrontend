@@ -144,9 +144,16 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
         if (!formData.phone) return toast.error("Please enter a phone number")
         if (!formData["g_ids"]) return toast.error("Please select a gene")
 
+        const selectedRolePriority = getSelectedRolePriority(formData.role_id)
+        if (selectedRolePriority === 1) {
+            const existingPriority1User = users.find(u => getUserRolePriority(u) === 1)
+            if (existingPriority1User) {
+                return toast.error("Only one user is allowed with Superuser")
+            }
+        }
+
         try {
             setSubmitting(true)
-            const selectedRolePriority = getSelectedRolePriority(formData.role_id)
             const payload = {
                 ...formData,
                 "g_ids": formData["g_ids"] || "",
@@ -172,6 +179,17 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
 
     const handleUpdateUser = async () => {
         if (!selectedUser?.user_id) return
+
+        const currentRoleId = selectedUser.role_id || selectedUser.roles?.id || selectedUser.roles
+        if (formData.role_id && formData.role_id !== currentRoleId) {
+            const selectedRolePriority = getSelectedRolePriority(formData.role_id)
+            if (selectedRolePriority === 1) {
+                const existingPriority1User = users.find(u => getUserRolePriority(u) === 1 && u.user_id !== selectedUser.user_id)
+                if (existingPriority1User) {
+                    return toast.error("Only one user is allowed with Superuser")
+                }
+            }
+        }
 
         try {
             setSubmitting(true)
@@ -246,6 +264,14 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
 
     const handleAssignRole = async () => {
         if (!selectedUser?.user_id || !roleFormData.role_id) return toast.error("Please select a role")
+
+        const selectedRolePriority = getSelectedRolePriority(roleFormData.role_id)
+        if (selectedRolePriority === 1) {
+            const existingPriority1User = users.find(u => getUserRolePriority(u) === 1 && u.user_id !== selectedUser.user_id)
+            if (existingPriority1User) {
+                return toast.error("Only one user is allowed with Superuser")
+            }
+        }
 
         try {
             setSubmitting(true)

@@ -2250,6 +2250,18 @@ export default function TableDataView({ table, onBack }) {
     // Add fixed metadata columns
     const metadataColumns = [
       {
+        accessorKey: "lead_score",
+        header: "Lead Score",
+      },
+      {
+        accessorKey: "lead_score_percentage",
+        header: "Lead Score %",
+      },
+      {
+        accessorKey: "lead_stage",
+        header: "Lead Stage",
+      },
+      {
         accessorKey: "assigned_to",
         header: "Assigned To",
       },
@@ -2776,6 +2788,39 @@ export default function TableDataView({ table, onBack }) {
                                       </div>
                                     </div>
                                   )
+                                }
+                              } else if (column.accessorKey === "lead_score") {
+                                // Lead Score column
+                                cellContent = <span className="text-sm font-medium">{record.lead_score ?? '-'}</span>
+                              } else if (column.accessorKey === "lead_score_percentage") {
+                                // Lead Score Percentage column
+                                const percentage = record.lead_score_percentage
+                                cellContent = percentage !== undefined && percentage !== null ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 bg-muted h-1.5 rounded-full overflow-hidden">
+                                      <div
+                                        className="bg-primary h-full transition-all duration-500"
+                                        style={{ width: `${Math.min(100, Math.max(0, parseFloat(percentage)))}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs font-bold text-primary">{percentage}%</span>
+                                  </div>
+                                ) : <span className="text-sm text-muted-foreground">-</span>
+                              } else if (column.accessorKey === "lead_stage") {
+                                // Lead Stage column
+                                const stage = record.lead_stage
+                                if (!stage) {
+                                  cellContent = <span className="text-sm text-muted-foreground">-</span>
+                                } else {
+                                  let badgeColor = "bg-blue-100 text-blue-700"
+                                  if (stage.toLowerCase().includes('won') || stage.toLowerCase().includes('closed')) {
+                                    badgeColor = "bg-green-100 text-green-700"
+                                  } else if (stage.toLowerCase().includes('lost')) {
+                                    badgeColor = "bg-red-100 text-red-700"
+                                  } else if (stage.toLowerCase().includes('new')) {
+                                    badgeColor = "bg-amber-100 text-amber-700"
+                                  }
+                                  cellContent = <Badge className={`${badgeColor} border-none font-bold text-[10px] tracking-wider uppercase`}>{stage}</Badge>
                                 }
                               } else {
                                 // Dynamic data columns

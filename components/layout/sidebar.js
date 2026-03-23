@@ -11,13 +11,21 @@ import { useRouter, usePathname } from "next/navigation"
 import { authUtils } from '@/lib/auth-utils'
 
 const menuItems = [
-    { label: "Dashboard", icon: Home, href: "/" },
+    { 
+        label: "Dashboard", 
+        icon: Home, 
+        href: "/dashboard" 
+    },
     {
         label: "Leads",
         icon: Users,
         href: "/leadPage"
     },
-    { label: "Activities", icon: CalendarCheck, href: "/activities" },
+    { 
+        label: "Activities", 
+        icon: CalendarCheck, 
+        href: "/activities" 
+    },
     {
         label: "Forms",
         icon: BookCopy,
@@ -48,7 +56,11 @@ const menuItems = [
             { label: "Org Management", icon: Building, href: "/organizations" },
         ]
     },
-    { label: "Custom Table", icon: Table, href: "/custom-table-builder" },
+    { 
+        label: "Custom Table", 
+        icon: Table, 
+        href: "/custom-table-builder" 
+    },
     {
         label: "Migrator",
         icon: Network,
@@ -58,9 +70,21 @@ const menuItems = [
             { label: "Migration Status", icon: FileChartColumnIncreasing, href: "/migrator/status" },
         ]
     },
-    { label: "Report", icon: ClipboardMinus, href: "/report" },
-    { label: "Setting", icon: Settings, href: "/setting" },
-    { label: "Help", icon: HelpCircle, href: "/help" },
+    { 
+        label: "Report", 
+        icon: ClipboardMinus, 
+        href: "/report" 
+    },
+    { 
+        label: "Setting", 
+        icon: Settings, 
+        href: "/setting" 
+    },
+    { 
+        label: "Help", 
+        icon: HelpCircle, 
+        href: "/help" 
+    },
 ]
 
 export default function Sidebar({ isCollapsed, setIsCollapsed }) {

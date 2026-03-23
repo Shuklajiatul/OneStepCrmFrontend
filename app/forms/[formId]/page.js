@@ -3578,6 +3578,14 @@ function PublicFormContent() {
                   e.preventDefault()
                   e.stopPropagation()
                   form.handleSubmit()
+
+                  // Scroll to the first invalid field after validation state updates
+                  setTimeout(() => {
+                    const firstErrorElement = document.querySelector('.border-red-500, .text-red-500, [data-invalid="true"]');
+                    if (firstErrorElement) {
+                      firstErrorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                  }, 100);
                 }}
                 className="space-y-6"
               >
