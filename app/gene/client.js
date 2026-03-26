@@ -534,6 +534,7 @@ export default function GeneClient({
         }
 
         setGeneData({
+          ...gene,
           name: gene.g_name || gene.name,
           levels: gene.levels || [],
           g_id: gene.g_id,
@@ -563,6 +564,7 @@ export default function GeneClient({
       }
 
       setGeneData({
+        ...gene,
         name: gene.g_name || gene.name,
         levels: gene.levels || [],
         g_id: gene.g_id,
@@ -658,8 +660,8 @@ export default function GeneClient({
           payload.hierarchy_level = hierarchy_level;
         }
 
-        // Add users if selected
-        if (selectedUsers && Array.isArray(selectedUsers) && selectedUsers.length > 0) {
+        // Add users if provided (even if empty array)
+        if (selectedUsers && Array.isArray(selectedUsers)) {
           payload.users = selectedUsers.map(user => {
             // Handle both object with id and direct id value
             return user.id || user.user_id || user;

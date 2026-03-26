@@ -138,10 +138,6 @@ export default function TableDataView({ table, onBack }) {
   const [nestedModalContext, setNestedModalContext] = useState('record')
   const [phoneCountries, setPhoneCountries] = useState([])
 
-
-
-
-
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -150,11 +146,6 @@ export default function TableDataView({ table, onBack }) {
   // Create Activity Modal State
   const [isCreateActivityOpen, setIsCreateActivityOpen] = useState(false)
   const [activityInitialData, setActivityInitialData] = useState({})
-
-  // History state
-
-
-  // Activities state
 
 
   const { table_id: tableId } = table
@@ -2247,7 +2238,6 @@ export default function TableDataView({ table, onBack }) {
       header: column.column_name,
     }))
 
-    // Add fixed metadata columns
     const metadataColumns = [
       {
         accessorKey: "lead_score",

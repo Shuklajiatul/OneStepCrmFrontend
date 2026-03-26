@@ -369,18 +369,13 @@ export default function GeneModal({
                 >
                   <div
                     className="max-h-[300px] overflow-y-auto cursor-pointer scrollbar-area"
-                    onClick={(e) => {
-                      e.currentTarget.focus();
-                      e.stopPropagation();
-                    }}
                     onWheel={(e) => e.stopPropagation()}
-                    tabIndex={0}
                     style={{
                       scrollbarWidth: 'thin',
                       scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))'
                     }}
                   >
-                    <Command>
+                    <Command shouldFilter={false}>
                       <CommandInput
                         placeholder="Search users..."
                         value={searchTerm}

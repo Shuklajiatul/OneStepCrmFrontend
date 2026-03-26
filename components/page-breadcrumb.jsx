@@ -37,6 +37,7 @@ const ROUTE_LABELS = {
     feature: "Features",
     "form-preview": "Form Preview",
     "record-details": "Record Details",
+    strategy: "Lead Strategy",
 }
 
 // Segments that don't have a backing page and should not be clickable links
