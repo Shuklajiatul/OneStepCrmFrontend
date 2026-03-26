@@ -5,9 +5,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
 import {
-    ArrowLeft, Plus, Settings2, CheckCircle2, Edit2, Trash2,
-    ChevronRight, ChevronDown, BarChart2, Layers, GripVertical,
-    Check, ChevronsUpDown, X, AlertCircle, Binary
+    ArrowLeft, Plus, CheckCircle2, Edit2, Trash2,
+    BarChart2, Layers, Check, ChevronsUpDown, X, AlertCircle, Binary,
+    AlertTriangle,ChevronRight 
 } from "lucide-react"
 import {
     DropdownMenu,
@@ -248,7 +248,6 @@ function StageRow({ stage, onEdit, onDelete }) {
     const c = stageColor(stage.label)
     return (
         <div className="flex items-center gap-3 py-3.5 px-1 border-b border-border/40 last:border-b-0 group">
-            <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0 cursor-grab" />
             <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: c.dot }} />
             <span className="font-semibold text-sm text-foreground flex-1">{stage.label.charAt(0).toUpperCase() + stage.label.slice(1).toLowerCase()}</span>
             <span className="text-sm text-muted-foreground tabular-nums">
@@ -363,6 +362,7 @@ function StageForm({ stage, onSave, onCancel, existingStages = [] }) {
                             placeholder="Score"
                             value={formData.min_score}
                             onChange={(e) => setFormData({ ...formData, min_score: e.target.value })}
+                            onWheel={(e) => e.target.blur()}
                             className="h-9 text-sm"
                         />
                     </div>
@@ -375,6 +375,7 @@ function StageForm({ stage, onSave, onCancel, existingStages = [] }) {
                             placeholder="Score"
                             value={formData.max_score}
                             onChange={(e) => setFormData({ ...formData, max_score: e.target.value })}
+                            onWheel={(e) => e.target.blur()}
                             className="h-9 text-sm"
                         />
                     </div>
@@ -591,6 +592,7 @@ const LogicBuilder = ({ logic = { operator: "AND", conditions: [] }, onChange, c
                                         type="number" 
                                         placeholder="Score" 
                                         value={item.score} 
+                                        onWheel={(e) => e.target.blur()}
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             updateCondition(index, { 
@@ -719,17 +721,17 @@ function GroupForm({ group, onSave, onCancel, columns = [] }) {
                     </div>
                     <div>
                         <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">Max Score</Label>
-                        <Input type="number" value={formData.max_score} onChange={(e) => setFormData({ ...formData, max_score: e.target.value })} className="h-9 text-sm" />
+                        <Input type="number" value={formData.max_score} onChange={(e) => setFormData({ ...formData, max_score: e.target.value })} onWheel={(e) => e.target.blur()} className="h-9 text-sm" />
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">Weight (0-1)</Label>
-                        <Input type="number" step="0.1" value={formData.weight} onChange={(e) => setFormData({ ...formData, weight: e.target.value })} className="h-9 text-sm" />
+                        <Input type="number" step="0.1" value={formData.weight} onChange={(e) => setFormData({ ...formData, weight: e.target.value })} onWheel={(e) => e.target.blur()} className="h-9 text-sm" />
                     </div>
                     <div>
                         <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">Display Order</Label>
-                        <Input type="number" value={formData.display_order} onChange={(e) => setFormData({ ...formData, display_order: e.target.value })} className="h-9 text-sm" />
+                        <Input type="number" value={formData.display_order} onChange={(e) => setFormData({ ...formData, display_order: e.target.value })} onWheel={(e) => e.target.blur()} className="h-9 text-sm" />
                     </div>
                 </div>
                 <div className="mb-6">

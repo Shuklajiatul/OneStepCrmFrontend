@@ -10,12 +10,9 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
-    Plus, Target, Layers, Settings2, Database, Search, Edit2, Trash2,
-    ChevronRight, LayoutGrid, Binary, ArrowLeft, Check, ChevronsUpDown,
-    Eye, X, RefreshCcw, Filter, ArrowUpDown, CheckCircle2, AlertTriangle,
-    Scale, CircleOff, CircleDashed, TrendingUp, Activity, Clock, RefreshCw,
-    ChevronLeft, ChevronsLeft, ChevronsRight, ChevronUp, ChevronDown, Loader2,
-    Zap
+    Plus, Search, Edit2, Trash2, ChevronRight, Binary, ArrowLeft, RefreshCcw, 
+    ArrowUpDown, CheckCircle2, AlertTriangle, Scale, ChevronLeft, ChevronsLeft, 
+    ChevronsRight, Loader2, Zap, Eye , Settings2
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -55,35 +52,36 @@ const StageModal = ({ isOpen, onClose, onSave, stage }) => {
         else setData({ min_score: "", max_score: "", label: "" })
     }, [stage, isOpen])
 
-    // return (
-    //     <Dialog open={isOpen} onOpenChange={onClose}>
-    //         <DialogContent>
-    //             <DialogHeader>
-    //                 <DialogTitle>{stage ? "Edit Lead Stage" : "Create Lead Stage"}</DialogTitle>
-    //             </DialogHeader>
-    //             <div className="space-y-4 py-4">
-    //                 <div className="grid grid-cols-2 gap-4">
-    //                     <div className="space-y-2">
-    //                         <label className="text-sm font-medium">Min Score</label>
-    //                         <Input type="number" value={data.min_score} onChange={(e) => setData({ ...data, min_score: e.target.value })} />
-    //                     </div>
-    //                     <div className="space-y-2">
-    //                         <label className="text-sm font-medium">Max Score</label>
-    //                         <Input type="number" value={data.max_score} onChange={(e) => setData({ ...data, max_score: e.target.value })} />
-    //                     </div>
-    //                 </div>
-    //                 <div className="space-y-2">
-    //                     <label className="text-sm font-medium">Label</label>
-    //                     <Input placeholder="e.g. Cold, Warm, Hot" value={data.label} onChange={(e) => setData({ ...data, label: e.target.value })} />
-    //                 </div>
-    //             </div>
-    //             <DialogFooter>
-    //                 <Button variant="outline" onClick={onClose}>Cancel</Button>
-    //                 <Button onClick={() => onSave(data)}>Save Stage</Button>
-    //             </DialogFooter>
-    //         </DialogContent>
-    //     </Dialog>
-    // )
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{stage ? "Edit Lead Stage" : "Create Lead Stage"}</DialogTitle>
+                    <DialogDescription>Define the score range and label for this lead stage.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium">Min Score</Label>
+                            <Input type="number" value={data.min_score} onChange={(e) => setData({ ...data, min_score: e.target.value })} onWheel={(e) => e.target.blur()} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium">Max Score</Label>
+                            <Input type="number" value={data.max_score} onChange={(e) => setData({ ...data, max_score: e.target.value })} onWheel={(e) => e.target.blur()} />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-sm font-medium">Stage Label</Label>
+                        <Input placeholder="e.g. Cold, Warm, Hot" value={data.label} onChange={(e) => setData({ ...data, label: e.target.value })} />
+                    </div>
+                </div>
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button onClick={() => onSave(data)} className="bg-primary">Save Stage</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 
