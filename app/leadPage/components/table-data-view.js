@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -61,11 +61,21 @@ import {
   ChevronDown,
   Check,
   Loader2,
-  X
+  X,
+  Download,
+  Flame,
+  SlidersHorizontal,
+  TrendingUp,
+  DollarSign,
+  Users,
+  BarChart2,
+  ChevronUp as ChevronUpIcon,
+  TriangleAlert
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { activitiesApi } from '@/lib/api-endpoint'
 import {
   DropdownMenu,
@@ -73,10 +83,34 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
+import {
+  Bar,
+  BarChart as RechartsBarChart,
+  Cell,
+  Area,
+  AreaChart as RechartsAreaChart,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
-import { usersApi, datatablesApi, recordsApi } from '@/lib/api-endpoint'
+import { usersApi, datatablesApi, recordsApi, strategyApi, stageApi } from '@/lib/api-endpoint'
 import CreateActivityDialog from "@/app/activities/components/create-activity-dialog"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import { RecordModal } from "@/components/records/RecordModal"
@@ -91,7 +125,7 @@ const apiCache = {
   countries: null,
   tables: {} // { [tableId]: { columns, records, timestamp } }
 };
-const CACHE_EXPIRY = 5 * 60 * 1000; // 5 minutes
+const CACHE_EXPIRY = 5 * 60 * 1000;
 
 export default function TableDataView({ table, onBack }) {
   const router = useRouter()
@@ -101,11 +135,9 @@ export default function TableDataView({ table, onBack }) {
   const [error, setError] = useState(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [recordToDelete, setRecordToDelete] = useState(null)
-  const [viewMode, setViewMode] = useState('table') // 'table' or 'grid'
+  const [viewMode, setViewMode] = useState('table')
   const [columnVisibility, setColumnVisibility] = useState({})
 
-  // Ref for the table container to implement sticky header logic if needed
-  // or just use CSS sticky
   const [searchTerm, setSearchTerm] = useState("")
   const [isNestedModalOpen, setIsNestedModalOpen] = useState(false)
   const [nestedData, setNestedData] = useState(null)
@@ -146,6 +178,19 @@ export default function TableDataView({ table, onBack }) {
   // Create Activity Modal State
   const [isCreateActivityOpen, setIsCreateActivityOpen] = useState(false)
   const [activityInitialData, setActivityInitialData] = useState({})
+
+  // Lead pipeline filter/UI state
+  const [selectedStages, setSelectedStages] = useState([])
+  const [selectedSources, setSelectedSources] = useState([])
+  const [selectedOwners, setSelectedOwners] = useState([])
+  const [scoreRange, setScoreRange] = useState([0, 100])
+  const [showHotLeads, setShowHotLeads] = useState(false)
+  const [showStaleLeads, setShowStaleLeads] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+  const [showInsights, setShowInsights] = useState(true)
+  const [selectedRows, setSelectedRows] = useState(new Set())
+  const [lastUpdated, setLastUpdated] = useState(new Date())
+  const [stages, setStages] = useState([])
 
 
   const { table_id: tableId } = table
@@ -219,24 +264,39 @@ export default function TableDataView({ table, onBack }) {
     const now = Date.now();
     const cachedData = apiCache.tables[table.table_id];
 
-    // Use cache if available, not forced to refresh, and not expired
     if (!forceRefresh && cachedData && (now - cachedData.timestamp < CACHE_EXPIRY)) {
       setColumns(cachedData.columns);
       setRecords(cachedData.records);
+      if (cachedData.stages) setStages(cachedData.stages);
       setLoading(false);
       return;
     }
 
     try {
-      const [columnsResponse, recordsResponse] = await Promise.all([
+      const [columnsResponse, recordsResponse, strategyResponse] = await Promise.all([
         datatablesApi.getColumns(table.table_id),
-        recordsApi.getAll(table.table_id)
+        recordsApi.getAll(table.table_id),
+        strategyApi.getAll(table.table_id)
       ])
 
       const columnsData = Array.isArray(columnsResponse.data)
         ? columnsResponse.data
         : (columnsResponse.data?.data || columnsResponse.data?.columns || [])
       let recordsData = recordsResponse.data
+
+      // Handle strategy and stages
+      const strategies = Array.isArray(strategyResponse.data) ? strategyResponse.data : (strategyResponse.data?.data || [])
+      const activeStrategy = strategies[0]
+      let fetchedStages = []
+      if (activeStrategy) {
+        try {
+          const stagesResponse = await stageApi.getAll(table.table_id, activeStrategy.strategy_id)
+          fetchedStages = Array.isArray(stagesResponse.data) ? stagesResponse.data : (stagesResponse.data?.data || [])
+          setStages(fetchedStages)
+        } catch (stageErr) {
+          console.error("Error fetching stages:", stageErr)
+        }
+      }
 
       if (!Array.isArray(recordsData)) {
         if (recordsData?.data && Array.isArray(recordsData.data)) {
@@ -255,6 +315,7 @@ export default function TableDataView({ table, onBack }) {
       apiCache.tables[table.table_id] = {
         columns: normalizedColumns,
         records: recordsData,
+        stages: fetchedStages,
         timestamp: now
       };
 
@@ -315,12 +376,6 @@ export default function TableDataView({ table, onBack }) {
     setIsAddRecordDialogOpen(true)
   }
 
-
-
-
-
-
-
   const isBase64File = (str) => {
     if (typeof str !== 'string') return false
     return str.startsWith('data:') && str.includes('base64,')
@@ -358,10 +413,6 @@ export default function TableDataView({ table, onBack }) {
       return null
     }
   }
-
-
-
-
 
   const toDateInputValue = (input, includeTime = false) => {
     if (!input && input !== 0) return ''
@@ -402,14 +453,6 @@ export default function TableDataView({ table, onBack }) {
     return dateObj.toISOString().slice(0, 10)
   }
 
-
-
-
-
-
-
-
-
   const openFileModal = (dataUrl, columnOrFieldDef) => {
     if (!dataUrl || typeof dataUrl !== 'string') return
     const match = dataUrl.match(/^data:([^;]+);base64,/)
@@ -431,8 +474,6 @@ export default function TableDataView({ table, onBack }) {
       console.error('Download failed', e)
     }
   }
-
-
 
   const findFieldDefinition = (fieldId, options, depth = 0) => {
     if (depth > 10) return null
@@ -946,7 +987,6 @@ export default function TableDataView({ table, onBack }) {
       setCurrentColumnId(column.column_id)
       setNestedModalContext(source)
 
-      // Auto-enable edit mode if field is empty or from form
       const isEmpty = !fieldValue || (typeof fieldValue === 'string' && (fieldValue === "" || fieldValue === "{}" || fieldValue === "[]"))
       setIsEditMode(source === 'record' ? (isEmpty ? true : false) : true)
 
@@ -954,7 +994,6 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  // Open a simple read-only modal displaying raw parsed cell data
   const openCellDataModal = (columnName, parsedData) => {
     setCellModalData({ columnName, data: parsedData })
     setIsCellDataModalOpen(true)
@@ -968,7 +1007,6 @@ export default function TableDataView({ table, onBack }) {
     const fieldType = getColumnFieldType(column) || dataType || 'text'
     const parsed = safeParseJSON(rawValue)
 
-    // Robustly extract the value to display
     let valueToDisplay = rawValue
     if (parsed && typeof parsed === 'object' && parsed.value !== undefined) {
       valueToDisplay = parsed.value
@@ -976,7 +1014,6 @@ export default function TableDataView({ table, onBack }) {
       valueToDisplay = parsed
     }
 
-    // Handle Phone and Location types early - make them clickable to show full data
     if (fieldType === 'phone') {
       const phoneDisplay = formatPhoneDisplay(rawValue)
       const phoneParsed = safeParseJSON(rawValue)
@@ -1128,9 +1165,7 @@ export default function TableDataView({ table, onBack }) {
       case 'textarea':
       case 'text':
       default:
-        // Final avoid [object Object] check
         if (typeof valueToDisplay === 'object' && valueToDisplay !== null) {
-          // Try to format as phone or location if structure matches
           if (valueToDisplay.countryCode || valueToDisplay.dial_code || valueToDisplay.number) {
             return (
               <button
@@ -1155,7 +1190,6 @@ export default function TableDataView({ table, onBack }) {
               </button>
             )
           }
-          // Generic nested object - show as clickable link
           const objKeys = Object.keys(valueToDisplay)
           const previewText = objKeys.slice(0, 2).map(k => `${k}: ${String(valueToDisplay[k]).slice(0, 20)}`).join(', ')
           return (
@@ -1304,7 +1338,6 @@ export default function TableDataView({ table, onBack }) {
       const apiData = convertFormDataToAPIFormat(editableFormData)
       const fieldValueString = JSON.stringify(apiData)
 
-      // Get g_ids and p_id from cookies (User requested this in update payload too)
       const gIds = authUtils.getGIds()
       const pId = authUtils.getPIds()
       const gId = authUtils.getGId()
@@ -1317,8 +1350,6 @@ export default function TableDataView({ table, onBack }) {
           [currentColumnId]: fieldValueString
         }
       }
-
-
 
       if (nestedModalContext === 'record') {
         const response = await recordsApi.updateNested(
@@ -2143,30 +2174,137 @@ export default function TableDataView({ table, onBack }) {
   }
 
   // Ensure records is always an array
-  const safeRecords = Array.isArray(records) ? records : []
+  const safeRecords = useMemo(() => Array.isArray(records) ? records : [], [records])
 
-  // Filter records based on search term
-  const filteredRecords = safeRecords.filter(record => {
-    if (!searchTerm) return true
+  // Derive unique values for filter chips
+  const { uniqueStages, uniqueSources, uniqueOwners } = useMemo(() => {
+    return {
+      uniqueStages: [...new Set(safeRecords.map(r => r.lead_stage).filter(Boolean))],
+      uniqueSources: [...new Set(safeRecords.map(r => r.lead_source || r.source).filter(Boolean))],
+      uniqueOwners: [...new Set(safeRecords.map(r => r.assigned_to).filter(s => s && s !== 'NA'))]
+    }
+  }, [safeRecords]);
 
-    const searchLower = searchTerm.toLowerCase()
+  // Pipeline stats derived from records
+  const totalLeads = safeRecords.length
 
-    // Search in field values
-    if (record.field_values) {
-      const fieldValues = Object.values(record.field_values)
-      if (fieldValues.some(value =>
-        value && String(value).toLowerCase().includes(searchLower)
-      )) {
-        return true
+  // Weekly trend logic
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const recentLeads = safeRecords.filter(r => new Date(r.created_at || Date.now()) >= oneWeekAgo)
+  const recentLeadsCount = recentLeads.length
+
+  const hotLeads = safeRecords.filter(r => r.lead_score != null && parseFloat(r.lead_score) >= 70).length
+
+  const avgScore = safeRecords.length > 0
+    ? Math.round(safeRecords.reduce((sum, r) => sum + (parseFloat(r.lead_score) || 0), 0) / safeRecords.length)
+    : 0
+
+  const oldLeads = safeRecords.filter(r => new Date(r.created_at || Date.now()) < oneWeekAgo)
+  const oldAvgScore = oldLeads.length > 0
+    ? Math.round(oldLeads.reduce((sum, r) => sum + (parseFloat(r.lead_score) || 0), 0) / oldLeads.length)
+    : avgScore
+  const avgScoreTrend = avgScore - oldAvgScore
+
+  const pipelineValue = safeRecords.reduce((sum, r) => sum + (parseFloat(r.deal_value || r.value || 0) || 0), 0)
+  const recentPipelineValue = recentLeads.reduce((sum, r) => sum + (parseFloat(r.deal_value || r.value || 0) || 0), 0)
+
+  const staleLeads = safeRecords.filter(r => {
+    const last = r.updated_at || r.created_at
+    if (!last) return false
+    return (Date.now() - new Date(last).getTime()) / (1000 * 60 * 60 * 24) > 7
+  }).length
+
+  const stageColorConfig = {
+    new: { dot: 'bg-gray-400', bar: 'bg-gray-400', badge: 'bg-gray-100 text-gray-700 border-gray-200', chart: '#9ca3af' },
+    contacted: { dot: 'bg-blue-500', bar: 'bg-blue-500', badge: 'bg-blue-100 text-blue-700 border-blue-200', chart: '#3b82f6' },
+    qualified: { dot: 'bg-purple-500', bar: 'bg-purple-500', badge: 'bg-purple-100 text-purple-700 border-purple-200', chart: '#a855f7' },
+    proposal: { dot: 'bg-amber-500', bar: 'bg-amber-500', badge: 'bg-amber-100 text-amber-700 border-amber-200', chart: '#f59e0b' },
+    negotiation: { dot: 'bg-orange-500', bar: 'bg-orange-500', badge: 'bg-orange-100 text-orange-700 border-orange-200', chart: '#f97316' },
+    won: { dot: 'bg-green-500', bar: 'bg-green-500', badge: 'bg-green-100 text-green-700 border-green-200', chart: '#22c55e' },
+    lost: { dot: 'bg-red-500', bar: 'bg-red-400', badge: 'bg-red-100 text-red-700 border-red-200', chart: '#ef4444' },
+  }
+
+  // Sort stages consistently by minimum score ascending
+  const sortedStages = stages.length > 0
+    ? [...stages].sort((a, b) => (a.min_score || 0) - (b.min_score || 0))
+    : []
+
+  // Stage distribution for bar chart
+  const stageOrder = sortedStages.length > 0
+    ? sortedStages.map(s => s.stage_name || s.name || s.label).filter(Boolean)
+    : ['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost']
+  const stageDistribution = stageOrder.map(s => ({
+    stage: s,
+    count: safeRecords.filter(r => s && r.lead_stage?.toLowerCase() === s.toLowerCase()).length
+  }))
+  const maxStageCount = Math.max(...stageDistribution.map(s => s.count), 1)
+
+  // Score distribution buckets
+  const fallbackMapping = [
+    { label: '0–19', min: 0, max: 19, color: 'bg-gray-400', customColour: null, name: 'New' },
+    { label: '20–39', min: 20, max: 39, color: 'bg-blue-500', customColour: null, name: 'Contacted' },
+    { label: '40–59', min: 40, max: 59, color: 'bg-purple-500', customColour: null, name: 'Qualified' },
+    { label: '60–74', min: 60, max: 74, color: 'bg-amber-500', customColour: null, name: 'Proposal' },
+    { label: '75–89', min: 75, max: 89, color: 'bg-orange-500', customColour: null, name: 'Negotiation' },
+    { label: '90–100', min: 90, max: 100, color: 'bg-green-500', customColour: null, name: 'Won' },
+  ]
+
+  const stageBuckets = sortedStages.length > 0
+    ? sortedStages.map(s => {
+      const stageName = s.stage_name || s.name || s.label
+      const sc = stageColorConfig[stageName?.toLowerCase()] || stageColorConfig.new
+      const customColour = s.colour || null
+      return {
+        label: `${s.min_score}–${s.max_score}`,
+        min: s.min_score,
+        max: s.max_score,
+        color: customColour ? null : (sc.dot || 'bg-gray-400'),
+        customColour,
+        name: stageName
       }
-    }
+    })
+    : fallbackMapping
 
-    // Search in record ID
-    if (record.record_id && record.record_id.toLowerCase().includes(searchLower)) {
-      return true
-    }
+  const scoreBuckets = stageBuckets.map(b => ({
+    ...b,
+    count: safeRecords.filter(r => {
+      const s = parseFloat(r.lead_score)
+      return !isNaN(s) && s >= b.min && s <= b.max
+    }).length
+  }))
+  const maxBucketCount = Math.max(...scoreBuckets.map(b => b.count), 1)
 
-    return false
+  // Filter records
+  const filteredRecords = safeRecords.filter(record => {
+    // Search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase()
+      let matchesSearch = false
+      if (record.field_values) {
+        if (Object.values(record.field_values).some(v => v && String(v).toLowerCase().includes(searchLower))) matchesSearch = true
+      }
+      if (record.record_id && record.record_id.toLowerCase().includes(searchLower)) matchesSearch = true
+      if (!matchesSearch) return false
+    }
+    // Stage filter
+    if (selectedStages.length > 0 && !selectedStages.includes(record.lead_stage)) return false
+    // Source filter
+    const recordSource = record.lead_source || record.source
+    if (selectedSources.length > 0 && !selectedSources.includes(recordSource)) return false
+    // Owner filter
+    if (selectedOwners.length > 0 && !selectedOwners.includes(record.assigned_to)) return false
+    // Score range filter
+    const score = record.lead_score != null ? parseFloat(record.lead_score) : null
+    if (score !== null && !isNaN(score) && (score < scoreRange[0] || score > scoreRange[1])) return false
+    // Hot leads filter
+    if (showHotLeads && (score == null || score < 75)) return false
+    // Stale filter
+    if (showStaleLeads) {
+      const last = record.updated_at || record.created_at
+      if (last && (Date.now() - new Date(last).getTime()) / (1000 * 60 * 60 * 24) < 7) return false
+    }
+    return true
   })
 
   // Apply sorting
@@ -2370,570 +2508,800 @@ export default function TableDataView({ table, onBack }) {
       </div>
     )
   }
-
   return (
-    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
-      {/* Breadcrumb */}
-      <PageBreadcrumb
-        customItems={[
-          {
-            label: "Leads",
-            onClick: (e) => {
-              e.preventDefault()
-              if (onBack) onBack()
-            }
-          },
-          { label: table?.table_name || "Table Data" }
-        ]}
-      />
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" onClick={onBack} className="gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            {/* Back to Tables */}
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Database className="h-6 w-6" />
-              {table?.table_name}
-            </h1>
-            <p className="text-muted-foreground">
-              {table?.description || "Table data view"}
-            </p>
-          </div>
-        </div>
+    <div className="space-y-0 w-full max-w-full overflow-x-hidden">
 
-        <div className="flex items-center gap-2">
-          <Button onClick={openAddRecordDialog} className="gap-2 shadow-sm">
+      {/* ── PAGE HEADER ── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
+        <div>
+          <div className="mb-4">
+            <PageBreadcrumb
+              customItems={[
+                { label: 'Data Tables', href: '/leadPage', onClick: (e) => { e.preventDefault(); onBack() } },
+                { label: table?.table_name || 'Table Data', href: '#' }
+              ]}
+            />
+          </div>
+          <div className="flex items-center gap-3 mb-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2 rounded-full hover:bg-muted" onClick={onBack} title="Back to Tables">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-2xl font-extrabold tracking-tight">{table?.table_name || 'Leads'}</h1>
+            <Badge className="bg-blue-100 text-blue-700 border-blue-200 font-semibold px-2.5 py-0.5">Pipeline</Badge>
+          </div>
+          {/* <p className="text-sm text-muted-foreground ml-9">
+            Scores and stages are computed by the backend engine.{' '}
+            <span className="font-semibold text-foreground">Override stage</span> by clicking any stage badge.
+          </p> */}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
+          <span className="text-xs text-muted-foreground border rounded-full px-3 py-1.5 flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+          <Button variant="outline" size="sm" className="gap-1.5 h-9"
+            onClick={() => { fetchTableData(true); setLastUpdated(new Date()) }}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Refresh Scores
+          </Button>
+          <Button size="sm" className="gap-1.5 h-9" onClick={openAddRecordDialog}>
             <Plus className="h-4 w-4" />
-            Add Record
+            New Lead
           </Button>
         </div>
       </div>
 
-      {/* Error Display */}
+      {/* ── ERROR DISPLAY ── */}
       {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-red-700">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error}</span>
-              <Button variant="outline" size="sm" onClick={fetchTableData} className="ml-2">
-                Retry
-              </Button>
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <span>{error}</span>
+            <Button variant="outline" size="sm" onClick={() => fetchTableData(true)} className="h-8">Retry</Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* ── 5 STAT CARDS ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5 mt-2">
+        {/* Total Leads */}
+        <Card className="border shadow-sm bg-blue-50/40">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Leads</p>
+              <Users className="h-3.5 w-3.5 text-blue-500" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-xl font-extrabold tracking-tight">{totalLeads}</p>}
+              <p className="text-[10px] text-green-600 flex items-center">
+                <TrendingUp className="h-3 w-3 mr-0.5" /> +{recentLeadsCount} this wk
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Hot Leads */}
+        <Card className="border shadow-sm bg-orange-50/40">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Hot Leads</p>
+              <Flame className="h-3.5 w-3.5 text-orange-500" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-xl font-extrabold tracking-tight">{hotLeads}</p>}
+              <p className="text-[10px] text-muted-foreground flex items-center">
+                Score ≥ 70
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Avg Lead Score */}
+        <Card className="border shadow-sm bg-purple-50/40">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Avg Score</p>
+              <BarChart2 className="h-3.5 w-3.5 text-purple-500" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-xl font-extrabold tracking-tight">{avgScore}</p>}
+              <p className={`text-[10px] flex items-center ${avgScoreTrend >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                <TrendingUp className={`h-3 w-3 mr-0.5 ${avgScoreTrend < 0 ? 'rotate-180' : ''}`} />
+                {avgScoreTrend > 0 ? '+' : ''}{avgScoreTrend} vs prev
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Pipeline Value */}
+        <Card className="border shadow-sm bg-green-50/40">
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pipeline Val</p>
+              <DollarSign className="h-3.5 w-3.5 text-green-500" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              {loading ? <Skeleton className="h-6 w-12" /> : (
+                <p className="text-xl font-extrabold tracking-tight">
+                  {pipelineValue > 0 ? `$${pipelineValue >= 1000 ? Math.round(pipelineValue / 1000) + 'K' : pipelineValue}` : '$0'}
+                </p>
+              )}
+              {recentPipelineValue > 0 && (
+                <p className="text-[10px] text-green-600 flex items-center">
+                  <TrendingUp className="h-3 w-3 mr-0.5" /> +${recentPipelineValue >= 1000 ? Math.round(recentPipelineValue / 1000) + 'K' : recentPipelineValue}
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Stale Leads */}
+        <Card className="border shadow-sm relative overflow-hidden bg-red-50/40">
+          <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+          <CardContent className="p-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Stale Leads</p>
+              <Clock className="h-3.5 w-3.5 text-red-500" />
+            </div>
+            <div className="flex items-baseline gap-2">
+              {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-xl font-extrabold tracking-tight text-red-600">{staleLeads}</p>}
+              <p className="text-[10px] text-red-500 flex items-center">
+                <TriangleAlert className="h-3 w-3 mr-0.5" /> &gt; 1 week
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── LEAD INSIGHTS SECTION ── */}
+      <Card className="border shadow-sm mb-5">
+        <div
+          className="flex items-center justify-between px-5 py-0 cursor-pointer select-none"
+          onClick={() => setShowInsights(!showInsights)}
+        >
+          <div className="flex items-center gap-2">
+            <BarChart2 className="h-4 w-4 text-primary" />
+            <span className="font-bold text-sm">Lead Insights</span>
+            <span className="text-muted-foreground text-sm">— Stage distribution, score buckets, avg score trend</span>
+          </div>
+          <ChevronUp className={`h-4 w-4 text-muted-foreground transition-transform ${showInsights ? '' : 'rotate-180'}`} />
+        </div>
+
+        {showInsights && (
+          <div className="border-t bg-muted/5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x border-b lg:border-none">
+
+              {/* Stage Distribution Bar Chart */}
+              <div className="p-6 h-full flex flex-col bg-blue-50/20">
+                <h4 className="text-[13px] font-semibold text-foreground mb-auto">Stage Distribution</h4>
+                <div className="relative h-40 w-full mt-6 shrink-0">
+                  <ChartContainer
+                    config={{
+                      count: {
+                        label: "Leads",
+                        theme: {
+                          light: "hsl(var(--primary))",
+                          dark: "hsl(var(--primary))",
+                        },
+                      },
+                    }}
+                    className="h-full w-full"
+                  >
+                    <RechartsBarChart
+                      data={stageDistribution}
+                      margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+                    >
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="stage"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        fontSize={10}
+                        fontWeight={500}
+                        tickFormatter={(value) => value.length > 8 ? `${value.slice(0, 8)}...` : value}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        fontSize={10}
+                        allowDecimals={false}
+                      />
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent hideLabel />}
+                      />
+                      <Bar
+                        dataKey="count"
+                        radius={[4, 4, 0, 0]}
+                        barSize={32}
+                      >
+                        {stageDistribution.map((entry, index) => {
+                          const sc = stageColorConfig[entry.stage.toLowerCase()] || stageColorConfig.new
+                          const stageObj = sortedStages.find(s => (s.stage_name || s.name || s.label)?.toLowerCase() === entry.stage?.toLowerCase())
+                          const barColour = stageObj?.colour || sc.chart || 'hsl(var(--primary))'
+                          return <Cell key={`cell-${index}`} fill={barColour} fillOpacity={0.9} />
+                        })}
+                      </Bar>
+                    </RechartsBarChart>
+                  </ChartContainer>
+                </div>
+              </div>
+
+              {/* Score Distribution */}
+              <div className="p-6 h-full flex flex-col bg-indigo-50/20">
+                <h4 className="text-[13px] font-semibold text-foreground mb-auto">Score Distribution</h4>
+                <div className="space-y-3 mt-6 shrink-0">
+                  {scoreBuckets.map(({ label, color, customColour, count, name }) => (
+                    <div key={label} className="flex items-center gap-3 p-1 -m-1 rounded hover:bg-muted/40 transition-colors group cursor-pointer" title={`${name}: ${count} leads in score range ${label}`}>
+                      <span className="text-[10px] text-muted-foreground w-10 shrink-0 tabular-nums">{label}</span>
+                      <div className="flex-1 h-3.5 bg-muted/50 rounded-full overflow-hidden flex">
+                        <div
+                          className={`h-full rounded-full transition-all group-hover:brightness-110 ${customColour ? '' : (color || 'bg-gray-400')}`}
+                          style={customColour ? { backgroundColor: customColour, width: maxBucketCount > 0 ? `${(count / maxBucketCount) * 100}%` : '0%' } : { width: maxBucketCount > 0 ? `${(count / maxBucketCount) * 100}%` : '0%' }}
+                        />
+                      </div>
+                      <div className="w-[72px] shrink-0 flex items-center gap-1.5">
+                        {customColour
+                          ? <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: customColour }} />
+                          : <span className={`h-2 w-2 rounded-full ${color || 'bg-gray-400'}`} />}
+                        <span className="text-xs font-bold tabular-nums text-foreground">{count}</span>
+                        <span className="text-[10px] font-medium text-muted-foreground truncate capitalize">{name}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Avg Score Trend */}
+              <div className="p-6 h-full flex flex-col relative bg-violet-50/20">
+                <h4 className="text-[13px] font-semibold text-foreground mb-auto">
+                  Avg Score Trend <span className="font-normal text-muted-foreground ml-1">({new Date().toLocaleString('default', { month: 'short', year: 'numeric' })})</span>
+                </h4>
+                <div className="relative h-40 w-full mt-6 shrink-0">
+                  <ChartContainer
+                    config={{
+                      score: {
+                        label: "Avg Score",
+                        theme: {
+                          light: "oklch(0.58 0.09 200)",
+                          dark: "oklch(0.58 0.09 200)",
+                        },
+                      },
+                    }}
+                    className="h-full w-full"
+                  >
+                    <RechartsAreaChart
+                      data={[
+                        { date: '1', score: 75 },
+                        { date: '3', score: 68 },
+                        { date: '5', score: 72 },
+                        { date: '7', score: 50 },
+                        { date: '9', score: 55 },
+                        { date: '11', score: 35 },
+                        { date: '13', score: 28 },
+                      ]}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="var(--color-score)" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="var(--color-score)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        fontSize={10}
+                        fontWeight={500}
+                        tickFormatter={(value) => `Mar ${value}`}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        fontSize={10}
+                        domain={[0, 100]}
+                      />
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent hideLabel />}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="score"
+                        stroke="var(--color-score)"
+                        fill="url(#colorScore)"
+                        strokeWidth={2.5}
+                      />
+                    </RechartsAreaChart>
+                  </ChartContainer>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* ── SEARCH + QUICK FILTERS BAR ── */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            placeholder="Search leads, companies, email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 h-10 border rounded-lg text-sm bg-background border-input focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          />
+          {searchTerm && (
+            <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setSearchTerm("")} />
+          )}
+        </div>
+        <Button
+          variant={showHotLeads ? "default" : "outline"} size="sm"
+          className={`h-10 gap-1.5 ${showHotLeads ? "bg-orange-500 hover:bg-orange-600 border-orange-500 text-white" : "text-orange-600 border-orange-200 hover:bg-orange-50"}`}
+          onClick={() => { setShowHotLeads(v => !v); setShowStaleLeads(false) }}
+        >
+          <Flame className="h-3.5 w-3.5" /> Hot Leads
+        </Button>
+        <Button
+          variant={showStaleLeads ? "default" : "outline"} size="sm"
+          className={`h-10 gap-1.5 ${showStaleLeads ? "bg-red-500 hover:bg-red-600 border-red-500 text-white" : "text-red-500 border-red-200 hover:bg-red-50"}`}
+          onClick={() => { setShowStaleLeads(v => !v); setShowHotLeads(false) }}
+        >
+          <Clock className="h-3.5 w-3.5" /> Stale
+        </Button>
+        <Button
+          variant={showFilters ? "default" : "outline"} size="sm"
+          className="h-10 gap-1.5"
+          onClick={() => setShowFilters(v => !v)}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+          {(selectedStages.length + selectedSources.length + selectedOwners.length) > 0 && (
+            <span className="ml-0.5 h-4 min-w-[16px] px-0.5 bg-white text-primary text-[10px] font-bold rounded-full flex items-center justify-center">
+              {selectedStages.length + selectedSources.length + selectedOwners.length}
+            </span>
+          )}
+        </Button>
+        <span className="ml-auto text-sm text-muted-foreground font-medium">{filteredRecords.length} of {safeRecords.length} leads</span>
+      </div>
+
+      {/* ── EXPANDED FILTER PANEL ── */}
+      {showFilters && (
+        <Card className="border shadow-sm mb-3">
+          <CardContent className="p-5 space-y-4">
+            {/* Stage */}
+            {uniqueStages.length > 0 && (
+              <div className="flex flex-wrap items-start gap-3">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground min-w-[55px] pt-1.5">STAGE</span>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueStages.map(stage => {
+                    const isActive = selectedStages.includes(stage)
+                    const sc = stageColorConfig[stage?.toLowerCase()] || stageColorConfig.new
+                    const stageObj = sortedStages.find(s => (s.stage_name || s.name || s.label)?.toLowerCase() === stage?.toLowerCase())
+                    const customColour = stageObj?.colour || null
+                    return (
+                      <button key={stage} onClick={() => setSelectedStages(prev => isActive ? prev.filter(s => s !== stage) : [...prev, stage])}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isActive ? (customColour ? 'ring-2 ring-offset-1 bg-opacity-20' : cn(sc.badge, 'ring-2 ring-offset-1')) : 'bg-background border-border text-foreground hover:border-muted-foreground'}`}
+                        style={isActive && customColour ? { backgroundColor: `${customColour}20`, borderColor: customColour, color: customColour, ringColor: customColour } : {}}
+                      >
+                        {customColour
+                          ? <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: customColour }} />
+                          : <span className={`h-2 w-2 rounded-full ${sc.dot}`} />}
+                        {stage}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {/* Source */}
+            {uniqueSources.length > 0 && (
+              <div className="flex flex-wrap items-start gap-3">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground min-w-[55px] pt-1.5">SOURCE</span>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueSources.map(source => {
+                    const isActive = selectedSources.includes(source)
+                    return (
+                      <button key={source} onClick={() => setSelectedSources(prev => isActive ? prev.filter(s => s !== source) : [...prev, source])}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border text-foreground hover:border-muted-foreground'}`}
+                      >{source}</button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {/* Owner */}
+            {uniqueOwners.length > 0 && (
+              <div className="flex flex-wrap items-start gap-3">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground min-w-[55px] pt-1.5">OWNER</span>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueOwners.map(ownerId => {
+                    const isActive = selectedOwners.includes(ownerId)
+                    const user = users.find(u => (u.user_id || u.id) === ownerId)
+                    const name = user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.name || user.email || ownerId) : ownerId
+                    const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+                    return (
+                      <button key={ownerId} onClick={() => setSelectedOwners(prev => isActive ? prev.filter(o => o !== ownerId) : [...prev, ownerId])}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${isActive ? 'bg-primary text-primary-foreground border-primary' : 'bg-background border-border text-foreground hover:border-muted-foreground'}`}
+                      >
+                        <span className="h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">{initials}</span>
+                        {name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {/* Score Range */}
+            <div className="flex flex-wrap items-center gap-4 pt-1 border-t">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground">
+                SCORE RANGE: {scoreRange[0]}–{scoreRange[1]}
+              </span>
+              <div className="flex items-center gap-3">
+                <input type="range" min={0} max={100} value={scoreRange[0]} className="w-32 accent-primary"
+                  onChange={e => setScoreRange(prev => [Math.min(Number(e.target.value), prev[1] - 1), prev[1]])} />
+                <span className="text-xs text-muted-foreground">to</span>
+                <input type="range" min={0} max={100} value={scoreRange[1]} className="w-32 accent-primary"
+                  onChange={e => setScoreRange(prev => [prev[0], Math.max(Number(e.target.value), prev[0] + 1)])} />
+              </div>
+              {(selectedStages.length > 0 || selectedSources.length > 0 || selectedOwners.length > 0 || scoreRange[0] > 0 || scoreRange[1] < 100) && (
+                <button onClick={() => { setSelectedStages([]); setSelectedSources([]); setSelectedOwners([]); setScoreRange([0, 100]) }}
+                  className="ml-auto text-xs text-muted-foreground hover:text-foreground underline">Clear all</button>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Records</p>
-                {loading ? <Skeleton className="h-8 w-12" /> : <p className="text-2xl font-bold">{safeRecords.length}</p>}
-              </div>
-              <Database className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Columns</p>
-                {loading ? <Skeleton className="h-8 w-12" /> : <p className="text-2xl font-bold">{columns.length}</p>}
-              </div>
-              <Settings className="h-8 w-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">With Data</p>
-                {loading ? (
-                  <Skeleton className="h-8 w-12" />
-                ) : (
-                  <p className="text-2xl font-bold">
-                    {safeRecords.filter(r => r.field_values && Object.keys(r.field_values).length > 0).length}
-                  </p>
-                )}
-              </div>
-              <AlertCircle className="h-8 w-8 text-orange-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Empty Records</p>
-                {loading ? (
-                  <Skeleton className="h-8 w-12" />
-                ) : (
-                  <p className="text-2xl font-bold">
-                    {safeRecords.filter(r => !r.field_values || Object.keys(r.field_values).length === 0).length}
-                  </p>
-                )}
-              </div>
-              <Database className="h-8 w-8 text-purple-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Data Table */}
-      <Card className="relative">
-        <CardHeader className="pb-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Table Records</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {sortedRecords.length} record{sortedRecords.length !== 1 ? 's' : ''} found
-                {searchTerm && ` (filtered from ${safeRecords.length} total)`}
-              </p>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              {sortedRecords.length}
-            </Badge>
+      {/* ── ALL LEADS TABLE CARD ── */}
+      <Card className="overflow-hidden border shadow-sm py-0 gap-1">
+        {/* Table toolbar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 px-5 py-3 border-b">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold">All Leads</span>
+            <Badge variant="secondary" className="font-semibold">{filteredRecords.length}</Badge>
           </div>
-        </CardHeader>
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 gap-1.5 border-muted-foreground/20">
+                  <Settings className="h-4 w-4" /> Columns
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[200px] max-h-[400px] overflow-y-auto">
+                {createDynamicColumns().map(col => {
+                  const colId = col.accessorKey || col.id
+                  return (
+                    <DropdownMenuCheckboxItem key={colId} className="capitalize"
+                      checked={columnVisibility[colId] !== false}
+                      onSelect={e => e.preventDefault()}
+                      onCheckedChange={v => setColumnVisibility(prev => ({ ...prev, [colId]: !!v }))}
+                    >{col.header}</DropdownMenuCheckboxItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 border-muted-foreground/20"
+              onClick={() => {
+                const rows = [['ID', ...columns.map(c => c.column_name), 'Score', 'Stage', 'Source', 'Owner', 'Created At'],
+                ...sortedRecords.map(r => [r.record_id, ...columns.map(c => { const v = getFieldValue(r, c.column_id, c); return v != null ? String(v) : '' }), r.lead_score ?? '', r.lead_stage ?? '', r.lead_source ?? r.source ?? '', r.assigned_to ?? '', r.created_at ?? ''])]
+                const csv = rows.map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
+                const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+                const a = document.createElement('a'); a.href = url; a.download = `${table?.table_name || 'leads'}.csv`; a.click(); URL.revokeObjectURL(url)
+              }}
+            >
+              <Download className="h-4 w-4" /> Export
+            </Button>
+            <Button size="sm" className="h-9 gap-1.5" onClick={openAddRecordDialog}>
+              <Plus className="h-4 w-4" /> Add Lead
+            </Button>
+          </div>
+        </div>
+
+        {/* Dynamic Score → Stage legend */}
+        {scoreBuckets && scoreBuckets.length > 0 && (
+          <div className="px-5 py-2.5 border-b bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span className="font-semibold text-foreground">Score → Stage:</span>
+            {scoreBuckets.map((bucket) => (
+              <span key={bucket.name} className="flex items-center gap-1">
+                {bucket.customColour
+                  ? <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: bucket.customColour }} />
+                  : <span className={cn("h-2 w-2 rounded-full", bucket.color)} />}
+                <span className="font-semibold text-foreground">{bucket.name}</span>
+                <span className="text-muted-foreground">{bucket.label}</span>
+              </span>
+            ))}
+            <span className="ml-auto text-muted-foreground italic text-[11px]">— Stages from Strategy Configuration</span>
+          </div>
+        )}
+
         <CardContent className="p-0">
-          {/* Search and Controls */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-0 p-4 border-b bg-muted/5">
-            {/* Search Input - Left Side */}
-            <div className="w-full md:max-w-sm">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search records..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-10 border-muted-foreground/20 focus-visible:ring-primary pr-10"
-                />
-                {searchTerm && (
-                  <X
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
-                    onClick={() => setSearchTerm("")}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Column Selector - Right Side */}
-            <div className="flex items-center gap-2 ml-auto">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="ml-auto h-10 gap-2 border-muted-foreground/20">
-                    <Settings className="h-4 w-4" />
-                    Columns
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[200px] max-h-[400px] overflow-y-auto">
-                  {createDynamicColumns().map((column) => {
-                    const columnId = column.accessorKey || column.id;
-                    return (
-                      <DropdownMenuCheckboxItem
-                        key={columnId}
-                        className="capitalize"
-                        checked={columnVisibility[columnId] !== false}
-                        onSelect={(e) => e.preventDefault()}
-                        onCheckedChange={(value) =>
-                          setColumnVisibility((prev) => ({
-                            ...prev,
-                            [columnId]: !!value,
-                          }))
-                        }
-                      >
-                        {column.header}
-                      </DropdownMenuCheckboxItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-
-          {/* Create table columns first */}
           {(() => {
             const tableColumns = createDynamicColumns()
 
             if (filteredRecords.length === 0) {
               return (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No records found</p>
-                  {safeRecords.length === 0 && (
-                    <p className="text-sm mt-2">No records available for this table</p>
-                  )}
-                  {searchTerm && safeRecords.length > 0 && (
-                    <p className="text-sm mt-2">Try adjusting your search terms</p>
-                  )}
+                <div className="text-center py-14 text-muted-foreground">
+                  <Database className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <p className="font-semibold">No leads found</p>
+                  <p className="text-sm mt-1">{safeRecords.length === 0 ? 'No records in this table yet.' : 'Try adjusting your search or filters.'}</p>
                 </div>
               )
             }
 
             return (
-              <div className="p-4">
-                {/* Horizontal Scroll Container */}
-                <div className="rounded-lg border shadow-sm overflow-hidden relative mb-6">
-                  <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-muted-foreground/20">
-                    <Table className="w-full min-w-max border-collapse">
-                      <TableHeader className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md shadow-sm">
-                        <TableRow className="hover:bg-transparent border-b">
-                          {tableColumns.filter(col => columnVisibility[col.accessorKey || col.id] !== false).map((column) => {
-                            const isSortable = column.id !== "actions";
-                            const isSorted = sortConfig.key === column.accessorKey;
-
-                            return (
-                              <TableHead
-                                key={column.accessorKey || column.id}
-                                className={cn(
-                                  "h-12 px-4 text-sm font-bold text-foreground border-r last:border-r-0 whitespace-nowrap transition-colors",
-                                  isSortable && "cursor-pointer hover:bg-muted/50 select-none",
-                                  column.id === "actions" ? "w-[150px] text-center" : ""
+              <div>
+                <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/20 ">
+                  <Table className="w-full min-w-max border-collapse py-0">
+                    <TableHeader className="sticky top-0 z-20 bg-muted/95 backdrop-blur-md">
+                      <TableRow className="hover:bg-transparent border-b">
+                        {tableColumns.filter(col => columnVisibility[col.accessorKey || col.id] !== false).map(column => {
+                          const isSortable = column.id !== 'actions'
+                          const isSorted = sortConfig.key === column.accessorKey
+                          return (
+                            <TableHead key={column.accessorKey || column.id}
+                              className={cn('py-3.5 px-4 text-[10px] font-extrabold uppercase tracking-widest text-muted-foreground border-r last:border-r-0 whitespace-nowrap',
+                                isSortable && 'cursor-pointer hover:bg-muted/60 select-none',
+                                column.id === 'actions' ? 'text-right w-[120px]' : '')}
+                              onClick={() => isSortable && handleSort(column.accessorKey)}
+                            >
+                              <div className={cn('flex items-center gap-1', column.id === 'actions' ? 'justify-end' : '')}>
+                                <span>{column.header}</span>
+                                {isSortable && (isSorted
+                                  ? (sortConfig.direction === 'asc' ? <ChevronUp className="h-3 w-3 text-primary" /> : <ChevronDown className="h-3 w-3 text-primary" />)
+                                  : <ArrowUpDown className="h-3 w-3 opacity-30" />
                                 )}
-                                onClick={() => isSortable && handleSort(column.accessorKey)}
-                              >
-                                <div className={cn(
-                                  "flex items-center gap-2",
-                                  column.id === "actions" ? "justify-center" : "justify-between"
-                                )}>
-                                  <span>{column.header}</span>
-                                  {isSortable && (
-                                    <div className="flex flex-col text-muted-foreground/30">
-                                      {isSorted ? (
-                                        sortConfig.direction === 'asc' ?
-                                          <ChevronUp className="h-3.5 w-3.5 text-primary" /> :
-                                          <ChevronDown className="h-3.5 w-3.5 text-primary" />
-                                      ) : (
-                                        <ArrowUpDown className="h-3.5 w-3.5 opacity-50" />
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </TableHead>
-                            );
-                          })}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {currentPageRecords.map((record, recordIndex) => (
-                          <TableRow
-                            key={record.record_id || record.id || recordIndex}
-                            className="border-b even:bg-muted/10 hover:bg-primary/5 transition-all duration-200 group"
+                              </div>
+                            </TableHead>
+                          )
+                        })}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {currentPageRecords.map((record, recordIndex) => {
+                        const isSelected = selectedRows.has(record.record_id)
+                        const score = record.lead_score != null ? parseFloat(record.lead_score) : null
+                        const isHot = score != null && score >= 75
+                        const stage = record.lead_stage
+                        const sc = stageColorConfig[stage?.toLowerCase()] || stageColorConfig.new
+                        const stageObj = sortedStages.find(s => (s.stage_name || s.name || s.label)?.toLowerCase() === stage?.toLowerCase())
+                        const stageCustomColour = stageObj?.colour || null
+
+                        // Score bar color
+                        const barColor = score == null ? 'bg-muted'
+                          : score >= 90 ? 'bg-green-500'
+                            : score >= 75 ? 'bg-orange-500'
+                              : score >= 60 ? 'bg-amber-500'
+                                : score >= 40 ? 'bg-purple-500'
+                                  : score >= 20 ? 'bg-blue-500'
+                                    : 'bg-gray-400'
+
+                        // Find name/email columns for lead cell
+                        const nameCol = columns.find(c => c.column_name?.toLowerCase().includes('name') || c.column_name?.toLowerCase() === 'full name')
+                        const emailCol = columns.find(c => getColumnFieldType(c) === 'email' || c.column_name?.toLowerCase().includes('email'))
+                        const nameValRaw = nameCol ? getFieldValue(record, nameCol.column_id, nameCol) : null
+                        const emailValRaw = emailCol ? getFieldValue(record, emailCol.column_id, emailCol) : null
+                        const nameVal = nameValRaw && typeof nameValRaw === 'object' && nameValRaw.value !== undefined ? nameValRaw.value : nameValRaw
+                        const emailVal = emailValRaw && typeof emailValRaw === 'object' && emailValRaw.value !== undefined ? emailValRaw.value : emailValRaw
+                        const displayName = nameVal ? String(nameVal) : (record.record_id || '—')
+                        const initials = displayName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '??'
+
+                        // Last activity label
+                        const lastDate = record.updated_at || record.created_at
+                        let activityLabel = '-'
+                        let activityClass = 'text-muted-foreground'
+                        if (lastDate) {
+                          const ld = new Date(lastDate)
+                          const now = new Date()
+                          const lastDayStart = new Date(ld.getFullYear(), ld.getMonth(), ld.getDate()).getTime()
+                          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+                          const days = Math.round((todayStart - lastDayStart) / 86400000)
+
+                          if (days === 0) { activityLabel = 'Today'; activityClass = 'text-green-600 font-semibold' }
+                          else if (days === 1) { activityLabel = 'Yesterday'; activityClass = 'text-green-600 font-semibold' }
+                          else if (days > 1 && days < 7) { activityLabel = `${days}d ago`; activityClass = 'text-foreground font-medium' }
+                          else { activityLabel = `${days < 0 ? 0 : days}d ago`; activityClass = 'text-red-500 font-medium' }
+                        }
+
+                        return (
+                          <TableRow key={record.record_id || recordIndex}
+                            className={cn('border-b transition-all duration-150 group',
+                              isSelected ? 'bg-primary/5' : 'hover:bg-muted/30',
+                              isHot ? 'border-l-[3px] border-l-orange-400' : 'border-l-[3px] border-l-transparent'
+                            )}
                           >
-                            {tableColumns.filter(col => columnVisibility[col.accessorKey || col.id] !== false).map((column) => {
-                              // Get the cell value based on column type
-                              let cellContent = '-'
+                            {tableColumns.filter(col => columnVisibility[col.accessorKey || col.id] !== false).map(column => {
+                              let cellContent = <span className="text-muted-foreground text-sm">-</span>
 
-                              if (column.id === "actions") {
-                                // Actions column
+                              if (column.id === 'actions') {
                                 cellContent = (
-                                  <div className="flex items-center justify-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 hover:bg-primary/10"
-                                      title="View record details"
-                                      onClick={() => {
-                                        router.push(`/leadPage/record-details?table_id=${table.table_id}&record_id=${record.record_id}`)
-                                      }}
-                                    >
-                                      <Eye className="h-4 w-4" />
+                                  <div className="flex items-center justify-end gap-0.5">
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-primary/10" title="View"
+                                      onClick={() => router.push(`/leadPage/record-details?table_id=${table.table_id}&record_id=${record.record_id}`)}>
+                                      <Eye className="h-3.5 w-3.5" />
                                     </Button>
-
-                                    {/* Activity Actions */}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600"
-                                      title="Create Activity"
-                                      onClick={() => {
-                                        setActivityInitialData({
-                                          related_table_id: table.table_id,
-                                          related_record_id: record.record_id
-                                        })
-                                        setIsCreateActivityOpen(true)
-                                      }}
-                                    >
-                                      <CalendarPlus className="h-4 w-4" />
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600" title="Create Activity"
+                                      onClick={() => { setActivityInitialData({ related_table_id: table.table_id, related_record_id: record.record_id }); setIsCreateActivityOpen(true) }}>
+                                      <CalendarPlus className="h-3.5 w-3.5" />
                                     </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600"
-                                      title="View Activities"
-                                      onClick={() => {
-                                        router.push(`/activities?related_table_id=${table.table_id}&related_record_id=${record.record_id}`)
-                                      }}
-                                    >
-                                      <ListTodo className="h-4 w-4" />
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600" title="Activities"
+                                      onClick={() => router.push(`/activities?related_table_id=${table.table_id}&related_record_id=${record.record_id}`)}>
+                                      <ListTodo className="h-3.5 w-3.5" />
                                     </Button>
-
-                                    {/* <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-primary/10"
-                                    title="Edit record"
-                                    onClick={() => openEditRecordDialog(record)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button> */}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 hover:bg-destructive/10"
-                                      title="Delete record"
-                                      onClick={() => {
-                                        setRecordToDelete(record)
-                                        setIsDeleteDialogOpen(true)
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-destructive/10" title="Delete"
+                                      onClick={() => { setRecordToDelete(record); setIsDeleteDialogOpen(true) }}>
+                                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                     </Button>
                                   </div>
                                 )
-                              } else if (column.accessorKey === "assigned_to") {
-                                // Assigned To column
+                              } else if (column.id === '__lead_cell__' || (nameCol && column.accessorKey === nameCol.column_id)) {
+                                // Special lead cell with avatar + name + email + hot icon
+                                cellContent = (
+                                  <div className="flex items-center gap-3 min-w-[180px]">
+                                    <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                                      {initials}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-semibold text-sm text-foreground truncate">{displayName}</span>
+                                        {isHot && <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" />}
+                                      </div>
+                                      {emailVal && <span className="text-xs text-muted-foreground truncate block">{String(emailVal)}</span>}
+                                    </div>
+                                  </div>
+                                )
+                              } else if (column.accessorKey === 'lead_score') {
+                                cellContent = score != null ? (
+                                  <div className="flex items-center gap-2 min-w-[110px]">
+                                    <span className="text-sm font-bold tabular-nums w-7 shrink-0">{Math.round(score)}</span>
+                                    <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                      <div className={`${barColor} h-full rounded-full`} style={{ width: `${Math.min(100, score)}%` }} />
+                                    </div>
+                                  </div>
+                                ) : <span className="text-muted-foreground text-sm">-</span>
+                              } else if (column.accessorKey === 'lead_score_percentage') {
+                                const pct = record.lead_score_percentage
+                                cellContent = pct != null ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-14 bg-muted h-1.5 rounded-full overflow-hidden">
+                                      <div className="bg-primary h-full" style={{ width: `${Math.min(100, Math.max(0, parseFloat(pct)))}%` }} />
+                                    </div>
+                                    <span className="text-xs font-bold text-primary">
+                                      {Number(parseFloat(pct).toFixed(2))}%
+                                    </span>
+                                  </div>
+                                ) : <span className="text-muted-foreground text-sm">-</span>
+                              } else if (column.accessorKey === 'lead_stage') {
+                                cellContent = stage ? (
+                                  <div className="flex items-center gap-1">
+                                    {stageCustomColour ? (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border"
+                                        style={{ backgroundColor: `${stageCustomColour}18`, borderColor: `${stageCustomColour}50`, color: stageCustomColour }}>
+                                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: stageCustomColour }} />
+                                        {stage}
+                                      </span>
+                                    ) : (
+                                      <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border', sc.badge)}>
+                                        <span className={cn('h-1.5 w-1.5 rounded-full', sc.dot)} />{stage}
+                                      </span>
+                                    )}
+                                    {/* <ChevronDown className="h-3 w-3 text-muted-foreground" /> */}
+                                  </div>
+                                ) : <span className="text-muted-foreground text-sm">-</span>
+                              } else if (column.accessorKey === 'assigned_to') {
                                 const assignedTo = record.assigned_to
                                 if (!assignedTo || assignedTo === 'NA') {
                                   cellContent = <span className="text-sm text-muted-foreground">-</span>
                                 } else {
                                   const user = users.find(u => (u.user_id || u.id) === assignedTo)
-                                  if (user) {
-                                    const userName = user.first_name && user.last_name
-                                      ? `${user.first_name} ${user.last_name}`
-                                      : user.name || user.email || assignedTo
-                                    cellContent = <span className="text-sm">{userName}</span>
-                                  } else {
-                                    cellContent = <span className="text-sm">{assignedTo}</span>
-                                  }
-                                }
-                              } else if (column.accessorKey === "updated_by") {
-                                // Updated By column
-                                const updatedBy = record.updated_by
-                                if (!updatedBy) {
-                                  cellContent = <span className="text-sm text-muted-foreground">-</span>
-                                } else {
-                                  const user = users.find(u => (u.user_id || u.id) === updatedBy)
-                                  if (user) {
-                                    const userName = user.first_name && user.last_name
-                                      ? `${user.first_name} ${user.last_name}`
-                                      : user.name || user.email || updatedBy
-                                    cellContent = <span className="text-sm">{userName}</span>
-                                  } else {
-                                    cellContent = <span className="text-sm">{updatedBy}</span>
-                                  }
-                                }
-                              } else if (column.accessorKey === "created_at") {
-                                // Created At column
-                                const date = new Date(record.created_at)
-                                cellContent = (
-                                  <div className="text-sm">
-                                    <div className="font-medium text-foreground">
-                                      {date.toLocaleDateString('en-US', {
-                                        month: 'short',
-                                        day: 'numeric',
-                                        year: 'numeric'
-                                      })}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      {date.toLocaleTimeString('en-US', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
-                                    </div>
-                                  </div>
-                                )
-                              } else if (column.accessorKey === "updated_at") {
-                                // Updated At column
-                                const date = record.updated_at
-                                if (!date) {
-                                  cellContent = <span className="text-sm text-muted-foreground">-</span>
-                                } else {
-                                  const dateObj = new Date(date)
+                                  const uName = user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.name || user.email || assignedTo) : assignedTo
+                                  const uInitials = uName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
                                   cellContent = (
-                                    <div className="text-sm">
-                                      <div className="font-medium text-foreground">
-                                        {dateObj.toLocaleDateString('en-US', {
-                                          month: 'short',
-                                          day: 'numeric',
-                                          year: 'numeric'
-                                        })}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {dateObj.toLocaleTimeString('en-US', {
-                                          hour: '2-digit',
-                                          minute: '2-digit'
-                                        })}
-                                      </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="h-7 w-7 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[11px] font-bold shrink-0">{uInitials}</span>
+                                      <span className="text-sm">{uName}</span>
                                     </div>
                                   )
                                 }
-                              } else if (column.accessorKey === "lead_score") {
-                                // Lead Score column
-                                cellContent = <span className="text-sm font-medium">{record.lead_score ?? '-'}</span>
-                              } else if (column.accessorKey === "lead_score_percentage") {
-                                // Lead Score Percentage column
-                                const percentage = record.lead_score_percentage
-                                cellContent = percentage !== undefined && percentage !== null ? (
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-16 bg-muted h-1.5 rounded-full overflow-hidden">
-                                      <div
-                                        className="bg-primary h-full transition-all duration-500"
-                                        style={{ width: `${Math.min(100, Math.max(0, parseFloat(percentage)))}%` }}
-                                      />
-                                    </div>
-                                    <span className="text-xs font-bold text-primary">{percentage}%</span>
-                                  </div>
-                                ) : <span className="text-sm text-muted-foreground">-</span>
-                              } else if (column.accessorKey === "lead_stage") {
-                                // Lead Stage column
-                                const stage = record.lead_stage
-                                if (!stage) {
-                                  cellContent = <span className="text-sm text-muted-foreground">-</span>
-                                } else {
-                                  let badgeColor = "bg-blue-100 text-blue-700"
-                                  if (stage.toLowerCase().includes('won') || stage.toLowerCase().includes('closed')) {
-                                    badgeColor = "bg-green-100 text-green-700"
-                                  } else if (stage.toLowerCase().includes('lost')) {
-                                    badgeColor = "bg-red-100 text-red-700"
-                                  } else if (stage.toLowerCase().includes('new')) {
-                                    badgeColor = "bg-amber-100 text-amber-700"
-                                  }
-                                  cellContent = <Badge className={`${badgeColor} border-none font-bold text-[10px] tracking-wider uppercase`}>{stage}</Badge>
+                              } else if (column.accessorKey === 'updated_by') {
+                                const updatedBy = record.updated_by
+                                if (!updatedBy) { cellContent = <span className="text-muted-foreground text-sm">-</span> }
+                                else {
+                                  const user = users.find(u => (u.user_id || u.id) === updatedBy)
+                                  const uName = user ? (user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.name || user.email || updatedBy) : updatedBy
+                                  cellContent = <span className="text-sm">{uName}</span>
                                 }
+                              } else if (column.accessorKey === 'created_at') {
+                                const d = new Date(record.created_at)
+                                cellContent = isNaN(d.getTime()) ? <span className="text-muted-foreground text-sm">-</span> : (
+                                  <div className="text-sm">
+                                    <div className="font-medium">{d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                                    <div className="text-xs text-muted-foreground">{d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
+                                  </div>
+                                )
+                              } else if (column.accessorKey === 'updated_at') {
+                                const d = new Date(record.updated_at || record.created_at)
+                                cellContent = isNaN(d.getTime()) ? <span className="text-muted-foreground text-sm">-</span> : (
+                                  <div className="text-sm">
+                                    <div className={`font-medium ${activityClass}`}>
+                                      {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                      <span className="ml-1 opacity-70">({activityLabel})</span>
+                                    </div>
+                                  </div>
+                                )
                               } else {
-                                // Dynamic data columns
-                                const columnData = columns.find(col => col.column_id === column.accessorKey)
+                                const columnData = columns.find(c => c.column_id === column.accessorKey)
                                 if (columnData) {
-                                  const fieldValue = getFieldValue(record, column.accessorKey, columnData)
-                                  const displayDataType = getColumnFieldType(columnData)
-                                  cellContent = formatFieldValue(fieldValue, displayDataType, columnData, record)
-                                } else {
-                                  cellContent = <span className="text-muted-foreground">-</span>
+                                  const fv = getFieldValue(record, column.accessorKey, columnData)
+                                  cellContent = formatFieldValue(fv, getColumnFieldType(columnData), columnData, record)
                                 }
                               }
 
                               return (
-                                <TableCell
-                                  key={column.accessorKey || column.id}
-                                  className={cn(
-                                    "px-4 py-3.5 text-sm border-r last:border-r-0 align-middle",
-                                    column.id === "actions" ? "w-[150px]" : "max-w-[300px]"
-                                  )}
-                                >
-                                  {cellContent}
-                                </TableCell>
+                                <TableCell key={column.accessorKey || column.id}
+                                  className={cn('px-4 py-3.5 text-sm border-r last:border-r-0 align-middle',
+                                    column.id === 'actions' ? 'w-[120px]' : 'max-w-[280px]')}
+                                >{cellContent}</TableCell>
                               )
                             })}
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
                 </div>
 
-                {/* Pagination Controls */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5">
-                  <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
-                    <div className="flex items-center gap-2 border-muted-foreground/20">
-                      <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                        Show
-                      </span>
-                      <Select
-                        value={pageSize.toString()}
-                        onValueChange={(value) => {
-                          setPageSize(Number(value))
-                          setCurrentPage(1)
-                        }}
-                      >
-                        <SelectTrigger id="page-size-bottom" className="w-[70px] h-8 border-muted-foreground/20 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pageSizeOptions.map(size => (
-                            <SelectItem key={size} value={size.toString()}>
-                              {size}
-                            </SelectItem>
-                          ))}
+                {/* Pagination */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t bg-muted/5">
+                  <div className="flex items-center gap-4 order-2 sm:order-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground font-medium">Show</span>
+                      <Select value={pageSize.toString()} onValueChange={v => { setPageSize(Number(v)); setCurrentPage(1) }}>
+                        <SelectTrigger className="w-[68px] h-8 text-xs border-muted-foreground/20 bg-background shadow-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent className="min-w-[68px]">
+                          {[10, 25, 50, 100].map(s => <SelectItem key={s} value={s.toString()}>{s}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
-                      Showing <span className="text-foreground">{((currentPage - 1) * pageSize) + 1}</span> to{' '}
-                      <span className="text-foreground">{Math.min(currentPage * pageSize, totalRecords)}</span> of{' '}
-                      <span className="text-foreground">{totalRecords}</span> entries
-                      {searchTerm && totalRecords < safeRecords.length && (
-                        <span className="ml-1 opacity-70">(filtered from {safeRecords.length} total)</span>
-                      )}
-                    </div>
-
-
+                    <span className="text-xs text-muted-foreground font-medium">
+                      <span className="text-foreground">{Math.min((currentPage - 1) * pageSize + 1, totalRecords)}</span>–<span className="text-foreground">{Math.min(currentPage * pageSize, totalRecords)}</span> of <span className="text-foreground">{totalRecords}</span>
+                    </span>
                   </div>
+                  <div className="flex items-center gap-1 order-1 sm:order-2 self-end sm:self-auto">
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            onClick={(e) => { e.preventDefault(); goToPreviousPage(); }}
+                            disabled={currentPage === 1}
+                            className={`h-8 w-max px-3 border-none cursor-pointer hover:bg-muted/40 transition-colors ${currentPage === 1 ? 'pointer-events-none opacity-50' : ''}`}
+                          />
+                        </PaginationItem>
 
-                  <div className="flex items-center gap-1 order-1 sm:order-2">
-                    {/* First Page */}
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={goToFirstPage}
-                      disabled={currentPage === 1}
-                      className="h-9 w-9 rounded-md border-muted-foreground/20 hover:text-primary transition-colors"
-                      title="First page"
-                    >
-                      <ChevronsLeft className="h-4 w-4" />
-                    </Button>
+                        <div className="flex items-center px-3 h-8 min-w-[64px] justify-center text-[13px] font-bold text-foreground bg-muted/30 border-x border-muted-foreground/10 mx-1">
+                          {currentPage} <span className="text-muted-foreground font-medium mx-1">/</span> {totalPages || 1}
+                        </div>
 
-                    {/* Previous Page */}
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={goToPreviousPage}
-                      disabled={currentPage === 1}
-                      className="h-9 w-9 rounded-md border-muted-foreground/20 hover:text-primary transition-colors"
-                      title="Previous page"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-
-                    {/* Page Numbers */}
-                    <div className="flex items-center px-4 h-9 min-w-[100px] justify-center text-sm font-bold bg-muted/20 border border-muted-foreground/10 rounded-md">
-                      {currentPage} / {totalPages || 1}
-                    </div>
-
-                    {/* Next Page */}
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={goToNextPage}
-                      disabled={currentPage === totalPages || totalPages === 0}
-                      className="h-9 w-9 rounded-md border-muted-foreground/20 hover:text-primary transition-colors"
-                      title="Next page"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-
-                    {/* Last Page */}
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={goToLastPage}
-                      disabled={currentPage === totalPages || totalPages === 0}
-                      className="h-9 w-9 rounded-md border-muted-foreground/20 hover:text-primary transition-colors"
-                      title="Last page"
-                    >
-                      <ChevronsRight className="h-4 w-4" />
-                    </Button>
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={(e) => { e.preventDefault(); goToNextPage(); }}
+                            disabled={currentPage === totalPages || totalPages === 0}
+                            className={`h-8 w-max px-3 border-none cursor-pointer hover:bg-muted/40 transition-colors ${currentPage === totalPages || totalPages === 0 ? 'pointer-events-none opacity-50' : ''}`}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
                   </div>
                 </div>
               </div>
@@ -3202,7 +3570,7 @@ export default function TableDataView({ table, onBack }) {
                           ))
                         })()
                       ) : (
-                        // Single selection - render normally
+                        // Single selection
                         isEditMode
                           ? renderNestedFormFields(editableFormData)
                           : renderNestedFieldsViewOnly(editableFormData)
@@ -3328,7 +3696,7 @@ export default function TableDataView({ table, onBack }) {
         </DialogContent>
       </Dialog>
 
-      {/* Cell Data View Modal - opens when clicking on nested column values like location/phone/objects */}
+      {/* Cell Data View Modal */}
       <Dialog open={isCellDataModalOpen} onOpenChange={setIsCellDataModalOpen}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col gap-0 p-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
@@ -3374,9 +3742,6 @@ export default function TableDataView({ table, onBack }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// CellDataRenderer – recursively renders nested JSON data in the modal
-// ---------------------------------------------------------------------------
 function CellDataRenderer({ data, depth = 0 }) {
   if (data === null || data === undefined) {
     return <span className="text-muted-foreground italic text-sm">-</span>

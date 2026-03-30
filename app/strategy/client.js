@@ -49,7 +49,7 @@ const StageModal = ({ isOpen, onClose, onSave, stage }) => {
     const [data, setData] = useState({ min_score: "", max_score: "", label: "" })
     useEffect(() => {
         if (stage) setData(stage)
-        else setData({ min_score: "", max_score: "", label: "" })
+        else setData({ min_score: "", max_score: "", label: "", colour: "#3B82F6" })
     }, [stage, isOpen])
 
     return (
@@ -70,9 +70,18 @@ const StageModal = ({ isOpen, onClose, onSave, stage }) => {
                             <Input type="number" value={data.max_score} onChange={(e) => setData({ ...data, max_score: e.target.value })} onWheel={(e) => e.target.blur()} />
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label className="text-sm font-medium">Stage Label</Label>
-                        <Input placeholder="e.g. Cold, Warm, Hot" value={data.label} onChange={(e) => setData({ ...data, label: e.target.value })} />
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium">Stage Label</Label>
+                            <Input placeholder="e.g. Cold, Warm, Hot" value={data.label} onChange={(e) => setData({ ...data, label: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium">Stage Colour</Label>
+                            <div className="flex items-center gap-2">
+                                <Input type="color" value={data.colour || "#3B82F6"} onChange={(e) => setData({ ...data, colour: e.target.value })} className="h-9 w-14 p-1 cursor-pointer" />
+                                <Input type="text" placeholder="#3B82F6" value={data.colour || ""} onChange={(e) => setData({ ...data, colour: e.target.value })} className="h-9 font-mono uppercase text-sm" maxLength={7} />
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <DialogFooter className="gap-2">
@@ -578,9 +587,14 @@ export default function StrategyPageClient({ initialTables = [], newAccessToken 
                     <div className="flex-1 flex flex-col overflow-hidden">
                         <div className="px-0 py-2 border-b bg-background shrink-0">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <div>
-                                    <h1 className="text-xl font-bold text-foreground leading-none">Score Strategy</h1>
-                                    <p className="text-muted-foreground text-xs mt-1">Manage scoring strategies across all lead tables.</p>
+                                <div className="flex items-center gap-2">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2 rounded-full hover:bg-muted" onClick={() => router.back()} title="Back">
+                                        <ArrowLeft className="h-5 w-5" />
+                                    </Button>
+                                    <div>
+                                        <h1 className="text-xl font-bold text-foreground leading-none">Score Strategy</h1>
+                                        <p className="text-muted-foreground text-xs mt-1">Manage scoring strategies across all lead tables.</p>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Button

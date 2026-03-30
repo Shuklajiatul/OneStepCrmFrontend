@@ -25,8 +25,9 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "sonner"
+import { groupApi } from "@/lib/api-endpoint"
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Constants ────
 
 const LOGIC_OPERATORS = [
     { value: "=", label: "Equals", requiresValue: true },
@@ -48,7 +49,7 @@ const LOGIC_OPERATORS = [
     { value: "IS_NOT_EMPTY", label: "Is Not Empty", requiresValue: false },
 ]
 
-// ─── colour helpers ────────────────────────────────────────────────────────────
+// ─── colour helpers ────
 
 const STAGE_COLORS = [
     { key: "unqualified", match: ["unqualified", "disqualified"], dot: "#9CA3AF", bar: "#9CA3AF", text: "text-gray-500" },
@@ -65,7 +66,7 @@ function stageColor(label = "") {
     return STAGE_COLORS.find(c => c.match.some(m => l.includes(m))) || STAGE_COLORS[2]
 }
 
-// ─── Score Range Bar ───────────────────────────────────────────────────────────
+// ─── Score Range Bar ────
 
 function ScoreRangeBar({ stages }) {
     if (!stages.length) return null
@@ -87,10 +88,11 @@ function ScoreRangeBar({ stages }) {
                 {sorted.map((stage, i) => {
                     const w = ((parseInt(stage.max_score) - parseInt(stage.min_score) + 1) / (total + 1)) * 100
                     const c = stageColor(stage.label)
+                    const bgColour = stage.colour || c.bar
                     return (
                         <div
                             key={i}
-                            style={{ width: `${w}%`, backgroundColor: c.bar }}
+                            style={{ width: `${w}%`, backgroundColor: bgColour }}
                             className="flex items-center justify-center text-white text-[11px] font-semibold truncate px-1"
                         >
                             {stage.label.charAt(0).toUpperCase() + stage.label.slice(1).toLowerCase()}
@@ -107,7 +109,7 @@ function ScoreRangeBar({ stages }) {
     )
 }
 
-// ─── Donut Chart (pure SVG) ────────────────────────────────────────────────────
+// ─── Donut Chart ────
 
 function DonutChart({ groups }) {
     const total = groups.reduce((s, g) => s + (parseFloat(g.weight) || 0), 0)
@@ -169,7 +171,7 @@ function DonutChart({ groups }) {
     )
 }
 
-// ─── Health Check Bar ──────────────────────────────────────────────────────────
+// ─── Health Check Bar ────
 
 function HealthBar({ strategy, stages, groups }) {
     const isActive = strategy.is_active
@@ -187,7 +189,7 @@ function HealthBar({ strategy, stages, groups }) {
         stages.length > 0,
         groups.length > 0,
         weightOk,
-        true, // score coverage — assume ok
+        true,
         conditionCount > 0,
     ]
     const passed = checks.filter(Boolean).length
@@ -202,16 +204,16 @@ function HealthBar({ strategy, stages, groups }) {
     return (
         <div className="flex items-center gap-3 px-5 py-3.5 bg-background border border-border/60 rounded-xl text-sm flex-wrap">
             {/* Pass badge */}
-            <div className={cn(
+            {/* <div className={cn(
                 "flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border shrink-0",
                 passed === checks.length
                     ? "bg-green-50 text-green-700 border-green-200"
                     : "bg-amber-50 text-amber-700 border-amber-200"
             )}>
                 {passed}/{checks.length} checks passed
-            </div>
+            </div> */}
 
-            <div className="h-4 w-px bg-border shrink-0" />
+            {/* <div className="h-4 w-px bg-border shrink-0" /> */}
 
             {/* Strategy name + live badge */}
             <div className="flex items-center gap-2 shrink-0">
@@ -229,7 +231,7 @@ function HealthBar({ strategy, stages, groups }) {
             {[
                 { label: `${stages.length} Lead Stages` },
                 { label: `${groups.length} Scoring Groups` },
-                { label: `Weight Sum: ${weightPct}`, ok: weightOk },
+                //{ label: `Weight Sum: ${weightPct}`, ok: weightOk },
                 { label: `Score Coverage: ${minScore}–${maxScore}` },
                 { label: `${conditionCount} Conditions` },
             ].map(({ label, ok }, i) => (
@@ -242,13 +244,13 @@ function HealthBar({ strategy, stages, groups }) {
     )
 }
 
-// ─── Lead Stage Row ────────────────────────────────────────────────────────────
+// ─── Lead Stage Row ────
 
 function StageRow({ stage, onEdit, onDelete }) {
     const c = stageColor(stage.label)
     return (
         <div className="flex items-center gap-3 py-3.5 px-1 border-b border-border/40 last:border-b-0 group">
-            <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: c.dot }} />
+            <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: stage.colour || c.dot }} />
             <span className="font-semibold text-sm text-foreground flex-1">{stage.label.charAt(0).toUpperCase() + stage.label.slice(1).toLowerCase()}</span>
             <span className="text-sm text-muted-foreground tabular-nums">
                 {stage.min_score} <span className="mx-1 text-muted-foreground/40">–</span> {stage.max_score}
@@ -267,13 +269,14 @@ function StageRow({ stage, onEdit, onDelete }) {
     )
 }
 
-// ─── Inline Stage Form ─────────────────────────────────────────────────────────
+// ─── Inline Stage Form ────
 
 function StageForm({ stage, onSave, onCancel, existingStages = [] }) {
     const [formData, setFormData] = useState({
         label: stage?.label || "",
         min_score: stage?.min_score?.toString() || "",
-        max_score: stage?.max_score?.toString() || ""
+        max_score: stage?.max_score?.toString() || "",
+        colour: stage?.colour || "#3B82F6"
     })
     const [error, setError] = useState("")
 
@@ -326,7 +329,8 @@ function StageForm({ stage, onSave, onCancel, existingStages = [] }) {
             onSave({
                 label: formData.label.trim(),
                 min_score: parseInt(formData.min_score),
-                max_score: parseInt(formData.max_score)
+                max_score: parseInt(formData.max_score),
+                colour: formData.colour
             })
         }
     }
@@ -380,6 +384,29 @@ function StageForm({ stage, onSave, onCancel, existingStages = [] }) {
                         />
                     </div>
                 </div>
+                <div className="grid grid-cols-1 mb-4">
+                    <div>
+                        <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                            Stage Colour
+                        </Label>
+                        <div className="flex items-center gap-2">
+                            <Input
+                                type="color"
+                                value={formData.colour}
+                                onChange={(e) => setFormData({ ...formData, colour: e.target.value })}
+                                className="h-9 w-16 p-1 cursor-pointer"
+                            />
+                            <Input
+                                type="text"
+                                placeholder="#000000"
+                                value={formData.colour}
+                                onChange={(e) => setFormData({ ...formData, colour: e.target.value })}
+                                className="h-9 flex-1 text-sm font-mono uppercase"
+                                maxLength={7}
+                            />
+                        </div>
+                    </div>
+                </div>
 
                 {error && (
                     <div className="mb-4 p-2 rounded-md bg-red-50 border border-red-200 flex items-center gap-2">
@@ -411,7 +438,7 @@ function StageForm({ stage, onSave, onCancel, existingStages = [] }) {
     )
 }
 
-// ─── Multi-Value Input ─────────────────────────────────────────────────────────
+// ─── Multi-Value Input ─────
 
 const MultiValueInput = ({ value, onChange, placeholder, maxValues }) => {
     // Treat value as a comma-separated string or an array
@@ -477,7 +504,7 @@ const MultiValueInput = ({ value, onChange, placeholder, maxValues }) => {
     )
 }
 
-// ─── Logic Builder ─────────────────────────────────────────────────────────────
+// ─── Logic Builder ────
 
 const LogicBuilder = ({ logic = { operator: "AND", conditions: [] }, onChange, columns = [], depth = 0 }) => {
     const handleOperatorChange = (op) => onChange({ ...logic, operator: op })
@@ -614,7 +641,7 @@ const LogicBuilder = ({ logic = { operator: "AND", conditions: [] }, onChange, c
     )
 }
 
-// ─── Inline Group Form ─────────────────────────────────────────────────────────
+// ─── Inline Group Form ────
 
 function GroupForm({ group, onSave, onCancel, columns = [] }) {
     const parseLogic = useCallback((raw) => {
@@ -622,7 +649,7 @@ function GroupForm({ group, onSave, onCancel, columns = [] }) {
         if (typeof raw === 'object') return raw
         try { 
             const parsed = JSON.parse(raw);
-            return parsed; // This might be {group_name, max_score, logic} or just the logic
+            return parsed;
         } catch (e) { 
             console.error("Failed to parse logic_structure:", e);
             return { operator: "AND", conditions: [] };
@@ -700,8 +727,6 @@ function GroupForm({ group, onSave, onCancel, columns = [] }) {
 
     const logicToEdit = useMemo(() => {
         const struct = formData.logic_structure;
-        // The structure might be { group_name, max_score, logic: { operator, conditions } }
-        // or just { operator, conditions }
         return struct?.logic || struct || { operator: "AND", conditions: [] }
     }, [formData.logic_structure])
 
@@ -761,26 +786,57 @@ function GroupForm({ group, onSave, onCancel, columns = [] }) {
     )
 }
 
-// ─── Group Edit Modal ─────────────────────────────────────────────────────────
+// ─── Group Edit Modal ────
 
-function GroupModal({ isOpen, onClose, onSave, group, columns = [] }) {
+function GroupModal({ isOpen, onClose, onSave, group, tableId, strategyId, allColumns = [] }) {
+    const [fetchedColumns, setFetchedColumns] = useState([])
+    const [loadingColumns, setLoadingColumns] = useState(false)
+
+    useEffect(() => {
+        if (!isOpen || !tableId || !strategyId) return
+        setLoadingColumns(true)
+        groupApi.getColumns(tableId, strategyId)
+            .then(res => {
+                const data = Array.isArray(res.data) ? res.data
+                    : (res.data?.data || res.data?.columns || [])
+                
+                if (data.length > 0 && typeof data[0] === 'string') {
+                    const mappedColumns = allColumns.filter(c => data.includes(c.column_id || c.id))
+                    setFetchedColumns(mappedColumns)
+                } else {
+                    setFetchedColumns(data)
+                }
+            })
+            .catch(() => toast.error("Failed to load columns"))
+            .finally(() => setLoadingColumns(false))
+    }, [isOpen, tableId, strategyId])
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-6xl max-h-[95vh] p-0 flex flex-col">
                 <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
-                    <DialogTitle className="text-lg font-bold">Edit Scoring Group</DialogTitle>
+                    <DialogTitle className="text-lg font-bold">
+                        {group ? "Edit Scoring Group" : "Create Scoring Group"}
+                    </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                        Modify the group details and scoring logic below.
+                        {group ? "Modify the group details and scoring logic below." : "Define a new scoring group and its condition logic."}
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="flex-1 overflow-auto">
                     <div className="px-6 py-4">
-                        <GroupForm
-                            group={group}
-                            onSave={onSave}
-                            onCancel={onClose}
-                            columns={columns}
-                        />
+                        {loadingColumns ? (
+                            <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+                                <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                <span className="text-sm">Loading columns…</span>
+                            </div>
+                        ) : (
+                            <GroupForm
+                                group={group}
+                                onSave={onSave}
+                                onCancel={onClose}
+                                columns={fetchedColumns}
+                            />
+                        )}
                     </div>
                 </ScrollArea>
             </DialogContent>
@@ -788,7 +844,7 @@ function GroupModal({ isOpen, onClose, onSave, group, columns = [] }) {
     )
 }
 
-// ─── Scoring Group Row ─────────────────────────────────────────────────────────
+// ─── Scoring Group Row ────
 
 function GroupRow({ group, index, onEdit, onDelete }) {
     const [expanded, setExpanded] = useState(false)
@@ -866,7 +922,7 @@ function GroupRow({ group, index, onEdit, onDelete }) {
     )
 }
 
-// ─── Weight Distribution Legend ────────────────────────────────────────────────
+// ─── Weight Distribution Legend ────
 
 function WeightLegend({ groups }) {
     const sorted = [...groups].sort((a, b) => a.display_order - b.display_order)
@@ -893,7 +949,7 @@ function WeightLegend({ groups }) {
     )
 }
 
-// ─── Main Component ────────────────────────────────────────────────────────────
+// ─── Main Component ────
 
 export default function StrategyConfigView({
     strategy,
@@ -912,6 +968,8 @@ export default function StrategyConfigView({
     onSwitchStrategy,
     columns = []
 }) {
+    const tableId = strategy.table_id || strategy.tableId
+    const strategyId = strategy.id || strategy.strategy_id
     const isActive = strategy.is_active
     const sortedStages = [...stages].sort((a, b) => parseInt(a.min_score) - parseInt(b.min_score))
     const sortedGroups = [...groups].sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
@@ -934,7 +992,7 @@ export default function StrategyConfigView({
 
     const handleEditStageClick = (stage) => {
         setShowNewStageForm(false)
-        setEditingStageId(stage.min_score) // Use min_score as unique identifier
+        setEditingStageId(stage.min_score)
     }
 
     const handleCancelNewStage = () => {
@@ -1074,7 +1132,7 @@ export default function StrategyConfigView({
     return (
         <div className="flex-1 flex flex-col overflow-hidden bg-muted/5">
 
-            {/* ── Page Header ────────────────────────────────────────────── */}
+            {/* Page Header */}
             <div className="px-0 pt-0 pb-4 bg-background border-b shrink-0">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div className="flex items-center gap-3">
@@ -1164,14 +1222,14 @@ export default function StrategyConfigView({
                 </div>
             </div>
 
-            {/* ── Scrollable content ─────────────────────────────────────── */}
+            {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto">
                 <div className="max-w-[1400px] mx-auto px-0 py-3 space-y-4">
 
                     {/* Health check bar */}
                     <HealthBar strategy={strategy} stages={sortedStages} groups={sortedGroups} />
 
-                    {/* ── Two-column layout with 50/50 split ───────────────────── */}
+                    {/* Two-column layout with 50/50 split */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
 
                         {/* LEFT — Lead Stages - 50% */}
@@ -1283,7 +1341,9 @@ export default function StrategyConfigView({
                 onClose={handleCancelGroupModal}
                 onSave={handleSaveGroupModal}
                 group={groupToEdit}
-                columns={columns}
+                tableId={tableId}
+                strategyId={strategyId}
+                allColumns={columns}
             />
         </div>
     )
