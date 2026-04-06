@@ -60,7 +60,7 @@ export default function UsersClient(props) {
           <Button
             variant="outline"
             size="default"
-            onClick={fetchUsers}
+            onClick={() => fetchUsers(false)}
             disabled={loading}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -100,6 +100,7 @@ export default function UsersClient(props) {
           onToggleStatus={handleToggleStatus}
           getRoleName={getRoleName}
           getReportingManagerName={getReportingManagerName}
+          getUserRolePriority={getUserRolePriority}
         />
       </div>
 

@@ -112,11 +112,13 @@ function ScoreRangeBar({ stages }) {
 // ─── Donut Chart ────
 
 function DonutChart({ groups }) {
+    const [hoveredIndex, setHoveredIndex] = useState(null)
     const total = groups.reduce((s, g) => s + (parseFloat(g.weight) || 0), 0)
+    
     if (!groups.length || total === 0) {
         return (
-            <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
-                No groups yet
+            <div className="flex items-center justify-center h-40 text-muted-foreground text-sm italic">
+                No groups configured yet
             </div>
         )
     }
@@ -124,50 +126,92 @@ function DonutChart({ groups }) {
     const size = 160
     const cx = size / 2
     const cy = size / 2
-    const rings = [{ r: 58, stroke: 14 }, { r: 42, stroke: 14 }, { r: 26, stroke: 14 }, { r: 10, stroke: 14 }]
+    const r = 58
+    const stroke = 14
+    const circ = 2 * Math.PI * r
 
-    // Build arcs per group
-    const circumferences = rings.map(r => 2 * Math.PI * r.r)
     const sorted = [...groups].sort((a, b) => a.display_order - b.display_order)
-
-    const arcs = sorted.slice(0, rings.length).map((g, i) => {
-        const pct = (parseFloat(g.weight) || 0) / total
-        const circ = circumferences[i]
-        return {
+    
+    let cumulativeOffset = 0
+    const arcs = sorted.map((g, i) => {
+        const weight = parseFloat(g.weight) || 0
+        const pct = weight / total
+        const arcLength = pct * circ
+        const result = {
+            name: g.group_name,
+            weight: weight,
+            pct: Math.round(pct * 100),
             color: GROUP_COLORS[i % GROUP_COLORS.length],
-            dashArray: `${pct * circ} ${circ}`,
-            r: rings[i].r,
-            stroke: rings[i].stroke,
-            // start from top (rotate -90deg)
+            dashArray: `${arcLength} ${circ}`,
+            dashOffset: -cumulativeOffset,
+            r,
+            stroke
         }
+        cumulativeOffset += arcLength
+        return result
     })
 
     return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-            {/* Background rings */}
-            {rings.slice(0, sorted.length).map((ring, i) => (
+        <div className="relative flex items-center justify-center">
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="overflow-visible">
+                {/* Single Background Ring */}
                 <circle
-                    key={`bg-${i}`}
-                    cx={cx} cy={cy} r={ring.r}
+                    cx={cx} cy={cy} r={r}
                     fill="none"
                     stroke="#F1F5F9"
-                    strokeWidth={ring.stroke}
+                    strokeWidth={stroke}
                 />
-            ))}
-            {/* Colored arcs */}
-            {arcs.map((arc, i) => (
-                <circle
-                    key={`arc-${i}`}
-                    cx={cx} cy={cy} r={arc.r}
-                    fill="none"
-                    stroke={arc.color}
-                    strokeWidth={arc.stroke}
-                    strokeDasharray={arc.dashArray}
-                    strokeLinecap="round"
-                    transform={`rotate(-90 ${cx} ${cy})`}
-                />
-            ))}
-        </svg>
+                {/* Segmented Arcs */}
+                {arcs.map((arc, i) => (
+                    <circle
+                        key={`arc-${i}`}
+                        cx={cx} cy={cy} r={arc.r}
+                        fill="none"
+                        stroke={arc.color}
+                        strokeWidth={hoveredIndex === i ? arc.stroke + 2 : arc.stroke}
+                        strokeDasharray={arc.dashArray}
+                        strokeDashoffset={arc.dashOffset}
+                        strokeLinecap="butt" 
+                        transform={`rotate(-90 ${cx} ${cy})`}
+                        className="transition-all duration-300 cursor-pointer"
+                        onMouseEnter={() => setHoveredIndex(i)}
+                        onMouseLeave={() => setHoveredIndex(null)}
+                    />
+                ))}
+
+                {/* Centered Info Display */}
+                {hoveredIndex !== null && (
+                    <g className="pointer-events-none animate-in fade-in zoom-in-95 duration-200">
+                        <text 
+                            x={cx} 
+                            y={cy - 6} 
+                            textAnchor="middle" 
+                            className="text-[10px] font-bold fill-muted-foreground uppercase tracking-wider"
+                        >
+                            {arcs[hoveredIndex].name.length > 15 
+                                ? arcs[hoveredIndex].name.slice(0, 12) + "..." 
+                                : arcs[hoveredIndex].name}
+                        </text>
+                        <text 
+                            x={cx} 
+                            y={cy + 16} 
+                            textAnchor="middle" 
+                            className="text-xl font-black fill-foreground tracking-tight"
+                        >
+                            {arcs[hoveredIndex].pct}%
+                        </text>
+                    </g>
+                )}
+                
+                {/* Default Center Text (when not hovering) */}
+                {hoveredIndex === null && (
+                    <g className="pointer-events-none animate-in fade-in duration-300">
+                        <text x={cx} y={cy - 6} textAnchor="middle" className="text-[9px] font-bold fill-muted-foreground uppercase tracking-widest">Weight</text>
+                        <text x={cx} y={cy + 14} textAnchor="middle" className="text-lg font-black fill-foreground">100%</text>
+                    </g>
+                )}
+            </svg>
+        </div>
     )
 }
 
@@ -567,7 +611,7 @@ const LogicBuilder = ({ logic = { operator: "AND", conditions: [] }, onChange, c
                                     <Select value={item.column_id} onValueChange={(val) => updateCondition(index, { ...item, column_id: val })}>
                                         <SelectTrigger className="h-9"><SelectValue placeholder="Column" /></SelectTrigger>
                                         <SelectContent>
-                                            {columns.map(col => (
+                                            {(Array.isArray(columns) ? columns : []).map(col => (
                                                 <SelectItem key={col.column_id} value={col.column_id}>{col.display_name || col.column_name}</SelectItem>
                                             ))}
                                         </SelectContent>
@@ -660,7 +704,7 @@ function GroupForm({ group, onSave, onCancel, columns = [] }) {
         group_name: group?.group_name || "",
         description: group?.description || "",
         max_score: group?.max_score?.toString() || "",
-        weight: group?.weight !== undefined ? group.weight.toString() : "",
+        weight: group?.weight !== undefined ? parseFloat(group.weight).toFixed(2) : "",
         display_order: group?.display_order?.toString() || "",
         logic_structure: parseLogic(group?.logic_structure)
     })
@@ -672,7 +716,7 @@ function GroupForm({ group, onSave, onCancel, columns = [] }) {
                 group_name: group.group_name || "",
                 description: group.description || "",
                 max_score: group.max_score?.toString() || "",
-                weight: group.weight !== undefined ? group.weight.toString() : "",
+                weight: group.weight !== undefined ? parseFloat(group.weight).toFixed(2) : "",
                 display_order: group.display_order?.toString() || "",
                 logic_structure: parseLogic(group.logic_structure)
             })
@@ -752,7 +796,7 @@ function GroupForm({ group, onSave, onCancel, columns = [] }) {
                 <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">Weight (0-1)</Label>
-                        <Input type="number" step="0.1" value={formData.weight} onChange={(e) => setFormData({ ...formData, weight: e.target.value })} onWheel={(e) => e.target.blur()} className="h-9 text-sm" />
+                        <Input type="number" step="0.01" value={formData.weight} onChange={(e) => setFormData({ ...formData, weight: e.target.value })} onWheel={(e) => e.target.blur()} className="h-9 text-sm" />
                     </div>
                     <div>
                         <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">Display Order</Label>
@@ -797,11 +841,12 @@ function GroupModal({ isOpen, onClose, onSave, group, tableId, strategyId, allCo
         setLoadingColumns(true)
         groupApi.getColumns(tableId, strategyId)
             .then(res => {
-                const data = Array.isArray(res.data) ? res.data
-                    : (res.data?.data || res.data?.columns || [])
+                // Handle different nested structures: data.result, data.data, or direct array
+                const rawData = res.data?.data?.result || res.data?.data || res.data?.columns || res.data || []
+                const data = Array.isArray(rawData) ? rawData : []
                 
                 if (data.length > 0 && typeof data[0] === 'string') {
-                    const mappedColumns = allColumns.filter(c => data.includes(c.column_id || c.id))
+                    const mappedColumns = (Array.isArray(allColumns) ? allColumns : []).filter(c => data.includes(c.column_id || c.id))
                     setFetchedColumns(mappedColumns)
                 } else {
                     setFetchedColumns(data)

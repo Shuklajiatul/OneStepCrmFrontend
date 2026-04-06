@@ -12,7 +12,7 @@ async function getData() {
     const [usersRes, rolesRes, genesRes, policiesRes] = await Promise.all([
       fetch(`${API_BASE_URL}${USER_ENDPOINTS.LIST}`, {
         headers,
-        next: { revalidate: 60 }
+        next: { revalidate: 0 }
       }),
       fetch(`${API_BASE_URL}${ROLE_ENDPOINTS.LIST}`, {
         headers,
@@ -69,7 +69,7 @@ async function getData() {
 
 export default async function UsersPage() {
   const data = await getData()
-
+  console.log("data===========>>", data);
   return (
     <UsersClient
       initialUsers={data.users}

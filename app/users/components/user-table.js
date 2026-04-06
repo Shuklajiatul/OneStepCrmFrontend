@@ -62,6 +62,7 @@ export function UserTable({
     onToggleStatus,
     getRoleName,
     getReportingManagerName,
+    getUserRolePriority,
 }) {
     const [sorting, setSorting] = useState([])
     const [pagination, setPagination] = useState({
@@ -219,17 +220,24 @@ export function UserTable({
                             </Tooltip>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-blue-600"
-                                        onClick={() => onManageRoles(user)}
-                                    >
-                                        <Shield className="h-4 w-4" />
-                                        <span className="sr-only">Manage Roles</span>
-                                    </Button>
+                                    <span tabIndex={getUserRolePriority && getUserRolePriority(user) === 1 ? 0 : undefined}>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-muted-foreground hover:text-blue-600 disabled:opacity-30 disabled:pointer-events-none"
+                                            onClick={() => onManageRoles(user)}
+                                            disabled={getUserRolePriority ? getUserRolePriority(user) === 1 : false}
+                                        >
+                                            <Shield className="h-4 w-4" />
+                                            <span className="sr-only">Manage Roles</span>
+                                        </Button>
+                                    </span>
                                 </TooltipTrigger>
-                                <TooltipContent>Manage Roles</TooltipContent>
+                                <TooltipContent>
+                                    {getUserRolePriority && getUserRolePriority(user) === 1
+                                        ? "Superuser role cannot be changed"
+                                        : "Manage Roles"}
+                                </TooltipContent>
                             </Tooltip>
                         </TooltipProvider>
                     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -29,7 +29,12 @@ import {
   inferFilenameFromDataUrl,
   isFileObject,
   safeParseJSON,
-  hasNestedData
+  hasNestedData,
+  isBase64File,
+  createFileFromBase64,
+  base64ToBlob,
+  toDateInputValue,
+  openFileModal as utilOpenFileModal
 } from "@/lib/utils"
 import {
   ArrowLeft,
@@ -69,7 +74,6 @@ import {
   DollarSign,
   Users,
   BarChart2,
-  ChevronUp as ChevronUpIcon,
   TriangleAlert
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog"
@@ -81,6 +85,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -119,13 +124,7 @@ import { fetchPhoneCountries } from "@/lib/constants/location-api"
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
-// Simple in-memory cache to prevent redundant fetches during navigation
-const apiCache = {
-  users: null,
-  countries: null,
-  tables: {} // { [tableId]: { columns, records, timestamp } }
-};
-const CACHE_EXPIRY = 5 * 60 * 1000;
+
 
 export default function TableDataView({ table, onBack }) {
   const router = useRouter()
@@ -173,6 +172,12 @@ export default function TableDataView({ table, onBack }) {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+
+  // Fetching guards to prevent double-hitting APIs
+  const fetchedTableIdRef = useRef(null)
+  const isFetchingTableRef = useRef(false)
+  const fetchedUsersRef = useRef(false)
+  const fetchedCountriesRef = useRef(false)
   const [totalPages, setTotalPages] = useState(1)
 
   // Create Activity Modal State
@@ -197,15 +202,19 @@ export default function TableDataView({ table, onBack }) {
 
   // Fetch columns and records on component mount
   useEffect(() => {
-    if (table?.table_id) {
+    if (table?.table_id && fetchedTableIdRef.current !== table.table_id) {
       fetchTableData()
     }
   }, [table?.table_id])
 
   // Fetch users when component mounts
   useEffect(() => {
-    fetchUsers()
-    fetchCountriesData()
+    if (!fetchedUsersRef.current) {
+      fetchUsers()
+    }
+    if (!fetchedCountriesRef.current) {
+      fetchCountriesData()
+    }
   }, [])
 
   // Reset pagination when search term changes
@@ -214,10 +223,8 @@ export default function TableDataView({ table, onBack }) {
   }, [searchTerm])
 
   const fetchUsers = async () => {
-    if (apiCache.users) {
-      setUsers(apiCache.users);
-      return;
-    }
+    if (fetchedUsersRef.current) return
+    fetchedUsersRef.current = true
 
     try {
       setLoadingUsers(true)
@@ -232,44 +239,43 @@ export default function TableDataView({ table, onBack }) {
         usersData = response.data.users
       }
 
-      apiCache.users = usersData;
       setUsers(usersData)
     } catch (err) {
       console.error("Error fetching users:", err)
       setUsers([])
+      fetchedUsersRef.current = false // Allow retry on error
     } finally {
       setLoadingUsers(false)
     }
   }
 
   const fetchCountriesData = async () => {
-    if (apiCache.countries) {
-      setPhoneCountries(apiCache.countries);
-      return;
-    }
+    if (fetchedCountriesRef.current) return
+    fetchedCountriesRef.current = true
 
     try {
       const data = await fetchPhoneCountries()
-      apiCache.countries = data;
       setPhoneCountries(data)
     } catch (err) {
       console.error("Error fetching phone countries:", err)
+      fetchedCountriesRef.current = false // Allow retry on error
     }
   }
 
-  const fetchTableData = async (forceRefresh = false) => {
+  const fetchTableData = async () => {
+    if (isFetchingTableRef.current) return
+    isFetchingTableRef.current = true
+    fetchedTableIdRef.current = table.table_id
+
     setLoading(true)
     setError(null)
 
-    const now = Date.now();
-    const cachedData = apiCache.tables[table.table_id];
-
-    if (!forceRefresh && cachedData && (now - cachedData.timestamp < CACHE_EXPIRY)) {
-      setColumns(cachedData.columns);
-      setRecords(cachedData.records);
-      if (cachedData.stages) setStages(cachedData.stages);
-      setLoading(false);
-      return;
+    // Check if table is active before fetching
+    if (table.is_active === false) {
+      setError("This table is currently deactivated. Please contact your administrator to activate it.")
+      setLoading(false)
+      isFetchingTableRef.current = false
+      return
     }
 
     try {
@@ -312,13 +318,6 @@ export default function TableDataView({ table, onBack }) {
         ? columnsData.map(normalizeColumnMetadata).filter(Boolean)
         : []
 
-      apiCache.tables[table.table_id] = {
-        columns: normalizedColumns,
-        records: recordsData,
-        stages: fetchedStages,
-        timestamp: now
-      };
-
       setColumns(normalizedColumns)
       setRecords(recordsData)
       toast.success(`Loaded ${recordsData.length} records successfully!`, {
@@ -326,13 +325,18 @@ export default function TableDataView({ table, onBack }) {
       })
 
     } catch (err) {
-      const errorMsg = `Access Denied - view feature not found for this table in policies: ${err.message}`
+      let errorMsg = `Error loading table data: ${err.message}`
+      if (err.response?.status === 403 || err.response?.status === 401 || err.message.toLowerCase().includes('access denied')) {
+        errorMsg = `Access Denied - You do not have permission to view this table. Please contact your administrator.`
+      }
       setError(errorMsg)
       console.error("Error fetching table data:", err)
       setRecords([])
       setColumns([])
+      fetchedTableIdRef.current = null // Reset on error to allow retry
     } finally {
       setLoading(false)
+      isFetchingTableRef.current = false
     }
   }
 
@@ -347,6 +351,38 @@ export default function TableDataView({ table, onBack }) {
     setCurrentPage(1)
   }
 
+  const handleStageUpdate = async (recordId, newStage) => {
+    try {
+      const gId = authUtils.getGId()
+      const gIds = authUtils.getGIds()
+      const pId = authUtils.getPIds()
+
+      // Find the existing record to include current field_values
+      const record = records.find(r => r.record_id === recordId)
+      if (!record) return
+
+      const payload = {
+        g_id: gId,
+        g_ids: gIds,
+        p_id: pId,
+        lead_stage: newStage,
+        field_values: record.field_values || {}
+      }
+
+      // Optimistic update
+      setRecords(prev => prev.map(r => 
+        r.record_id === recordId ? { ...r, lead_stage: newStage } : r
+      ))
+
+      await recordsApi.update(table.table_id, recordId, payload)
+      toast.success(`Stage updated to ${newStage}`)
+    } catch (err) {
+      console.error("Failed to update stage:", err)
+      toast.error("Failed to update lead stage")
+      fetchTableData()
+    }
+  }
+
   const handleDeleteRecord = async (recordId) => {
     setLoading(true)
 
@@ -356,7 +392,7 @@ export default function TableDataView({ table, onBack }) {
       toast.success("Record deleted successfully!")
       setIsDeleteDialogOpen(false)
       setRecordToDelete(null)
-      fetchTableData(true)
+      fetchTableData()
 
     } catch (err) {
       toast.error(`Failed to delete record: ${err.message}`)
@@ -376,90 +412,11 @@ export default function TableDataView({ table, onBack }) {
     setIsAddRecordDialogOpen(true)
   }
 
-  const isBase64File = (str) => {
-    if (typeof str !== 'string') return false
-    return str.startsWith('data:') && str.includes('base64,')
-  }
-
-  const createFileFromBase64 = (base64String, filename = 'uploaded_file', originalType = null, originalSize = null, originalLastModified = null) => {
-    if (!base64String) return null
-
-    try {
-      const matches = base64String.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/)
-      if (!matches || matches.length !== 3) {
-        console.warn('Invalid base64 format:', base64String?.substring(0, 100))
-        return null
-      }
-
-      const mimeType = matches[1]
-      const base64Data = matches[2]
-
-      const finalFilename = filename.includes('.') ? filename : `${filename}.${mimeType.split('/')[1] || 'bin'}`
-      const finalType = originalType || mimeType
-      const finalSize = originalSize || Math.floor((base64Data.length * 3) / 4)
-      const finalLastModified = originalLastModified || Date.now()
-
-      return {
-        name: finalFilename,
-        type: finalType,
-        size: finalSize,
-        base64: base64String,
-        previewUrl: base64String,
-        lastModified: finalLastModified,
-        isFromBase64: true
-      }
-    } catch (error) {
-      console.error('Error creating file from base64:', error)
-      return null
-    }
-  }
-
-  const toDateInputValue = (input, includeTime = false) => {
-    if (!input && input !== 0) return ''
-
-    const dateObj = input instanceof Date
-      ? input
-      : (() => {
-        const str = String(input).trim()
-        if (!str) return null
-
-        const direct = new Date(str)
-        if (!Number.isNaN(direct.getTime())) return direct
-
-        const match = str.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2})(?::(\d{2})(?::(\d{2}))?)?)?$/)
-        if (match) {
-          const [, datePart, hh = '00', mm = '00'] = match
-          const [yearStr, monthStr, dayStr] = datePart.split('-')
-          const year = Number(yearStr)
-          const month = Number(monthStr)
-          const day = Number(dayStr)
-
-          if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
-            return new Date(year, month - 1, day, Number(hh), Number(mm))
-          }
-          return null
-        }
-
-        return null
-      })()
-
-    if (!dateObj || Number.isNaN(dateObj.getTime())) return ''
-
-    if (includeTime) {
-      const iso = dateObj.toISOString()
-      return iso.slice(0, 16)
-    }
-
-    return dateObj.toISOString().slice(0, 10)
-  }
-
   const openFileModal = (dataUrl, columnOrFieldDef) => {
-    if (!dataUrl || typeof dataUrl !== 'string') return
-    const match = dataUrl.match(/^data:([^;]+);base64,/)
-    const mime = match ? match[1] : 'application/octet-stream'
-    const name = inferFilenameFromDataUrl(dataUrl, columnOrFieldDef)
-    setFilePreview({ name, mime, dataUrl })
-    setIsFileModalOpen(true)
+    utilOpenFileModal(dataUrl, columnOrFieldDef, (preview) => {
+      setFilePreview(preview)
+      setIsFileModalOpen(true)
+    })
   }
 
   const downloadDataUrl = (dataUrl, filename) => {
@@ -1363,7 +1320,7 @@ export default function TableDataView({ table, onBack }) {
           setIsEditMode(false)
           setIsNestedModalOpen(false)
           setNestedModalContext('record')
-          await fetchTableData()
+          await fetchTableData(true)
         }
       } else {
         setRecordFormData(prev => ({
@@ -1965,7 +1922,7 @@ export default function TableDataView({ table, onBack }) {
                     )
                   }
 
-                  const parsedValue = parseJsonSafely(value)
+                  const parsedValue = safeParseJSON(value)
                   const primitiveValue = (
                     parsedValue && typeof parsedValue === 'object' && !Array.isArray(parsedValue) && parsedValue.value !== undefined
                       ? parsedValue.value
@@ -2275,6 +2232,36 @@ export default function TableDataView({ table, onBack }) {
   }))
   const maxBucketCount = Math.max(...scoreBuckets.map(b => b.count), 1)
 
+  // Dynamic Avg Score Trend Data for Current Month
+  const currentMonthName = useMemo(() => new Date().toLocaleString('default', { month: 'short' }), []);
+  const avgScoreTrendData = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    const groupedByDay = {};
+    safeRecords.forEach(r => {
+      if (!r.created_at || r.lead_score == null) return;
+      const date = new Date(r.created_at);
+      if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+        const day = date.getDate().toString();
+        if (!groupedByDay[day]) groupedByDay[day] = { sum: 0, count: 0 };
+        groupedByDay[day].sum += parseFloat(r.lead_score) || 0;
+        groupedByDay[day].count += 1;
+      }
+    });
+
+    const sortedDays = Object.keys(groupedByDay).sort((a, b) => parseInt(a) - parseInt(b));
+    if (sortedDays.length === 0) {
+      return [{ date: now.getDate().toString(), score: 0 }];
+    }
+
+    return sortedDays.map(day => ({
+      date: day,
+      score: Math.round(groupedByDay[day].sum / groupedByDay[day].count)
+    }));
+  }, [safeRecords]);
+
   // Filter records
   const filteredRecords = safeRecords.filter(record => {
     // Search filter
@@ -2414,32 +2401,7 @@ export default function TableDataView({ table, onBack }) {
     return [...dynamicColumns, ...metadataColumns]
   }
 
-  const formatValue = (value, dataType) => {
-    if (value === null || value === undefined || value === "") return "-"
 
-    switch (dataType) {
-      case "date":
-        return new Date(value).toLocaleDateString()
-      case "datetime":
-        return new Date(value).toLocaleString()
-      case "boolean":
-        return value ? "Yes" : "No"
-      case "email":
-        return (
-          <a href={`mailto:${value}`} className="text-blue-600 hover:underline">
-            {value}
-          </a>
-        )
-      case "phone":
-        return (
-          <a href={`tel:${value}`} className="text-blue-600 hover:underline">
-            {value}
-          </a>
-        )
-      default:
-        return String(value)
-    }
-  }
 
   if (loading && safeRecords.length === 0) {
     return (
@@ -2529,10 +2491,7 @@ export default function TableDataView({ table, onBack }) {
             <h1 className="text-2xl font-extrabold tracking-tight">{table?.table_name || 'Leads'}</h1>
             <Badge className="bg-blue-100 text-blue-700 border-blue-200 font-semibold px-2.5 py-0.5">Pipeline</Badge>
           </div>
-          {/* <p className="text-sm text-muted-foreground ml-9">
-            Scores and stages are computed by the backend engine.{' '}
-            <span className="font-semibold text-foreground">Override stage</span> by clicking any stage badge.
-          </p> */}
+
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
           <span className="text-xs text-muted-foreground border rounded-full px-3 py-1.5 flex items-center gap-1.5">
@@ -2775,15 +2734,7 @@ export default function TableDataView({ table, onBack }) {
                     className="h-full w-full"
                   >
                     <RechartsAreaChart
-                      data={[
-                        { date: '1', score: 75 },
-                        { date: '3', score: 68 },
-                        { date: '5', score: 72 },
-                        { date: '7', score: 50 },
-                        { date: '9', score: 55 },
-                        { date: '11', score: 35 },
-                        { date: '13', score: 28 },
-                      ]}
+                      data={avgScoreTrendData}
                       margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                     >
                       <defs>
@@ -2800,7 +2751,7 @@ export default function TableDataView({ table, onBack }) {
                         tickMargin={8}
                         fontSize={10}
                         fontWeight={500}
-                        tickFormatter={(value) => `Mar ${value}`}
+                        tickFormatter={(value) => `${currentMonthName} ${value}`}
                       />
                       <YAxis
                         tickLine={false}
@@ -3009,7 +2960,7 @@ export default function TableDataView({ table, onBack }) {
         {/* Dynamic Score → Stage legend */}
         {scoreBuckets && scoreBuckets.length > 0 && (
           <div className="px-5 py-2.5 border-b bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-            <span className="font-semibold text-foreground">Score → Stage:</span>
+            <span className="font-semibold text-foreground"> Stage→Score:</span>
             {scoreBuckets.map((bucket) => (
               <span key={bucket.name} className="flex items-center gap-1">
                 {bucket.customColour
@@ -3075,22 +3026,11 @@ export default function TableDataView({ table, onBack }) {
                         const stageObj = sortedStages.find(s => (s.stage_name || s.name || s.label)?.toLowerCase() === stage?.toLowerCase())
                         const stageCustomColour = stageObj?.colour || null
 
-                        // Score bar color
-                        const barColor = score == null ? 'bg-muted'
-                          : score >= 90 ? 'bg-green-500'
-                            : score >= 75 ? 'bg-orange-500'
-                              : score >= 60 ? 'bg-amber-500'
-                                : score >= 40 ? 'bg-purple-500'
-                                  : score >= 20 ? 'bg-blue-500'
-                                    : 'bg-gray-400'
 
                         // Find name/email columns for lead cell
                         const nameCol = columns.find(c => c.column_name?.toLowerCase().includes('name') || c.column_name?.toLowerCase() === 'full name')
-                        const emailCol = columns.find(c => getColumnFieldType(c) === 'email' || c.column_name?.toLowerCase().includes('email'))
                         const nameValRaw = nameCol ? getFieldValue(record, nameCol.column_id, nameCol) : null
-                        const emailValRaw = emailCol ? getFieldValue(record, emailCol.column_id, emailCol) : null
                         const nameVal = nameValRaw && typeof nameValRaw === 'object' && nameValRaw.value !== undefined ? nameValRaw.value : nameValRaw
-                        const emailVal = emailValRaw && typeof emailValRaw === 'object' && emailValRaw.value !== undefined ? emailValRaw.value : emailValRaw
                         const displayName = nameVal ? String(nameVal) : (record.record_id || '—')
                         const initials = displayName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase().slice(0, 2) || '??'
 
@@ -3154,16 +3094,24 @@ export default function TableDataView({ table, onBack }) {
                                         <span className="font-semibold text-sm text-foreground truncate">{displayName}</span>
                                         {isHot && <Flame className="h-3.5 w-3.5 text-orange-500 shrink-0" />}
                                       </div>
-                                      {emailVal && <span className="text-xs text-muted-foreground truncate block">{String(emailVal)}</span>}
                                     </div>
                                   </div>
                                 )
                               } else if (column.accessorKey === 'lead_score') {
+                                const scoreColor = stageCustomColour || sc.chart || 'hsl(var(--primary))'
                                 cellContent = score != null ? (
                                   <div className="flex items-center gap-2 min-w-[110px]">
-                                    <span className="text-sm font-bold tabular-nums w-7 shrink-0">{Math.round(score)}</span>
+                                    <span className="text-sm font-bold tabular-nums w-7 shrink-0" style={{ color: scoreColor }}>
+                                      {Math.round(score)}
+                                    </span>
                                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                                      <div className={`${barColor} h-full rounded-full`} style={{ width: `${Math.min(100, score)}%` }} />
+                                      <div 
+                                        className="h-full rounded-full transition-all duration-500" 
+                                        style={{ 
+                                          width: `${Math.min(100, score)}%`,
+                                          backgroundColor: scoreColor
+                                        }} 
+                                      />
                                     </div>
                                   </div>
                                 ) : <span className="text-muted-foreground text-sm">-</span>
@@ -3181,20 +3129,53 @@ export default function TableDataView({ table, onBack }) {
                                 ) : <span className="text-muted-foreground text-sm">-</span>
                               } else if (column.accessorKey === 'lead_stage') {
                                 cellContent = stage ? (
-                                  <div className="flex items-center gap-1">
-                                    {stageCustomColour ? (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border"
-                                        style={{ backgroundColor: `${stageCustomColour}18`, borderColor: `${stageCustomColour}50`, color: stageCustomColour }}>
-                                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: stageCustomColour }} />
-                                        {stage}
-                                      </span>
-                                    ) : (
-                                      <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border', sc.badge)}>
-                                        <span className={cn('h-1.5 w-1.5 rounded-full', sc.dot)} />{stage}
-                                      </span>
-                                    )}
-                                    {/* <ChevronDown className="h-3 w-3 text-muted-foreground" /> */}
-                                  </div>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button className="flex items-center gap-1 group/badge hover:opacity-80 transition-opacity focus:outline-none">
+                                        {stageCustomColour ? (
+                                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border"
+                                            style={{ backgroundColor: `${stageCustomColour}18`, borderColor: `${stageCustomColour}50`, color: stageCustomColour }}>
+                                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: stageCustomColour }} />
+                                            <span className="truncate max-w-[80px]">{stage}</span>
+                                          </span>
+                                        ) : (
+                                          <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border', sc.badge)}>
+                                            <span className={cn('h-1.5 w-1.5 rounded-full', sc.dot)} />
+                                            <span className="truncate max-w-[80px]">{stage}</span>
+                                          </span>
+                                        )}
+                                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50 group-hover/badge:text-foreground transition-colors" />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-[180px]">
+                                      {sortedStages.length > 0 ? sortedStages.map(s => {
+                                        const sName = s.stage_name || s.name || s.label
+                                        const isCurrent = sName === stage
+                                        const sCol = s.colour
+                                        return (
+                                          <DropdownMenuItem
+                                            key={sName}
+                                            onClick={() => handleStageUpdate(record.record_id, sName)}
+                                            className={cn("flex items-center gap-2", isCurrent && "bg-muted font-bold")}
+                                          >
+                                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: sCol || 'hsl(var(--muted-foreground))' }} />
+                                            <span className="flex-1">{sName}</span>
+                                            {isCurrent && <Check className="h-3.5 w-3.5 text-primary" />}
+                                          </DropdownMenuItem>
+                                        )
+                                      }) : (
+                                        ['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost'].map(sName => (
+                                          <DropdownMenuItem
+                                            key={sName}
+                                            onClick={() => handleStageUpdate(record.record_id, sName)}
+                                            className={cn(sName === stage && "bg-muted font-bold")}
+                                          >
+                                            {sName}
+                                          </DropdownMenuItem>
+                                        ))
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 ) : <span className="text-muted-foreground text-sm">-</span>
                               } else if (column.accessorKey === 'assigned_to') {
                                 const assignedTo = record.assigned_to
@@ -3726,7 +3707,7 @@ export default function TableDataView({ table, onBack }) {
         table={{ ...table, columns }}
         countries={phoneCountries}
         recordToEdit={recordToEdit}
-        onSuccess={fetchTableData}
+        onSuccess={() => fetchTableData(true)}
         users={users}
       />
 
@@ -3735,7 +3716,7 @@ export default function TableDataView({ table, onBack }) {
         onOpenChange={setIsAddRecordDialogOpen}
         table={{ ...table, columns }}
         countries={phoneCountries}
-        onSuccess={fetchTableData}
+        onSuccess={() => fetchTableData(true)}
         users={users}
       />
     </div >

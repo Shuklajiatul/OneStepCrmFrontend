@@ -25,13 +25,14 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
         password: "",
         is_active: true,
         role_id: "",
-        "g_ids": "",
-        "p_id": "",
+        "g_ids": [],
+        "p_id": [],
         reporting_id: "",
     })
     const [roleFormData, setRoleFormData] = useState({
         role_id: "",
     })
+    const [initialFormData, setInitialFormData] = useState(null)
 
     // Available data
     const [availableRoles, setAvailableRoles] = useState(initialRoles)
@@ -41,16 +42,17 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
     const [submitting, setSubmitting] = useState(false)
 
     // Fetchers
-    const fetchUsers = async () => {
+    const fetchUsers = async (silent = true) => {
         try {
             setLoading(true)
-            const response = await apiClient.get('/api/users')
+            const response = await apiClient.get('/api/users', { skipToast: true })
 
             if (response.data) {
                 const userData = Array.isArray(response.data)
                     ? response.data
                     : response.data.data || []
                 setUsers(userData)
+                if (!silent) toast.success("User list updated")
             }
         } catch (error) {
             console.error("Error fetching users:", error)
@@ -59,6 +61,13 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
             setLoading(false)
         }
     }
+
+    // Only fetch on mount if SSR didn't provide initial data
+    useEffect(() => {
+        if (initialUsers.length === 0) {
+            fetchUsers()
+        }
+    }, [])
 
     const fetchGenes = async () => {
         try {
@@ -100,16 +109,16 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
                 const userData = response.data.data || response.data
                 setSelectedUser(userData)
 
-                // Handle g_ids and p_id as arrays
+                // Preserve g_ids and p_id as arrays
                 const gIdsValue = Array.isArray(userData["g_ids"])
-                    ? (userData["g_ids"].length > 0 ? userData["g_ids"][0] : "")
-                    : (userData["g_ids"] || "")
-
+                    ? userData["g_ids"]
+                    : (userData["g_ids"] ? [userData["g_ids"]] : [])
+                
                 const pIdValue = Array.isArray(userData["p_id"])
-                    ? (userData["p_id"].length > 0 ? userData["p_id"][0] : "")
-                    : (userData["p_id"] || "")
+                    ? userData["p_id"]
+                    : (userData["p_id"] ? [userData["p_id"]] : [])
 
-                setFormData({
+                const newFormData = {
                     email: userData.email || "",
                     first_name: userData.first_name || "",
                     last_name: userData.last_name || "",
@@ -120,7 +129,10 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
                     "g_ids": gIdsValue,
                     "p_id": pIdValue,
                     reporting_id: userData.reporting_id || userData.reports_to || userData.reporting_to || "",
-                })
+                }
+
+                setFormData(newFormData)
+                setInitialFormData(newFormData)
                 return userData
             }
         } catch (error) {
@@ -133,10 +145,10 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
     // Effect to fetch dependent data when dialogs open
     useEffect(() => {
         if (isCreateDialogOpen || isEditDialogOpen) {
-            if (!loading) fetchGenes()
+            fetchGenes()
             fetchPolicies()
         }
-    }, [isCreateDialogOpen, isEditDialogOpen, loading])
+    }, [isCreateDialogOpen, isEditDialogOpen])
 
     // Handlers
     const handleCreateUser = async () => {
@@ -156,8 +168,8 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
             setSubmitting(true)
             const payload = {
                 ...formData,
-                "g_ids": formData["g_ids"] || "",
-                "p_id": formData["p_id"] || "",
+                "g_ids": Array.isArray(formData["g_ids"]) ? formData["g_ids"] : (formData["g_ids"] ? [formData["g_ids"]] : []),
+                "p_id": Array.isArray(formData["p_id"]) ? formData["p_id"] : (formData["p_id"] ? [formData["p_id"]] : []),
                 reporting_id: selectedRolePriority === 1 ? "" : (formData.reporting_id || ""),
             }
 
@@ -196,25 +208,36 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
             const payload = {}
 
             // Compare and add changed fields
-            if (formData.email !== selectedUser.email) payload.email = formData.email
-            if (formData.first_name !== selectedUser.first_name) payload.first_name = formData.first_name
-            if (formData.last_name !== selectedUser.last_name) payload.last_name = formData.last_name
-            if (formData.phone !== selectedUser.phone) payload.phone = formData.phone
+            const baseData = initialFormData || {}
+
+            if (formData.email !== baseData.email) payload.email = formData.email
+            if (formData.first_name !== baseData.first_name) payload.first_name = formData.first_name
+            if (formData.last_name !== baseData.last_name) payload.last_name = formData.last_name
+            if (formData.phone !== baseData.phone) payload.phone = formData.phone
             if (formData.password && formData.password.trim() !== "") payload.password = formData.password
-            if (formData.is_active !== selectedUser.is_active) payload.is_active = formData.is_active
+            if (formData.is_active !== baseData.is_active) payload.is_active = formData.is_active
 
-            const currentRoleId = selectedUser.role_id || selectedUser.roles?.id || selectedUser.roles
-            if (formData.role_id && formData.role_id !== currentRoleId) payload.role_id = formData.role_id
+            if (formData.role_id && formData.role_id !== baseData.role_id) payload.role_id = formData.role_id
 
-            if (formData["g_ids"] !== selectedUser["g_ids"]) payload["g_ids"] = formData["g_ids"]
-            if (formData["p_id"] !== selectedUser["p_id"]) payload["p_id"] = formData["p_id"]
+            // Handle multi-select comparisons for g_ids and p_id
+            const currentGIds = Array.isArray(formData["g_ids"]) ? formData["g_ids"] : []
+            const baseGIds = Array.isArray(baseData["g_ids"]) ? baseData["g_ids"] : []
+            if (JSON.stringify(currentGIds) !== JSON.stringify(baseGIds)) {
+                payload["g_ids"] = currentGIds
+            }
+
+            const currentPIds = Array.isArray(formData["p_id"]) ? formData["p_id"] : []
+            const basePIds = Array.isArray(baseData["p_id"]) ? baseData["p_id"] : []
+            if (JSON.stringify(currentPIds) !== JSON.stringify(basePIds)) {
+                payload["p_id"] = currentPIds
+            }
 
             const selectedRolePriority = getSelectedRolePriority(formData.role_id)
-            const currentReportingId = selectedUser.reporting_id || selectedUser.reports_to || selectedUser.reporting_to || ""
+            const currentInitialReportingId = baseData.reporting_id || ""
 
             if (selectedRolePriority === 1) {
-                if (currentReportingId) payload.reporting_id = ""
-            } else if (formData.reporting_id !== currentReportingId) {
+                if (currentInitialReportingId) payload.reporting_id = ""
+            } else if (formData.reporting_id !== currentInitialReportingId) {
                 payload.reporting_id = formData.reporting_id || ""
             }
 
@@ -321,11 +344,12 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
             password: "",
             is_active: true,
             role_id: "",
-            "g_ids": "",
-            "p_id": "",
+            "g_ids": [],
+            "p_id": [],
             reporting_id: "",
         })
         setSelectedUser(null)
+        setInitialFormData(null)
     }
 
     // Helpers

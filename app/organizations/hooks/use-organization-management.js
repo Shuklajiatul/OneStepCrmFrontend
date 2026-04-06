@@ -71,6 +71,11 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
         }
     }
 
+    // Effect for initial fetch to ensure data is fresh
+    useEffect(() => {
+        fetchOrganizations()
+    }, [])
+
     // Handlers
     const handleCreateOrganization = async () => {
         if (!formData.name || formData.name.trim() === "") {
@@ -92,10 +97,12 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
             const response = await apiClient.post('/api/organizations', payload)
 
             if (response.data) {
+                const newOrg = response.data.data || response.data
+                setOrganizations(prev => [newOrg, ...prev])
                 toast.success("Organization created successfully")
                 setIsCreateDialogOpen(false)
                 resetForm()
-                fetchOrganizations()
+                await fetchOrganizations()
             }
         } catch (error) {
             console.error("Error creating organization:", error)
@@ -130,10 +137,14 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
             )
 
             if (response.data) {
+                const updatedOrg = response.data.data || response.data
+                setOrganizations(prev => prev.map(org => 
+                    org.organization_id === updatedOrg.organization_id ? updatedOrg : org
+                ))
                 toast.success("Organization updated successfully")
                 setIsEditDialogOpen(false)
                 resetForm()
-                fetchOrganizations()
+                await fetchOrganizations()
             }
         } catch (error) {
             console.error("Error updating organization:", error)
@@ -156,9 +167,10 @@ export function useOrganizationManagement({ initialOrganizations = [] }) {
             const response = await apiClient.delete(`/api/organizations/${organizationId}`)
 
             if (response.status === 200 || response.status === 204 || response.data) {
+                setOrganizations(prev => prev.filter(org => org.organization_id !== organizationId))
                 toast.success("Organization deleted successfully")
                 setOrganizationToDelete(null)
-                fetchOrganizations()
+                await fetchOrganizations()
             } else {
                 toast.error("Unexpected response from server")
             }

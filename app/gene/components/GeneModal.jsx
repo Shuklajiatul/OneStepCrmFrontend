@@ -36,7 +36,37 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 
+function DebouncedInput({ value: initialValue, onChange, debounceTime = 300, ...props }) {
+  const [value, setValue] = useState(initialValue || '');
+  const onChangeRef = useRef(onChange);
 
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    setValue(initialValue || '');
+  }, [initialValue]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      // Only call onChange if value actually differs to avoid initial render triggers
+      if (value !== (initialValue || '')) {
+        onChangeRef.current(value);
+      }
+    }, debounceTime);
+
+    return () => clearTimeout(timeout);
+  }, [value, debounceTime, initialValue]);
+
+  return (
+    <Input
+      {...props}
+      value={value}
+      onChange={e => setValue(e.target.value)}
+    />
+  );
+}
 
 export default function GeneModal({
   showModal,
@@ -52,7 +82,7 @@ export default function GeneModal({
 }) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // const [users, setUsers] = useState([]); // Removed in favor of allUsers prop
+  // const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [error, setError] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
@@ -61,82 +91,73 @@ export default function GeneModal({
   const [touchedFields, setTouchedFields] = useState({ name: false, levels: false });
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // Fetch users logic removed as we now use allUsers prop
-  useEffect(() => {
-    if (showModal && !editingGene) {
-       // In create mode, if users isn't passed or empty, we might have an issue, 
-       // but GeneClient should handle fetching users globally.
-    }
-  }, [showModal, editingGene]);
+  // Track if users have been initialized for the current session to avoid overwriting manual selections
+  const initializedRef = useRef(false);
 
   // Initialize selected users when geneData changes
   useEffect(() => {
-    if (editingGene && geneData.users) {
-      const userIds = geneData.users.split(',').filter(id => id.trim() !== '').map(id => id.trim());
+    if (!showModal) {
+      initializedRef.current = false;
+      return;
+    }
 
-      console.log('Initializing selected users with IDs:', userIds);
-      console.log('Available users:', allUsers);
+    if (editingGene && geneData.usersArray && !initializedRef.current) {
+      let newUserObjects = [];
+      const userIds = geneData.usersArray.map(u => String(u.user_id || u.id));
 
       if (allUsers.length > 0 && userIds.length > 0) {
-        // Improved user matching - handle different ID formats and cases
-        const userObjects = allUsers.filter(user => {
+        newUserObjects = allUsers.filter(user => {
           const userId = user.id || user.user_id;
-
-          // Try multiple matching strategies
-          return userIds.some(id => {
-            // Direct string comparison
-            if (String(userId) === String(id)) return true;
-
-            // Case-insensitive comparison
-            if (String(userId).toLowerCase() === String(id).toLowerCase()) return true;
-
-            // Handle UUID variations
-            if (String(userId).replace(/-/g, '') === String(id).replace(/-/g, '')) return true;
-
-            return false;
-          });
+          return userIds.some(id =>
+            String(userId) === String(id) ||
+            String(userId).toLowerCase() === String(id).toLowerCase() ||
+            String(userId).replace(/-/g, '') === String(id).replace(/-/g, '')
+          );
         });
-
-        console.log('Matched user objects:', userObjects);
-        setSelectedUsers(userObjects);
-      } else if (userIds.length > 0) {
-        console.log('Users not loaded yet, storing IDs temporarily');
-        // Create temporary user objects with proper display names if possible
-        const tempUsers = userIds.map(id => {
-          // Try to find user in the allUsers array even if not fully loaded
-          const foundUser = allUsers.find(user => {
-            const userId = user.id || user.user_id;
-            return String(userId) === String(id) ||
-              String(userId).toLowerCase() === String(id).toLowerCase();
+      } else if (geneData.usersArray.length > 0) {
+        newUserObjects = geneData.usersArray.map(user => {
+          const uId = user.user_id || user.id;
+          const foundUser = allUsers.find(au => {
+            const auId = au.id || au.user_id;
+            return String(auId) === String(uId) ||
+              String(auId).toLowerCase() === String(uId).toLowerCase();
           });
 
-          if (foundUser) {
-            return foundUser;
-          }
-
-          // Fallback: create minimal user object
-          return {
-            id: id.toString(),
-            user_id: id.toString(),
-            // Add placeholder name that will be updated when users load
-            name: `User ${id.substring(0, 8)}...`,
-            username: `User ${id.substring(0, 8)}...`
+          return foundUser || {
+            ...user,
+            id: String(uId),
+            user_id: String(uId),
+            name: user.name || user.username || user.email || `User ${String(uId).substring(0, 8)}...`,
+            username: user.username || user.name || user.email || `User ${String(uId).substring(0, 8)}...`
           };
         });
-        setSelectedUsers(tempUsers);
-      } else {
-        setSelectedUsers([]);
       }
-    } else {
+
+      setSelectedUsers(newUserObjects);
+      initializedRef.current = true;
+    } else if (!editingGene && !initializedRef.current) {
       setSelectedUsers([]);
+      initializedRef.current = true;
+    } else if (initializedRef.current && allUsers.length > 0) {
+      setSelectedUsers(prev => {
+        let changed = false;
+        const updated = prev.map(u => {
+          const uId = u.id || u.user_id;
+          const fullUser = allUsers.find(au => String(au.id || au.user_id) === String(uId));
+          if (fullUser && u.name && u.name.startsWith('User ')) {
+            changed = true;
+            return fullUser;
+          }
+          return u;
+        });
+        return changed ? updated : prev;
+      });
     }
-  }, [geneData.users, editingGene, allUsers]);
+  }, [geneData.usersArray, editingGene, allUsers, showModal]);
 
   const handleSubmit = async () => {
-    // Mark that user attempted to submit
     setSubmitAttempted(true);
 
-    // Check if form is valid
     const isValid = geneData.name &&
       geneData.name.trim() !== '' &&
       geneData.levels.length > 0 &&
@@ -192,7 +213,6 @@ export default function GeneModal({
     setSelectedUsers([]);
   };
 
-  // API fetch functions removed as they are now handled by the parent
   const handlePopoverOpen = (open) => {
     setOpenUserPopover(open);
   };
@@ -251,12 +271,12 @@ export default function GeneModal({
               <Label htmlFor="gene-name" className="text-sm font-semibold">
                 Gene Name <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <DebouncedInput
                 id="gene-name"
                 type="text"
                 value={geneData.name || ''}
-                onChange={(e) => {
-                  setGeneData({ ...geneData, name: e.target.value });
+                onChange={(val) => {
+                  setGeneData({ ...geneData, name: val });
                   setTouchedFields(prev => ({ ...prev, name: true }));
                 }}
                 onBlur={() => setTouchedFields(prev => ({ ...prev, name: true }))}
@@ -408,7 +428,7 @@ export default function GeneModal({
                         ) : filteredUsers.length === 0 ? (
                           <div className="py-6 text-center text-sm text-muted-foreground">
                             <CommandEmpty>
-                               {searchTerm ? 'No active users found' : allUsers.length === 0 ? 'No users available' : 'All active users are selected'}
+                              {searchTerm ? 'No active users found' : allUsers.length === 0 ? 'No users available' : 'All active users are selected'}
                             </CommandEmpty>
                           </div>
                         ) : (
@@ -554,12 +574,12 @@ export default function GeneModal({
                             <Label htmlFor={`level-${level.id}`}>
                               Level Value <span className="text-destructive">*</span>
                             </Label>
-                            <Input
+                            <DebouncedInput
                               id={`level-${level.id}`}
                               type="text"
                               value={level.title || ''}
-                              onChange={(e) => {
-                                updateLevel(level.id, 'title', e.target.value);
+                              onChange={(val) => {
+                                updateLevel(level.id, 'title', val);
                                 setTouchedFields(prev => ({ ...prev, levels: true }));
                               }}
                               onBlur={() => setTouchedFields(prev => ({ ...prev, levels: true }))}

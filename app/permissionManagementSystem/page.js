@@ -37,31 +37,49 @@ const fetchAllData = async () => {
     throw new Error("Authentication required")
   }
 
+  let policies;
   try {
-    const [featuresRes, policiesRes, mappingsRes] = await Promise.all([
-      //Fetch all features
-      featuresApi.getAll(),
-      //Fetch all policies
-      policiesApi.getAll(),
-      //Fetch policy feature mappings
-      policyMappingApi.getAll(),
-    ])
+    const featureData = await featuresApi.getAll();
+    if (!featureData.data) {
+      console.error(`Failed to fetch featureData: ${featureData.status} ${featureData.statusText}`)
+      return []
+    }
 
-    // Extract data from response, handling both direct array and wrapped structures
-    const features = Array.isArray(featuresRes.data)
-      ? featuresRes.data
-      : featuresRes.data?.data || featuresRes.data?.features || []
+    const features = Array.isArray(featureData.data)
+      ? featureData.data
+      : featureData.data?.data || featureData.data?.features || []
 
-    const policies = Array.isArray(policiesRes.data)
-      ? policiesRes.data
-      : policiesRes.data?.data || policiesRes.data?.policies || []
+    // try {
+    const policiesData = await policiesApi.getAll();
 
-    // Handle policy mapping response structure
+    if (!policiesData?.data || policiesData?.data?.length < 0) {
+      console.error(`Failed to fetch policiesData: ${policiesData.status} ${policiesData.statusText}`)
+      return {
+        features: features,
+        policies: [],
+        mappings: []
+      }
+    }
+
+    policies = Array.isArray(policiesData.data)
+      ? policiesData.data
+      : policiesData.data?.data || policiesData.data?.policies || []
+
+    const policyMappingData = await policyMappingApi.getAll();
+    if (!policyMappingData?.data || policyMappingData?.data?.length < 0) {
+      console.error(`Failed to fetch policyMappingData: ${policyMappingData.status} ${policyMappingData.statusText}`)
+      return {
+        features: features,
+        policies: policies,
+        mappings: []
+      }
+    }
+
     let mappings = []
-    if (mappingsRes?.data) {
-      const mappingsData = Array.isArray(mappingsRes.data)
-        ? mappingsRes.data
-        : mappingsRes.data?.data || []
+    if (policyMappingData?.data) {
+      const mappingsData = Array.isArray(policyMappingData.data)
+        ? policyMappingData.data
+        : policyMappingData.data?.data || []
 
       // Convert features object to array for easier handling
       mappings = mappingsData.map(mapping => {
@@ -78,7 +96,7 @@ const fetchAllData = async () => {
         }
       })
     }
-
+  
     return {
       features: features,
       policies: policies,
@@ -93,6 +111,8 @@ const fetchAllData = async () => {
     // Returning empty arrays if endpoints don't exist yet
     return { features: [], policies: [], mappings: [] }
   }
+
+    return { features: [], policies: [], mappings: [] }
 }
 
 const fetchSinglePolicy = async (policyId) => {
@@ -153,19 +173,20 @@ export default function PermissionManagement() {
       }
       setError(null)
       const data = await fetchAllData()
-
       setAllFeatures(data.features || [])
       setPolicies(data.policies || [])
       setPolicyFeatureMappings(data.mappings || [])
 
       // Extract user counts directly from policies data
       const userCountsMap = {}
-      data.policies.forEach(policy => {
-        const policyId = policy.p_id || policy.policy_id || policy.id
-        if (policyId) {
-          userCountsMap[policyId] = Array.isArray(policy.users) ? policy.users.length : 0
-        }
-      })
+      if (data.policies && data.policies.length > 0) {
+        data.policies.forEach(policy => {
+          const policyId = policy.p_id || policy.policy_id || policy.id
+          if (policyId) {
+            userCountsMap[policyId] = Array.isArray(policy.users) ? policy.users.length : 0
+          }
+        })
+      }
       setUserCounts(userCountsMap)
 
       // Update selectedMapping if we're on mapping-detail tab to get fresh data
@@ -199,7 +220,7 @@ export default function PermissionManagement() {
           }
         }
       }
- 
+
       // Update selectedPolicy if we're on policy-mapped-users tab to get fresh data
       if (activeTab === "policy-mapped-users" && selectedPolicy) {
         const policyId = selectedPolicy.p_id || selectedPolicy.policy_id || selectedPolicy.id

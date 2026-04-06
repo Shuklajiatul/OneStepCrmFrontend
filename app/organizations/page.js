@@ -11,7 +11,7 @@ async function getData() {
   try {
     const res = await fetch(`${API_BASE_URL}${ORGANIZATION_ENDPOINTS.LIST}`, {
       headers,
-      next: { revalidate: 3600 }
+      next: { revalidate: 0 }
     })
 
     if (!res.ok) {

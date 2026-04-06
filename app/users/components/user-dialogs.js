@@ -20,7 +20,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, CheckCircle2, XCircle, ShieldCheck, ShieldX, Edit, Plus, Trash2, ShieldRing } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle, ShieldCheck, ShieldX, Edit, Plus, Trash2, ShieldRing, Checkbox } from "lucide-react"
+import { MultiSelect } from "@/components/ui/multi-select"
 
 export function UserDialogs({
     // States
@@ -53,7 +54,11 @@ export function UserDialogs({
     getSelectedRolePriority
 }) {
 
-    const renderUserForm = (mode = "create") => (
+    const renderUserForm = (mode = "create") => {
+        const isSuperuser = mode === "edit" && selectedUser && getUserRolePriority
+            ? getUserRolePriority(selectedUser) === 1
+            : false
+        return (
         <Tabs defaultValue="basic" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="basic">Basic Info</TabsTrigger>
@@ -112,9 +117,13 @@ export function UserDialogs({
 
                 <TabsContent value="role" className="space-y-4 mt-0">
                     <div className="space-y-2">
-                        <Label>Role <span className="text-destructive">*</span></Label>
+                        <Label className="flex items-center gap-1">
+                            Role <span className="text-destructive">*</span>
+                            {isSuperuser && <span className="text-xs text-muted-foreground ml-1">(Superuser – locked)</span>}
+                        </Label>
                         <Select
                             value={formData.role_id}
+                            disabled={isSuperuser}
                             onValueChange={(value) => {
                                 const newRolePriority = getSelectedRolePriority(value)
                                 let validReportingId = ""
@@ -122,8 +131,6 @@ export function UserDialogs({
                                     validReportingId = ""
                                 } else if (formData.reporting_id) {
                                     validReportingId = formData.reporting_id
-                                    // Logic to validate existing reporting_id against new priority would go here
-                                    // Simplified for UI component
                                 }
                                 setFormData({ ...formData, role_id: value, reporting_id: validReportingId })
                             }}
@@ -144,50 +151,30 @@ export function UserDialogs({
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Gene <span className="text-destructive">*</span></Label>
-                            <Select
-                                value={formData["g_ids"] || undefined}
-                                onValueChange={(value) => setFormData({ ...formData, "g_ids": value === "__clear__" ? "" : value })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select gene" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {formData["g_ids"] && <SelectItem value="__clear__">Clear selection</SelectItem>}
-                                    {genes.map((gene) => (
-                                        <SelectItem key={gene.g_id || gene.id} value={gene.g_id || gene.id}>
-                                            {gene.name || gene.g_name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <MultiSelect
+                                options={genes.map(g => ({ label: g.name || g.g_name, value: g.g_id || g.id }))}
+                                selected={Array.isArray(formData["g_ids"]) ? formData["g_ids"] : []}
+                                onChange={(values) => setFormData({ ...formData, "g_ids": values })}
+                                placeholder="Select genes"
+                            />
                         </div>
                         <div className="space-y-2">
                             <Label>Policy</Label>
-                            <Select
-                                value={formData["p_id"] || undefined}
-                                onValueChange={(value) => setFormData({ ...formData, "p_id": value === "__clear__" ? "" : value })}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select policy" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {formData["p_id"] && <SelectItem value="__clear__">Clear selection</SelectItem>}
-                                    {policies.map((policy) => (
-                                        <SelectItem key={policy.p_id || policy.id} value={policy.p_id || policy.id}>
-                                            {policy.p_name || policy.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <MultiSelect
+                                options={policies.map(p => ({ label: p.p_name || p.name, value: p.p_id || p.id }))}
+                                selected={Array.isArray(formData["p_id"]) ? formData["p_id"] : []}
+                                onChange={(values) => setFormData({ ...formData, "p_id": values })}
+                                placeholder="Select policies"
+                            />
                         </div>
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Reporting To</Label>
+                        <Label>Reporting To {isSuperuser && <span className="text-xs text-muted-foreground">(N/A for Superuser)</span>}</Label>
                         <Select
                             value={formData.reporting_id || undefined}
                             onValueChange={(value) => setFormData({ ...formData, reporting_id: value === "__clear__" ? "" : value })}
-                            disabled={!formData.role_id}
+                            disabled={!formData.role_id || isSuperuser}
                         >
                             <SelectTrigger>
                                 <SelectValue placeholder={!formData.role_id ? "Select role first" : "Select manager"} />
@@ -220,7 +207,8 @@ export function UserDialogs({
                 </TabsContent>
             </div>
         </Tabs>
-    )
+        )
+    }
 
     return (
         <>
@@ -325,7 +313,7 @@ export function UserDialogs({
                                                         variant="ghost"
                                                         size="sm"
                                                         onClick={() => onRemoveRole(selectedUser.user_id, role.id || role.role_id)}
-                                                        disabled={submitting}
+                                                        disabled={true}
                                                     >
                                                         <ShieldX className="h-4 w-4 text-destructive" />
                                                     </Button>

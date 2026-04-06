@@ -34,9 +34,9 @@ export function CreatePolicyTab({ allFeatures = [], onPolicyCreated }) {
         modules.add(f.module)
       }
     })
+    console.log("allFeatures===========>>", allFeatures)
     return Array.from(modules).sort()
   }, [allFeatures])
-
   // Get features for selected module(s)
   const moduleFeatures = useMemo(() => {
     if (formData.policy_type === "shared") {
@@ -47,7 +47,7 @@ export function CreatePolicyTab({ allFeatures = [], onPolicyCreated }) {
     if (!formData.module) return []
     return allFeatures.filter(f => f.module === formData.module)
   }, [allFeatures, formData.module, formData.policy_type, selectedModules])
-
+  console.log("moduleFeatures===========>>", moduleFeatures)
   const handleFeatureToggle = (featureId) => {
     setSelectedFeatures(prev =>
       prev.includes(featureId)
@@ -158,6 +158,7 @@ export function CreatePolicyTab({ allFeatures = [], onPolicyCreated }) {
       setSelectedFeatures([])
       setSelectedModules([])
       onPolicyCreated()
+
     } catch (error) {
       console.error("Error creating policy:", error)
       toast.error(error.response?.data?.message || "Failed to create policy. Please try again.")

@@ -142,7 +142,11 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
         if (item.submenu) {
             toggleSubmenu(item.label)
         } else {
-            router.push(item.href)
+            if (pathname === item.href) {
+                router.refresh();
+            } else {
+                router.push(item.href)
+            }
         }
     }
 
@@ -227,7 +231,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
                     </Button>
                 </div>
 
-                <nav className="flex-1 mt-4 overflow-y-auto overflow-x-hidden pr-0 -mr-3">
+                <nav className="flex-1 mt-4 overflow-y-auto overflow-x-hidden pr-0 -mr-3 scrollbar-hide">
                     {!isCollapsed && (
                         <div className="text-xs uppercase text-sidebar-foreground/70 px-2 mb-3 font-semibold tracking-wider">
                             General
@@ -308,7 +312,13 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
                                                             "w-full gap-2 justify-start py-2 h-auto text-sm min-h-[2rem] pr-2",
                                                             isActive(subItem.href) && "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/80"
                                                         )}
-                                                        onClick={() => router.push(subItem.href)}
+                                                        onClick={() => {
+                                                            if (pathname === subItem.href) {
+                                                                router.refresh();
+                                                            } else {
+                                                                router.push(subItem.href);
+                                                            }
+                                                        }}
                                                     >
                                                         <subItem.icon className="size-4 shrink-0" />
                                                         <span className="truncate flex-1">{subItem.label}</span>

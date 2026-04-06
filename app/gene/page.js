@@ -44,24 +44,34 @@ async function getUsers(headers) {
         else if (data.users && Array.isArray(data.users)) usersData = data.users
 
         // Normalize users
-        return usersData.map(user => ({
-            ...user,
-            id: user.id || user.user_id,
-            username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
-            name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
-        }))
+        return usersData.map(user => {
+            const firstName = user.first_name || '';
+            const lastName = user.last_name || '';
+            const fullName = `${firstName} ${lastName}`.trim();
+            const displayName = fullName || user.username || user.email || user.id || user.user_id || 'Unknown';
+            
+            return {
+                ...user,
+                id: user.id || user.user_id,
+                username: user.username || user.email || displayName,
+                name: user.name || displayName
+            }
+        })
     } catch (error) {
         console.error('SSR Users Fetch Error:', error)
         return []
     }
 }
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 async function getData() {
     const cookieStore = await cookies();
 
     try {
         const { result, newAccessToken } = await authUtils.executeWithRefresh(cookieStore, async (headers) => {
-            const fetchOptions = { headers, next: { revalidate: 60 } }
+            const fetchOptions = { headers, cache: 'no-store' }
             return Promise.all([
                 fetch(`${API_BASE_URL}/api/genes`, fetchOptions),
                 getOrganizations(headers),
@@ -80,6 +90,17 @@ async function getData() {
 
         if (!data.success || !data.data) {
             return { genes: [], pagination: null, organizations, users, newAccessToken }
+        }
+
+        // Create user name map for mapping created_by to names
+        const userMap = {}
+        if (Array.isArray(users)) {
+            users.forEach(user => {
+                const id = user.id || user.user_id;
+                if (id) {
+                    userMap[String(id)] = user.name || user.username || 'Unknown'
+                }
+            })
         }
 
         const apiGenes = data.data || []
@@ -104,6 +125,26 @@ async function getData() {
             const usersCount = gene.users ? (Array.isArray(gene.users) ? gene.users.length : 0) : 0
             const organizationsCount = gene.organizations ? (Array.isArray(gene.organizations) ? gene.organizations.length : 0) : 0
 
+            // Safely look up created_by name in userMap or from existing details
+            let createdByName = 'Unknown';
+            if (gene.created_by_details) {
+              const u = gene.created_by_details.user_data || gene.created_by_details;
+              const fName = u.first_name || '';
+              const lName = u.last_name || '';
+              const fullName = `${fName} ${lName}`.trim();
+              createdByName = fullName || u.name || u.username || u.email || 'Unknown';
+            } else if (gene.created_by_name) {
+              createdByName = gene.created_by_name;
+            } else if (gene.created_by && typeof gene.created_by === 'object') {
+              const u = gene.created_by;
+              const fName = u.first_name || '';
+              const lName = u.last_name || '';
+              const fullName = `${fName} ${lName}`.trim();
+              createdByName = fullName || u.name || u.username || u.email || 'Unknown';
+            } else if (gene.created_by) {
+              createdByName = userMap[String(gene.created_by)] || gene.created_by_name || gene.created_by;
+            }
+
             return {
                 id: gene.g_id,
                 name: gene.g_name || 'Unnamed Gene',
@@ -118,7 +159,7 @@ async function getData() {
                     day: 'numeric'
                 }),
                 completion: 100,
-                createdBy: gene.created_by || 'Unknown',
+                createdBy: createdByName,
                 createdById: gene.created_by,
                 levels: levels,
                 createdAt: gene.created_at,
@@ -146,7 +187,6 @@ async function getData() {
 
 export default async function GenePage() {
     const data = await getData()
-
     return (
         <GeneClient
             initialGenes={data.genes}

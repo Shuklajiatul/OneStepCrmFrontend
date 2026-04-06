@@ -12,83 +12,14 @@ import { Switch } from "@/components/ui/switch"
 import { Loader2, Save, X, Edit, Download, Eye, File, Image, Upload } from "lucide-react"
 import { TableColumnSelector } from "../formbuilder/table-column-selector"
 import { v4 as uuidv4 } from 'uuid'
-import { formatFileSize } from "@/lib/utils"
+import { formatFileSize, isBase64File, createFileFromBase64, base64ToBlob } from "@/lib/utils"
 
 // Helper function to generate unique field IDs
 const generateUniqueFieldId = (prefix = 'field') => {
   return uuidv4()
 }
 
-// Improved base64 detection
-const isBase64File = (str) => {
-  if (typeof str !== 'string') return false
-  return str.startsWith('data:') && str.includes('base64,')
-}
 
-// Create a proper file object from base64
-const createFileFromBase64 = (base64String, filename = 'uploaded_file', originalType = null, originalSize = null, originalLastModified = null) => {
-  if (!base64String) return null
-
-  try {
-    // Extract mime type and base64 data
-    const matches = base64String.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/)
-    if (!matches || matches.length !== 3) {
-      console.warn('Invalid base64 format:', base64String?.substring(0, 100))
-      return null
-    }
-
-    const mimeType = matches[1]
-    const base64Data = matches[2]
-
-    // Use original metadata if provided, otherwise use extracted/default values
-    const finalFilename = filename.includes('.') ? filename : `${filename}.${mimeType.split('/')[1] || 'bin'}`
-    const finalType = originalType || mimeType
-    const finalSize = originalSize || Math.floor((base64Data.length * 3) / 4)
-    const finalLastModified = originalLastModified || Date.now()
-
-    return {
-      name: finalFilename,
-      type: finalType,
-      size: finalSize,
-      base64: base64String,
-      previewUrl: base64String,
-      lastModified: finalLastModified,
-      isFromBase64: true // Flag to identify base64-originated files
-    }
-  } catch (error) {
-    console.error('Error creating file from base64:', error)
-    return null
-  }
-}
-
-// Convert base64 to Blob for download
-const base64ToBlob = (base64String) => {
-  try {
-    let base64Data = base64String
-    let mimeType = 'application/octet-stream'
-
-    if (base64String.includes(',')) {
-      const [header, data] = base64String.split(',')
-      const mimeMatch = header.match(/:(.*?);/)
-      if (mimeMatch) {
-        mimeType = mimeMatch[1]
-      }
-      base64Data = data
-    }
-
-    const binaryString = atob(base64Data)
-    const bytes = new Uint8Array(binaryString.length)
-
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i)
-    }
-
-    return new Blob([bytes], { type: mimeType })
-  } catch (error) {
-    console.error('Error converting base64 to blob:', error)
-    return null
-  }
-}
 
 // Helper to get file icon based on type
 const getFileIcon = (fileType) => {

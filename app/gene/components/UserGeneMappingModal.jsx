@@ -84,7 +84,7 @@ export default function UserGeneMappingModal({ isOpen, onClose, onSubmit }) {
 
   const downloadSampleCSV = () => {
     const sampleCSV = `g_name,email
-    test,"{user1, user2, user3}"`;
+    test,"{user1@gmail.com, user2@gmail.com, user3@gmail.com}"`;
     
     const blob = new Blob([sampleCSV], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -225,9 +225,9 @@ export default function UserGeneMappingModal({ isOpen, onClose, onSubmit }) {
                     <span className="text-muted-foreground">•</span>
                     <span>
                       <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">
-                        username
+                        email
                       </code>
-                      {' '}- user1, user2 (or format: {'"{"'}user1, user2, 3:pune{'"}"'})
+                      {' '}- user1@gmail.com, user2@gmail.com
                     </span>
                   </li>
                   <li className="flex items-start gap-2 mt-2">

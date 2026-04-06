@@ -10,7 +10,7 @@ import {
   Eye, Edit, Trash2, Plus, Search, Upload, Table2, List, LayoutGrid,
   Loader2, AlertCircle, RefreshCw, X, CheckCircle2, Building,
   Layers, Users as UsersIcon, Calendar, BarChart3, Filter, Network,
-  ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight
+  ArrowUpDown, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -58,7 +58,37 @@ const SortIcon = ({ config, sortKey }) => {
   return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />;
 };
 
+function DebouncedInput({ value: initialValue, onChange, debounceTime = 300, ...props }) {
+  const [value, setValue] = useState(initialValue || '');
+  const onChangeRef = useRef(onChange);
 
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    setValue(initialValue || '');
+  }, [initialValue]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      // Only call onChange if value actually differs to avoid initial render triggers
+      if (value !== (initialValue || '')) {
+        onChangeRef.current(value);
+      }
+    }, debounceTime);
+
+    return () => clearTimeout(timeout);
+  }, [value, debounceTime, initialValue]);
+
+  return (
+    <Input
+      {...props}
+      value={value}
+      onChange={e => setValue(e.target.value)}
+    />
+  );
+}
 
 export default function GeneClient({
   initialGenes = [],
@@ -69,13 +99,13 @@ export default function GeneClient({
 }) {
   const router = useRouter();
 
-  // Sync new token from server to browser cookies if it was refreshed
   useEffect(() => {
     if (propNewAccessToken) {
       console.log('Syncing new server-side token to cookies in genes page');
       authUtils.setTokens({ accessToken: propNewAccessToken });
     }
   }, [propNewAccessToken]);
+
   const [view, setView] = useState('table');
   const [showArchived, setShowArchived] = useState(false);
   const [showEmpty, setShowEmpty] = useState(false);
@@ -129,8 +159,8 @@ export default function GeneClient({
   );
 
   // Handle search input change
-  const handleSearchChange = (e) => {
-    const value = e.target.value;
+  const handleSearchChange = (val) => {
+    const value = val?.target ? val.target.value : val;
     setSearhes(value);
     setSearchTerm(value);
     console.log('Search query:', value);
@@ -153,7 +183,6 @@ export default function GeneClient({
       setLoading(true);
       setError(null);
 
-      // Get token from auth utils, localStorage, or sessionStorage
       const tokens = authUtils.getTokens();
 
       if (!tokens) {
@@ -162,8 +191,6 @@ export default function GeneClient({
         router.push('/login');
         return;
       }
-
-      console.log("Making API call to get all genes");
 
       const response = await genesApi.getAll();
 
@@ -176,17 +203,19 @@ export default function GeneClient({
         // Use already fetched users state for name mapping
         const userMap = {};
         users.forEach(user => {
-          userMap[user.user_id || user.id] = user.first_name && user.last_name
-            ? `${user.first_name} ${user.last_name}`.trim()
-            : user.username || user.email || user.name || user.user_id || user.id;
+          const id = user.user_id || user.id;
+          if (id) {
+            const firstName = user.first_name || '';
+            const lastName = user.last_name || '';
+            const fullName = `${firstName} ${lastName}`.trim();
+            userMap[String(id)] = fullName || user.username || user.email || user.name || id || 'Unknown';
+          }
         });
 
-        // Transform API data to match your component structure
         const transformedGenes = apiGenes.map(gene => {
           const levels = [];
           if (gene.hierarchy_level && typeof gene.hierarchy_level === 'object') {
             Object.entries(gene.hierarchy_level).forEach(([key, value]) => {
-              // Handle numeric keys like "1", "2" or string keys like "level1", "level2"
               const levelNum = key.replace(/[^0-9]/g, '');
               if (levelNum) {
                 levels.push({
@@ -199,30 +228,29 @@ export default function GeneClient({
             levels.sort((a, b) => a.id - b.id);
           }
 
-          // Safe handling for potentially null/undefined arrays
           const usersCount = gene.users ? (Array.isArray(gene.users) ? gene.users.length : 0) : 0;
           const organizationsCount = gene.organizations ? (Array.isArray(gene.organizations) ? gene.organizations.length : 0) : 0;
 
-          // Extract created by name from various possible API response formats
           let createdByName = 'Unknown';
           if (gene.created_by_details) {
-            // If API provides user details object
-            createdByName = gene.created_by_details.user_data?.username ||
-              gene.created_by_details.user_data?.name ||
-              gene.created_by_details.user_data?.email ||
-              gene.created_by_details.name ||
-              gene.created_by_details.username ||
-              'Unknown';
+            const userData = gene.created_by_details.user_data || gene.created_by_details;
+            createdByName = userData.first_name && userData.last_name
+              ? `${userData.first_name} ${userData.last_name}`.trim()
+              : userData.name || userData.username || userData.email || 'Unknown';
           } else if (gene.created_by_name) {
             // If API directly provides created_by_name field
             createdByName = gene.created_by_name;
           } else if (gene.created_by && typeof gene.created_by === 'object') {
-            // If created_by is an object with name/username
-            createdByName = gene.created_by.name || gene.created_by.username || gene.created_by.email || 'Unknown';
+            // If created_by is an object with name/username/details
+            const u = gene.created_by;
+            const fName = u.first_name || '';
+            const lName = u.last_name || '';
+            const fullName = `${fName} ${lName}`.trim();
+            createdByName = fullName || u.name || u.username || u.email || 'Unknown';
           } else if (gene.created_by) {
-            // If created_by is just an ID, try to look it up in userMap
-            if (userMap[gene.created_by]) {
-              createdByName = userMap[gene.created_by];
+            const idKey = String(gene.created_by);
+            if (userMap[idKey]) {
+              createdByName = userMap[idKey];
             } else {
               // Fallback to ID if we couldn't find the user
               createdByName = gene.created_by;
@@ -236,7 +264,7 @@ export default function GeneClient({
             totalMembers: organizationsCount,
             hierarchyLevels: gene.level_depth || levels.length,
             users: usersCount,
-            usersArray: gene.users || [], // Preserve original users array for editing
+            usersArray: gene.users || [],
             lastUpdated: new Date(gene.updated_at).toLocaleDateString('en-US', {
               year: 'numeric',
               month: 'short',
@@ -244,7 +272,7 @@ export default function GeneClient({
             }),
             completion: 100,
             createdBy: createdByName,
-            createdById: gene.created_by, // Keep the ID for reference if needed
+            createdById: gene.created_by,
             levels: levels,
             createdAt: gene.created_at,
             hierarchy_level: gene.hierarchy_level,
@@ -278,9 +306,8 @@ export default function GeneClient({
         const errorMsg = 'Session expired. Please login again.';
         setError(errorMsg);
         toast.error(errorMsg);
-        // Clear all tokens using auth utils
         authUtils.clearTokens();
-        localStorage.removeItem('token'); // Also remove legacy token if exists
+        localStorage.removeItem('token');
         router.push('/login');
       } else {
         const errorMsg = err.response?.data?.message || err.message || 'Failed to fetch genes';
@@ -313,7 +340,6 @@ export default function GeneClient({
       setOrganizations(orgsData);
     } catch (err) {
       console.error('Error fetching organizations:', err);
-      // Don't show error to user, just log it
       setOrganizations([]);
     } finally {
       setLoadingOrganizations(false);
@@ -338,12 +364,19 @@ export default function GeneClient({
       }
 
       // Normalize user objects - map user_id to id if needed
-      const normalizedUsers = usersData.map(user => ({
-        ...user,
-        id: user.id || user.user_id,
-        username: user.username || user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim(),
-        name: user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()
-      }));
+      const normalizedUsers = usersData.map(user => {
+        const firstName = user.first_name || '';
+        const lastName = user.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim();
+        const displayName = fullName || user.username || user.email || user.id || user.user_id || 'Unknown';
+
+        return {
+          ...user,
+          id: user.id || user.user_id,
+          username: user.username || user.email || displayName,
+          name: user.name || displayName
+        };
+      });
 
       setUsers(normalizedUsers);
     } catch (err) {
@@ -355,73 +388,89 @@ export default function GeneClient({
     }
   };
 
-  // One-time initialization for users and organizations
   useEffect(() => {
     if (mounted.current) return;
     mounted.current = true;
 
-    // Only fetch if we don't have initial data
     if (initialOrganizations.length === 0) {
       fetchOrganizations();
     }
+
     if (initialUsers.length === 0) {
       fetchUsers();
     }
 
-    // Initialization is handled by individual effects to be more robust
-
     return () => {
-      // Don't reset mounted in dev to handle StrictMode double mount
-      // if we want to truly prevent double calls
     };
   }, []);
 
-  // Update gene list names when users are loaded without a network call
   useEffect(() => {
     if (users.length > 0 && genes.length > 0) {
       const userMap = {};
       users.forEach(user => {
-        userMap[user.user_id || user.id] = user.first_name && user.last_name
-          ? `${user.first_name} ${user.last_name}`.trim()
-          : user.username || user.email || user.name || user.user_id || user.id;
+        const id = user.user_id || user.id;
+        if (id) {
+          const firstName = user.first_name || '';
+          const lastName = user.last_name || '';
+          const fullName = `${firstName} ${lastName}`.trim();
+          userMap[String(id)] = fullName || user.username || user.email || user.name || id || 'Unknown';
+        }
       });
 
       setGenes(prevGenes => prevGenes.map(gene => {
         const createdByUserId = gene.createdById || gene.created_by;
-        if (createdByUserId && userMap[createdByUserId]) {
-          return { ...gene, createdBy: userMap[createdByUserId] };
+        const idKey = String(createdByUserId);
+        if (createdByUserId && userMap[idKey]) {
+          return { ...gene, createdBy: userMap[idKey] };
         }
         return gene;
       }));
     }
   }, [users]);
 
-  // Main effect to fetch genes
+  // Sync state with props from server 
+  useEffect(() => {
+    if (initialGenes && initialGenes.length > 0) {
+      setGenes(initialGenes);
+    }
+  }, [initialGenes]);
+
+  useEffect(() => {
+    if (initialPagination) {
+      setPagination(initialPagination);
+      setCurrentPage(initialPagination.page || 1);
+    }
+  }, [initialPagination]);
+
+  useEffect(() => {
+    if (initialOrganizations && initialOrganizations.length > 0) {
+      setOrganizations(initialOrganizations);
+    }
+  }, [initialOrganizations]);
+
+  useEffect(() => {
+    if (initialUsers && initialUsers.length > 0) {
+      setUsers(initialUsers);
+    }
+  }, [initialUsers]);
+
   useEffect(() => {
     if (isInitialized.current) return;
 
-    // skip skipping if search query is present
-    const isSearching = searchTerm && searchTerm.trim().length > 0;
-
-    // Skip the very first fetch on mount if SSR data is available
-    if (initialGenes && initialGenes.length > 0 && !isSearching) {
-      console.log("Blocking first fetchGenes call due to SSR data availability");
+    if (initialGenes && initialGenes.length > 0) {
+      console.log("Using SSR data for initial load");
       isInitialized.current = true;
       return;
     }
 
     isInitialized.current = true;
     fetchGenes();
-
-    // Dependencies are empty for now because fetchGenes doesn't use currentPage/pageSize for the API.
   }, []);
 
 
-  // Handle search separately - reset to page 1 when search changes
   useEffect(() => {
     if (debouncedSearch !== undefined && debouncedSearch !== null) {
       setCurrentPage(1);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }
   }, [debouncedSearch]);
 
@@ -429,7 +478,6 @@ export default function GeneClient({
     const loadingToast = toast.loading('Updating status...');
 
     try {
-      // Optimistically update the UI
       setGenes(prevGenes =>
         prevGenes.map(gene =>
           gene.g_id === geneId || gene.id === geneId
@@ -440,10 +488,6 @@ export default function GeneClient({
 
       console.log('Toggling status for gene with ID:', geneId);
 
-      console.log('Toggling status for gene with ID:', geneId);
-
-      // Call the toggle API endpoint
-      // Call the toggle API endpoint
       const response = await genesApi.toggleActive(geneId);
 
       if (response.data.success) {
@@ -451,9 +495,7 @@ export default function GeneClient({
         toast.success(`Gene status updated to ${newStatus ? 'Active' : 'Inactive'}!`, {
           id: loadingToast,
         });
-        // No need to call fetchGenes() since we've already updated optimistically
       } else {
-        // Revert optimistic update on error
         setGenes(prevGenes =>
           prevGenes.map(gene =>
             gene.g_id === geneId || gene.id === geneId
@@ -465,7 +507,6 @@ export default function GeneClient({
       }
     } catch (error) {
       console.error('Error toggling status:', error);
-      // Revert optimistic update on error
       setGenes(prevGenes =>
         prevGenes.map(gene =>
           gene.g_id === geneId || gene.id === geneId
@@ -516,60 +557,55 @@ export default function GeneClient({
   };
 
   const openEditModal = async (gene) => {
-    setEditingGene(gene);
-
+    const loadingToast = toast.loading('Loading gene details...');
     try {
-      // Fetch the specific gene details to get the users
       const response = await genesApi.getById(gene.g_id || gene.id);
 
       if (response.data.success && response.data.data) {
-        const geneDetails = response.data.data;
-
-        // Extract user IDs from the API response
-        let usersString = '';
-        if (Array.isArray(geneDetails)) {
-          // This is the structure from your API response
-          const userIds = geneDetails.map(user => user.user_id).filter(Boolean);
-          usersString = userIds.join(',');
-        }
-
-        setGeneData({
+        const fullGeneData = {
           ...gene,
-          name: gene.g_name || gene.name,
-          levels: gene.levels || [],
-          g_id: gene.g_id,
-          is_active: gene.is_active,
-          users: usersString
+          usersArray: response.data.data.map(user => ({
+            user_id: user.user_id,
+            organization_id: user.organization_id,
+            email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            username: user.email,
+            name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+            is_active: user.is_active
+          })),
+          users: response.data.data.length,
+          organizations: [...new Set(response.data.data.map(user => user.organization_id))].map(orgId => ({
+            organization_id: orgId,
+            id: orgId
+          })),
+        };
+
+        setEditingGene(fullGeneData);
+        setGeneData({
+          ...fullGeneData,
+          name: fullGeneData.g_name || fullGeneData.name,
+          levels: fullGeneData.levels || [],
+          g_id: fullGeneData.g_id,
+          is_active: fullGeneData.is_active,
         });
+        toast.dismiss(loadingToast);
         setShowModal(true);
       } else {
-        throw new Error('Failed to fetch gene details');
+        throw new Error('Failed to load full gene details');
       }
     } catch (error) {
-      console.error('Error fetching gene details:', error);
-      // Fallback to existing logic if API call fails
-      let usersString = '';
-      const usersArray = gene.usersArray || gene.users;
+      console.error('Error fetching gene details for edit:', error);
+      toast.error('Failed to load gene details', { id: loadingToast });
 
-      if (usersArray && Array.isArray(usersArray)) {
-        const userIds = usersArray.map(user => {
-          if (typeof user === 'object' && user !== null) {
-            return user.id || user.user_id || user;
-          }
-          return user;
-        }).filter(Boolean);
-        usersString = userIds.join(',');
-      } else if (usersArray && typeof usersArray === 'string') {
-        usersString = usersArray;
-      }
-
+      // Fallback
+      setEditingGene(gene);
       setGeneData({
         ...gene,
         name: gene.g_name || gene.name,
         levels: gene.levels || [],
         g_id: gene.g_id,
         is_active: gene.is_active,
-        users: usersString
       });
       setShowModal(true);
     }
@@ -582,7 +618,6 @@ export default function GeneClient({
   const convertLevelsToHierarchy = (levels) => {
     const hierarchy_level = {};
     levels.forEach((level, index) => {
-      // Use L1, L2 format as per API requirements
       hierarchy_level[`L${index + 1}`] = level.title;
     });
     return hierarchy_level;
@@ -605,7 +640,6 @@ export default function GeneClient({
     const loadingToast = toast.loading(editingGene ? 'Updating gene...' : 'Creating gene...');
 
     try {
-      // Get token from auth utils, localStorage, or sessionStorage
       const tokens = authUtils.getTokens();
       const token = tokens?.accessToken ||
         localStorage.getItem('token') ||
@@ -619,7 +653,6 @@ export default function GeneClient({
         return;
       }
 
-      // Get organization_id from localStorage user data
       let organization_id = authUtils.getOrganizationId();
       try {
         const userData = localStorage.getItem('user');
@@ -631,9 +664,7 @@ export default function GeneClient({
         console.warn('Could not parse user data from localStorage:', parseError);
       }
 
-      // If organization_id is still null, try to get it from other sources
       if (!organization_id) {
-        // You might need to adjust this based on where your organization_id is stored
         organization_id = localStorage.getItem('organization_id') ||
           sessionStorage.getItem('organization_id');
       }
@@ -646,37 +677,28 @@ export default function GeneClient({
       const hierarchy_level = convertLevelsToHierarchy(geneData.levels);
       const level_depth = geneData.levels.length;
 
+      const userIds = selectedUsers ? selectedUsers.map(u => u.id || u.user_id) : [];
+
       if (editingGene) {
-        // Build payload for updating gene - include organization_id
         const payload = {
+          geneId: geneData.g_id || geneData.id || editingGene.g_id || editingGene.id,
           g_name: geneData.name,
           is_active: geneData.is_active,
           level_depth: level_depth,
-          organization_id: organization_id // Add organization_id here
+          organization_id: organization_id,
+          users: userIds
         };
 
-        // Add hierarchy_level if provided
         if (hierarchy_level && Object.keys(hierarchy_level).length > 0) {
           payload.hierarchy_level = hierarchy_level;
         }
 
-        // Add users if provided (even if empty array)
-        if (selectedUsers && Array.isArray(selectedUsers)) {
-          payload.users = selectedUsers.map(user => {
-            // Handle both object with id and direct id value
-            return user.id || user.user_id || user;
-          });
-        }
-
-        // Add organizations if provided (though organization_id should be sufficient)
-        if (geneData.organizations && Array.isArray(geneData.organizations) && geneData.organizations.length > 0) {
-          payload.organizations = geneData.organizations;
-        }
+        // if (geneData.organizations && Array.isArray(geneData.organizations) && geneData.organizations.length > 0) {
+        //   payload.organizations = geneData.organizations;
+        // }
 
         console.log('Update Gene Payload:', payload);
 
-        // Update endpoint uses PUT with g_id in the URL path
-        // Update endpoint uses PUT with g_id in the URL path
         const response = await genesApi.update(geneData.g_id, payload);
 
         if (response.data.success) {
@@ -689,28 +711,20 @@ export default function GeneClient({
           throw new Error(response.data.message || 'Failed to update gene');
         }
       } else {
-        // Build payload for creating new gene - include organization_id
+        // Build payload for creating new gene
         const payload = {
           g_name: geneData.name,
           hierarchy_level: hierarchy_level,
           is_active: geneData.is_active,
           level_depth: level_depth,
-          organization_id: organization_id // Add organization_id here for creation too
+          organization_id: organization_id,
+          users: userIds
         };
 
         // Add organizations if provided
         if (geneData.organizations && Array.isArray(geneData.organizations) && geneData.organizations.length > 0) {
           payload.organizations = geneData.organizations;
         }
-
-        // Add users if selected
-        if (selectedUsers && Array.isArray(selectedUsers) && selectedUsers.length > 0) {
-          payload.users = selectedUsers.map(user => {
-            // Handle both object with id and direct id value
-            return user.id || user.user_id || user;
-          });
-        }
-
         console.log('Create Gene Payload:', payload);
 
         const response = await genesApi.create(payload);
@@ -755,17 +769,20 @@ export default function GeneClient({
             email: user.email,
             first_name: user.first_name,
             last_name: user.last_name,
-            username: user.email, // Using email as username fallback
+            username: user.email,
             name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
             is_active: user.is_active
           })),
-          // Update users count
+
+          // Shows user count
           users: response.data.data.length,
-          // Extract organizations (unique organization_ids from the response)
+
+          // Extract organizations from the response
           organizations: [...new Set(response.data.data.map(user => user.organization_id))].map(orgId => ({
             organization_id: orgId,
             id: orgId
           })),
+
           // Update organizations count
           totalMembers: [...new Set(response.data.data.map(user => user.organization_id))].length
         };
@@ -774,7 +791,6 @@ export default function GeneClient({
       }
     } catch (error) {
       console.error('Error fetching gene details:', error);
-      // Keep the original gene data if detailed fetch fails
       toast.error('Failed to load gene details');
     } finally {
       setLoadingGeneDetails(false);
@@ -794,7 +810,6 @@ export default function GeneClient({
   };
 
   const confirmDelete = async (e) => {
-    // Prevent any form submission or default behavior
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -805,7 +820,6 @@ export default function GeneClient({
     try {
       console.log('Deleting gene with ID:', geneToDelete);
 
-      // Delete endpoint uses DELETE with g_id in the URL path
       const response = await genesApi.delete(geneToDelete);
 
       if (response.data.success) {
@@ -813,10 +827,8 @@ export default function GeneClient({
           id: loadingToast,
         });
 
-        // Update local state instead of refetching to avoid page refresh
         setGenes(prevGenes => prevGenes.filter(gene => (gene.g_id || gene.id) !== geneToDelete));
 
-        // Update pagination if needed
         setPagination(prev => ({
           ...prev,
           total: Math.max(0, prev.total - 1)
@@ -854,7 +866,6 @@ export default function GeneClient({
     // Status & Archived filter
     let matchesStatus = true;
     if (statusFilter === 'all') {
-      // If no archived specified, we usually show only active ones unless "Show Archived" is checked
       if (!showArchived) {
         matchesStatus = gene.is_active === true;
       }
@@ -905,7 +916,6 @@ export default function GeneClient({
           valB = b.totalMembers || 0;
           break;
         case 'lastUpdated':
-          // Attempt to compare based on the string date, or use createdAt if available
           valA = new Date(a.createdAt || a.lastUpdated).getTime();
           valB = new Date(b.createdAt || b.lastUpdated).getTime();
           break;
@@ -995,11 +1005,9 @@ export default function GeneClient({
 
       const response = await genesApi.assignUsersCsv(formData);
 
-      // Check if response contains error data (could be CSV string or object)
       let errorCsvData = null;
 
       if (response.data) {
-        // Check if response.data is a CSV string (starts with "row,error,data")
         if (typeof response.data === 'string' && response.data.trim().startsWith('row,error,data')) {
           errorCsvData = response.data;
         }
@@ -1370,18 +1378,18 @@ export default function GeneClient({
                     <SortIcon config={sortConfig} sortKey="hierarchyLevels" />
                   </div>
                 </TableHead>
-                <TableHead className="hidden md:table-cell text-center font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('users')}>
+                {/* <TableHead className="hidden md:table-cell text-center font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('users')}>
                   <div className="flex items-center justify-center">
                     Users
                     <SortIcon config={sortConfig} sortKey="users" />
                   </div>
-                </TableHead>
-                <TableHead className="text-center font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('totalMembers')}>
+                </TableHead> */}
+                {/* <TableHead className="text-center font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('totalMembers')}>
                   <div className="flex items-center justify-center">
                     Organizations
                     <SortIcon config={sortConfig} sortKey="totalMembers" />
                   </div>
-                </TableHead>
+                </TableHead> */}
                 <TableHead className="hidden xl:table-cell whitespace-nowrap font-semibold text-foreground cursor-pointer hover:bg-muted/70 transition-colors" onClick={() => handleSort('lastUpdated')}>
                   <div className="flex items-center">
                     Last Updated
@@ -1444,12 +1452,12 @@ export default function GeneClient({
                     <TableCell className="hidden md:table-cell text-center py-4">
                       <span className="font-medium text-foreground">{gene.hierarchyLevels}</span>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-center py-4">
+                    {/* <TableCell className="hidden md:table-cell text-center py-4">
                       <span className="font-medium text-foreground">{gene.users}</span>
-                    </TableCell>
-                    <TableCell className="text-center py-4">
+                    </TableCell> */}
+                    {/* <TableCell className="text-center py-4">
                       <span className="font-medium text-foreground">{gene.totalMembers}</span>
-                    </TableCell>
+                    </TableCell> */}
                     <TableCell className="hidden xl:table-cell whitespace-nowrap py-4">
                       <span className="text-sm text-muted-foreground">{gene.lastUpdated}</span>
                     </TableCell>
@@ -1562,7 +1570,7 @@ export default function GeneClient({
   return (
     <TooltipProvider delayDuration={0}>
       <div className="min-h-screen bg-background">
-        <div className="px-4 pt-4">
+        <div className="px-0 pt-0 mb-2">
           <PageBreadcrumb />
         </div>
         {/* Header */}
@@ -1593,9 +1601,9 @@ export default function GeneClient({
       </header> */}
 
         {/* Main Content */}
-        <div className="w-full px-4 sm:px-2 py-4 md:py-2">
+        <div className="w-full px-4 sm:px-2 py-4 md:py-2 md:p-0">
           {/* Dashboard Header */}
-          <div className="mb-6 md:mb-8">
+          <div className="mb-6 md:mb-4">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3 mb-2">
@@ -1619,7 +1627,7 @@ export default function GeneClient({
                 </Button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+            {/* <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
               <span className="flex items-center">
                 <span className="w-2 h-2 bg-primary rounded-full mr-2"></span>
                 {filteredGenes.length} Active Genes
@@ -1632,11 +1640,95 @@ export default function GeneClient({
                 <span className="w-2 h-2 bg-muted-foreground rounded-full mr-2"></span>
                 Last updated {genes.length > 0 ? genes[0].lastUpdated : 'Never'}
               </span>
-            </div>
+            </div> */}
           </div>
 
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+
+            {/* Active Genes */}
+            <Card className="hover:shadow-sm transition">
+              <CardContent className="flex items-center justify-between py-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Active Genes</p>
+                  <p className="text-2xl font-bold">{filteredGenes.length}</p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <Network className="h-5 w-5 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Total Levels */}
+            <Card className="hover:shadow-sm transition">
+              <CardContent className="flex items-center justify-between py-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Levels</p>
+                  <p className="text-2xl font-bold">
+                    {filteredGenes.reduce((sum, h) => sum + h.level_depth, 0)}
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <Layers className="h-5 w-5 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Last Updated */}
+            <Card className="hover:shadow-sm transition">
+              <CardContent className="flex items-center justify-between py-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Last Updated</p>
+                  <p className="text-sm font-medium">
+                    {genes.length > 0 ? genes[0].lastUpdated : "Never"}
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                  <Calendar className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+
+          </div>
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {[1, 2].map((_, i) => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  {loading ? (
+                    <Skeleton className="h-4 w-24" />
+                  ) : (
+                    <CardTitle className="text-sm font-medium">
+                      {i === 0 ? "Total Genes" : "Active Genes"}
+                    </CardTitle>
+                  )}
+                  {loading ? (
+                    <Skeleton className="h-4 w-4 rounded-full" />
+                  ) : (
+                    i === 0 ? <Network className="h-4 w-4 text-muted-foreground" /> : <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <div className="text-2xl font-bold">
+                      {i === 0 ? genes.length : genes.filter(g => g.is_active).length}
+                    </div>
+                  )}
+                  {loading ? (
+                    <Skeleton className="h-3 w-20 mt-1" />
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {i === 0 ? "Total genes in system" : "Currently active genes"}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div> */}
+
           {/* Filters */}
-          <Card className="mb-6">
+          <Card className="mb-4 gap-2">
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <CardTitle>Filter & Search</CardTitle>
@@ -1660,7 +1752,7 @@ export default function GeneClient({
             <CardContent>
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
                 <div className="relative w-full lg:w-72">
-                  <Input
+                  <DebouncedInput
                     type="text"
                     placeholder="Search genes..."
                     value={searches || ''}
@@ -1671,7 +1763,7 @@ export default function GeneClient({
                     <X
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
                       onClick={() => {
-                        handleSearchChange({ target: { value: '' } });
+                        handleSearchChange('');
                       }}
                     />
                   )}
@@ -1730,43 +1822,6 @@ export default function GeneClient({
             </CardContent>
           </Card>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {[1, 2].map((_, i) => (
-              <Card key={i}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  {loading ? (
-                    <Skeleton className="h-4 w-24" />
-                  ) : (
-                    <CardTitle className="text-sm font-medium">
-                      {i === 0 ? "Total Genes" : "Active Genes"}
-                    </CardTitle>
-                  )}
-                  {loading ? (
-                    <Skeleton className="h-4 w-4 rounded-full" />
-                  ) : (
-                    i === 0 ? <Network className="h-4 w-4 text-muted-foreground" /> : <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <Skeleton className="h-8 w-16" />
-                  ) : (
-                    <div className="text-2xl font-bold">
-                      {i === 0 ? genes.length : genes.filter(g => g.is_active).length}
-                    </div>
-                  )}
-                  {loading ? (
-                    <Skeleton className="h-3 w-20 mt-1" />
-                  ) : (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {i === 0 ? "Total genes in system" : "Currently active genes"}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
 
           {/* Genes View */}
           <Card className="w-full">

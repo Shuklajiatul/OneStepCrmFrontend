@@ -310,8 +310,8 @@ function LoginContent() {
               // Social Login Step
               <div className="space-y-5">
                 {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
+                  <Alert variant="destructive" className="border-0 text-center">
+                    <AlertDescription>{error}..!!</AlertDescription>
                   </Alert>
                 )}
 
@@ -410,8 +410,8 @@ function LoginContent() {
                 </Button>
 
                 {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
+                  <Alert variant="destructive" className="border-0 text-center">
+                    <AlertDescription>{error}..!!</AlertDescription>
                   </Alert>
                 )}
 
@@ -495,8 +495,8 @@ function LoginContent() {
                 </Button>
 
                 {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
+                  <Alert variant="destructive" className="border-0">
+                    <AlertDescription>{error}..!!</AlertDescription>
                   </Alert>
                 )}
 

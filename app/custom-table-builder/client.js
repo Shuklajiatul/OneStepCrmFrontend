@@ -59,7 +59,7 @@ import { TableCreationWizard } from "./components/table-creation-wizard"
 import { authUtils } from "@/lib/auth-utils"
 import { recordsApi, datatablesApi } from "@/lib/api-endpoint"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { fetchPhoneCountries, fetchCountries, fetchStates, fetchCities } from "@/lib/constants/location-api"
 import {
   AlertDialog,
@@ -562,7 +562,7 @@ function NestedDataModal({ open, onOpenChange, data, columnName, column }) {
 
   const renderValue = (val, isNested = false) => {
     if (val === null || val === undefined) return <span className="text-muted-foreground italic text-[10px]">No data</span>
-    
+
     // Primitive handling
     if (typeof val !== 'object') {
       if (typeof val === 'boolean') return <Badge variant="outline" className="text-[10px]">{val ? 'True' : 'False'}</Badge>
@@ -619,7 +619,7 @@ function NestedDataModal({ open, onOpenChange, data, columnName, column }) {
     // 2. Default: Standard Dictionary rendering
     // Filter out technical keys to avoid "Value" and "Nested Values" labels
     const entries = Object.entries(val).filter(([k]) => k !== 'value' && k !== 'nestedValues');
-    
+
     if (entries.length === 0) {
       if (hasValue) return <span className="text-sm">{String(val.value)}</span>;
       return <span className="text-muted-foreground italic text-[10px]">No details</span>;
@@ -652,7 +652,7 @@ function NestedDataModal({ open, onOpenChange, data, columnName, column }) {
             {columnName} Details
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-muted-foreground/20">
           <div className="space-y-2 pb-4">
             {renderValue(data)}
@@ -1524,6 +1524,7 @@ export default function CustomTableBuilderClient({
   initialCurrentTable = null,
   initialRecords = []
 }) {
+  const router = useRouter()
   const [tables, setTables] = useState(initialTables)
   const [currentTable, setCurrentTable] = useState(initialCurrentTable)
   const [view, setView] = useState('list') // 'list' | 'edit'
@@ -1884,6 +1885,7 @@ export default function CustomTableBuilderClient({
           table.id === tableId ? { ...table, isActive: !currentStatus } : table
         )
         setTables(updatedTables)
+        router.refresh()
         if (currentTable?.id === tableId) {
           setCurrentTable({ ...currentTable, isActive: !currentStatus })
           // Refetch records if activating the table to clear cached 410 responses
@@ -1920,6 +1922,7 @@ export default function CustomTableBuilderClient({
           table.id === tableId ? updatedTable : table
         )
         setTables(updatedTables)
+        router.refresh()
         if (currentTable?.id === tableId) {
           setCurrentTable(updatedTable)
         }

@@ -1085,8 +1085,16 @@ export default function Client({ initialFeatures = [] }) {
                                                         </PaginationItem>
                                                         {currentPage > 3 && <PaginationEllipsis />}
                                                         {Array.from({ length: 3 }, (_, i) => {
-                                                            const page = Math.min(Math.max(currentPage - 1 + i, 2), totalPages - 1);
-                                                            if (page === 1 || page === totalPages) return null;
+                                                            let page;
+                                                            if (currentPage <= 2) {
+                                                                page = 2 + i;
+                                                            } else if (currentPage >= totalPages - 1) {
+                                                                page = totalPages - 3 + i;
+                                                            } else {
+                                                                page = currentPage - 1 + i;
+                                                            }
+
+                                                            if (page <= 1 || page >= totalPages) return null;
                                                             return (
                                                                 <PaginationItem key={page}>
                                                                     <PaginationLink

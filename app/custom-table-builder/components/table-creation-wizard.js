@@ -25,11 +25,17 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
     const [columns, setColumns] = useState([])
     const [activeColumnIndex, setActiveColumnIndex] = useState(0)
 
+    const BACKEND_PREDEFINED_COLUMNS = [
+        { id: 'pre-name', name: "Name", type: "text", isPredefined: true, required: false },
+        { id: 'pre-phone', name: "Phone", type: "phone", isPredefined: true, required: true },
+        { id: 'pre-email', name: "Email", type: "email", isPredefined: true, required: true }
+    ]
+
     const reset = () => {
         setStep(0)
         setTableName("")
         setDescription("")
-        setColumns([createDefaultColumn()])
+        setColumns([]) // No longer add predefined columns to frontend state
         setActiveColumnIndex(0)
     }
 
@@ -50,9 +56,6 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
             if (!tableName.trim()) {
                 toast.error("Table name is required")
                 return
-            }
-            if (columns.length === 0) {
-                setColumns([createDefaultColumn()])
             }
             setStep(1)
         }
@@ -77,7 +80,7 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
             await onComplete({
                 name: tableName,
                 description,
-                columns
+                columns // Only custom columns in state are sent
             })
             onOpenChange(false)
             reset()
@@ -150,7 +153,7 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Badge variant="secondary">{columns.length} Columns</Badge>
+                                <Badge variant="secondary">{BACKEND_PREDEFINED_COLUMNS.length + columns.length} Fields Total</Badge>
                             </div>
                         </div>
 
@@ -159,18 +162,12 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
                             <div className="w-[300px] border-r bg-muted/20 flex flex-col h-full min-h-0">
                                 <div className="p-3 border-b bg-background/50 flex items-center justify-between shrink-0">
                                     <span className="text-xs font-semibold text-muted-foreground uppercase">Fields</span>
-                                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => {
-                                        const newList = [...columns, createDefaultColumn()]
-                                        setColumns(newList)
-                                        setActiveColumnIndex(newList.length - 1)
-                                    }}>
-                                        <Plus className="h-3 w-3" /> Add Field
-                                    </Button>
                                 </div>
                                 <ScrollArea className="flex-1 min-h-0">
                                     <div className="p-2 space-y-1">
-                                        {columns.map((col, idx) => {
+                                        {[...BACKEND_PREDEFINED_COLUMNS, ...columns].map((col, idx) => {
                                             const typeInfo = columnTypes.find(t => t.value === col.type) || columnTypes[0]
+                                            const isPredefined = idx < BACKEND_PREDEFINED_COLUMNS.length
                                             return (
                                                 <div
                                                     key={col.id}
@@ -180,10 +177,15 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
                                                 >
                                                     <typeInfo.icon className={`h-4 w-4 shrink-0 ${activeColumnIndex === idx ? "" : "text-muted-foreground"}`} />
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium truncate">{col.name || "Untitled"}</p>
+                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                            <p className="text-sm font-medium truncate">{col.name || "Untitled"}</p>
+                                                            {isPredefined && (
+                                                                <span className={`text-[9px] font-semibold px-1 py-0.5 rounded shrink-0 ${activeColumnIndex === idx ? "bg-white/20 text-white" : "bg-red-100 text-red-600"}`}>Predefined</span>
+                                                            )}
+                                                        </div>
                                                         <p className={`text-[10px] ${activeColumnIndex === idx ? "opacity-80" : "text-muted-foreground"}`}>{typeInfo.label}</p>
                                                     </div>
-                                                    {columns.length > 1 && (
+                                                    {!isPredefined && (
                                                         <Button
                                                             size="icon"
                                                             variant="ghost"
@@ -191,7 +193,8 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
                                                                 }`}
                                                             onClick={(e) => {
                                                                 e.stopPropagation()
-                                                                const newList = columns.filter((_, i) => i !== idx)
+                                                                const customIdx = idx - BACKEND_PREDEFINED_COLUMNS.length
+                                                                const newList = columns.filter((_, i) => i !== customIdx)
                                                                 setColumns(newList)
                                                                 setActiveColumnIndex(Math.max(0, idx - 1))
                                                             }}
@@ -207,68 +210,98 @@ export function TableCreationWizard({ open, onOpenChange, onComplete, columnType
                             </div>
 
                             {/* Middle - Type Selection & Main Config */}
-                            {columns[activeColumnIndex] && (
-                                <div className="flex-1 flex overflow-hidden min-h-0 bg-background">
-                                    {/* Type Selector */}
-                                    <div className="w-[240px] border-r bg-muted/10 flex flex-col h-full min-h-0 overflow-hidden">
-                                        <div className="p-4 border-b shrink-0">
-                                            <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Field Type</h4>
-                                        </div>
-                                        <ScrollArea className="flex-1 min-h-0">
-                                            <div className="p-3 space-y-6">
-                                                {[
-                                                    { label: "ESSENTIAL", types: essentialTypes },
-                                                    { label: "PROFESSIONAL", types: superUsefulTypes },
-                                                    { label: "CUSTOM", types: customTypes }
-                                                ].map(group => (
-                                                    <div key={group.label} className="space-y-1">
-                                                        <p className="text-[10px] text-muted-foreground px-2 mb-1 font-medium">{group.label}</p>
-                                                        {group.types.map(type => (
-                                                            <Button
-                                                                key={type.value}
-                                                                variant={columns[activeColumnIndex].type === type.value ? "secondary" : "ghost"}
-                                                                className={`w-full justify-start h-8 px-2 text-xs ${columns[activeColumnIndex].type === type.value ? "bg-primary/10 text-primary hover:bg-primary/20" : ""}`}
-                                                                onClick={() => {
-                                                                    const newList = [...columns]
-                                                                    newList[activeColumnIndex] = { ...newList[activeColumnIndex], type: type.value }
-                                                                    setColumns(newList)
-                                                                }}
-                                                            >
-                                                                <type.icon className="h-3.5 w-3.5 mr-2 opacity-70" />
-                                                                {type.label}
-                                                            </Button>
-                                                        ))}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </ScrollArea>
-                                    </div>
+                            {(() => {
+                                const allDisplayColumns = [...BACKEND_PREDEFINED_COLUMNS, ...columns]
+                                const currentCol = allDisplayColumns[activeColumnIndex]
+                                const isPredefined = activeColumnIndex < BACKEND_PREDEFINED_COLUMNS.length
 
-                                    {/* Main Config Panel */}
-                                    <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-background/50">
-                                        <ScrollArea className="flex-1 min-h-0">
-                                            <div className="p-8 lg:p-10 max-w-2xl mx-auto w-full">
-                                                <div className="mb-6 pb-4 border-b">
-                                                    <h2 className="text-lg font-semibold flex items-center gap-2">
-                                                        Looking good!
-                                                        <span className="text-muted-foreground font-normal">Configure details for</span>
-                                                        <Badge variant="outline">{columns[activeColumnIndex].name}</Badge>
-                                                    </h2>
-                                                </div>
-                                                <ColumnConfigPanel
-                                                    column={columns[activeColumnIndex]}
-                                                    onUpdate={(updates) => {
-                                                        const newList = [...columns]
-                                                        newList[activeColumnIndex] = { ...newList[activeColumnIndex], ...updates }
-                                                        setColumns(newList)
-                                                    }}
-                                                    columnTypes={columnTypes}
-                                                />
+                                if (!currentCol) return null
+
+                                return (
+                                    <div className="flex-1 flex overflow-hidden min-h-0 bg-background">
+                                        {/* Type Selector */}
+                                        <div className="w-[240px] border-r bg-muted/10 flex flex-col h-full min-h-0 overflow-hidden">
+                                            <div className="p-4 border-b shrink-0">
+                                                <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Field Type</h4>
                                             </div>
-                                        </ScrollArea>
+                                            <ScrollArea className="flex-1 min-h-0">
+                                                <div className="p-3 space-y-6">
+                                                    {isPredefined ? (
+                                                        <div className="p-4 bg-muted/30 rounded-lg border border-dashed border-muted-foreground/20">
+                                                            <p className="text-[10px] text-muted-foreground font-medium uppercase mb-2">Notice</p>
+                                                            <p className="text-xs text-muted-foreground/80 leading-relaxed text-pretty">
+                                                                This is a system-managed column. Its type and core settings are predefined and cannot be changed.
+                                                            </p>
+                                                        </div>
+                                                    ) : (
+                                                        [
+                                                            { label: "ESSENTIAL", types: essentialTypes },
+                                                            { label: "PROFESSIONAL", types: superUsefulTypes },
+                                                            { label: "CUSTOM", types: customTypes }
+                                                        ].map(group => (
+                                                            <div key={group.label} className="space-y-1">
+                                                                <p className="text-[10px] text-muted-foreground px-2 mb-1 font-medium">{group.label}</p>
+                                                                {group.types.map(type => (
+                                                                    <Button
+                                                                        key={type.value}
+                                                                        variant={currentCol.type === type.value ? "secondary" : "ghost"}
+                                                                        className={`w-full justify-start h-8 px-2 text-xs ${currentCol.type === type.value ? "bg-primary/10 text-primary hover:bg-primary/20" : ""}`}
+                                                                        onClick={() => {
+                                                                            const customIdx = activeColumnIndex - BACKEND_PREDEFINED_COLUMNS.length
+                                                                            const newList = [...columns]
+                                                                            newList[customIdx] = { ...newList[customIdx], type: type.value }
+                                                                            setColumns(newList)
+                                                                        }}
+                                                                    >
+                                                                        <type.icon className="h-3.5 w-3.5 mr-2 opacity-70" />
+                                                                        {type.label}
+                                                                    </Button>
+                                                                ))}
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </ScrollArea>
+                                        </div>
+
+                                        {/* Main Config Panel */}
+                                        <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-background/50">
+                                            <ScrollArea className="flex-1 min-h-0">
+                                                <div className="p-8 lg:p-10 max-w-2xl mx-auto w-full">
+                                                    <div className="mb-6 pb-4 border-b">
+                                                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                                                            {isPredefined ? "System Managed" : "Looking good!"}
+                                                            <span className="text-muted-foreground font-normal">Configure details for</span>
+                                                            <Badge variant="outline">{currentCol.name}</Badge>
+                                                        </h2>
+                                                    </div>
+                                                    <ColumnConfigPanel
+                                                        column={currentCol}
+                                                        readOnly={isPredefined}
+                                                        onUpdate={(updates) => {
+                                                            if (isPredefined) return
+                                                            const customIdx = activeColumnIndex - BACKEND_PREDEFINED_COLUMNS.length
+                                                            const newList = [...columns]
+                                                            newList[customIdx] = { ...newList[customIdx], ...updates }
+                                                            setColumns(newList)
+                                                        }}
+                                                        columnTypes={columnTypes}
+                                                    />
+                                                    <div className="mt-8 flex justify-center border-t pt-8">
+                                                        <Button variant="outline" className="gap-2" onClick={() => {
+                                                            const newList = [...columns, createDefaultColumn()]
+                                                            setColumns(newList)
+                                                            setActiveColumnIndex(BACKEND_PREDEFINED_COLUMNS.length + newList.length - 1)
+                                                        }}>
+                                                            <Plus className="h-4 w-4" /> Add Another Field
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </ScrollArea>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )
+                            })()}
                         </div>
 
                         <div className="p-4 border-t bg-background shrink-0 flex justify-between items-center z-10">

@@ -602,8 +602,16 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                                 </PaginationItem>
                                 {currentPageAllPolicies > 3 && <PaginationEllipsis />}
                                 {Array.from({ length: 3 }, (_, i) => {
-                                  const page = Math.min(Math.max(currentPageAllPolicies - 1 + i, 2), totalPagesAllPolicies - 1);
-                                  if (page === 1 || page === totalPagesAllPolicies) return null;
+                                  let page;
+                                  if (currentPageAllPolicies <= 2) {
+                                    page = 2 + i;
+                                  } else if (currentPageAllPolicies >= totalPagesAllPolicies - 1) {
+                                    page = totalPagesAllPolicies - 3 + i;
+                                  } else {
+                                    page = currentPageAllPolicies - 1 + i;
+                                  }
+
+                                  if (page <= 1 || page >= totalPagesAllPolicies) return null;
                                   return (
                                     <PaginationItem key={page}>
                                       <PaginationLink
@@ -879,8 +887,16 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                                 </PaginationItem>
                                 {currentPageFeatureMappings > 3 && <PaginationEllipsis />}
                                 {Array.from({ length: 3 }, (_, i) => {
-                                  const page = Math.min(Math.max(currentPageFeatureMappings - 1 + i, 2), totalPagesFeatureMappings - 1);
-                                  if (page === 1 || page === totalPagesFeatureMappings) return null;
+                                  let page;
+                                  if (currentPageFeatureMappings <= 2) {
+                                    page = 2 + i;
+                                  } else if (currentPageFeatureMappings >= totalPagesFeatureMappings - 1) {
+                                    page = totalPagesFeatureMappings - 3 + i;
+                                  } else {
+                                    page = currentPageFeatureMappings - 1 + i;
+                                  }
+
+                                  if (page <= 1 || page >= totalPagesFeatureMappings) return null;
                                   return (
                                     <PaginationItem key={page}>
                                       <PaginationLink

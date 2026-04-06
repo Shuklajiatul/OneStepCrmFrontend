@@ -40,6 +40,15 @@ import { toast } from "sonner"
 import { strategyApi, stageApi, groupApi, organizationsApi, usersApi } from "@/lib/api-endpoint"
 import { authUtils } from "@/lib/auth-utils"
 import StrategyConfigView from "./components/StrategyConfigView"
+import {
+    Pagination,
+    PaginationContent,
+    PaginationEllipsis,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination"
 
 // --- Sub-components ---
 
@@ -95,36 +104,81 @@ const StageModal = ({ isOpen, onClose, onSave, stage }) => {
 
 
 
-const StrategyModal = ({ isOpen, onClose, onSave, strategy }) => {
-    const [data, setData] = useState({ strategy_name: "", is_active: true })
+const StrategyModal = ({ isOpen, onClose, onSave, strategy, tables = [], preselectedTableId = "" }) => {
+    const [data, setData] = useState({ strategy_name: "", is_active: true, table_id: "" })
+    
     useEffect(() => {
-        if (strategy) setData({ strategy_name: strategy.strategy_name || "", is_active: strategy.is_active ?? true })
-        else setData({ strategy_name: "", is_active: true })
-    }, [strategy, isOpen])
+        if (strategy) {
+            setData({ 
+                strategy_name: strategy.strategy_name || "", 
+                is_active: strategy.is_active ?? true,
+                table_id: strategy.table_id || strategy.tableId || ""
+            })
+        } else {
+            setData({ 
+                strategy_name: "", 
+                is_active: true, 
+                table_id: preselectedTableId || "" 
+            })
+        }
+    }, [strategy, isOpen, preselectedTableId])
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>{strategy ? "Edit Strategy" : "Create New Strategy"}</DialogTitle>
-                    <DialogDescription>Give your lead scoring strategy a descriptive name.</DialogDescription>
+                    <DialogDescription>
+                        {strategy ? "Update your strategy details below." : "Enter a name and select a table for your new scoring strategy."}
+                    </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-6 py-4">
+                <div className="space-y-5 py-4">
                     <div className="space-y-2">
-                        <Label className="text-sm font-medium">Strategy Name</Label>
-                        <Input placeholder="e.g. Q1 Sales Strategy" value={data.strategy_name} onChange={(e) => setData({ ...data, strategy_name: e.target.value })} />
+                        <Label className="text-sm font-semibold">Strategy Name</Label>
+                        <Input 
+                            placeholder="e.g. Q1 Sales Strategy" 
+                            value={data.strategy_name} 
+                            onChange={(e) => setData({ ...data, strategy_name: e.target.value })} 
+                            className="h-10"
+                        />
                     </div>
-                    <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
+                    
+                    {!strategy && (
+                        <div className="space-y-2">
+                            <Label className="text-sm font-semibold">Select Table</Label>
+                            <Select 
+                                value={data.table_id} 
+                                onValueChange={(val) => setData({ ...data, table_id: val })}
+                            >
+                                <SelectTrigger className="h-10">
+                                    <SelectValue placeholder="Choose a table..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {tables.map(t => (
+                                        <SelectItem key={t.table_id} value={t.table_id}>{t.table_name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30 mt-2">
                         <div className="space-y-0.5">
-                            <Label className="text-base font-semibold">Active Status</Label>
-                            <p className="text-sm text-muted-foreground">Enable or disable this scoring strategy.</p>
+                            <Label className="text-sm font-bold">Active Status</Label>
+                            <p className="text-[11px] text-muted-foreground">Enable or disable this scoring strategy.</p>
                         </div>
                         <Switch checked={data.is_active} onCheckedChange={(val) => setData({ ...data, is_active: val })} />
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cancel</Button>
-                    <Button onClick={() => onSave(data)}>Save Strategy</Button>
+                <DialogFooter className="gap-2 sm:gap-0">
+                    <Button variant="outline" onClick={onClose} className="rounded-xl px-6">Cancel</Button>
+                    <Button 
+                        onClick={() => onSave(data)} 
+                        disabled={!data.strategy_name.trim() || (!strategy && !data.table_id)}
+                        className="rounded-xl px-8"
+                    >
+                        Save Strategy
+                    </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -282,7 +336,8 @@ export default function StrategyPageClient({ initialTables = [], newAccessToken 
                 headers: { 'Authorization': authUtils.getAuthHeader() }
             })
             const data = await response.json()
-            setColumns(data?.data || data?.columns || [])
+            const colData = Array.isArray(data) ? data : (data?.data || data?.columns || [])
+            setColumns(Array.isArray(colData) ? colData : [])
         } catch (error) { console.error("Error fetching columns:", error) }
     }
 
@@ -359,24 +414,32 @@ export default function StrategyPageClient({ initialTables = [], newAccessToken 
     }
 
     const handleCreateStrategy = () => {
-        if (!selectedTableId) { toast.error("Please select a table first"); return }
         setEditingStrategy(null)
         setIsStrategyModalOpen(true)
     }
 
     const handleSaveRootStrategy = async (strategyData) => {
         try {
+            const tableIdToUse = strategyData.table_id || selectedTableId;
+            if (!tableIdToUse) {
+                toast.error("Table ID is required");
+                return;
+            }
+
             if (editingStrategy) {
-                // Ensure we don't send isActiv if it accidentally exists in editingStrategy
-                const { isActiv, ...restEditing } = editingStrategy;
+                const { is_active, ...restEditing } = editingStrategy;
                 await strategyApi.update(editingStrategy.id || editingStrategy.strategy_id, { ...restEditing, ...strategyData })
                 toast.success("Strategy updated")
             } else {
-                await strategyApi.create({ ...strategyData, table_id: selectedTableId, is_active: true })
+                await strategyApi.create({ 
+                    ...strategyData, 
+                    table_id: tableIdToUse,
+                    is_active: strategyData.is_active ?? true 
+                })
                 toast.success("Strategy created")
             }
             setIsStrategyModalOpen(false)
-            fetchStrategies(selectedTableId)
+            fetchStrategies(tableIdToUse)
         } catch (error) { toast.error("Failed to save strategy") }
     }
 
@@ -411,12 +474,39 @@ export default function StrategyPageClient({ initialTables = [], newAccessToken 
     const handleSaveStage = async (stageData, isUpdate = false) => {
         try {
             const currentTableId = selectedTableId || selectedStrategy.tableId || selectedStrategy.id;
-            const payload = { ...stageData, min_score: parseInt(stageData.min_score), max_score: parseInt(stageData.max_score), table_id: currentTableId, strategy_id: selectedStrategy.id || selectedStrategy.strategy_id, stage_id: stageData.stage_id, organization_id: authUtils.getOrganizationId() }
-            if (isUpdate || editingStage) { await stageApi.update(payload); toast.success("Stage updated") }
-            else { await stageApi.create(payload); toast.success("Stage created") }
+            const currentStrategyId = selectedStrategy.id || selectedStrategy.strategy_id;
+            const orgId = authUtils.getOrganizationId();
+            
+            // Build minimum required payload
+            let payload = { 
+                organization_id: orgId,
+                table_id: currentTableId,
+                strategy_id: currentStrategyId,
+                stage_id: stageData.stage_id
+            };
+
+            if (isUpdate || editingStage) {
+                // Always send all values in the payload
+                payload = {
+                    ...payload,
+                    label: stageData.label,
+                    colour: stageData.colour,
+                    min_score: parseInt(stageData.min_score),
+                    max_score: parseInt(stageData.max_score),
+                };
+                await stageApi.update(payload);
+                toast.success("Stage updated")
+            } else {
+                payload = { ...payload, ...stageData, min_score: parseInt(stageData.min_score), max_score: parseInt(stageData.max_score) }
+                await stageApi.create(payload);
+                toast.success("Stage created")
+            }
             setIsStageModalOpen(false)
-            fetchStages(currentTableId, selectedStrategy.id || selectedStrategy.strategy_id)
-        } catch (error) { toast.error("Failed to save stage") }
+            fetchStages(currentTableId, currentStrategyId)
+        } catch (error) { 
+            const errorMsg = error.response?.data?.error || error.message || "Failed to save stage";
+            toast.error(errorMsg);
+        }
     }
 
     const handleDeleteStage = (stage) => {
@@ -485,15 +575,18 @@ export default function StrategyPageClient({ initialTables = [], newAccessToken 
         } catch (error) { toast.error("Failed to delete group") }
     }
 
-    const handleDeleteStrategy = (strategyId) => {
-        setDeleteConfirm({ open: true, type: 'strategy', data: strategyId })
+    const handleDeleteStrategy = (strategy) => {
+        setDeleteConfirm({ open: true, type: 'strategy', data: strategy })
     }
 
-    const performDeleteStrategy = async (strategyId) => {
+    const performDeleteStrategy = async (strategy) => {
         try {
-            await strategyApi.delete(strategyId)
+            const sId = strategy.id || strategy.strategy_id;
+            const tId = strategy.table_id || strategy.tableId;
+            await strategyApi.delete(tId, sId)
             toast.success("Strategy deleted")
-            fetchStrategies(selectedTableId)
+            if (tId) fetchStrategies(tId)
+            else fetchAllStrategies()
         } catch (error) { toast.error("Failed to delete strategy") }
     }
 
@@ -857,7 +950,7 @@ export default function StrategyPageClient({ initialTables = [], newAccessToken 
                                                                         <Tooltip>
                                                                             <TooltipTrigger asChild>
                                                                                 <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-red-50 rounded-lg"
-                                                                                    onClick={() => handleDeleteStrategy(strategyId)}>
+                                                                                    onClick={() => handleDeleteStrategy(strategy)}>
                                                                                     <Trash2 className="h-3.5 w-3.5" />
                                                                                 </Button>
                                                                             </TooltipTrigger>
@@ -874,42 +967,86 @@ export default function StrategyPageClient({ initialTables = [], newAccessToken 
                                     </div>
 
                                     {/* ── Pagination Footer ── */}
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 border-t bg-muted/20">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-xs text-muted-foreground">Rows per page</span>
-                                                <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1) }}>
-                                                    <SelectTrigger className="h-7 w-16 border-none bg-transparent text-xs shadow-none focus:ring-0 font-semibold">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5">
+                                        <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Show</span>
+                                                <Select value={pageSize.toString()} onValueChange={(v) => { setPageSize(parseInt(v)); setCurrentPage(1); }}>
+                                                    <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl bg-background">
                                                         <SelectValue />
                                                     </SelectTrigger>
-                                                    <SelectContent>
-                                                        {[5, 10, 25, 50].map(s => (
-                                                            <SelectItem key={s} value={s.toString()} className="text-xs">{s}</SelectItem>
+                                                    <SelectContent side="top">
+                                                        {[5, 10, 20, 50].map(v => (
+                                                            <SelectItem key={v} value={v.toString()}>{v}</SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
+                                                <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">per page</span>
                                             </div>
-                                            <span className="text-xs text-muted-foreground tabular-nums">
-                                                {filteredStrategies.length === 0 ? "0" : `${((currentPage - 1) * pageSize) + 1}–${Math.min(currentPage * pageSize, filteredStrategies.length)}`} of {filteredStrategies.length}
-                                            </span>
+                                            <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
+                                                Showing <span className="text-foreground">{((currentPage - 1) * pageSize) + 1}</span> to <span className="text-foreground">{Math.min(currentPage * pageSize, filteredStrategies.length)}</span> of <span className="text-foreground">{filteredStrategies.length}</span> entries
+                                            </div>
                                         </div>
 
-                                        <div className="flex items-center gap-1">
-                                            <Button variant="outline" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="h-7 w-7 rounded-md border-border/50 shadow-none">
-                                                <ChevronsLeft className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="h-7 w-7 rounded-md border-border/50 shadow-none">
-                                                <ChevronLeft className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <div className="px-3 h-7 flex items-center justify-center min-w-[52px] bg-primary text-primary-foreground rounded-md text-xs font-semibold">
-                                                {currentPage} / {totalPages || 1}
-                                            </div>
-                                            <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || filteredStrategies.length === 0} className="h-7 w-7 rounded-md border-border/50 shadow-none">
-                                                <ChevronRight className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button variant="outline" size="icon" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages || filteredStrategies.length === 0} className="h-7 w-7 rounded-md border-border/50 shadow-none">
-                                                <ChevronsRight className="h-3.5 w-3.5" />
-                                            </Button>
+                                        <div className="order-1 sm:order-2">
+                                            <Pagination className="justify-end w-auto mx-0">
+                                                <PaginationContent>
+                                                    <PaginationItem>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                                            disabled={currentPage === 1}
+                                                            className="gap-1 pl-2.5 h-8 rounded-lg"
+                                                        >
+                                                            <ChevronLeft className="h-4 w-4" />
+                                                            <span>Previous</span>
+                                                        </Button>
+                                                    </PaginationItem>
+                                                    
+                                                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                        .filter(p => {
+                                                            if (totalPages <= 5) return true;
+                                                            if (p === 1 || p === totalPages) return true;
+                                                            return Math.abs(p - currentPage) <= 1;
+                                                        })
+                                                        .map((p, i, arr) => {
+                                                            const elements = [];
+                                                            if (i > 0 && p - arr[i - 1] > 1) {
+                                                                elements.push(
+                                                                    <PaginationItem key={`ellipsis-${p}`}>
+                                                                        <PaginationEllipsis />
+                                                                    </PaginationItem>
+                                                                );
+                                                            }
+                                                            elements.push(
+                                                                <PaginationItem key={p}>
+                                                                    <PaginationLink
+                                                                        onClick={(e) => { e.preventDefault(); setCurrentPage(p); }}
+                                                                        isActive={currentPage === p}
+                                                                        className="cursor-pointer h-8 w-8 rounded-lg"
+                                                                    >
+                                                                        {p}
+                                                                    </PaginationLink>
+                                                                </PaginationItem>
+                                                            );
+                                                            return elements;
+                                                        })}
+
+                                                    <PaginationItem>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                                            disabled={currentPage >= totalPages || filteredStrategies.length === 0}
+                                                            className="gap-1 pr-2.5 h-8 rounded-lg"
+                                                        >
+                                                            <span>Next</span>
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        </Button>
+                                                    </PaginationItem>
+                                                </PaginationContent>
+                                            </Pagination>
                                         </div>
                                     </div>
                                 </Card>
@@ -921,7 +1058,14 @@ export default function StrategyPageClient({ initialTables = [], newAccessToken 
             </div>
 
             {/* Modals */}
-            <StrategyModal isOpen={isStrategyModalOpen} onClose={() => setIsStrategyModalOpen(false)} onSave={handleSaveRootStrategy} strategy={editingStrategy} />
+            <StrategyModal 
+                isOpen={isStrategyModalOpen} 
+                onClose={() => setIsStrategyModalOpen(false)} 
+                onSave={handleSaveRootStrategy} 
+                strategy={editingStrategy} 
+                tables={tables}
+                preselectedTableId={selectedTableId}
+            />
             <StrategyDetailsModal isOpen={isDetailsModalOpen} onClose={() => setIsDetailsModalOpen(false)} strategy={viewingStrategy} users={allUsers} orgs={allOrgs} />
             <StageModal isOpen={isStageModalOpen} onClose={() => setIsStageModalOpen(false)} onSave={handleSaveStage} stage={editingStage} />
 

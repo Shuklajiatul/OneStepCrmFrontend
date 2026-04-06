@@ -10,7 +10,7 @@ import { FieldRenderer } from "../../custom-form/components/formbuilder/field-re
 import { useState, useEffect, Suspense } from "react"
 import { toast } from "sonner"
 import { authUtils } from "@/lib/auth-utils"
-import { formatFileSize } from "@/lib/utils"
+import { formatFileSize, isBase64File, createFileFromBase64 } from "@/lib/utils"
 import { formsApi, submissionsApi, datatablesApi } from "@/lib/api-endpoint"
 import Link from "next/link"
 import Image from "next/image"
@@ -23,47 +23,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 const TABLE_ID = process.env.NEXT_PUBLIC_TABLE_ID
 const FALLBACK_USER_ID = process.env.NEXT_PUBLIC_USER_ID
 
-// Improved base64 detection
-const isBase64File = (str) => {
-  if (typeof str !== 'string') return false
-  return str.startsWith('data:') && str.includes('base64,')
-}
 
-// Create a proper file object from base64
-const createFileFromBase64 = (base64String, filename = 'uploaded_file', originalType = null, originalSize = null, originalLastModified = null) => {
-  if (!base64String) return null
-
-  try {
-    // Extract mime type and base64 data
-    const matches = base64String.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.*)$/)
-    if (!matches || matches.length !== 3) {
-      console.warn('Invalid base64 format:', base64String?.substring(0, 100))
-      return null
-    }
-
-    const mimeType = matches[1]
-    const base64Data = matches[2]
-
-    // Use original metadata if provided, otherwise use extracted/default values
-    const finalFilename = filename.includes('.') ? filename : `${filename}.${mimeType.split('/')[1] || 'bin'}`
-    const finalType = originalType || mimeType
-    const finalSize = originalSize || Math.floor((base64Data.length * 3) / 4)
-    const finalLastModified = originalLastModified || Date.now()
-
-    return {
-      name: finalFilename,
-      type: finalType,
-      size: finalSize,
-      base64: base64String,
-      previewUrl: base64String,
-      lastModified: finalLastModified,
-      isFromBase64: true // Flag to identify base64-originated files
-    }
-  } catch (error) {
-    console.error('Error creating file from base64:', error)
-    return null
-  }
-}
 
 // Helper function to recursively process nested fields structure
 const processNestedFieldsRecursively = (nestedFields) => {

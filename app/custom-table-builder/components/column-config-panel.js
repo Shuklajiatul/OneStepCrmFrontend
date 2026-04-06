@@ -23,7 +23,8 @@ const NestedColumnConfig = memo(({
     onUpdate,
     onRemove,
     onAddNested,
-    columnTypes
+    columnTypes,
+    readOnly = false
 }) => {
     const depth = path.length / 2
 
@@ -40,14 +41,16 @@ const NestedColumnConfig = memo(({
                 <Badge variant="outline" className="text-xs flex-shrink-0">
                     Sub-field {depth > 0 && `(Level ${depth + 1})`}
                 </Badge>
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0 ml-2"
-                    onClick={() => onRemove(path)}
-                >
-                    <X className="h-3 w-3" />
-                </Button>
+                {!readOnly && (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10 flex-shrink-0 ml-2"
+                        onClick={() => onRemove(path)}
+                    >
+                        <X className="h-3 w-3" />
+                    </Button>
+                )}
             </div>
 
             <div className="space-y-3">
@@ -58,6 +61,7 @@ const NestedColumnConfig = memo(({
                         onChange={(e) => handleUpdate({ name: e.target.value })}
                         placeholder="Enter field label"
                         className="h-8 text-sm"
+                        disabled={readOnly}
                     />
                 </div>
 
@@ -66,6 +70,7 @@ const NestedColumnConfig = memo(({
                     <Switch
                         checked={nestedColumn.isSearchable ?? true}
                         onCheckedChange={(checked) => handleUpdate({ isSearchable: checked })}
+                        disabled={readOnly}
                     />
                 </div>
 
@@ -109,6 +114,7 @@ const NestedColumnConfig = memo(({
                                     })}
                                     placeholder="No minimum"
                                     className="h-7 text-xs"
+                                    disabled={readOnly}
                                 />
                             </div>
                             <div className="space-y-1">
@@ -124,6 +130,7 @@ const NestedColumnConfig = memo(({
                                     })}
                                     placeholder="No maximum"
                                     className="h-7 text-xs"
+                                    disabled={readOnly}
                                 />
                             </div>
                         </div>
@@ -149,6 +156,7 @@ const NestedColumnConfig = memo(({
                                 onCheckedChange={(checked) => handleUpdate({
                                     validation: { ...nestedColumn.validation, multiple: checked }
                                 })}
+                                disabled={readOnly}
                             />
                         </div>
 
@@ -169,29 +177,34 @@ const NestedColumnConfig = memo(({
                                                 handleUpdate({ options: newOptions })
                                             }}
                                             className="h-7 text-xs"
+                                            disabled={readOnly}
                                         />
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-7 w-7 p-0"
-                                            onClick={() => {
-                                                const newOptions = nestedColumn.options.filter((_, i) => i !== idx)
-                                                handleUpdate({ options: newOptions })
-                                            }}
-                                        >
-                                            <X className="h-3 w-3" />
-                                        </Button>
+                                        {!readOnly && (
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-7 w-7 p-0"
+                                                onClick={() => {
+                                                    const newOptions = nestedColumn.options.filter((_, i) => i !== idx)
+                                                    handleUpdate({ options: newOptions })
+                                                }}
+                                            >
+                                                <X className="h-3 w-3" />
+                                            </Button>
+                                        )}
                                     </div>
 
                                     <div className="pl-4 border-l-2 border-dashed border-muted">
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="h-6 text-[10px] gap-1 opacity-70 hover:opacity-100"
-                                            onClick={() => onAddNested([...path, idx], idx)}
-                                        >
-                                            <Plus className="h-2 w-2" /> Add Nested Field
-                                        </Button>
+                                        {!readOnly && (
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-6 text-[10px] gap-1 opacity-70 hover:opacity-100"
+                                                onClick={() => onAddNested([...path, idx], idx)}
+                                            >
+                                                <Plus className="h-2 w-2" /> Add Nested Field
+                                            </Button>
+                                        )}
 
                                         {nestedColumn.nestedFields && nestedColumn.nestedFields[idx] && (
                                             <div className="space-y-2 mt-2">
@@ -204,6 +217,7 @@ const NestedColumnConfig = memo(({
                                                         onRemove={onRemove}
                                                         onAddNested={onAddNested}
                                                         columnTypes={columnTypes}
+                                                        readOnly={readOnly}
                                                     />
                                                 ))}
                                             </div>
@@ -211,17 +225,19 @@ const NestedColumnConfig = memo(({
                                     </div>
                                 </div>
                             ))}
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="w-full h-7 text-xs"
-                                onClick={() => {
-                                    const newOptions = [...(nestedColumn.options || []), `Option ${(nestedColumn.options?.length || 0) + 1}`]
-                                    handleUpdate({ options: newOptions })
-                                }}
-                            >
-                                <Plus className="h-3 w-3 mr-1" /> Add Option
-                            </Button>
+                             {!readOnly && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full h-7 text-xs"
+                                    onClick={() => {
+                                        const newOptions = [...(nestedColumn.options || []), `Option ${(nestedColumn.options?.length || 0) + 1}`]
+                                        handleUpdate({ options: newOptions })
+                                    }}
+                                >
+                                    <Plus className="h-3 w-3 mr-1" /> Add Option
+                                </Button>
+                            )}
                         </div>
                     </div>
                 )}
@@ -230,7 +246,7 @@ const NestedColumnConfig = memo(({
     )
 })
 
-export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
+export function ColumnConfigPanel({ column, onUpdate, columnTypes, readOnly = false }) {
     const [countries, setCountries] = useState([])
     const [isLoadingCountries, setIsLoadingCountries] = useState(false)
     const [countrySearch, setCountrySearch] = useState("")
@@ -392,6 +408,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                         value={column.name}
                         onChange={(e) => handleUpdate({ name: e.target.value })}
                         placeholder="e.g. Lead Status"
+                        disabled={readOnly}
                     />
                 </div>
 
@@ -404,6 +421,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                     <Switch
                         checked={column.required}
                         onCheckedChange={(checked) => handleUpdate({ required: checked })}
+                        disabled={readOnly}
                     />
                 </div>
 
@@ -415,6 +433,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                     <Switch
                         checked={column.isSearchable ?? true}
                         onCheckedChange={(checked) => handleUpdate({ isSearchable: checked })}
+                        disabled={readOnly}
                     />
                 </div>
 
@@ -426,6 +445,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                             onValueChange={(value) => handleUpdate({
                                 validation: { ...column.validation, dateFormat: value }
                             })}
+                            disabled={readOnly}
                         >
                             <SelectTrigger className="h-9">
                                 <SelectValue />
@@ -450,6 +470,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                     role="combobox"
                                     aria-expanded={isCountryPickerOpen}
                                     className="w-full justify-between h-10"
+                                    disabled={readOnly}
                                 >
                                     <div className="flex items-center gap-2 truncate">
                                         {column.validation?.defaultCountry ? (
@@ -549,6 +570,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                             onCheckedChange={(checked) => handleUpdate({
                                 validation: { ...column.validation, multiple: checked }
                             })}
+                            disabled={readOnly}
                         />
                     </div>
                 )}
@@ -561,6 +583,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                             onValueChange={(value) => handleUpdate({
                                 validation: { ...column.validation, fileType: value }
                             })}
+                            disabled={readOnly}
                         >
                             <SelectTrigger className="h-9">
                                 <SelectValue />
@@ -585,6 +608,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                 onValueChange={(value) => handleUpdate({
                                     validation: { ...column.validation, defaultLevel: value }
                                 })}
+                                disabled={readOnly}
                             >
                                 <SelectTrigger className="h-9">
                                     <SelectValue />
@@ -607,6 +631,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                             type="button"
                                             className="ml-0.5 inline-flex items-center justify-center pointer-events-auto"
                                             onClick={(e) => {
+                                                if (readOnly) return
                                                 e.preventDefault()
                                                 e.stopPropagation()
                                                 const newList = column.validation.allowedCountries.filter(c => c !== countryName)
@@ -621,7 +646,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                 ))}
                                 <Popover>
                                     <PopoverTrigger asChild>
-                                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1">
+                                        <Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1" disabled={readOnly}>
                                             <Plus className="h-3 w-3" /> Add Country
                                         </Button>
                                     </PopoverTrigger>
@@ -668,7 +693,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                                 <Label className="text-[11px] font-bold">{countryName}</Label>
                                                 <Popover onOpenChange={(open) => open && loadStatesForCountry(countryName)}>
                                                     <PopoverTrigger asChild>
-                                                        <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2">
+                                                        <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 px-2" disabled={readOnly}>
                                                             <Plus className="h-3 w-3" /> Select States
                                                         </Button>
                                                     </PopoverTrigger>
@@ -739,7 +764,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                                                 </div>
                                                                 <Popover onOpenChange={(open) => open && loadCitiesForState(countryName, stateName)}>
                                                                     <PopoverTrigger asChild>
-                                                                        <Button variant="ghost" size="sm" className="h-5 text-[9px] gap-1 px-1.5 opacity-70 hover:opacity-100">
+                                                                        <Button variant="ghost" size="sm" className="h-5 text-[9px] gap-1 px-1.5 opacity-70 hover:opacity-100" disabled={readOnly}>
                                                                             <Plus className="h-2 w-2" /> Add Cities
                                                                         </Button>
                                                                     </PopoverTrigger>
@@ -823,6 +848,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                                                         <X
                                                                             className="h-2 w-2 cursor-pointer hover:text-destructive"
                                                                             onClick={() => {
+                                                                                if (readOnly) return
                                                                                 const currentCities = column.validation?.allowedCities?.[stateName] || []
                                                                                 const newList = currentCities.filter(c => c !== cityName)
                                                                                 handleUpdate({
@@ -869,6 +895,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                     onWheel={(e) => e.currentTarget.blur()}
                                     placeholder="No minimum"
                                     className="h-9"
+                                    disabled={readOnly}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -885,6 +912,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                     onWheel={(e) => e.currentTarget.blur()}
                                     placeholder="No maximum"
                                     className="h-9"
+                                    disabled={readOnly}
                                 />
                             </div>
                         </div>
@@ -924,31 +952,36 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                                 handleUpdate({ options: newOptions })
                                             }}
                                             placeholder={`Option ${idx + 1}`}
+                                            disabled={readOnly}
                                         />
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-9 w-9 text-destructive hover:bg-destructive/10"
-                                            onClick={() => {
-                                                const newOptions = column.options.filter((_, i) => i !== idx)
-                                                const newNestedFields = { ...column.nestedFields }
-                                                delete newNestedFields[idx]
-                                                handleUpdate({ options: newOptions, nestedFields: newNestedFields })
-                                            }}
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </Button>
+                                        {!readOnly && (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-9 w-9 text-destructive hover:bg-destructive/10"
+                                                onClick={() => {
+                                                    const newOptions = column.options.filter((_, i) => i !== idx)
+                                                    const newNestedFields = { ...column.nestedFields }
+                                                    delete newNestedFields[idx]
+                                                    handleUpdate({ options: newOptions, nestedFields: newNestedFields })
+                                                }}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        )}
                                     </div>
 
                                     <div className="pl-6 border-l-2 border-muted">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 text-[11px] gap-1 opacity-70 hover:opacity-100"
-                                            onClick={() => addNestedField([idx], idx)}
-                                        >
-                                            <Plus className="h-3 w-3" /> Add Conditional Field
-                                        </Button>
+                                        {!readOnly && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 text-[11px] gap-1 opacity-70 hover:opacity-100"
+                                                onClick={() => addNestedField([idx], idx)}
+                                            >
+                                                <Plus className="h-3 w-3" /> Add Conditional Field
+                                            </Button>
+                                        )}
 
                                         {column.nestedFields && column.nestedFields[idx] && (
                                             <div className="space-y-3 mt-3">
@@ -961,6 +994,7 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                                         onRemove={removeNestedField}
                                                         onAddNested={addNestedField}
                                                         columnTypes={columnTypes}
+                                                        readOnly={readOnly}
                                                     />
                                                 ))}
                                             </div>
@@ -969,16 +1003,18 @@ export function ColumnConfigPanel({ column, onUpdate, columnTypes }) {
                                 </div>
                             ))}
 
-                            <Button
-                                variant="outline"
-                                className="w-full border-dashed"
-                                onClick={() => {
-                                    const newOptions = [...(column.options || []), `Option ${(column.options?.length || 0) + 1}`]
-                                    handleUpdate({ options: newOptions })
-                                }}
-                            >
-                                <Plus className="h-4 w-4 mr-2" /> Add New Option
-                            </Button>
+                            {!readOnly && (
+                                <Button
+                                    variant="outline"
+                                    className="w-full border-dashed"
+                                    onClick={() => {
+                                        const newOptions = [...(column.options || []), `Option ${(column.options?.length || 0) + 1}`]
+                                        handleUpdate({ options: newOptions })
+                                    }}
+                                >
+                                    <Plus className="h-4 w-4 mr-2" /> Add New Option
+                                </Button>
+                            )}
                         </div>
                     </div>
                 )}
