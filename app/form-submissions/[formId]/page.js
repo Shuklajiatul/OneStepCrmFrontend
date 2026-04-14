@@ -16,7 +16,7 @@ export default async function FormSubmissionsPage({ params, searchParams }) {
   const cookieStore = await cookies()
   const headers = authUtils.getServerHeaders(cookieStore)
   const orgId = authUtils.getServerOrganizationId(cookieStore)
-  const tableId = table_id || process.env.NEXT_PUBLIC_TABLE_ID
+  const tableId = table_id
 
   let formDetails = null
   let submissions = []

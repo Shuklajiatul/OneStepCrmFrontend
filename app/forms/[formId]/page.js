@@ -1556,14 +1556,9 @@ function PublicFormContent() {
   const versionParam = searchParams.get('version')
   const ORGANIZATION_ID_FROM_URL = searchParams.get('org_id')
   const TABLE_ID_FROM_URL = searchParams.get('table_id')
-  // const ORGANIZATION_ID = (ORGANIZATION_ID_FROM_URL && ORGANIZATION_ID_FROM_URL !== 'undefined')
-  //   ? ORGANIZATION_ID_FROM_URL
-  //   : authUtils.getOrganizationId()
   const ORGANIZATION_ID = (ORGANIZATION_ID_FROM_URL && ORGANIZATION_ID_FROM_URL !== 'undefined')
     ? ORGANIZATION_ID_FROM_URL
     : authUtils.getOrganizationId()
-  // console.log(organizationId1, '===============organizationId1', ORGANIZATION_ID, '=========================ORGANIZATION_ID')
-  // Properly handle null, undefined, or "undefined" string values
   const tokens = authUtils.getTokens()
   const storedUserId =
     tokens?.user?.user_id ||
@@ -1633,8 +1628,6 @@ function PublicFormContent() {
       checkExistingSubmission()
     }
   }, [token, submissionId, formId, userIdFromUrl])
-
-
 
   const checkExistingSubmission = () => {
     try {
@@ -1833,16 +1826,15 @@ function PublicFormContent() {
               if (!alternativeSuccess) {
                 console.warn('⚠️ All form version endpoints failed, falling back to latest form')
                 try {
-                  await fetchFormData() // This will set loading to false when it completes
+                  await fetchFormData()
                 } catch (fetchError) {
-                  console.error('❌ Fallback fetchFormData also failed:', fetchError)
-                  setLoading(false) // ✅ FIX: Ensure loading stops even if fallback fails
+                  console.error('Fallback fetchFormData also failed:', fetchError)
+                  setLoading(false)
                 }
                 toast.warning("Submission loaded - Using latest form version (original version endpoints not available)")
               }
             }
           } else {
-            // form_version is a full form object
             try {
               const originalFormData = parseFormData(result.form_version)
               setFormData(originalFormData)
@@ -2238,9 +2230,9 @@ function PublicFormContent() {
             const subFields = []
             if (group.fields && Array.isArray(group.fields)) {
               group.fields.forEach(fieldRef => {
-                // Check if fieldRef is a string (field ID reference)
+                // Check if fieldRef is a string
                 if (typeof fieldRef === 'string') {
-                  // Find the matching field in parsedFields by ID (ensure strict string comparison)
+                  // Find the matching field in parsedFields by ID
                   const matchingField = parsedFields.find(f => String(f.id) === String(fieldRef) || String(f.originalId) === String(fieldRef))
                   if (matchingField) {
                     subFields.push(matchingField)
