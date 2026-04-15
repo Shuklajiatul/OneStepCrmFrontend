@@ -10,7 +10,7 @@ async function getData() {
   try {
     const response = await fetch(`${API_BASE_URL}${FEATURE_ENDPOINTS.LIST}`, {
       headers,
-      next: { revalidate: 0 } // Ensure fresh data on every request
+      next: { revalidate: 0 }
     })
 
     if (!response.ok) {
@@ -19,7 +19,6 @@ async function getData() {
     }
 
     const data = await response.json()
-    // Normalizing data structure based on what featuresApi.getAll() handled
     return Array.isArray(data)
       ? data
       : data.data || data.features || []

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react" // Add useCallback, useMemo, useRef
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { featuresApi } from "@/lib/api-endpoint"
@@ -29,8 +29,6 @@ import {
     ChevronDown
 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
-
-// Shadcn UI Components
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -111,7 +109,7 @@ export default function Client({ initialFeatures = [] }) {
     const [features, setFeatures] = useState(initialFeatures)
     const [loading, setLoading] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
-    const [debouncedSearchTerm] = useDebounce(searchTerm, 3000) // Debounce search
+    const debouncedSearchTerm = useDebounce(searchTerm, 100)
     const [moduleFilter, setModuleFilter] = useState("all")
     const [statusFilter, setStatusFilter] = useState("all")
     const [selectedFeature, setSelectedFeature] = useState(null)
@@ -243,7 +241,6 @@ export default function Client({ initialFeatures = [] }) {
 
     const openViewDialog = async (feature) => {
         setSelectedFeature(feature)
-        // Still fetch for view dialog to get full details
         await fetchFeatureDetails(feature.feature_id || feature.id)
         setIsViewDialogOpen(true)
     }
@@ -903,13 +900,25 @@ export default function Client({ initialFeatures = [] }) {
                                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                         <Input
                                             placeholder="Search features..."
-                                            className="pl-8"
+                                            className={cn("pl-8", searchTerm && "pr-8")}
                                             value={searchTerm}
                                             onChange={(e) => {
                                                 setSearchTerm(e.target.value)
                                                 setCurrentPage(1)
                                             }}
                                         />
+                                        {searchTerm && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSearchTerm("")
+                                                    setCurrentPage(1)
+                                                }}
+                                                className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground hover:text-foreground transition-colors"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        )}
                                     </div>
 
                                     <Select
@@ -949,7 +958,7 @@ export default function Client({ initialFeatures = [] }) {
                                         </SelectContent>
                                     </Select>
 
-                                    {(searchTerm || moduleFilter !== "all" || statusFilter !== "all") && (
+                                    {(moduleFilter !== "all" || statusFilter !== "all") && (
                                         <Button
                                             variant="ghost"
                                             onClick={() => {
@@ -1057,7 +1066,7 @@ export default function Client({ initialFeatures = [] }) {
                                                 {totalPages <= 7 ? (
                                                     Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                                                         <PaginationItem key={page}>
-                                                        <PaginationLink
+                                                            <PaginationLink
                                                                 isActive={currentPage === page}
                                                                 onClick={(e) => {
                                                                     e.preventDefault();
