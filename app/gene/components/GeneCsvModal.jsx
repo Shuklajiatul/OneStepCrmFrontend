@@ -30,14 +30,12 @@ export default function GeneCsvModal({ isOpen, onClose, onSubmit }) {
       formData.append('csvfile', selectedFile);
      
       await onSubmit(formData);
-      
-            setSelectedFile(null);
+      setSelectedFile(null);
       setFileName('');
       onClose();
     } catch (error) {
       console.error('CSV submission error:', error);
-      // Error toast is handled by parent component
-      throw error; // Re-throw to let parent handle it
+      throw error;
     } finally {
       setLoading(false);
     }

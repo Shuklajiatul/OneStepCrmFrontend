@@ -1,16 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import {
-  X, Plus, Trash2, Users, Loader2, Search, Layers,
-  CheckCircle2, AlertCircle, Network
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { authUtils } from '@/lib/auth-utils';
-import { genesApi, usersApi } from '@/lib/api-endpoint';
-
-// Shadcn UI Components
+import { Plus, Trash2, Layers, Network, Users, X, AlertCircle, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,52 +12,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-
-function DebouncedInput({ value: initialValue, onChange, debounceTime = 300, ...props }) {
-  const [value, setValue] = useState(initialValue || '');
-  const onChangeRef = useRef(onChange);
-
-  useEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
-
-  useEffect(() => {
-    setValue(initialValue || '');
-  }, [initialValue]);
-
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      // Only call onChange if value actually differs to avoid initial render triggers
-      if (value !== (initialValue || '')) {
-        onChangeRef.current(value);
-      }
-    }, debounceTime);
-
-    return () => clearTimeout(timeout);
-  }, [value, debounceTime, initialValue]);
-
-  return (
-    <Input
-      {...props}
-      value={value}
-      onChange={e => setValue(e.target.value)}
-    />
-  );
-}
 
 export default function GeneModal({
   showModal,
@@ -80,21 +28,15 @@ export default function GeneModal({
   updateLevel,
   allUsers = []
 }) {
-  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // const [users, setUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [error, setError] = useState(null);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [openUserPopover, setOpenUserPopover] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [touchedFields, setTouchedFields] = useState({ name: false, levels: false });
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // Track if users have been initialized for the current session to avoid overwriting manual selections
   const initializedRef = useRef(false);
 
-  // Initialize selected users when geneData changes
+  // Initialize selected users when modal opens or geneData changes
   useEffect(() => {
     if (!showModal) {
       initializedRef.current = false;
@@ -122,7 +64,6 @@ export default function GeneModal({
             return String(auId) === String(uId) ||
               String(auId).toLowerCase() === String(uId).toLowerCase();
           });
-
           return foundUser || {
             ...user,
             id: String(uId),
@@ -155,331 +96,205 @@ export default function GeneModal({
     }
   }, [geneData.usersArray, editingGene, allUsers, showModal]);
 
+  const handleClose = () => {
+    setSelectedUsers([]);
+    setSearchTerm('');
+    setOpenUserPopover(false);
+    setSubmitAttempted(false);
+    onClose();
+  };
+
   const handleSubmit = async () => {
     setSubmitAttempted(true);
 
-    const isValid = geneData.name &&
+    const isValid =
+      geneData.name &&
       geneData.name.trim() !== '' &&
       geneData.levels.length > 0 &&
-      !geneData.levels.some(level => !level.title || level.title.trim() === '');
+      !geneData.levels.some(l => !l.title || l.title.trim() === '');
 
-    if (!isValid) {
-      // Mark all fields as touched to show errors
-      setTouchedFields({ name: true, levels: true });
-      return;
-    }
+    if (!isValid) return;
 
     setIsSubmitting(true);
     try {
-      await onSubmit({
-        geneData: geneData,
-        selectedUsers: selectedUsers,
-      });
+      await onSubmit({ geneData, selectedUsers });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleClose = () => {
-    setSelectedUsers([]);
-    setSearchTerm('');
-    setOpenUserPopover(false);
-    setError(null);
-    setTouchedFields({ name: false, levels: false });
-    setSubmitAttempted(false);
-    onClose();
-  };
-
   const handleIsActiveChange = (checked) => {
-    setGeneData(prev => ({
-      ...prev,
-      is_active: checked
-    }));
+    setGeneData(prev => ({ ...prev, is_active: checked }));
   };
 
   const handleUserSelect = (user) => {
     const userId = user.id || user.user_id;
-    if (!selectedUsers.some(selected => (selected.id || selected.user_id) === userId)) {
+    if (!selectedUsers.some(s => (s.id || s.user_id) === userId)) {
       setSelectedUsers(prev => [...prev, user]);
     }
     setSearchTerm('');
   };
 
   const removeUser = (userId) => {
-    setSelectedUsers(prev => prev.filter(user => (user.id || user.user_id) !== userId));
+    setSelectedUsers(prev => prev.filter(u => (u.id || u.user_id) !== userId));
   };
 
-  const clearAllUsers = () => {
-    setSelectedUsers([]);
-  };
-
-  const handlePopoverOpen = (open) => {
-    setOpenUserPopover(open);
-  };
-
-  const filteredUsers = allUsers.filter(user => {
-    const userId = user.id || user.user_id;
-
-    // Only show active users
-    const isActive = user.is_active !== false;
-    if (!isActive) {
-      return false;
-    }
-
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch =
-      user.username?.toLowerCase().includes(searchLower) ||
-      user.email?.toLowerCase().includes(searchLower) ||
-      user.name?.toLowerCase().includes(searchLower) ||
-      user.first_name?.toLowerCase().includes(searchLower) ||
-      user.last_name?.toLowerCase().includes(searchLower) ||
-      `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase().includes(searchLower);
-
-    const isSelected = selectedUsers.some(selected => {
-      const selectedId = selected.id || selected.user_id;
-      return selectedId === userId;
-    });
-    return matchesSearch && !isSelected;
+  // Filtered users for dropdown
+  const filteredUsers = allUsers.filter(u => {
+    if (u.is_active === false) return false;
+    const userId = u.id || u.user_id;
+    if (selectedUsers.some(s => (s.id || s.user_id) === userId)) return false;
+    const q = searchTerm.toLowerCase();
+    if (!q) return true;
+    const name = u.name || u.username || '';
+    const email = u.email || '';
+    const firstName = u.first_name || '';
+    const lastName = u.last_name || '';
+    return (
+      name.toLowerCase().includes(q) ||
+      email.toLowerCase().includes(q) ||
+      firstName.toLowerCase().includes(q) ||
+      lastName.toLowerCase().includes(q)
+    );
   });
 
-  const isFormValid = geneData.name &&
+  const isValid =
+    geneData.name &&
     geneData.name.trim() !== '' &&
     geneData.levels.length > 0 &&
-    !geneData.levels.some(level => !level.title || level.title.trim() === '');
+    !geneData.levels.some(l => !l.title || l.title.trim() === '');
 
-  // Error visibility logic
-  const showNameError = (touchedFields.name || submitAttempted) && !geneData.name && !isSubmitting;
-  const showLevelsError = (touchedFields.levels || submitAttempted) && (geneData.levels.length === 0 || geneData.levels.some(level => !level.title || level.title.trim() === '')) && !isSubmitting;
+  const showNameError = submitAttempted && (!geneData.name || geneData.name.trim() === '');
+  const showLevelsError = submitAttempted && (geneData.levels.length === 0 || geneData.levels.some(l => !l.title || l.title.trim() === ''));
 
   return (
-    <Dialog open={showModal} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle className="flex items-center gap-2 text-2xl">
-            <Network className="h-5 w-5" />
+    <Dialog open={showModal} onOpenChange={(open) => { if (!open) handleClose(); }}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-3">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Network className="h-4 w-4 text-primary" />
             {editingGene ? 'Edit Gene' : 'Create New Gene'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-xs">
             {editingGene ? 'Update your gene structure' : 'Build your gene hierarchy'}
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6 overflow-y-auto">
-          <div className="space-y-6">
-            {/* Gene Name Input */}
-            <div className="space-y-2">
-              <Label htmlFor="gene-name" className="text-sm font-semibold">
+        <ScrollArea className="flex-1 px-5 overflow-y-auto">
+          <div className="space-y-5 pb-4">
+
+            {/* Gene Name */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">
                 Gene Name <span className="text-destructive">*</span>
               </Label>
-              <DebouncedInput
-                id="gene-name"
-                type="text"
+              <Input
                 value={geneData.name || ''}
-                onChange={(val) => {
-                  setGeneData({ ...geneData, name: val });
-                  setTouchedFields(prev => ({ ...prev, name: true }));
-                }}
-                onBlur={() => setTouchedFields(prev => ({ ...prev, name: true }))}
-                placeholder="Enter gene name (e.g., test-2)"
-                className={cn(
-                  "w-full",
-                  showNameError && "border-destructive focus-visible:ring-destructive"
-                )}
+                onChange={(e) => setGeneData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Enter gene name"
+                className={cn('h-9 text-sm', showNameError && 'border-destructive')}
               />
               {showNameError && (
-                <Alert variant="destructive" className="py-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-xs">
-                    Gene name is required
-                  </AlertDescription>
-                </Alert>
+                <p className="text-[10px] text-destructive">Gene name is required</p>
               )}
             </div>
 
-            {/* Users Multi-Select Dropdown */}
-            <div className="space-y-2">
+            {/* Assign Users */}
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold">Assign Users</Label>
+                <Label className="text-xs font-semibold">Assign Users</Label>
                 {selectedUsers.length > 0 && (
                   <Button
-                    type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={clearAllUsers}
+                    className="h-6 text-[10px]"
+                    onClick={() => setSelectedUsers([])}
                   >
                     Clear All
                   </Button>
                 )}
               </div>
 
-              {/* Selected Users Display */}
-              <Popover open={openUserPopover} onOpenChange={handlePopoverOpen}>
+              <Popover open={openUserPopover} onOpenChange={setOpenUserPopover}>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    asChild
-                    className="w-full justify-between min-h-[52px] h-auto py-2 px-3 cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex-1 flex items-center min-w-0">
-                        {selectedUsers.length === 0 ? (
-                          <span className="text-muted-foreground text-sm">Select users...</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5 w-full">
-                            {selectedUsers.map((user) => {
-                              const userId = user.id || user.user_id;
-
-                              // Improved display name logic that handles temporary user objects
-                              let displayName = 'Unknown User';
-
-                              const fullName = user.first_name && user.last_name
-                                ? `${user.first_name} ${user.last_name}`.trim()
-                                : (user.first_name || user.last_name || '').trim();
-
-                              if (fullName) {
-                                displayName = fullName;
-                              } else if (user.name && user.name.trim() && !user.name.startsWith('User ')) {
-                                displayName = user.name;
-                              } else if (user.username && user.username.trim() && !user.username.startsWith('User ')) {
-                                displayName = user.username;
-                              } else if (user.email && user.email.trim()) {
-                                displayName = user.email;
-                              } else {
-                                // Check if this is a temporary placeholder name
-                                const tempName = user.username || user.name;
-                                if (tempName && tempName.startsWith('User ')) {
-                                  displayName = tempName;
-                                } else {
-                                  displayName = `User ${userId.substring(0, 8)}...`;
-                                }
-                              }
-
-                              return (
-                                <Badge
-                                  key={userId}
-                                  variant="secondary"
-                                  className="flex items-center gap-1 text-xs"
-                                >
-                                  {displayName}
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removeUser(userId);
-                                    }}
-                                    className="ml-1 hover:bg-destructive/20 rounded-full p-0.5 -mr-1"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                      <Users className="ml-2 h-4 w-4 shrink-0 opacity-50 flex-shrink-0" />
-                    </div>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-[var(--radix-popover-trigger-width)] p-0"
-                  align="start"
-                  sideOffset={4}
-                >
                   <div
-                    className="max-h-[300px] overflow-y-auto cursor-pointer scrollbar-area"
-                    onWheel={(e) => e.stopPropagation()}
-                    style={{
-                      scrollbarWidth: 'thin',
-                      scrollbarColor: 'hsl(var(--muted-foreground)) hsl(var(--muted))'
-                    }}
+                    role="combobox"
+                    tabIndex={0}
+                    className="flex w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm ring-offset-background hover:bg-accent hover:text-accent-foreground cursor-pointer min-h-[38px] h-auto"
                   >
+                    <div className="flex-1 flex items-center min-w-0">
+                      {selectedUsers.length === 0 ? (
+                        <span className="text-muted-foreground text-xs">Select users...</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {selectedUsers.map((u) => {
+                            const userId = u.id || u.user_id;
+                            const displayName = u.name || u.username || u.email || 'Unknown';
+                            return (
+                              <Badge key={userId} variant="secondary" className="text-[10px] gap-0.5 py-0">
+                                {displayName}
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); removeUser(userId); }}
+                                  className="ml-0.5 hover:bg-destructive/20 rounded-full p-0.5"
+                                >
+                                  <X className="h-2.5 w-2.5" />
+                                </button>
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-2" />
+                  </div>
+                </PopoverTrigger>
+
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 overflow-hidden" align="start">
+                  <div onWheel={(e) => e.stopPropagation()} className="overflow-hidden">
                     <Command shouldFilter={false}>
                       <CommandInput
                         placeholder="Search users..."
                         value={searchTerm}
                         onValueChange={setSearchTerm}
-                        className="h-9 border-b sticky top-0 bg-background z-10"
+                        className="h-8 text-xs"
                       />
-                      <CommandList className="max-h-[250px]">
-                        {loadingUsers ? (
-                          <div className="flex items-center justify-center py-8">
-                            <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
-                            <span className="text-sm text-muted-foreground">Loading users...</span>
-                          </div>
-                        ) : error ? (
-                          <div className="p-4 text-center">
-                            <Alert variant="destructive" className="py-2">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertDescription className="text-xs">
-                                {error}
-                              </AlertDescription>
-                            </Alert>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => onClose()}
-                              className="mt-2"
+                      <CommandList className="max-h-[220px] overflow-y-auto overscroll-contain">
+                      <CommandEmpty className="py-4 text-xs text-center">No users found</CommandEmpty>
+                      <CommandGroup>
+                        {filteredUsers.map((u) => {
+                          const userId = u.id || u.user_id;
+                          const firstName = u.first_name || '';
+                          const lastName = u.last_name || '';
+                          const displayName = u.name || u.username || u.email || 'Unknown';
+                          const initials = (firstName[0] || '') + (lastName[0] || '') || displayName[0]?.toUpperCase() || '?';
+                          return (
+                            <CommandItem
+                              key={userId}
+                              onSelect={() => handleUserSelect(u)}
+                              className="cursor-pointer py-1.5 text-xs"
                             >
-                              Close
-                            </Button>
-                          </div>
-                        ) : filteredUsers.length === 0 ? (
-                          <div className="py-6 text-center text-sm text-muted-foreground">
-                            <CommandEmpty>
-                              {searchTerm ? 'No active users found' : allUsers.length === 0 ? 'No users available' : 'All active users are selected'}
-                            </CommandEmpty>
-                          </div>
-                        ) : (
-                          <CommandGroup>
-                            {filteredUsers.map((user) => {
-                              const userId = user.id || user.user_id;
-                              const fullName = user.first_name && user.last_name
-                                ? `${user.first_name} ${user.last_name}`.trim()
-                                : (user.first_name || user.last_name || '').trim();
-
-                              const displayName = fullName ||
-                                (user.name && user.name.trim()) ||
-                                (user.username && user.username.trim()) ||
-                                (user.email && user.email.trim()) ||
-                                `User ${userId}`;
-                              const showEmail = user.email && user.email.trim() && user.email !== displayName;
-                              return (
-                                <CommandItem
-                                  key={userId}
-                                  value={`${displayName} ${user.email || ''}`}
-                                  onSelect={() => {
-                                    handleUserSelect(user);
-                                  }}
-                                  className="cursor-pointer py-2 px-3 flex items-center justify-between gap-2 hover:bg-accent transition-colors"
-                                >
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                      <Users className="h-4 w-4 text-primary" />
-                                    </div>
-                                    <div className="flex flex-col min-w-0 flex-1">
-                                      <span className="font-medium truncate text-sm" title={displayName}>
-                                        {displayName}
-                                      </span>
-                                      {showEmail && (
-                                        <span className="text-xs text-muted-foreground truncate" title={user.email}>
-                                          {user.email}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className={cn(
-                                    "w-2 h-2 rounded-full shrink-0",
-                                    user.is_active !== false ? 'bg-green-500' : 'bg-gray-300'
-                                  )} />
-                                </CommandItem>
-                              );
-                            })}
-                          </CommandGroup>
-                        )}
-                      </CommandList>
-                    </Command>
+                              <div className="flex items-center gap-2 w-full">
+                                <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center text-primary text-[9px] font-bold shrink-0">
+                                  {initials}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate">{displayName}</p>
+                                  {u.email && (
+                                    <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
+                                  )}
+                                </div>
+                                <div className={cn(
+                                  'w-2 h-2 rounded-full shrink-0',
+                                  u.is_active !== false ? 'bg-green-500' : 'bg-gray-300'
+                                )} />
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -487,18 +302,15 @@ export default function GeneModal({
 
             <Separator />
 
-            {/* Status Switch */}
+            {/* Active Status */}
             <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="gene-status" className="text-sm font-semibold">Active Gene</Label>
-                <p className="text-xs text-muted-foreground">
-                  {geneData.is_active === true
-                    ? 'Gene is active and visible'
-                    : 'Gene is inactive and hidden'}
+              <div>
+                <Label className="text-xs font-semibold">Active Gene</Label>
+                <p className="text-[10px] text-muted-foreground">
+                  {geneData.is_active === true ? 'Gene is active and visible' : 'Gene is inactive'}
                 </p>
               </div>
               <Switch
-                id="gene-status"
                 checked={geneData.is_active === true}
                 onCheckedChange={handleIsActiveChange}
               />
@@ -507,97 +319,52 @@ export default function GeneModal({
             <Separator />
 
             {/* Hierarchy Levels */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <Label className="text-base font-bold">
+                <Label className="text-xs font-semibold">
                   Hierarchy Levels <span className="text-destructive">*</span>
                 </Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Define your gene hierarchy levels (Level 1, Level 2, Level 3, etc.)
-                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Define your gene hierarchy levels</p>
               </div>
 
               {geneData.levels.length === 0 ? (
-                <Card className={cn(
-                  "border-dashed transition-colors",
-                  showLevelsError && "border-destructive"
-                )}>
-                  <CardContent className="pt-12 pb-12">
-                    <div className="text-center">
-                      <Layers className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                      <p className="text-muted-foreground mb-2 font-medium">No hierarchy levels added yet</p>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Click "Add Level" to start building your gene hierarchy
-                      </p>
-                      {showLevelsError && geneData.levels.length === 0 && (
-                        <Alert variant="destructive" className="mt-4">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertDescription className="text-xs">
-                            At least one level is required
-                          </AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
+                <Card className={cn('border-dashed', showLevelsError && 'border-destructive')}>
+                  <CardContent className="py-8 text-center">
+                    <Layers className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                    <p className="text-xs text-muted-foreground">No levels added yet</p>
+                    {showLevelsError && (
+                      <p className="text-[10px] text-destructive mt-1">At least one level is required</p>
+                    )}
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-4">
-                  {geneData.levels.map((level, index) => (
-                    <Card key={level.id} className="hover:shadow-md transition-shadow">
-                      <CardContent className="pt-6">
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-                                <span className="text-primary-foreground text-sm font-bold">
-                                  {index + 1}
-                                </span>
-                              </div>
-                              <div>
-                                <p className="text-sm font-semibold">Level {index + 1}</p>
-                                <p className="text-xs text-muted-foreground">Level {index + 1} value</p>
-                              </div>
-                            </div>
-                            {geneData.levels.length > 1 && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeLevel(level.id)}
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-5 w-5" />
-                              </Button>
-                            )}
+                <div className="space-y-2">
+                  {geneData.levels.map((level, i) => (
+                    <Card key={level.id} className="bg-muted/30">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
+                            {i + 1}
                           </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor={`level-${level.id}`}>
-                              Level Value <span className="text-destructive">*</span>
-                            </Label>
-                            <DebouncedInput
-                              id={`level-${level.id}`}
-                              type="text"
-                              value={level.title || ''}
-                              onChange={(val) => {
-                                updateLevel(level.id, 'title', val);
-                                setTouchedFields(prev => ({ ...prev, levels: true }));
-                              }}
-                              onBlur={() => setTouchedFields(prev => ({ ...prev, levels: true }))}
-                              placeholder={`Enter level ${index + 1} value (e.g., "india", "maharashtra", "pune")`}
-                              className={cn(
-                                "w-full",
-                                showLevelsError && (!level.title || level.title.trim() === '') && "border-destructive focus-visible:ring-destructive"
-                              )}
-                            />
-                            {showLevelsError && (!level.title || level.title.trim() === '') && (
-                              <Alert variant="destructive" className="py-2">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertDescription className="text-xs">
-                                  Level value is required
-                                </AlertDescription>
-                              </Alert>
+                          <Input
+                            value={level.title || ''}
+                            onChange={(e) => updateLevel(level.id, 'title', e.target.value)}
+                            placeholder={`Level ${i + 1} name`}
+                            className={cn(
+                              'h-8 text-sm flex-1',
+                              showLevelsError && (!level.title || level.title.trim() === '') && 'border-destructive'
                             )}
-                          </div>
+                          />
+                          {geneData.levels.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                              onClick={() => removeLevel(level.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -607,52 +374,42 @@ export default function GeneModal({
 
               <Button
                 type="button"
-                onClick={() => {
-                  addLevel();
-                  setTouchedFields(prev => ({ ...prev, levels: true }));
-                }}
-                variant="default"
-                className="w-full"
+                variant="outline"
+                className="w-full h-8 text-xs"
+                onClick={addLevel}
               >
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="mr-1.5 h-3 w-3" />
                 Add Level
               </Button>
             </div>
+
           </div>
         </ScrollArea>
 
-        <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:justify-between px-6 pb-6 pt-4 border-t">
-          <div className="text-sm text-muted-foreground">
-            {geneData.levels.length > 0
-              ? `${geneData.levels.length} level${geneData.levels.length > 1 ? 's' : ''} configured • Status: ${geneData.is_active === true ? 'Active' : 'Inactive'}`
-              : 'Add at least one level to create gene'}
-            {editingGene && selectedUsers.length > 0 && (
-              <span className="ml-2 text-primary">
-                • {selectedUsers.length} user{selectedUsers.length !== 1 ? 's' : ''} selected
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={!isFormValid || isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {editingGene ? 'Updating...' : 'Creating...'}
-                </>
-              ) : (
-                editingGene ? 'Update Gene' : 'Create Gene'
-              )}
-            </Button>
+        <DialogFooter className="px-5 pb-5 pt-3 border-t">
+          <div className="flex items-center justify-between w-full">
+            <p className="text-[10px] text-muted-foreground">
+              {geneData.levels.length} level{geneData.levels.length !== 1 ? 's' : ''} • {selectedUsers.length} user{selectedUsers.length !== 1 ? 's' : ''}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleClose} disabled={isSubmitting}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSubmit}
+                disabled={isSubmitting || (submitAttempted && !isValid)}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {editingGene ? 'Updating...' : 'Creating...'}
+                  </>
+                ) : (
+                  editingGene ? 'Update Gene' : 'Create Gene'
+                )}
+              </Button>
+            </div>
           </div>
         </DialogFooter>
       </DialogContent>
