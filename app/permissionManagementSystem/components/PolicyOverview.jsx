@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ArrowUpDown,
   Search,
+  X,
   MoreHorizontal
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -387,8 +388,21 @@ export function PolicyOverview({ policies, policyFeatureMappings, allFeatures, u
                     setCurrentPageAllPolicies(1)
                     setCurrentPageFeatureMappings(1)
                   }}
-                  className="pl-9 bg-background"
+                  className={`pl-9 bg-background${searchTerm ? ' pr-8' : ''}`}
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchTerm("")
+                      setCurrentPageAllPolicies(1)
+                      setCurrentPageFeatureMappings(1)
+                    }}
+                    className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
 
