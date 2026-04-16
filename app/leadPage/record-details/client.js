@@ -32,7 +32,7 @@ import {
 import { toast } from "sonner"
 import { authUtils } from '@/lib/auth-utils'
 import { parseOptionalValuesArray, inferTypeFromColumnName, getColumnFieldType, getColumnOptions, hasNestedData, formatDateOnly, formatLocationDisplay, getFieldValue, safeParseJSON, formatPhoneDisplay } from '@/lib/utils'
-import { activitiesApi } from '@/lib/api-endpoint'
+import { activitiesApi, strategyApi, stageApi } from '@/lib/api-endpoint'
 import CreateActivityDialog from "@/app/activities/components/create-activity-dialog"
 import { AlertCircle } from "lucide-react"
 export default function RecordDetailsClient({
@@ -59,6 +59,35 @@ export default function RecordDetailsClient({
     const [users, setUsers] = useState(initialUsers || [])
     const [history, setHistory] = useState(initialHistory || [])
     const [activities, setActivities] = useState(initialActivities || [])
+    const [stages, setStages] = useState([])
+
+    useEffect(() => {
+        const fetchStages = async () => {
+            try {
+                const strategyResponse = await strategyApi.getAll(tableId)
+                const strategies = Array.isArray(strategyResponse.data) ? strategyResponse.data : (strategyResponse.data?.data || [])
+                const activeStrategy = strategies[0]
+                if (activeStrategy) {
+                    const stagesResponse = await stageApi.getAll(tableId, activeStrategy.strategy_id)
+                    const fetchedStages = Array.isArray(stagesResponse.data) ? stagesResponse.data : (stagesResponse.data?.data || [])
+                    setStages(fetchedStages)
+                }
+            } catch (err) {
+                console.error("Error fetching stages for colors:", err)
+            }
+        }
+        fetchStages()
+    }, [tableId])
+
+    const stageColorConfig = {
+        new: { dot: 'bg-gray-400', bar: 'bg-gray-400', badge: 'bg-gray-100 text-gray-700 border-gray-200', chart: '#9ca3af' },
+        contacted: { dot: 'bg-blue-500', bar: 'bg-blue-500', badge: 'bg-blue-100 text-blue-700 border-blue-200', chart: '#3b82f6' },
+        qualified: { dot: 'bg-purple-500', bar: 'bg-purple-500', badge: 'bg-purple-100 text-purple-700 border-purple-200', chart: '#a855f7' },
+        proposal: { dot: 'bg-amber-500', bar: 'bg-amber-500', badge: 'bg-amber-100 text-amber-700 border-amber-200', chart: '#f59e0b' },
+        negotiation: { dot: 'bg-orange-500', bar: 'bg-orange-500', badge: 'bg-orange-100 text-orange-700 border-orange-200', chart: '#f97316' },
+        won: { dot: 'bg-green-500', bar: 'bg-green-500', badge: 'bg-green-100 text-green-700 border-green-200', chart: '#22c55e' },
+        lost: { dot: 'bg-red-500', bar: 'bg-red-400', badge: 'bg-red-100 text-red-700 border-red-200', chart: '#ef4444' },
+    }
 
     // UI Loading state
     const [loadingActivities, setLoadingActivities] = useState(false)
@@ -627,17 +656,33 @@ export default function RecordDetailsClient({
                                                         style={{ width: `${Math.min(100, Math.max(0, parseFloat(record?.lead_score_percentage || 0)))}%` }}
                                                     />
                                                 </div>
-                                                <span className="text-sm font-bold text-blue-700">{record?.lead_score_percentage ?? '0'}%</span>
+                                                <span className="text-sm font-bold text-blue-700">{record?.lead_score_percentage != null ? parseFloat(record.lead_score_percentage).toFixed(2) : '0.00'}%</span>
                                             </div>
                                         </div>
                                         <div className="p-3 bg-blue-50/50 rounded-lg space-y-1 border border-blue-100/50">
                                             <Label className="text-xs font-semibold text-blue-600 uppercase">Lead Stage</Label>
                                             <div>
-                                                {record?.lead_stage ? (
-                                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200 uppercase text-[10px]">
-                                                        {record.lead_stage}
-                                                    </Badge>
-                                                ) : <span className="text-sm text-muted-foreground">-</span>}
+                                                {(() => {
+                                                    const stage = record?.lead_stage;
+                                                    if (!stage) return <span className="text-sm text-muted-foreground">-</span>;
+                                                    
+                                                    const sc = stageColorConfig[stage.toLowerCase()] || stageColorConfig.new;
+                                                    const stageObj = stages.find(s => (s.stage_name || s.name || s.label)?.toLowerCase() === stage.toLowerCase());
+                                                    const customColour = stageObj?.colour || null;
+                                                    
+                                                    if (customColour) {
+                                                        return (
+                                                            <Badge variant="secondary" className="uppercase text-[10px]" style={{ backgroundColor: `${customColour}18`, borderColor: `${customColour}50`, color: customColour }}>
+                                                                {stage}
+                                                            </Badge>
+                                                        );
+                                                    }
+                                                    return (
+                                                        <Badge variant="secondary" className={`uppercase text-[10px] ${sc.badge}`}>
+                                                            {stage}
+                                                        </Badge>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>

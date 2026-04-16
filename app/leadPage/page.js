@@ -3,7 +3,7 @@ import { authUtils } from '@/lib/auth-utils'
 import { API_BASE_URL, DATATABLE_ENDPOINTS } from '@/lib/api-endpoint'
 import LeadsPageClient from './client'
 import { Suspense } from 'react'
-import LeadPageSkeleton from './components/lead-page-skeleton'
+import LeadPageSkeleton from './components/LeadPageSkeleton'
 
 async function getTables() {
   const cookieStore = await cookies()

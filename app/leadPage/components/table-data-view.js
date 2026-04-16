@@ -3251,7 +3251,7 @@ export default function TableDataView({ table, onBack }) {
                       <Select value={pageSize.toString()} onValueChange={v => { setPageSize(Number(v)); setCurrentPage(1) }}>
                         <SelectTrigger className="w-[68px] h-8 text-xs border-muted-foreground/20 bg-background shadow-xs"><SelectValue /></SelectTrigger>
                         <SelectContent className="min-w-[68px]">
-                          {[10, 25, 50, 100].map(s => <SelectItem key={s} value={s.toString()}>{s}</SelectItem>)}
+                          {[5, 10, 25, 50, 100].map(s => <SelectItem key={s} value={s.toString()}>{s}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
