@@ -48,8 +48,8 @@ export default async function ActivitiesPage() {
         <ActivitiesClient
             initialActivities={data.activities}
             initialUsers={data.users}
-            initialRoles={[]} // Optional: can fetch roles if needed
-            initialGenes={[]}  // Optional: can fetch genes if needed
+            initialRoles={[]}
+            initialGenes={[]}
             initialTables={data.tables}
         />
     )

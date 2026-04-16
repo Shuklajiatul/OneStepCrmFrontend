@@ -271,7 +271,7 @@ const RolePriorityTree = () => {
         const response = await genesApi.getById(gId);
 
         const resp = response.data || {};
-        console.log('API Response:', resp);
+        //console.log('API Response:', resp);
 
         const isOk = resp.status === 'success' || resp.success === true;
         if (isOk) {

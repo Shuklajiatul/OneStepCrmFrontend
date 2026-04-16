@@ -56,6 +56,7 @@ import {
     Cell
 } from 'recharts'
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
+import { getInitials } from "@/lib/utils"
 
 export default function DashboardClient({
     initialStats,
@@ -122,11 +123,6 @@ export default function DashboardClient({
         { status: 'Qualified', count: 12, color: 'bg-violet-500', percent: 12 },
     ]
 
-    const getInitials = (name) => {
-        if (!name) return '?'
-        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
-    }
-
     const openFormInNewTab = (form) => {
         const tokens = authUtils.getTokens()
         const userId = tokens?.user?.user_id || tokens?.user?.id || tokens?.user_id || ''
@@ -172,7 +168,7 @@ export default function DashboardClient({
                 </div>
             </div>
 
-            {/* Quick Stats Grid - Full Width */}
+            {/* Quick Stats Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 {[
                     { title: 'System Users', value: stats.users, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100' },

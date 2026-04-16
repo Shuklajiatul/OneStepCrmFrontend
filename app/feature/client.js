@@ -835,7 +835,7 @@ export default function Client({ initialFeatures = [] }) {
                                                     <Label htmlFor="feature-name">Feature Name *</Label>
                                                     <Input
                                                         id="feature-name"
-                                                        placeholder="e.g., ticket_Create, tasks_view"
+                                                        placeholder="Enter Feature Name"
                                                         value={formData.feature_name}
                                                         onChange={(e) => handleFormChange('feature_name', e.target.value)}
                                                     />
@@ -853,7 +853,7 @@ export default function Client({ initialFeatures = [] }) {
                                                     <Label htmlFor="description">Description</Label>
                                                     <Input
                                                         id="description"
-                                                        placeholder="e.g., ticket creations"
+                                                        placeholder="Enter Feature Description"
                                                         value={formData.description}
                                                         onChange={(e) => handleFormChange('description', e.target.value)}
                                                     />
@@ -862,7 +862,7 @@ export default function Client({ initialFeatures = [] }) {
                                                     <Label htmlFor="module">Module *</Label>
                                                     <Input
                                                         id="module"
-                                                        placeholder="e.g., ticket, task, organization"
+                                                        placeholder="Enter the table you want to save"
                                                         value={formData.module}
                                                         onChange={(e) => handleFormChange('module', e.target.value)}
                                                     />

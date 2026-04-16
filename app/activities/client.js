@@ -68,6 +68,7 @@ import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import CreateActivityDialog from "./components/create-activity-dialog"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
+import { getInitials } from "@/lib/utils"
 
 const activityTypeIcons = {
     task: ListTodo,
@@ -468,11 +469,6 @@ export default function ActivitiesClient({ initialActivities = [], initialUsers 
     const getTableName = (tableId) => {
         const table = tables.find(t => t.table_id === tableId)
         return table?.table_name || "N/A"
-    }
-
-    const getInitials = (name) => {
-        if (!name) return '?'
-        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
     }
 
     const getActivityStatus = (activity) => {

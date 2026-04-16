@@ -45,7 +45,6 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [], tableId
   const [manualCityInput, setManualCityInput] = useState("")
   const [showManualCityInput, setShowManualCityInput] = useState({})
 
-  // Debounced update function to prevent excessive re-renders
   const debouncedUpdateField = useDebouncedUpdate(onUpdateField, 1000)
 
   // Load countries on component mount
@@ -78,12 +77,9 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [], tableId
     const currentAllowed = field.validation?.allowedCountries || []
     const newAllowed = currentAllowed.filter(c => c !== countryName)
 
-    // Also remove states and cities for this country
     const newAllowedStates = { ...field.validation?.allowedStates }
     const newAllowedCities = { ...field.validation?.allowedCities }
     delete newAllowedStates[countryName]
-
-    // Remove cities for states of this country
     Object.keys(newAllowedCities).forEach(state => {
       if (newAllowedStates[state]) {
         delete newAllowedCities[state]
@@ -121,7 +117,6 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [], tableId
     const currentAllowedStates = field.validation?.allowedStates || {}
     const countryStates = (currentAllowedStates[countryName] || []).filter(s => s !== stateName)
 
-    // Also remove cities for this state
     const newAllowedCities = { ...field.validation?.allowedCities }
     delete newAllowedCities[stateName]
 
