@@ -9,7 +9,7 @@ export default function EmptyState({ searchTerm, onClear, onCreate }) {
             <div className="absolute bottom-10 right-10 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl" />
          </div>
 
-         <div className="relative z-10">
+         <div className="relative z-10 flex flex-col items-center justify-center">
             <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center mb-5 shadow-sm">
                <FolderOpen className="h-8 w-8 text-primary/60" />
             </div>

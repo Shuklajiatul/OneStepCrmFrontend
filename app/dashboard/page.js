@@ -32,12 +32,9 @@ export default async function DashboardPage() {
     const headers = authUtils.getServerHeaders(cookieStore)
     const orgId = authUtils.getServerOrganizationId(cookieStore)
 
-    // Read current user from cookie for personalization
-    const userCookieRaw = cookieStore.get('user')?.value
+    // User data is now stored in localStorage (client-side only).
+    // The DashboardClient hydrates the user on the client via authUtils.
     let currentUser = null
-    try {
-        if (userCookieRaw) currentUser = JSON.parse(decodeURIComponent(userCookieRaw))
-    } catch { }
 
     // Fetch tables first — needed for forms & records lookups
     const tablesRaw = await fetchJson(`${API_BASE_URL}${DATATABLE_ENDPOINTS.LIST}`, headers)
@@ -119,6 +116,7 @@ export default async function DashboardPage() {
             uniqueFormsMap.set(fId, f)
         }
     })
+    console.log("uniqueFormsMap", uniqueFormsMap);
     const sortedForms = [...uniqueFormsMap.values()]
         .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at))
         .slice(0, 5)
@@ -151,9 +149,7 @@ export default async function DashboardPage() {
 
 
 
-    // Team Members
-    const currentUserId = currentUser?.user_id || currentUser?.id
-    const myTeam = usersData.filter(u => u.reporting_id === currentUserId)
+    // Team Members (moved to client side because currentUser is in localStorage)
 
     // Chart Data
     const chartData = [
@@ -182,9 +178,6 @@ export default async function DashboardPage() {
         : Array.isArray(activitiesRaw) ? activitiesRaw : []
 
     const allActivities = [
-        ...(currentUserId && usersData.find(u => (u.user_id || u.id) === currentUserId)?.created_at
-            ? [{ id: `user-${currentUserId}`, title: 'New User', desc: `${currentUser?.first_name || 'You'} joined the platform`, time: usersData.find(u => (u.user_id || u.id) === currentUserId).created_at, iconKey: 'UserPlus', color: 'text-blue-500', bg: 'bg-blue-50' }]
-            : []),
         ...sortedForms.map(f => ({ id: `form-${f.form_id}-${f.version || 1}`, title: 'Form Created', desc: `New form "${f.form_name}" is now live`, time: f.created_at, iconKey: 'FileText', color: 'text-emerald-500', bg: 'bg-emerald-50' })),
         ...tablesData.filter(t => t.created_at).slice(0, 5).map(t => ({ id: `table-${t.table_id}`, title: 'Table Added', desc: `Schema "${t.table_name}" was initialized`, time: t.created_at, iconKey: 'Database', color: 'text-amber-500', bg: 'bg-amber-50' })),
         ...leadsData.filter(l => l.created_at).map(l => ({ id: `lead-${l.record_id}`, title: 'Lead Captured', desc: `New record received`, time: l.created_at, iconKey: 'Zap', color: 'text-indigo-500', bg: 'bg-indigo-50' })),
@@ -214,10 +207,11 @@ export default async function DashboardPage() {
             initialGenes={genesData}
             initialPolicies={policiesData}
             initialRoles={rolesWithUsers}
-            initialTeamMembers={myTeam}
+            initialTeamMembers={[]} 
             initialChartData={chartData}
             initialUpcomingActivities={upcomingActivities}
             initialCurrentUser={currentUser}
+            initialAllUsers={usersData}
         />
     )
 }

@@ -10,31 +10,42 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.58 0.09 200); /* teal */
+  --primary: oklch(0.58 0.09 200);
+  /* teal */
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.64 0.14 150); /* green */
-  --accent-foreground: oklch(0.12 0.03 150); /* dark text on green */
+  --accent: oklch(0.64 0.14 150);
+  /* green */
+  --accent-foreground: oklch(0.12 0.03 150);
+  /* dark text on green */
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.64 0.14 150); /* income green */
-  --chart-2: oklch(0.58 0.09 200); /* teal */
-  --chart-3: oklch(0.7 0.03 0); /* neutral */
-  --chart-4: oklch(0.83 0.02 0); /* light neutral */
-  --chart-5: oklch(0.4 0.03 0); /* dark neutral */
+  --chart-1: oklch(0.64 0.14 150);
+  /* income green */
+  --chart-2: oklch(0.58 0.09 200);
+  /* teal */
+  --chart-3: oklch(0.7 0.03 0);
+  /* neutral */
+  --chart-4: oklch(0.83 0.02 0);
+  /* light neutral */
+  --chart-5: oklch(0.4 0.03 0);
+  /* dark neutral */
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.58 0.09 200); /* teal */
+  --sidebar-primary: oklch(0.58 0.09 200);
+  /* teal */
   --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.64 0.14 150); /* green */
-  --sidebar-accent-foreground: oklch(0.12 0.03 150); /* dark text on green */
+  --sidebar-accent: oklch(0.64 0.14 150);
+  /* green */
+  --sidebar-accent-foreground: oklch(0.12 0.03 150);
+  /* dark text on green */
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
@@ -85,8 +96,8 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-poppins);
+  --font-mono: var(--font-poppins);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -129,15 +140,18 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+
   /* Remove number input spinners */
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
   }
+
   input[type="number"] {
     -moz-appearance: textfield;
     appearance: textfield;
@@ -146,115 +160,120 @@
 
 @layer utilities {
   .card-elevated {
-    box-shadow: 0 1px 0 0 color-mix(in oklab, var(--color-foreground) 8%, transparent), 0 2px 10px -2px
-      color-mix(in oklab, var(--color-foreground) 12%, transparent);
+    box-shadow: 0 1px 0 0 color-mix(in oklab, var(--color-foreground) 8%, transparent), 0 2px 10px -2px color-mix(in oklab, var(--color-foreground) 12%, transparent);
   }
+
   .surface-muted {
     background: color-mix(in oklab, var(--color-primary) 6%, var(--color-card));
   }
+
   .tile-pattern {
     position: relative;
     overflow: hidden;
   }
+
   .tile-pattern::after {
     content: "";
     position: absolute;
     inset: 0;
     opacity: 0.15;
-    background-image: radial-gradient(
-      50% 50% at 50% 50%,
-      color-mix(in oklab, var(--color-primary) 30%, transparent) 0%,
-      transparent 60%
-    );
+    background-image: radial-gradient(50% 50% at 50% 50%,
+        color-mix(in oklab, var(--color-primary) 30%, transparent) 0%,
+        transparent 60%);
     background-size: 120px 120px;
     pointer-events: none;
   }
 
 
-.field-type-button:active {
-  cursor: grabbing !important;
-}
+  .field-type-button:active {
+    cursor: grabbing !important;
+  }
 
-.field-type-button.dragging {
-  opacity: 0.5;
-  transform: scale(0.95);
-}
+  .field-type-button.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+  }
 
-/* Drag and drop visual feedback */
-.drag-over {
-  border: 2px dashed var(--color-primary) !important;
-  background-color: color-mix(in oklab, var(--color-primary) 5%, transparent) !important;
-}
+  /* Drag and drop visual feedback */
+  .drag-over {
+    border: 2px dashed var(--color-primary) !important;
+    background-color: color-mix(in oklab, var(--color-primary) 5%, transparent) !important;
+  }
 
-.drop-zone-active {
-  border-color: var(--color-primary) !important;
-  background-color: color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
-}
+  .drop-zone-active {
+    border-color: var(--color-primary) !important;
+    background-color: color-mix(in oklab, var(--color-primary) 10%, transparent) !important;
+  }
 
-/* Edit dialog box size */
-.edit-dialog-content {
-  width: 55vw !important;
-  max-width: none !important;
-  max-height: 95vh !important;
-  overflow-y: auto !important;
-}
+  /* Edit dialog box size */
+  .edit-dialog-content {
+    width: 55vw !important;
+    max-width: none !important;
+    max-height: 95vh !important;
+    overflow-y: auto !important;
+  }
 
-/* Fix for Gene Modal User Dropdown Scrollbar */
-.scrollbar-area {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--muted));
-}
+  /* Fix for Gene Modal User Dropdown Scrollbar */
+  .scrollbar-area {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--muted));
+  }
 
-.scrollbar-area::-webkit-scrollbar {
-  width: 8px;
-}
+  .scrollbar-area::-webkit-scrollbar {
+    width: 8px;
+  }
 
-.scrollbar-area::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-  border-radius: 4px;
-}
+  .scrollbar-area::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+  }
 
-.scrollbar-area::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground));
-  border-radius: 4px;
-  border: 2px solid hsl(var(--muted));
-}
+  .scrollbar-area::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground));
+    border-radius: 4px;
+    border: 2px solid hsl(var(--muted));
+  }
 
-.scrollbar-area::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--foreground));
-  cursor: pointer;
-}
+  .scrollbar-area::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--foreground));
+    cursor: pointer;
+  }
 
-.scrollbar-area::-webkit-scrollbar-thumb:active {
-  background: hsl(var(--primary));
-}
+  .scrollbar-area::-webkit-scrollbar-thumb:active {
+    background: hsl(var(--primary));
+  }
 
-/* Ensure the dropdown content is focusable and scrollable */
-.scrollbar-area:focus {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
-}
+  /* Ensure the dropdown content is focusable and scrollable */
+  .scrollbar-area:focus {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
 
-/* Prevent body scroll when dropdown is open */
-body:has(.scrollbar-area:focus) {
-  overflow: hidden;
-}
+  /* Prevent body scroll when dropdown is open */
+  body:has(.scrollbar-area:focus) {
+    overflow: hidden;
+  }
 
-/* Make sure command list is properly scrollable */
-.command-list {
-  scrollbar-width: none; /* Hide native scrollbar */
-}
+  /* Make sure command list is properly scrollable */
+  .command-list {
+    scrollbar-width: none;
+    /* Hide native scrollbar */
+  }
 
-.command-list::-webkit-scrollbar {
-  display: none; /* Hide native scrollbar */
-}
+  .command-list::-webkit-scrollbar {
+    display: none;
+    /* Hide native scrollbar */
+  }
 
-.scrollbar-hide {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
-}
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none; /* Chrome, Safari and Opera */
-}
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari and Opera */
+  }
 }

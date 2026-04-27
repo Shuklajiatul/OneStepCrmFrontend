@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { authUtils } from "@/lib/auth-utils"
 
 export async function POST(request) {
   try {
@@ -35,8 +34,26 @@ export async function POST(request) {
     // Create response with new tokens
     const nextResponse = NextResponse.json(data);
 
-    // Set cookies if tokens are returned
-    authUtils.setTokens(data)
+    // Set auth cookies directly (server-side – can't use localStorage here)
+    const cookieOptions = { path: '/', sameSite: 'lax', httpOnly: false };
+    if (data.accessToken) {
+      nextResponse.cookies.set('accessToken', data.accessToken, {
+        ...cookieOptions,
+        maxAge: 60 * 60 * 24, // 1 day
+      });
+    }
+    if (data.refreshToken) {
+      nextResponse.cookies.set('refreshToken', data.refreshToken, {
+        ...cookieOptions,
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+    }
+    if (data.user?.organization_id) {
+      nextResponse.cookies.set('organization_id', data.user.organization_id, {
+        ...cookieOptions,
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+    }
 
     return nextResponse;
   } catch (error) {

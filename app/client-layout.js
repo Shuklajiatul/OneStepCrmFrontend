@@ -10,6 +10,15 @@ export default function ClientLayout({ children, initialUser }) {
     const pathname = usePathname()
     const [isCollapsed, setIsCollapsed] = useState(false)
     const [darkMode, setDarkMode] = useState(false)
+    const [isScrolled, setIsScrolled] = useState(false)
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setIsScrolled(window.scrollY > 0)
+        }
+        window.addEventListener('scroll', handleScroll)
+        return () => window.removeEventListener('scroll', handleScroll)
+    }, [])
 
     // Dark mode effect
     useEffect(() => {
@@ -47,7 +56,10 @@ export default function ClientLayout({ children, initialUser }) {
                     "flex-1 transition-all duration-300 flex flex-col min-h-screen min-w-0",
                     isCollapsed ? "md:ml-0" : "md:ml-0"
                 )}>
-                    <div className="p-4 border-b border-border bg-card/50">
+                    <div className={cn(
+                        "sticky top-0 z-50 p-4 bg-background/80 backdrop-blur-md transition-all duration-200",
+                        isScrolled ? "border-b border-border shadow-sm" : "border-b border-transparent"
+                    )}>
                         <Topbar
                             darkMode={darkMode}
                             toggleDarkMode={() => setDarkMode(!darkMode)}

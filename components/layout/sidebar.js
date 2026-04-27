@@ -6,88 +6,100 @@ import { Card } from "@/components/ui/card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import Image from 'next/image'
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { authUtils } from '@/lib/auth-utils'
+import { rolesApi } from '@/lib/api-endpoint'
 
 const menuItems = [
     { 
         label: "Dashboard", 
         icon: Home, 
-        href: "/dashboard" 
+        href: "/dashboard",
+        alwaysVisible: true
     },
     {
         label: "Leads",
         icon: Users,
         href: "/leadPage",
+        requiredModule: "leads",
         submenu: [
-            { label: "All Leads", icon: List, href: "/leadPage" },
-            { label: "Lead Strategy", icon: Target, href: "/strategy" },
+            { label: "All Leads", icon: List, href: "/leadPage", requiredModule: "leads" },
+            { label: "Lead Strategy", icon: Target, href: "/strategy", requiredModule: "leads" },
         ]
     },
     { 
         label: "Activities", 
         icon: CalendarCheck, 
-        href: "/activities" 
+        href: "/activities",
+        requiredModule: "activities"
     },
     {
         label: "Forms",
         icon: BookCopy,
         href: "/forms",
+        requiredModule: "forms",
         submenu: [
-            { label: "Custom Form", icon: FormInput, href: "/custom-form" },
-            { label: "My Forms", icon: List, href: "/my-forms" },
-            { label: "Form Analytics", icon: BarChart3, href: "/form-analytics" },
+            { label: "Custom Form", icon: FormInput, href: "/custom-form", requiredModule: "forms" },
+            { label: "My Forms", icon: List, href: "/my-forms", requiredModule: "forms" },
+            { label: "Form Analytics", icon: BarChart3, href: "/form-analytics", requiredModule: "forms" },
         ]
     },
     {
         label: "Gene Management",
         icon: Network,
         href: "/general-management",
+        requiredModule: "geneManagement",
         submenu: [
-            { label: "Gene", icon: Layers, href: "/gene" },
-            { label: "Feature", icon: Shield, href: "/feature" },
-            { label: "Permission Management System", icon: Lock, href: "/permissionManagementSystem" },
+            { label: "Gene", icon: Layers, href: "/gene", requiredModule: "geneManagement" },
+            { label: "Feature", icon: Shield, href: "/feature", requiredModule: "geneManagement" },
+            { label: "Permission Management System", icon: Lock, href: "/permissionManagementSystem", requiredModule: "geneManagement" },
         ]
     },
     {
         label: "User",
         icon: UserCog,
         href: "/user",
+        requiredModule: "users",
         submenu: [
-            { label: "User Management", icon: UserCog, href: "/users" },
-            { label: "Role Management", icon: Shield, href: "/roles" },
-            { label: "Org Management", icon: Building, href: "/organizations" },
+            { label: "User Management", icon: UserCog, href: "/users", requiredModule: "users" },
+            { label: "Role Management", icon: Shield, href: "/roles", requiredModule: "roles" },
+            { label: "Org Management", icon: Building, href: "/organizations", requiredModule: "organizations" },
         ]
     },
     { 
         label: "Custom Table", 
         icon: Table, 
-        href: "/custom-table-builder" 
+        href: "/custom-table-builder",
+        requiredModule: "Table"
     },
     {
         label: "Migrator",
         icon: Network,
         href: "/migrator",
+        requiredModule: "migrator",
         submenu: [
-            { label: "Data Migrator", icon: Network, href: "/migrator" },
-            { label: "Migration Status", icon: FileChartColumnIncreasing, href: "/migrator/status" },
+            { label: "Data Migrator", icon: Network, href: "/migrator", requiredModule: "migrator" },
+            { label: "Migration Status", icon: FileChartColumnIncreasing, href: "/migrator/status", requiredModule: "migrator" },
         ]
     },
     { 
         label: "Report", 
         icon: ClipboardMinus, 
-        href: "/report" 
+        href: "/report",
+        requiredModule: "report"
     },
     { 
         label: "Setting", 
         icon: Settings, 
-        href: "/setting" 
+        href: "/setting",
+        alwaysVisible: true
     },
     { 
         label: "Help", 
         icon: HelpCircle, 
-        href: "/help" 
+        href: "/help",
+        alwaysVisible: true
     },
 ]
 
@@ -95,6 +107,8 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
     const router = useRouter()
     const pathname = usePathname()
     const [expandedMenus, setExpandedMenus] = useState(new Set())
+    const [userFeatures, setUserFeatures] = useState(null)
+    const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
     // Check authentication and redirect if not authenticated
     useEffect(() => {
@@ -102,11 +116,63 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
             router.push('/login')
             return
         }
+
+        const user = authUtils.getUser()
+        if (user) {
+            if (user.features) {
+                setUserFeatures(user.features)
+            }
+
+            // Fetch user's role to check priority
+            if (user.role_id) {
+                rolesApi.getById(user.role_id)
+                    .then(response => {
+                        const role = response?.data || response;
+                        if (role && role.priority === 1) {
+                            setIsSuperAdmin(true)
+                        }
+                    })
+                    .catch(err => {
+                        console.warn('Failed to fetch role priority:', err)
+                    })
+            }
+        }
     }, [router, pathname])
+
+    const filteredMenuItems = useMemo(() => {
+        // Super admin (priority 1) sees all menus
+        if (isSuperAdmin) return menuItems;
+
+        if (!userFeatures) return menuItems;
+
+        const hasAccess = (item) => {
+            if (item.alwaysVisible) return true;
+            if (!item.requiredModule) return false;
+            return userFeatures.some(f => f.module === item.requiredModule && f.action === 'view' && f.is_active);
+        };
+
+        return menuItems.reduce((acc, item) => {
+            if (hasAccess(item)) {
+                if (item.submenu) {
+                    const filteredSubmenu = item.submenu.filter(sub => {
+                        if (sub.alwaysVisible) return true;
+                        if (!sub.requiredModule) return false;
+                        return userFeatures.some(f => f.module === sub.requiredModule && f.action === 'view' && f.is_active);
+                    });
+                    if (filteredSubmenu.length > 0) {
+                        acc.push({ ...item, submenu: filteredSubmenu });
+                    }
+                } else {
+                    acc.push(item);
+                }
+            }
+            return acc;
+        }, []);
+    }, [userFeatures, isSuperAdmin]);
 
     // Auto-expand parent menus when their submenu items are active
     useEffect(() => {
-        const activeSubmenuItems = menuItems.filter(item =>
+        const activeSubmenuItems = filteredMenuItems.filter(item =>
             item.submenu?.some(subItem => pathname === subItem.href)
         )
 
@@ -173,7 +239,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
                         variant="ghost"
                         size="icon"
                         className={cn(
-                            "hidden md:flex absolute top-6 -right-3 z-20 h-6 w-6 rounded-full bg-background border border-border shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200 ease-out",
+                            "hidden md:flex absolute top-6 -right-3 z-160 h-6 w-6 rounded-full bg-background border border-border shadow-md hover:shadow-lg hover:scale-110 transition-all duration-200 ease-out",
                             "opacity-0 group-hover/sidebar:opacity-100 hover:!opacity-100",
                             isCollapsed && "opacity-100"
                         )}
@@ -241,7 +307,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }) {
                         "space-y-1",
                         isCollapsed && "space-y-1"
                     )}>
-                        {menuItems.map((item, index) => {
+                        {filteredMenuItems.map((item, index) => {
                             const showGeneManagementSection = !isCollapsed && index === 3 && item.label === "Gene Management"
                             const showUserSection = !isCollapsed && index === 4 && item.label === "User"
 

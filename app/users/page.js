@@ -10,7 +10,7 @@ async function getData() {
 
   try {
     const [usersRes, rolesRes, genesRes, policiesRes] = await Promise.all([
-      fetch(`${API_BASE_URL}${USER_ENDPOINTS.LIST}`, {
+      fetch(`${API_BASE_URL}${USER_ENDPOINTS.LIST}?limit=5`, {
         headers,
         next: { revalidate: 0 }
       }),
@@ -28,12 +28,17 @@ async function getData() {
       })
     ])
 
-    const usersData = usersRes.ok ? await usersRes.json() : []
+    const usersData = usersRes.ok ? await usersRes.json() : { data: [], next: null, prev: null }
     const rolesData = rolesRes.ok ? await rolesRes.json() : []
     const genesData = genesRes.ok ? await genesRes.json() : []
     const policiesData = policiesRes.ok ? await policiesRes.json() : []
 
     const users = extractArray(usersData)
+    const pagination = {
+      next: usersData.next || null,
+      prev: usersData.prev || null,
+      limit: 5
+    }
     const allGenes = extractArray(genesData, 'genes')
 
     // Extract all unique gene IDs that are mapped to users
@@ -57,6 +62,7 @@ async function getData() {
 
     return {
       users,
+      pagination,
       roles: extractArray(rolesData, 'roles'),
       genes: mappedGenes,
       policies: extractArray(policiesData, 'policies')
@@ -73,6 +79,7 @@ export default async function UsersPage() {
   return (
     <UsersClient
       initialUsers={data.users}
+      initialPagination={data.pagination}
       initialRoles={data.roles}
       initialGenes={data.genes}
       initialPolicies={data.policies}

@@ -1961,8 +1961,8 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [], tableId
                     <SelectContent>
                       {countries
                         .filter(country => !field.validation?.allowedCountries?.includes(country.name))
-                        .map(country => (
-                          <SelectItem key={country.name} value={country.name}>
+                        .map((country, index) => (
+                          <SelectItem key={index} value={country.name}>
                             {country.name}
                           </SelectItem>
                         ))}
@@ -1996,7 +1996,7 @@ export function FieldConfigPanel({ field, onUpdateField, allFields = [], tableId
 
                         <div className="space-y-1">
                           {(field.validation?.allowedStates?.[countryName] || []).map((stateName, index) => (
-                            <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-md">
+                            <div key={index} className="flex items-center justifby-etween p-2 bg-muted rounded-md">
                               <span className="text-xs">{stateName}</span>
                               <Button
                                 size="sm"

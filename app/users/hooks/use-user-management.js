@@ -2,8 +2,15 @@ import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 import apiClient from "@/lib/api-client"
 
-export function useUserManagement({ initialUsers = [], initialRoles = [], initialGenes = [], initialPolicies = [] }) {
+export function useUserManagement({
+    initialUsers = [],
+    initialPagination = { next: null, prev: null, limit: 5 },
+    initialRoles = [],
+    initialGenes = [],
+    initialPolicies = []
+}) {
     const [users, setUsers] = useState(initialUsers)
+    const [pagination, setPagination] = useState(initialPagination)
     const [loading, setLoading] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
     const [statusFilter, setStatusFilter] = useState("all")
@@ -42,16 +49,33 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
     const [submitting, setSubmitting] = useState(false)
 
     // Fetchers
-    const fetchUsers = async (silent = true) => {
+    const fetchUsers = async (options = {}) => {
+        // Support legacy `fetchUsers(true/false)` calls as well as `fetchUsers({ silent, next, prev, limit })`
+        const { silent = true, next = null, prev = null, limit: limitOverride = null } =
+            typeof options === 'boolean' ? { silent: options } : (options || {})
+
+        const effectiveLimit = limitOverride || pagination.limit || 5
+
         try {
             setLoading(true)
-            const response = await apiClient.get('/api/users', { skipToast: true })
+            const params = { limit: effectiveLimit }
+            if (next) params.next = next
+            if (prev) params.prev = prev
+
+            const response = await apiClient.get('/api/users', { params, skipToast: true })
 
             if (response.data) {
-                const userData = Array.isArray(response.data)
-                    ? response.data
-                    : response.data.data || []
+                const userData = response.data.data || (Array.isArray(response.data) ? response.data : [])
+                const nextCursor = response.data.next ?? null
+                const prevCursor = response.data.prev ?? null
+
                 setUsers(userData)
+                setPagination(prevPag => ({
+                    ...prevPag,
+                    next: nextCursor,
+                    prev: prevCursor,
+                    ...(limitOverride ? { limit: limitOverride } : {}),
+                }))
                 if (!silent) toast.success("User list updated")
             }
         } catch (error) {
@@ -445,7 +469,8 @@ export function useUserManagement({ initialUsers = [], initialRoles = [], initia
         handleToggleStatus,
         handleAssignRole,
         handleRemoveRole,
-        fetchUsers,
+        fetchUsers: (options) => fetchUsers(options),
+        pagination,
         fetchUserDetails,
         resetForm,
         openCreateDialog: () => { resetForm(); setIsCreateDialogOpen(true) },

@@ -1,48 +1,29 @@
-import { Geist, Geist_Mono, Shantell_Sans } from "next/font/google";
+import { Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 import ClientLayout from "./client-layout";
 import Script from "next/script";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
+  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
 });
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const shantellSans = Shantell_Sans({
-  variable: "--font-shantell-sans",
-  subsets: ["latin"]
-})
 
 export const metadata = {
   title: "Slash CRM ",
   description: "This is Slash Rtc CRM",
 };
 
-import { cookies } from "next/headers";
-
 export default async function RootLayout({ children }) {
-  const cookieStore = await cookies();
-  const userCookie = cookieStore.get('user')?.value;
-  let user = null;
-
-  if (userCookie) {
-    try {
-      user = JSON.parse(decodeURIComponent(userCookie));
-    } catch (e) {
-      console.warn('Failed to parse user cookie in RootLayout', e);
-    }
-  }
+  // User data is now stored in localStorage (client-side only).
+  // The layout hydrates the user on the client via authUtils.
+  const user = null;
 
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${poppins.variable} font-sans antialiased`}
       >
         <ClientLayout initialUser={user}>{children}</ClientLayout>
         <Toaster position="top-right" expand={true} closeButton visibleToasts={6} />

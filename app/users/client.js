@@ -29,6 +29,7 @@ export default function UsersClient(props) {
     availablePolicies,
     submitting,
     filteredUsers,
+    pagination,
     handleCreateUser,
     handleUpdateUser,
     handleToggleStatus,
@@ -60,7 +61,7 @@ export default function UsersClient(props) {
           <Button
             variant="outline"
             size="default"
-            onClick={() => fetchUsers(false)}
+            onClick={() => fetchUsers({ silent: false })}
             disabled={loading}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -94,6 +95,8 @@ export default function UsersClient(props) {
         <UserTable
           users={filteredUsers}
           loading={loading}
+          pagination={pagination}
+          onRefresh={fetchUsers}
           onView={openViewDialog}
           onEdit={openEditDialog}
           onManageRoles={openRoleDialog}

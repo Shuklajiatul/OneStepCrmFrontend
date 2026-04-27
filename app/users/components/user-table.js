@@ -56,6 +56,8 @@ const SortIcon = ({ column }) => {
 export function UserTable({
     users = [],
     loading = false,
+    pagination,
+    onRefresh,
     onView,
     onEdit,
     onManageRoles,
@@ -65,10 +67,11 @@ export function UserTable({
     getUserRolePriority,
 }) {
     const [sorting, setSorting] = useState([])
-    const [pagination, setPagination] = useState({
-        pageIndex: 0,
-        pageSize: 10,
-    })
+    const [currentPage, setCurrentPage] = useState(1)
+
+    // Derive cursors from the current page's user IDs
+    const nextCursor = users[users.length - 1]?.user_id || null
+    const prevCursor = users[0]?.user_id || null
 
     const getInitials = (firstName, lastName) => {
         return `${firstName?.charAt(0) || ""}${lastName?.charAt(0) || ""}`.toUpperCase() || "U"
@@ -251,18 +254,13 @@ export function UserTable({
         columns,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
-        getPaginationRowModel: getPaginationRowModel(),
         onSortingChange: setSorting,
-        onPaginationChange: setPagination,
         state: {
             sorting,
-            pagination,
         },
     })
 
-    // Remove the early return for loading to show skeletons inside the table structure
-
-    if (users.length === 0) {
+    if (users.length === 0 && !loading) {
         return (
             <div className="text-center py-12 text-muted-foreground">
                 <p>No users found</p>
@@ -293,7 +291,7 @@ export function UserTable({
                         </TableHeader>
                         <TableBody>
                             {loading ? (
-                                Array.from({ length: pagination.pageSize }).map((_, i) => (
+                                Array.from({ length: 10 }).map((_, i) => (
                                     <TableRow key={i}>
                                         {columns.map((_, j) => (
                                             <TableCell key={j} className="px-6 py-4">
@@ -329,115 +327,62 @@ export function UserTable({
             </div>
 
             {/* Pagination Controls */}
-            {/* Pagination Controls */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/5">
-                <div className="flex flex-wrap items-center gap-4 order-2 sm:order-1 justify-center sm:justify-start">
-                    <div className="flex items-center gap-2 border-muted-foreground/20">
-                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                            Show
-                        </span>
-                        <Select
-                            value={`${table.getState().pagination.pageSize}`}
-                            onValueChange={(value) => {
-                                table.setPageSize(Number(value))
-                            }}
-                        >
-                            <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent side="top">
-                                {[5, 10, 15, 20].map((pageSize) => (
-                                    <SelectItem key={pageSize} value={`${pageSize}`}>
-                                        {pageSize}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-                            per page
-                        </span>
-                    </div>
-
-                    <div className="text-sm font-medium border-l pl-4 text-muted-foreground">
-                        Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
-                        {Math.min(
-                            (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                            table.getFilteredRowModel().rows.length
-                        )}{" "}
-                        of {table.getFilteredRowModel().rows.length} users
-                    </div>
+            <div className="flex items-center justify-between px-4 py-4 border-t bg-muted/5">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground font-medium whitespace-nowrap">Rows per page</span>
+                    <Select
+                        value={String(pagination?.limit || 5)}
+                        onValueChange={(val) => {
+                            setCurrentPage(1)
+                            onRefresh({ limit: Number(val) })
+                        }}
+                    >
+                        <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent side="top">
+                            {[5, 10, 15, 20, 50].map((size) => (
+                                <SelectItem key={size} value={String(size)}>
+                                    {size}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <span className="text-sm text-muted-foreground font-medium border-l pl-3">
+                        Page <span className="text-foreground font-semibold">{currentPage}</span>
+                    </span>
                 </div>
-
-                <div className="order-1 sm:order-2">
-                    <Pagination className="justify-end w-auto mx-0">
-                        <PaginationContent>
-                            <PaginationItem>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        table.previousPage();
-                                    }}
-                                    disabled={!table.getCanPreviousPage()}
-                                    className="gap-1 pl-2.5 h-8 rounded-lg"
-                                >
-                                    <ChevronLeft className="h-4 w-4" />
-                                    <span>Previous</span>
-                                </Button>
-                            </PaginationItem>
-
-                            {(() => {
-                                const totalPages = table.getPageCount()
-                                const currentPage = table.getState().pagination.pageIndex + 1
-                                const pages = []
-                                const maxVisiblePages = 5
-
-                                let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2))
-                                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
-
-                                if (endPage - startPage + 1 < maxVisiblePages) {
-                                    startPage = Math.max(1, endPage - maxVisiblePages + 1)
-                                }
-
-                                for (let i = startPage; i <= endPage; i++) {
-                                    pages.push(
-                                        <PaginationItem key={i}>
-                                            <PaginationLink
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    table.setPageIndex(i - 1);
-                                                }}
-                                                isActive={currentPage === i}
-                                                className="cursor-pointer h-8 w-8 rounded-lg"
-                                            >
-                                                {i}
-                                            </PaginationLink>
-                                        </PaginationItem>
-                                    )
-                                }
-                                return pages
-                            })()}
-
-                            <PaginationItem>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        table.nextPage();
-                                    }}
-                                    disabled={!table.getCanNextPage()}
-                                    className="gap-1 pr-2.5 h-8 rounded-lg"
-                                >
-                                    <span>Next</span>
-                                    <ChevronRight className="h-4 w-4" />
-                                </Button>
-                            </PaginationItem>
-                        </PaginationContent>
-                    </Pagination>
+                <div className="flex items-center gap-2">
+                    {currentPage > 1 && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                                setCurrentPage(p => p - 1)
+                                onRefresh({ prev: prevCursor })
+                            }}
+                            disabled={loading}
+                            className="gap-1 rounded-lg h-9 px-4"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                            Previous
+                        </Button>
+                    )}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            setCurrentPage(p => p + 1)
+                            onRefresh({ next: nextCursor })
+                        }}
+                        disabled={loading}
+                        className="gap-1 rounded-lg h-9 px-4"
+                    >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
                 </div>
             </div>
         </div>
     )
-}
+}

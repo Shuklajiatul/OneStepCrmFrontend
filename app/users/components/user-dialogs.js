@@ -149,7 +149,9 @@ export function UserDialogs({
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
+                        <div className="max-h-60 overflow-y-auto"
+                        onWheel={(e) => e.stopPropagation()}
+                        >
                             <Label>Gene <span className="text-destructive">*</span></Label>
                             <MultiSelect
                                 options={genes.map(g => ({ label: g.name || g.g_name, value: g.g_id || g.id }))}
@@ -158,7 +160,9 @@ export function UserDialogs({
                                 placeholder="Select genes"
                             />
                         </div>
-                        <div className="space-y-2">
+                        <div className="max-h-60 overflow-y-auto"
+                        onWheel={(e) => e.stopPropagation()}
+                        >
                             <Label>Policy</Label>
                             <MultiSelect
                                 options={policies.map(p => ({ label: p.p_name || p.name, value: p.p_id || p.id }))}

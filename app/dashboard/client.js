@@ -72,6 +72,7 @@ export default function DashboardClient({
     initialChartData,
     initialUpcomingActivities,
     initialCurrentUser,
+    initialAllUsers = [],
 }) {
     const [stats, setStats] = useState(initialStats)
     const [recentForms, setRecentForms] = useState(initialRecentForms)
@@ -115,6 +116,17 @@ export default function DashboardClient({
             }
         }
     }, [currentUser])
+
+    // Re-calculate team members on the client once currentUser is available
+    useEffect(() => {
+        if (currentUser && initialAllUsers.length > 0) {
+            const currentUserId = currentUser.user_id || currentUser.id
+            if (currentUserId) {
+                const myTeam = initialAllUsers.filter(u => u.reporting_id === currentUserId)
+                setTeamMembers(myTeam)
+            }
+        }
+    }, [currentUser, initialAllUsers])
 
     const pipelineData = [
         { status: 'New', count: 45, color: 'bg-blue-500', percent: 45 },
@@ -206,7 +218,7 @@ export default function DashboardClient({
                                         <BarChart3 className="h-5 w-5 text-primary" />
                                         Resource Distribution
                                     </CardTitle>
-                                    <CardDescription>Overall breakdown of system entities</CardDescription>
+                                    <CardDescription>Ove rall breakdown of system entities</CardDescription>
                                 </div>
                             </div>
                         </CardHeader>

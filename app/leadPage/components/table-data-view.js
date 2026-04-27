@@ -171,14 +171,13 @@ export default function TableDataView({ table, onBack }) {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
 
   // Fetching guards to prevent double-hitting APIs
   const fetchedTableIdRef = useRef(null)
   const isFetchingTableRef = useRef(false)
   const fetchedUsersRef = useRef(false)
   const fetchedCountriesRef = useRef(false)
-  const [totalPages, setTotalPages] = useState(1)
+  const [pagination, setPagination] = useState({ next: null, prev: null, limit: 10 })
 
   // Create Activity Modal State
   const [isCreateActivityOpen, setIsCreateActivityOpen] = useState(false)
@@ -262,8 +261,14 @@ export default function TableDataView({ table, onBack }) {
     }
   }
 
-  const fetchTableData = async () => {
-    if (isFetchingTableRef.current) return
+  const fetchTableData = async (options = {}) => {
+    // Support legacy calls and pagination parameters
+    const { silent = true, next = null, prev = null, limit: limitOverride = null } =
+      typeof options === 'boolean' ? { silent: options } : (options || {})
+
+    const effectiveLimit = limitOverride || pagination.limit || pageSize || 10
+
+    if (isFetchingTableRef.current && !next && !prev && !limitOverride) return
     isFetchingTableRef.current = true
     fetchedTableIdRef.current = table.table_id
 
@@ -279,16 +284,29 @@ export default function TableDataView({ table, onBack }) {
     }
 
     try {
+      const params = { limit: effectiveLimit }
+      if (next) params.next = next
+      if (prev) params.prev = prev
+
       const [columnsResponse, recordsResponse, strategyResponse] = await Promise.all([
         datatablesApi.getColumns(table.table_id),
-        recordsApi.getAll(table.table_id),
+        recordsApi.getAll(table.table_id, params),
         strategyApi.getAll(table.table_id)
       ])
 
       const columnsData = Array.isArray(columnsResponse.data)
         ? columnsResponse.data
         : (columnsResponse.data?.data || columnsResponse.data?.columns || [])
-      let recordsData = recordsResponse.data
+      
+      let recordsData = []
+      let nextCursor = null
+      let prevCursor = null
+
+      if (recordsResponse.data) {
+        recordsData = recordsResponse.data.data || (Array.isArray(recordsResponse.data) ? recordsResponse.data : [])
+        nextCursor = recordsResponse.data.next || null
+        prevCursor = recordsResponse.data.prev || null
+      }
 
       // Handle strategy and stages
       const strategies = Array.isArray(strategyResponse.data) ? strategyResponse.data : (strategyResponse.data?.data || [])
@@ -304,25 +322,24 @@ export default function TableDataView({ table, onBack }) {
         }
       }
 
-      if (!Array.isArray(recordsData)) {
-        if (recordsData?.data && Array.isArray(recordsData.data)) {
-          recordsData = recordsData.data
-        } else if (recordsData?.records && Array.isArray(recordsData.records)) {
-          recordsData = recordsData.records
-        } else {
-          recordsData = []
-        }
-      }
-
       const normalizedColumns = Array.isArray(columnsData)
         ? columnsData.map(normalizeColumnMetadata).filter(Boolean)
         : []
 
       setColumns(normalizedColumns)
       setRecords(recordsData)
-      toast.success(`Loaded ${recordsData.length} records successfully!`, {
-        id: `leadpage-records-loaded-${table.table_id}`,
-      })
+      setPagination(prevPag => ({
+        ...prevPag,
+        next: nextCursor,
+        prev: prevCursor,
+        limit: effectiveLimit
+      }))
+
+      if (!silent) {
+        toast.success(`Loaded ${recordsData.length} records successfully!`, {
+          id: `leadpage-records-loaded-${table.table_id}`,
+        })
+      }
 
     } catch (err) {
       let errorMsg = `Error loading table data: ${err.message}`
@@ -370,7 +387,7 @@ export default function TableDataView({ table, onBack }) {
       }
 
       // Optimistic update
-      setRecords(prev => prev.map(r => 
+      setRecords(prev => prev.map(r =>
         r.record_id === recordId ? { ...r, lead_stage: newStage } : r
       ))
 
@@ -2238,7 +2255,7 @@ export default function TableDataView({ table, onBack }) {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    
+
     const groupedByDay = {};
     safeRecords.forEach(r => {
       if (!r.created_at || r.lead_score == null) return;
@@ -2326,33 +2343,25 @@ export default function TableDataView({ table, onBack }) {
     return 0
   })
 
-  // Pagination calculations
-  const totalRecords = sortedRecords.length
-  const totalFilteredPages = Math.ceil(totalRecords / pageSize)
-
-  // Update total pages when filtered records change
-  useEffect(() => {
-    setTotalPages(totalFilteredPages)
-    // Reset to first page if current page exceeds total pages
-    if (currentPage > totalFilteredPages && totalFilteredPages > 0) {
-      setCurrentPage(1)
-    }
-  }, [totalFilteredPages, currentPage])
-
-  // Get current page records
-  const currentPageRecords = sortedRecords.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  )
+  // Pagination calculations - Simplified for server-side
+  const currentPageRecords = sortedRecords
 
   // Pagination handlers
-  const goToFirstPage = () => setCurrentPage(1)
-  const goToPreviousPage = () => setCurrentPage(prev => Math.max(prev - 1, 1))
-  const goToNextPage = () => setCurrentPage(prev => Math.min(prev + 1, totalPages))
-  const goToLastPage = () => setCurrentPage(totalPages)
+  const goToPreviousPage = () => {
+    const prevCursor = records[0]?.record_id || records[0]?.id || null
+    if (prevCursor) {
+      setCurrentPage(p => Math.max(p - 1, 1))
+      fetchTableData({ prev: prevCursor, limit: pagination.limit || 10, silent: false })
+    }
+  }
 
-  // Page size options
-  const pageSizeOptions = [10, 25, 50, 100]
+  const goToNextPage = () => {
+    const nextCursor = records[records.length - 1]?.record_id || records[records.length - 1]?.id || null
+    if (nextCursor) {
+      setCurrentPage(p => p + 1)
+      fetchTableData({ next: nextCursor, limit: pagination.limit || 10, silent: false })
+    }
+  }
 
   // Create dynamic columns based on API response
   const createDynamicColumns = () => {
@@ -3105,12 +3114,12 @@ export default function TableDataView({ table, onBack }) {
                                       {Math.round(score)}
                                     </span>
                                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                                      <div 
-                                        className="h-full rounded-full transition-all duration-500" 
-                                        style={{ 
+                                      <div
+                                        className="h-full rounded-full transition-all duration-500"
+                                        style={{
                                           width: `${Math.min(100, score)}%`,
                                           backgroundColor: scoreColor
-                                        }} 
+                                        }}
                                       />
                                     </div>
                                   </div>
@@ -3243,46 +3252,55 @@ export default function TableDataView({ table, onBack }) {
                   </Table>
                 </div>
 
-                {/* Pagination */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t bg-muted/5">
-                  <div className="flex items-center gap-4 order-2 sm:order-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-medium">Show</span>
-                      <Select value={pageSize.toString()} onValueChange={v => { setPageSize(Number(v)); setCurrentPage(1) }}>
-                        <SelectTrigger className="w-[68px] h-8 text-xs border-muted-foreground/20 bg-background shadow-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent className="min-w-[68px]">
-                          {[5, 10, 25, 50, 100].map(s => <SelectItem key={s} value={s.toString()}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <span className="text-xs text-muted-foreground font-medium">
-                      <span className="text-foreground">{Math.min((currentPage - 1) * pageSize + 1, totalRecords)}</span>–<span className="text-foreground">{Math.min(currentPage * pageSize, totalRecords)}</span> of <span className="text-foreground">{totalRecords}</span>
+                {/* Pagination Controls */}
+                <div className="flex items-center justify-between px-4 py-4 border-t bg-muted/5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground font-medium whitespace-nowrap">Rows per page</span>
+                    <Select
+                      value={String(pagination?.limit || 10)}
+                      onValueChange={(val) => {
+                        setCurrentPage(1)
+                        fetchTableData({ limit: Number(val) })
+                      }}
+                    >
+                      <SelectTrigger className="w-[70px] h-8 border-muted-foreground/20 text-xs shadow-none rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent side="top">
+                        {[5, 10, 15, 20, 50].map((size) => (
+                          <SelectItem key={size} value={String(size)}>
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm text-muted-foreground font-medium border-l pl-3">
+                      Page <span className="text-foreground font-semibold">{currentPage}</span>
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 order-1 sm:order-2 self-end sm:self-auto">
-                    <Pagination>
-                      <PaginationContent>
-                        <PaginationItem>
-                          <PaginationPrevious
-                            onClick={(e) => { e.preventDefault(); goToPreviousPage(); }}
-                            disabled={currentPage === 1}
-                            className={`h-8 w-max px-3 border-none cursor-pointer hover:bg-muted/40 transition-colors ${currentPage === 1 ? 'pointer-events-none opacity-50' : ''}`}
-                          />
-                        </PaginationItem>
-
-                        <div className="flex items-center px-3 h-8 min-w-[64px] justify-center text-[13px] font-bold text-foreground bg-muted/30 border-x border-muted-foreground/10 mx-1">
-                          {currentPage} <span className="text-muted-foreground font-medium mx-1">/</span> {totalPages || 1}
-                        </div>
-
-                        <PaginationItem>
-                          <PaginationNext
-                            onClick={(e) => { e.preventDefault(); goToNextPage(); }}
-                            disabled={currentPage === totalPages || totalPages === 0}
-                            className={`h-8 w-max px-3 border-none cursor-pointer hover:bg-muted/40 transition-colors ${currentPage === totalPages || totalPages === 0 ? 'pointer-events-none opacity-50' : ''}`}
-                          />
-                        </PaginationItem>
-                      </PaginationContent>
-                    </Pagination>
+                  <div className="flex items-center gap-2">
+                    {currentPage > 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToPreviousPage}
+                        disabled={loading}
+                        className="gap-1 rounded-lg h-9 px-4"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={goToNextPage}
+                      disabled={loading || records.length < (pagination?.limit || 10)}
+                      className="gap-1 rounded-lg h-9 px-4"
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </div>
