@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Loader2, Database, UserPlus } from "lucide-react"
@@ -23,6 +23,7 @@ export function RecordModal({
 }) {
     const [formData, setFormData] = useState({})
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const initialFormDataRef = useRef({})
 
     useEffect(() => {
         if (open) {
@@ -40,9 +41,12 @@ export function RecordModal({
                         initialFormState[fieldId] = normalizeFieldValueForForm(rawValue, column)
                     })
                 }
+                // Snapshot the initial state so we can diff on submit
+                initialFormDataRef.current = JSON.parse(JSON.stringify(initialFormState))
                 setFormData(initialFormState)
             } else {
                 // Initialize empty form
+                initialFormDataRef.current = {}
                 const initialFormState = { assigned_to: null }
                 if (table?.columns) {
                     table.columns.forEach((column) => {
@@ -103,30 +107,52 @@ export function RecordModal({
                 return
             }
 
+            const isEditing = !!(recordToEdit?.record_id || recordToEdit?.id)
+
             const fieldValues = {}
             if (table?.columns) {
                 table.columns.forEach(column => {
                     const fieldId = column.id || column.column_id
-                    const value = formData[fieldId]
-                    const payloadValue = buildFieldValuePayload(column, value)
+                    const currentValue = formData[fieldId]
+
+                    if (isEditing) {
+                        // Only send fields that the user actually changed
+                        const initialValue = initialFormDataRef.current?.[fieldId]
+                        const currentSerialized = JSON.stringify(currentValue)
+                        const initialSerialized = JSON.stringify(initialValue)
+                        if (currentSerialized === initialSerialized) return // skip unchanged
+                    }
+
+                    const payloadValue = buildFieldValuePayload(column, currentValue)
                     if (payloadValue !== null) {
                         fieldValues[fieldId] = payloadValue
                     }
                 })
             }
 
+            if (isEditing && Object.keys(fieldValues).length === 0) {
+                // Nothing changed — close without hitting the API
+                toast.info("No changes detected.")
+                onOpenChange(false)
+                setIsSubmitting(false)
+                return
+            }
+
             const payload = {
                 g_id: currentGId,
                 g_ids: gIds,
                 p_id: pIds,
-                assigned_to: formData.assigned_to === "none" || !formData.assigned_to ? null : formData.assigned_to,
                 field_values: fieldValues
             }
 
+            // Include assigned_to in the payload (always, for both create and edit)
+            payload.assigned_to = formData.assigned_to === "none" || !formData.assigned_to ? null : formData.assigned_to
+
             let response
-            if (recordToEdit?.record_id || recordToEdit?.id) {
+            if (isEditing) {
                 const id = recordToEdit.record_id || recordToEdit.id
-                response = await recordsApi.update(table.id || table.table_id, id, payload)
+                const targetGeneId = recordToEdit.g_id || recordToEdit.gene_id || currentGId;
+                response = await recordsApi.update(targetGeneId, table.id || table.table_id, id, payload)
             } else {
                 response = await recordsApi.create(table.id || table.table_id, payload)
             }

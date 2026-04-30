@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { toast } from "sonner"
 import apiClient from "@/lib/api-client"
 
@@ -48,8 +48,57 @@ export function useUserManagement({
 
     const [submitting, setSubmitting] = useState(false)
 
+    // Helpers
+    const getRoleName = useCallback((user) => {
+        if (user.roles && typeof user.roles === 'string') return user.roles
+        if (user.role && typeof user.role === 'string') return user.role
+        if (user.role_id) {
+            const role = availableRoles.find(r => (r.role_id || r.id) === user.role_id)
+            return role ? (role.role_name || role.name || "Unknown Role") : "No Role"
+        }
+        return "No Role"
+    }, [availableRoles])
+
+    const getReportingManagerName = useCallback((user) => {
+        if (!user) return "N/A"
+        const reportingId = user.reporting_id || user.reports_to || user.reporting_to
+        if (!reportingId) return "N/A"
+        const reportingToUser = users.find(u => (u.user_id || u.id) === reportingId)
+        if (reportingToUser) {
+            return reportingToUser.first_name || reportingToUser.last_name
+                ? `${reportingToUser.first_name || ""} ${reportingToUser.last_name || ""}`.trim()
+                : reportingToUser.email || `User ${reportingId}`
+        }
+        return `User ID: ${reportingId}`
+    }, [users])
+
+    const getSelectedRolePriority = useCallback((roleId) => {
+        if (!roleId) return 999
+        const role = availableRoles.find(r => (r.role_id || r.id) === roleId)
+        return role?.priority !== undefined ? role.priority : 999
+    }, [availableRoles])
+
+    const getUserRolePriority = useCallback((user) => {
+        if (!user) return 999
+        const roleId = user.role_id || user.roles?.id || user.roles?.role_id
+        if (roleId) {
+            const role = availableRoles.find(r => (r.role_id || r.id) === roleId)
+            if (role?.priority !== undefined) return role.priority
+        }
+        return 999
+    }, [availableRoles])
+
+    const getFilteredReportingUsers = useCallback((excludeUserId = null) => {
+        const selectedRolePriority = getSelectedRolePriority(formData.role_id)
+        return users.filter((user) => {
+            if (excludeUserId && (user.user_id || user.id) === excludeUserId) return false
+            const userRolePriority = getUserRolePriority(user)
+            return userRolePriority < selectedRolePriority
+        })
+    }, [users, formData.role_id, getSelectedRolePriority, getUserRolePriority])
+
     // Fetchers
-    const fetchUsers = async (options = {}) => {
+    const fetchUsers = useCallback(async (options = {}) => {
         // Support legacy `fetchUsers(true/false)` calls as well as `fetchUsers({ silent, next, prev, limit })`
         const { silent = true, next = null, prev = null, limit: limitOverride = null } =
             typeof options === 'boolean' ? { silent: options } : (options || {})
@@ -84,7 +133,7 @@ export function useUserManagement({
         } finally {
             setLoading(false)
         }
-    }
+    }, [pagination.limit])
 
     // Only fetch on mount if SSR didn't provide initial data
     useEffect(() => {
@@ -93,7 +142,7 @@ export function useUserManagement({
         }
     }, [])
 
-    const fetchGenes = async () => {
+    const fetchGenes = useCallback(async () => {
         try {
             const response = await apiClient.get('/api/genes')
 
@@ -107,9 +156,9 @@ export function useUserManagement({
             console.error("Error fetching genes:", error)
             setAvailableGenes([])
         }
-    }
+    }, [])
 
-    const fetchPolicies = async () => {
+    const fetchPolicies = useCallback(async () => {
         try {
             const response = await apiClient.get('/api/policies')
 
@@ -123,9 +172,9 @@ export function useUserManagement({
             console.error("Error fetching policies:", error)
             setAvailablePolicies([])
         }
-    }
+    }, [])
 
-    const fetchUserDetails = async (userId) => {
+    const fetchUserDetails = useCallback(async (userId) => {
         try {
             const response = await apiClient.get(`/api/users/${userId}`)
 
@@ -164,7 +213,7 @@ export function useUserManagement({
             toast.error("Failed to fetch user details")
             return null
         }
-    }
+    }, [])
 
     // Effect to fetch dependent data when dialogs open
     useEffect(() => {
@@ -172,10 +221,10 @@ export function useUserManagement({
             fetchGenes()
             fetchPolicies()
         }
-    }, [isCreateDialogOpen, isEditDialogOpen])
+    }, [isCreateDialogOpen, isEditDialogOpen, fetchGenes, fetchPolicies])
 
     // Handlers
-    const handleCreateUser = async () => {
+    const handleCreateUser = useCallback(async () => {
         if (!formData.role_id) return toast.error("Please select a role")
         if (!formData.phone) return toast.error("Please enter a phone number")
         if (!formData["g_ids"]) return toast.error("Please select a gene")
@@ -211,9 +260,9 @@ export function useUserManagement({
         } finally {
             setSubmitting(false)
         }
-    }
+    }, [formData, getSelectedRolePriority, users, getUserRolePriority, fetchUsers])
 
-    const handleUpdateUser = async () => {
+    const handleUpdateUser = useCallback(async () => {
         if (!selectedUser?.user_id) return
 
         const currentRoleId = selectedUser.role_id || selectedUser.roles?.id || selectedUser.roles
@@ -284,9 +333,9 @@ export function useUserManagement({
         } finally {
             setSubmitting(false)
         }
-    }
+    }, [selectedUser, formData, initialFormData, getSelectedRolePriority, users, getUserRolePriority, fetchUsers])
 
-    const handleToggleStatus = async (user, newStatus) => {
+    const handleToggleStatus = useCallback(async (user, newStatus) => {
         if (!user?.user_id) return toast.error("User ID is missing")
 
         setUsers(prev => prev.map(u => u.user_id === user.user_id ? { ...u, is_active: newStatus } : u))
@@ -307,9 +356,9 @@ export function useUserManagement({
         } finally {
             setSubmitting(false)
         }
-    }
+    }, [])
 
-    const handleAssignRole = async () => {
+    const handleAssignRole = useCallback(async () => {
         if (!selectedUser?.user_id || !roleFormData.role_id) return toast.error("Please select a role")
 
         const selectedRolePriority = getSelectedRolePriority(roleFormData.role_id)
@@ -338,9 +387,9 @@ export function useUserManagement({
         } finally {
             setSubmitting(false)
         }
-    }
+    }, [selectedUser, roleFormData.role_id, getSelectedRolePriority, users, getUserRolePriority, fetchUsers, fetchUserDetails])
 
-    const handleRemoveRole = async (userId, roleId) => {
+    const handleRemoveRole = useCallback(async (userId, roleId) => {
         try {
             setSubmitting(true)
             const response = await apiClient.delete(`/api/users/${userId}/roles/${roleId}`)
@@ -357,9 +406,9 @@ export function useUserManagement({
         } finally {
             setSubmitting(false)
         }
-    }
+    }, [fetchUsers, isViewDialogOpen, isRoleDialogOpen, selectedUser, fetchUserDetails])
 
-    const resetForm = () => {
+    const resetForm = useCallback(() => {
         setFormData({
             email: "",
             first_name: "",
@@ -374,56 +423,7 @@ export function useUserManagement({
         })
         setSelectedUser(null)
         setInitialFormData(null)
-    }
-
-    // Helpers
-    const getRoleName = (user) => {
-        if (user.roles && typeof user.roles === 'string') return user.roles
-        if (user.role && typeof user.role === 'string') return user.role
-        if (user.role_id) {
-            const role = availableRoles.find(r => (r.role_id || r.id) === user.role_id)
-            return role ? (role.role_name || role.name || "Unknown Role") : "No Role"
-        }
-        return "No Role"
-    }
-
-    const getReportingManagerName = (user) => {
-        if (!user) return "N/A"
-        const reportingId = user.reporting_id || user.reports_to || user.reporting_to
-        if (!reportingId) return "N/A"
-        const reportingToUser = users.find(u => (u.user_id || u.id) === reportingId)
-        if (reportingToUser) {
-            return reportingToUser.first_name || reportingToUser.last_name
-                ? `${reportingToUser.first_name || ""} ${reportingToUser.last_name || ""}`.trim()
-                : reportingToUser.email || `User ${reportingId}`
-        }
-        return `User ID: ${reportingId}`
-    }
-
-    const getSelectedRolePriority = (roleId) => {
-        if (!roleId) return 999
-        const role = availableRoles.find(r => (r.role_id || r.id) === roleId)
-        return role?.priority !== undefined ? role.priority : 999
-    }
-
-    const getUserRolePriority = (user) => {
-        if (!user) return 999
-        const roleId = user.role_id || user.roles?.id || user.roles?.role_id
-        if (roleId) {
-            const role = availableRoles.find(r => (r.role_id || r.id) === roleId)
-            if (role?.priority !== undefined) return role.priority
-        }
-        return 999
-    }
-
-    const getFilteredReportingUsers = (excludeUserId = null) => {
-        const selectedRolePriority = getSelectedRolePriority(formData.role_id)
-        return users.filter((user) => {
-            if (excludeUserId && (user.user_id || user.id) === excludeUserId) return false
-            const userRolePriority = getUserRolePriority(user)
-            return userRolePriority < selectedRolePriority
-        })
-    }
+    }, [])
 
     // Filtering - Memoized for performance
     const filteredUsers = useMemo(() => {
@@ -444,7 +444,7 @@ export function useUserManagement({
 
             return matchesSearch && matchesStatus && matchesRole
         })
-    }, [users, searchTerm, statusFilter, roleFilter])
+    }, [users, searchTerm, statusFilter, roleFilter, getRoleName])
 
     return {
         users,
@@ -469,31 +469,31 @@ export function useUserManagement({
         handleToggleStatus,
         handleAssignRole,
         handleRemoveRole,
-        fetchUsers: (options) => fetchUsers(options),
+        fetchUsers,
         pagination,
         fetchUserDetails,
         resetForm,
-        openCreateDialog: () => { resetForm(); setIsCreateDialogOpen(true) },
-        openEditDialog: async (user) => {
+        openCreateDialog: useCallback(() => { resetForm(); setIsCreateDialogOpen(true) }, [resetForm]),
+        openEditDialog: useCallback(async (user) => {
             setSelectedUser(user)
             const details = await fetchUserDetails(user.user_id)
             if (details) setIsEditDialogOpen(true)
-        },
-        openViewDialog: async (user) => {
+        }, [fetchUserDetails]),
+        openViewDialog: useCallback(async (user) => {
             setSelectedUser(user)
             await fetchUserDetails(user.user_id)
             setIsViewDialogOpen(true)
-        },
-        openRoleDialog: async (user) => {
+        }, [fetchUserDetails]),
+        openRoleDialog: useCallback(async (user) => {
             setSelectedUser(user)
             setRoleFormData({ role_id: "" }) // Reset selection
             await fetchUserDetails(user.user_id)
             setIsRoleDialogOpen(true)
-        },
+        }, [fetchUserDetails]),
         getRoleName,
         getReportingManagerName,
         getFilteredReportingUsers,
         getSelectedRolePriority,
         getUserRolePriority
     }
-}
+}

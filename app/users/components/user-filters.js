@@ -1,3 +1,4 @@
+import React, { memo } from "react"
 import { Search, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -9,7 +10,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 
-export function UserFilters({
+export const UserFilters = memo(({
     searchTerm,
     setSearchTerm,
     statusFilter,
@@ -18,7 +19,7 @@ export function UserFilters({
     setRoleFilter,
     roles = [],
     onClearFilters
-}) {
+}) => {
     const hasActiveFilters = statusFilter !== "all" || roleFilter !== "all" || searchTerm
 
     return (
@@ -83,4 +84,6 @@ export function UserFilters({
             </div>
         </div>
     )
-}
+})
+
+UserFilters.displayName = "UserFilters"

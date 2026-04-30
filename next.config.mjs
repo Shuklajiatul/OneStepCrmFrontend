@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactCompiler: true,
   // Existing configuration
   allowedDevOrigins: [
     "http://localhost:3000",

@@ -1,5 +1,4 @@
-"use client"
-
+import React, { memo, useState } from "react"
 import {
     flexRender,
     getCoreRowModel,
@@ -7,7 +6,6 @@ import {
     getPaginationRowModel,
     useReactTable,
 } from "@tanstack/react-table"
-import { useState } from "react"
 import {
     Table,
     TableBody,
@@ -53,7 +51,7 @@ const SortIcon = ({ column }) => {
     return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />
 }
 
-export function UserTable({
+export const UserTable = memo(({
     users = [],
     loading = false,
     pagination,
@@ -65,7 +63,7 @@ export function UserTable({
     getRoleName,
     getReportingManagerName,
     getUserRolePriority,
-}) {
+}) => {
     const [sorting, setSorting] = useState([])
     const [currentPage, setCurrentPage] = useState(1)
 
@@ -385,4 +383,6 @@ export function UserTable({
             </div>
         </div>
     )
-}
+})
+
+UserTable.displayName = "UserTable"

@@ -1,3 +1,4 @@
+import React, { memo } from "react"
 import {
     Dialog,
     DialogContent,
@@ -23,7 +24,7 @@ import { Badge } from "@/components/ui/badge"
 import { Loader2, CheckCircle2, XCircle, ShieldCheck, ShieldX, Edit, Plus, Trash2, ShieldRing, Checkbox } from "lucide-react"
 import { MultiSelect } from "@/components/ui/multi-select"
 
-export function UserDialogs({
+export const UserDialogs = memo(({
     // States
     isCreateOpen, setIsCreateOpen,
     isEditOpen, setIsEditOpen,
@@ -52,7 +53,7 @@ export function UserDialogs({
     getReportingManagerName,
     getUserRolePriority,
     getSelectedRolePriority
-}) {
+}) => {
 
     const renderUserForm = (mode = "create") => {
         const isSuperuser = mode === "edit" && selectedUser && getUserRolePriority
@@ -110,7 +111,13 @@ export function UserDialogs({
                             type="tel"
                             placeholder="+1234567890"
                             value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                // Only allow digits and + sign
+                                if (val === '' || /^[0-9+]+$/.test(val)) {
+                                    setFormData({ ...formData, phone: val });
+                                }
+                            }}
                         />
                     </div>
                 </TabsContent>
@@ -461,4 +468,6 @@ export function UserDialogs({
             </Dialog>
         </>
     )
-}
+})
+
+UserDialogs.displayName = "UserDialogs"

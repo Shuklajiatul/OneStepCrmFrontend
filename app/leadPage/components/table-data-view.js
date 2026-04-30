@@ -391,7 +391,8 @@ export default function TableDataView({ table, onBack }) {
         r.record_id === recordId ? { ...r, lead_stage: newStage } : r
       ))
 
-      await recordsApi.update(table.table_id, recordId, payload)
+      const targetGeneId = record.g_id || record.gene_id || gId;
+      await recordsApi.update(targetGeneId, table.table_id, recordId, payload)
       toast.success(`Stage updated to ${newStage}`)
     } catch (err) {
       console.error("Failed to update stage:", err)
@@ -3076,6 +3077,10 @@ export default function TableDataView({ table, onBack }) {
                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-primary/10" title="View"
                                       onClick={() => router.push(`/leadPage/record-details?table_id=${table.table_id}&record_id=${record.record_id}`)}>
                                       <Eye className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-amber-50 text-amber-600" title="Edit Record Fields"
+                                      onClick={() => openEditRecordDialog(record)}>
+                                      <Edit className="h-3.5 w-3.5" />
                                     </Button>
                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600" title="Create Activity"
                                       onClick={() => { setActivityInitialData({ related_table_id: table.table_id, related_record_id: record.record_id }); setIsCreateActivityOpen(true) }}>

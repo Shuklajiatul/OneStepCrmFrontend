@@ -1,7 +1,8 @@
+import React, { memo } from "react"
 import { Users, UserCheck, UserX, Shield } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export function UserStats({ users = [], roles = [] }) {
+export const UserStats = memo(({ users = [], roles = [] }) => {
     const totalUsers = users.length
     const activeUsers = users.filter(u => u.is_active).length
     const inactiveUsers = totalUsers - activeUsers
@@ -59,4 +60,6 @@ export function UserStats({ users = [], roles = [] }) {
             </Card>
         </div>
     )
-}
+})
+
+UserStats.displayName = "UserStats"
