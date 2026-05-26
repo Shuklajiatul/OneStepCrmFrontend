@@ -241,40 +241,7 @@ export default function TableCard({ table, onOpen, onDelete }) {
 
       {/* Content Section */}
       <CardContent className="flex-1 flex flex-col px-6 py-4 gap-4 relative z-10">
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-3 gap-4">
-          {/* Records */}
-          <div className="flex flex-col">
-            <p className="text-xs text-slate-500 font-medium mb-2 uppercase tracking-wide">Records</p>
-            <p className="text-2xl font-bold text-slate-900">
-              {(table.record_count || 0).toLocaleString()}
-            </p>
-            {table.trend && (
-              <div className="flex items-center gap-1 mt-1">
-                <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
-                <span className="text-xs text-emerald-600 font-medium">+{table.trend}%</span>
-              </div>
-            )}
-          </div>
 
-          {/* Columns */}
-          {/* <div className="flex flex-col">
-            <p className="text-xs text-slate-500 font-medium mb-2 uppercase tracking-wide">Columns</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-bold text-slate-900">{table.column_count || 0}</p>
-              <Columns3 className="h-5 w-5 text-slate-400" />
-            </div>
-          </div> */}
-
-          {/* Size */}
-          {/* <div className="flex flex-col">
-            <p className="text-xs text-slate-500 font-medium mb-2 uppercase tracking-wide">Size</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-bold text-slate-900">{formatBytes(table.size_bytes)}</p>
-              <HardDrive className="h-5 w-5 text-slate-400" />
-            </div>
-          </div> */}
-        </div>
 
         {/* Divider */}
         <div className="h-px bg-stone-200" />

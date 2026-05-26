@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
     Users,
@@ -27,7 +27,11 @@ import {
     Fingerprint,
     Boxes,
     Cpu,
-    ExternalLink
+    ExternalLink,
+    Flame,
+    TriangleAlert,
+    DollarSign,
+    BarChart2
 } from "lucide-react"
 import {
     Table,
@@ -47,14 +51,21 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import {
     BarChart,
+    BarChart as RechartsBarChart,
     Bar,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    Cell
+    Cell,
+    AreaChart,
+    Area
 } from 'recharts'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { recordsApi, stageApi, strategyApi } from "@/lib/api-endpoint"
 import { PageBreadcrumb } from "@/components/page-breadcrumb"
 import { getInitials } from "@/lib/utils"
 
@@ -73,6 +84,7 @@ export default function DashboardClient({
     initialUpcomingActivities,
     initialCurrentUser,
     initialAllUsers = [],
+    initialActiveTables = [],
 }) {
     const [stats, setStats] = useState(initialStats)
     const [recentForms, setRecentForms] = useState(initialRecentForms)
@@ -87,6 +99,15 @@ export default function DashboardClient({
     const [currentUser, setCurrentUser] = useState(initialCurrentUser)
     const [chartData, setChartData] = useState(initialChartData)
     const [upcomingActivities, setUpcomingActivities] = useState(initialUpcomingActivities)
+    const [activeTables, setActiveTables] = useState(initialActiveTables)
+
+    // ── Lead Analytics States ──
+    const [selectedTableId, setSelectedTableId] = useState(
+        initialActiveTables?.[0]?.table_id || initialActiveTables?.[0]?.id || ''
+    )
+    const [tableRecords, setTableRecords] = useState([])
+    const [tableStages, setTableStages] = useState([])
+    const [loadingAnalytics, setLoadingAnalytics] = useState(false)
 
     const [alerts] = useState([
         { id: 1, title: 'New Form Response', desc: 'Someone submitted "Contact Us" form', time: '2 mins ago', icon: Zap, color: 'text-amber-500', bg: 'bg-amber-50' },
@@ -115,7 +136,20 @@ export default function DashboardClient({
                 setCurrentUser(tokens.user)
             }
         }
-    }, [currentUser])
+
+        const user = authUtils.getUser()
+        if (user?.features) {
+            const modules = user.features.map(f => f.module?.toLowerCase())
+            const filteredTables = initialActiveTables.filter(t => modules.includes((t.table_name || t.name)?.toLowerCase()))
+            setActiveTables(filteredTables)
+            setSelectedTableId(prevId => {
+                if (filteredTables.length > 0 && !filteredTables.find(t => (t.table_id || t.id) === prevId)) {
+                    return filteredTables[0].table_id || filteredTables[0].id
+                }
+                return filteredTables.length > 0 ? prevId : ''
+            })
+        }
+    }, [currentUser, initialActiveTables])
 
     // Re-calculate team members on the client once currentUser is available
     useEffect(() => {
@@ -128,12 +162,154 @@ export default function DashboardClient({
         }
     }, [currentUser, initialAllUsers])
 
-    const pipelineData = [
-        { status: 'New', count: 45, color: 'bg-blue-500', percent: 45 },
-        { status: 'Contacted', count: 32, color: 'bg-amber-500', percent: 32 },
-        { status: 'In Progress', count: 18, color: 'bg-emerald-500', percent: 18 },
-        { status: 'Qualified', count: 12, color: 'bg-violet-500', percent: 12 },
+    // ── Fetch analytics data when table selection changes ──
+    useEffect(() => {
+        if (!selectedTableId) return
+        let cancelled = false
+        const fetchAnalytics = async () => {
+            setLoadingAnalytics(true)
+            try {
+                const [recordsRes, strategyRes] = await Promise.all([
+                    recordsApi.getAll(selectedTableId, { limit: 200 }),
+                    strategyApi.getAll(selectedTableId)
+                ])
+                if (cancelled) return
+                const recs = recordsRes?.data?.data ||
+                    (Array.isArray(recordsRes?.data) ? recordsRes.data : [])
+                setTableRecords(recs)
+
+                const strats = Array.isArray(strategyRes?.data)
+                    ? strategyRes.data
+                    : (strategyRes?.data?.data || [])
+                if (strats[0]) {
+                    const stagesRes = await stageApi.getAll(selectedTableId, strats[0].strategy_id)
+                    if (!cancelled) {
+                        setTableStages(
+                            Array.isArray(stagesRes?.data) ? stagesRes.data : (stagesRes?.data?.data || [])
+                        )
+                    }
+                } else {
+                    setTableStages([])
+                }
+            } catch (err) {
+                console.error('Failed to load table analytics:', err)
+            } finally {
+                if (!cancelled) setLoadingAnalytics(false)
+            }
+        }
+        fetchAnalytics()
+        return () => { cancelled = true }
+    }, [selectedTableId])
+
+    // ── Analytics Computations ──
+    const safeRecords = useMemo(() => Array.isArray(tableRecords) ? tableRecords : [], [tableRecords])
+    const totalLeads = safeRecords.length
+
+    const oneWeekAgo = useMemo(() => { const d = new Date(); d.setDate(d.getDate() - 7); return d }, [])
+    const recentLeadsList = useMemo(() => safeRecords.filter(r => new Date(r.created_at || 0) >= oneWeekAgo), [safeRecords, oneWeekAgo])
+    const recentLeadsCount = recentLeadsList.length
+    const hotLeadsCount = useMemo(() => safeRecords.filter(r => r.lead_score != null && parseFloat(r.lead_score) >= 70).length, [safeRecords])
+
+    const avgScore = useMemo(() =>
+        safeRecords.length > 0
+            ? Math.round(safeRecords.reduce((s, r) => s + (parseFloat(r.lead_score) || 0), 0) / safeRecords.length)
+            : 0
+    , [safeRecords])
+
+    const avgScoreTrend = useMemo(() => {
+        const oldLeads = safeRecords.filter(r => new Date(r.created_at || 0) < oneWeekAgo)
+        const oldAvg = oldLeads.length > 0
+            ? Math.round(oldLeads.reduce((s, r) => s + (parseFloat(r.lead_score) || 0), 0) / oldLeads.length)
+            : avgScore
+        return avgScore - oldAvg
+    }, [safeRecords, oneWeekAgo, avgScore])
+
+    const pipelineVal = useMemo(() =>
+        safeRecords.reduce((s, r) => s + (parseFloat(r.deal_value || r.value || 0) || 0), 0)
+    , [safeRecords])
+    const recentPipelineVal = useMemo(() =>
+        recentLeadsList.reduce((s, r) => s + (parseFloat(r.deal_value || r.value || 0) || 0), 0)
+    , [recentLeadsList])
+
+    const staleLeadsCount = useMemo(() =>
+        safeRecords.filter(r => {
+            const last = r.updated_at || r.created_at
+            return last && (Date.now() - new Date(last).getTime()) / 86400000 > 7
+        }).length
+    , [safeRecords])
+
+    const stageColorConfig = {
+        new: { chart: '#9ca3af' }, contacted: { chart: '#3b82f6' },
+        qualified: { chart: '#a855f7' }, proposal: { chart: '#f59e0b' },
+        negotiation: { chart: '#f97316' }, won: { chart: '#22c55e' }, lost: { chart: '#ef4444' },
+    }
+
+    const sortedStages = useMemo(() =>
+        tableStages.length > 0
+            ? [...tableStages].sort((a, b) => (a.min_score || 0) - (b.min_score || 0))
+            : []
+    , [tableStages])
+
+    const stageDistribution = useMemo(() => {
+        const order = sortedStages.length > 0
+            ? sortedStages.map(s => s.stage_name || s.name || s.label).filter(Boolean)
+            : ['New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Won', 'Lost']
+        return order.map(s => ({
+            stage: s,
+            count: safeRecords.filter(r => s && r.lead_stage?.toLowerCase() === s.toLowerCase()).length
+        }))
+    }, [sortedStages, safeRecords])
+
+    const fallbackMapping = [
+        { label: '0–19', min: 0, max: 19, color: 'bg-gray-400', customColour: null, name: 'New' },
+        { label: '20–39', min: 20, max: 39, color: 'bg-blue-500', customColour: null, name: 'Contacted' },
+        { label: '40–59', min: 40, max: 59, color: 'bg-purple-500', customColour: null, name: 'Qualified' },
+        { label: '60–74', min: 60, max: 74, color: 'bg-amber-500', customColour: null, name: 'Proposal' },
+        { label: '75–89', min: 75, max: 89, color: 'bg-orange-500', customColour: null, name: 'Negotiation' },
+        { label: '90–100', min: 90, max: 100, color: 'bg-green-500', customColour: null, name: 'Won' },
     ]
+    const stageBuckets = useMemo(() =>
+        sortedStages.length > 0
+            ? sortedStages.map(s => {
+                const name = s.stage_name || s.name || s.label
+                const sc = stageColorConfig[name?.toLowerCase()] || stageColorConfig.new
+                const cc = s.colour || null
+                return { label: `${s.min_score}–${s.max_score}`, min: s.min_score, max: s.max_score, color: cc ? null : 'bg-gray-400', customColour: cc, name }
+            })
+            : fallbackMapping
+    , [sortedStages])
+
+    const scoreBuckets = useMemo(() => {
+        const maxCount = Math.max(...stageBuckets.map(b => {
+            const cnt = safeRecords.filter(r => { const v = parseFloat(r.lead_score); return !isNaN(v) && v >= b.min && v <= b.max }).length
+            return cnt
+        }), 1)
+        return stageBuckets.map(b => ({
+            ...b,
+            count: safeRecords.filter(r => { const v = parseFloat(r.lead_score); return !isNaN(v) && v >= b.min && v <= b.max }).length,
+            maxCount
+        }))
+    }, [stageBuckets, safeRecords])
+
+    const currentMonthName = useMemo(() => new Date().toLocaleString('default', { month: 'short' }), [])
+    const avgScoreTrendData = useMemo(() => {
+        const now = new Date(), cm = now.getMonth(), cy = now.getFullYear()
+        const grouped = {}
+        safeRecords.forEach(r => {
+            if (!r.created_at || r.lead_score == null) return
+            const d = new Date(r.created_at)
+            if (d.getMonth() === cm && d.getFullYear() === cy) {
+                const day = d.getDate().toString()
+                if (!grouped[day]) grouped[day] = { sum: 0, count: 0 }
+                grouped[day].sum += parseFloat(r.lead_score) || 0
+                grouped[day].count += 1
+            }
+        })
+        const days = Object.keys(grouped).sort((a, b) => parseInt(a) - parseInt(b))
+        return days.length > 0
+            ? days.map(day => ({ date: day, score: Math.round(grouped[day].sum / grouped[day].count) }))
+            : [{ date: now.getDate().toString(), score: 0 }]
+    }, [safeRecords])
 
     const openFormInNewTab = (form) => {
         const tokens = authUtils.getTokens()
@@ -209,40 +385,144 @@ export default function DashboardClient({
                 {/* Left Content Area (8 Columns) */}
                 <div className="lg:col-span-8 space-y-6">
 
-                    {/* Analytics Chart */}
-                    <Card className="rounded-xl overflow-hidden shadow-sm py-2">
-                        <CardHeader className="bg-muted/30 pb-8">
-                            <div className="flex items-center justify-between">
+                    {/* ── TABLE ANALYTICS HUB ── */}
+                    <Card className="rounded-xl overflow-hidden shadow-sm border">
+                        <CardHeader className="bg-muted/30 pb-4 border-b">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div>
                                     <CardTitle className="text-lg font-semibold flex items-center gap-2">
                                         <BarChart3 className="h-5 w-5 text-primary" />
-                                        Resource Distribution
+                                        Table Analytics Hub
                                     </CardTitle>
-                                    <CardDescription>Ove rall breakdown of system entities</CardDescription>
+                                    <CardDescription>Lead metrics for selected table</CardDescription>
                                 </div>
+                                {activeTables.length > 0 && (
+                                    <div className="w-full sm:w-[220px] shrink-0">
+                                        <Select value={selectedTableId} onValueChange={setSelectedTableId}>
+                                            <SelectTrigger className="h-9 bg-background shadow-sm">
+                                                <SelectValue placeholder="Select a table" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {activeTables.map(t => (
+                                                    <SelectItem key={t.table_id || t.id} value={t.table_id || t.id}>
+                                                        {t.table_name || t.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
                             </div>
                         </CardHeader>
-                        <CardContent className="h-[320px] pt-6">
-                            {mounted ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={chartData}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ecf0f1" />
-                                        <XAxis dataKey="name" axisLine={false} tickLine={false} dy={10} />
-                                        <YAxis axisLine={false} tickLine={false} />
-                                        <Tooltip
-                                            cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                        />
-                                        <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={50}>
-                                            {chartData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.8} />
-                                            ))}
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            ) : (
-                                <div className="w-full h-full bg-muted/10 animate-pulse rounded-lg" />
-                            )}
+                        <CardContent className="p-4 space-y-4">
+                            {/* ── 5 STAT MINI-CARDS ── */}
+                            <div className="grid grid-cols-3 lg:grid-cols-5 gap-2">
+                                <Card className="border shadow-none bg-blue-50/50">
+                                    <CardContent className="p-2.5">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Total</p>
+                                            <Users className="h-3 w-3 text-blue-500" />
+                                        </div>
+                                        {loadingAnalytics ? <Skeleton className="h-5 w-8" /> : <p className="text-lg font-extrabold tracking-tight">{totalLeads}</p>}
+                                        <p className="text-[9px] text-green-600 mt-0.5">+{recentLeadsCount} this wk</p>
+                                    </CardContent>
+                                </Card>
+                                <Card className="border shadow-none bg-orange-50/50">
+                                    <CardContent className="p-2.5">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Hot</p>
+                                            <Flame className="h-3 w-3 text-orange-500" />
+                                        </div>
+                                        {loadingAnalytics ? <Skeleton className="h-5 w-8" /> : <p className="text-lg font-extrabold tracking-tight">{hotLeadsCount}</p>}
+                                        <p className="text-[9px] text-muted-foreground mt-0.5">Score ≥ 70</p>
+                                    </CardContent>
+                                </Card>
+                                <Card className="border shadow-none bg-purple-50/50">
+                                    <CardContent className="p-2.5">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Avg</p>
+                                            <BarChart2 className="h-3 w-3 text-purple-500" />
+                                        </div>
+                                        {loadingAnalytics ? <Skeleton className="h-5 w-8" /> : <p className="text-lg font-extrabold tracking-tight">{avgScore}</p>}
+                                        <p className={`text-[9px] mt-0.5 ${avgScoreTrend >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                            {avgScoreTrend > 0 ? '+' : ''}{avgScoreTrend} vs prev
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                                <Card className="border shadow-none bg-green-50/50">
+                                    <CardContent className="p-2.5">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Pipeline</p>
+                                            <DollarSign className="h-3 w-3 text-green-500" />
+                                        </div>
+                                        {loadingAnalytics ? <Skeleton className="h-5 w-8" /> : (
+                                            <p className="text-lg font-extrabold tracking-tight">
+                                                {pipelineVal > 0 ? `$${pipelineVal >= 1000 ? Math.round(pipelineVal / 1000) + 'K' : pipelineVal}` : '$0'}
+                                            </p>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                                <Card className="border shadow-none bg-red-50/50 relative overflow-hidden">
+                                    <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                                    <CardContent className="p-2.5">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Stale</p>
+                                            <Clock className="h-3 w-3 text-red-500" />
+                                        </div>
+                                        {loadingAnalytics ? <Skeleton className="h-5 w-8" /> : <p className="text-lg font-extrabold tracking-tight text-red-600">{staleLeadsCount}</p>}
+                                        <p className="text-[9px] text-red-500 mt-0.5">&gt; 1 week old</p>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            {/* ── CHARTS ── */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                {/* Stage Distribution */}
+                                <div className="p-4 rounded-xl border bg-blue-50/10 flex flex-col">
+                                    <h4 className="text-[12px] font-semibold text-foreground mb-3">Stage Distribution</h4>
+                                    <div className="h-36 w-full">
+                                        <ChartContainer config={{ count: { label: 'Leads', theme: { light: 'hsl(var(--primary))', dark: 'hsl(var(--primary))' } } }} className="h-full w-full">
+                                            <RechartsBarChart data={stageDistribution} margin={{ top: 0, right: 0, left: -22, bottom: 0 }}>
+                                                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                                                <XAxis dataKey="stage" tickLine={false} axisLine={false} tickMargin={6} fontSize={9} tickFormatter={v => v.length > 7 ? v.slice(0, 7) + '…' : v} />
+                                                <YAxis tickLine={false} axisLine={false} tickMargin={4} fontSize={9} allowDecimals={false} />
+                                                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                                                <Bar dataKey="count" radius={[3, 3, 0, 0]} barSize={28}>
+                                                    {stageDistribution.map((entry, i) => {
+                                                        const sc = stageColorConfig[entry.stage?.toLowerCase()] || { chart: 'hsl(var(--primary))' }
+                                                        const stageObj = sortedStages.find(s => (s.stage_name || s.name || s.label)?.toLowerCase() === entry.stage?.toLowerCase())
+                                                        return <Cell key={i} fill={stageObj?.colour || sc.chart} fillOpacity={0.9} />
+                                                    })}
+                                                </Bar>
+                                            </RechartsBarChart>
+                                        </ChartContainer>
+                                    </div>
+                                </div>
+
+                                {/* Avg Score Trend */}
+                                <div className="p-4 rounded-xl border bg-violet-50/10 flex flex-col">
+                                    <h4 className="text-[12px] font-semibold text-foreground mb-3">
+                                        Score Trend <span className="font-normal text-muted-foreground">({new Date().toLocaleString('default', { month: 'short', year: 'numeric' })})</span>
+                                    </h4>
+                                    <div className="h-36 w-full">
+                                        <ChartContainer config={{ score: { label: 'Avg Score', theme: { light: 'oklch(0.58 0.09 200)', dark: 'oklch(0.58 0.09 200)' } } }} className="h-full w-full">
+                                            <AreaChart data={avgScoreTrendData} margin={{ top: 8, right: 8, left: -22, bottom: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="dashScoreGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="var(--color-score)" stopOpacity={0.18} />
+                                                        <stop offset="95%" stopColor="var(--color-score)" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                                                <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={6} fontSize={9} tickFormatter={v => `${currentMonthName} ${v}`} />
+                                                <YAxis tickLine={false} axisLine={false} tickMargin={4} fontSize={9} domain={[0, 100]} />
+                                                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                                                <Area type="monotone" dataKey="score" stroke="var(--color-score)" fill="url(#dashScoreGrad)" strokeWidth={2.5} />
+                                            </AreaChart>
+                                        </ChartContainer>
+                                    </div>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
@@ -322,40 +602,36 @@ export default function DashboardClient({
                 {/* Right Sidebar Area (4 Columns) */}
                 <div className="lg:col-span-4 flex flex-col gap-4">
 
-                    {/* Lead Pipeline Summary */}
-                    <Card className="rounded-xl shadow-sm overflow-hidden border-none bg-gradient-to-br from-indigo-600 to-violet-700 text-white">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-90">
-                                <PieChart className="h-4 w-4" />
-                                Lead Pipeline
+                    {/* ── SCORE DISTRIBUTION ── */}
+                    <Card className="rounded-xl shadow-sm overflow-hidden border">
+                        <CardHeader className="py-3 px-4 bg-muted/10 border-b">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wider opacity-80">
+                                <PieChart className="h-4 w-4 text-primary" />
+                                Score Distribution
                             </CardTitle>
+                            <CardDescription className="text-[10px]">Lead score breakdown for selected table</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-2">
-                            <div className="flex items-end justify-between">
-                                <div>
-                                    <div className="text-2xl font-bold">107</div>
-                                    <div className="text-[10px] opacity-70 flex items-center gap-1">
-                                        <TrendingUp className="h-2.5 w-2.5" />
-                                        +12% from last week
+                        <CardContent className="p-4 space-y-2.5">
+                            {scoreBuckets.map(({ label, color, customColour, count, maxCount, name }) => (
+                                <div key={label} className="flex items-center gap-3 group cursor-pointer" title={`${name}: ${count} leads in ${label}`}>
+                                    <span className="text-[9px] text-muted-foreground w-10 shrink-0 tabular-nums">{label}</span>
+                                    <div className="flex-1 h-3 bg-muted/40 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full transition-all group-hover:brightness-110 ${customColour ? '' : (color || 'bg-gray-400')}`}
+                                            style={customColour
+                                                ? { backgroundColor: customColour, width: `${(count / maxCount) * 100}%` }
+                                                : { width: `${(count / maxCount) * 100}%` }}
+                                        />
+                                    </div>
+                                    <div className="w-16 shrink-0 flex items-center gap-1">
+                                        {customColour
+                                            ? <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: customColour }} />
+                                            : <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${color || 'bg-gray-400'}`} />}
+                                        <span className="text-xs font-bold tabular-nums">{count}</span>
+                                        <span className="text-[9px] text-muted-foreground truncate capitalize">{name}</span>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <div className="text-xs font-medium">Qualified</div>
-                                    <div className="text-xl font-bold">12%</div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2 pt-1">
-                                {pipelineData.map((item, i) => (
-                                    <div key={i} className="space-y-0.5">
-                                        <div className="flex justify-between text-[9px] opacity-80 uppercase font-semibold">
-                                            <span>{item.status}</span>
-                                            <span>{item.count} Leads</span>
-                                        </div>
-                                        <Progress value={item.percent} className="h-1 bg-white/10" indicatorClassName={item.color} />
-                                    </div>
-                                ))}
-                            </div>
+                            ))}
                         </CardContent>
                     </Card>
 

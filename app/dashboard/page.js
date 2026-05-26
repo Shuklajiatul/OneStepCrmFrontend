@@ -212,6 +212,7 @@ export default async function DashboardPage() {
             initialUpcomingActivities={upcomingActivities}
             initialCurrentUser={currentUser}
             initialAllUsers={usersData}
+            initialActiveTables={activeTables}
         />
     )
 }

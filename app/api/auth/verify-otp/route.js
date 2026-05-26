@@ -21,7 +21,7 @@ export async function POST(request) {
         { status: response.status }
       );
     }
-
+    console.log("hiiiiiiiiiiiiiii",data);
     return NextResponse.json(data);
   } catch (error) {
     console.error('OTP verification API error:', error);

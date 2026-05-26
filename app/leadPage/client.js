@@ -51,7 +51,14 @@ export default function LeadsPageClient({
    const [pageSize] = useState(9)
    const [sortBy, setSortBy] = useState("newest")
 
-   useEffect(() => { setMounted(true) }, [])
+   useEffect(() => { 
+      setMounted(true) 
+      const user = authUtils.getUser()
+      if (user?.features) {
+         const modules = user.features.map(f => f.module?.toLowerCase())
+         setTables(prev => prev.filter(t => modules.includes(t.table_name?.toLowerCase())))
+      }
+   }, [])
 
    useEffect(() => {
       if (propNewAccessToken) {
@@ -74,7 +81,7 @@ export default function LeadsPageClient({
       if (!initialTables || initialTables.length === 0) {
          fetchTables()
       } else if (!searchParams.get("tableId")) {
-         toast.success(`Loaded ${initialTables.length} tables`)
+         toast.success(`Loaded ${tables.length} tables`)
       }
    }, [mounted])
 
@@ -86,6 +93,13 @@ export default function LeadsPageClient({
          if (Array.isArray(response.data)) tablesData = response.data
          else if (response.data?.data && Array.isArray(response.data.data)) tablesData = response.data.data
          else if (response.data?.tables && Array.isArray(response.data.tables)) tablesData = response.data.tables
+         
+         const user = authUtils.getUser()
+         if (user?.features) {
+            const modules = user.features.map(f => f.module?.toLowerCase())
+            tablesData = tablesData.filter(t => modules.includes(t.table_name?.toLowerCase()))
+         }
+
          setTables(tablesData)
          if (!searchParams.get("tableId")) toast.success(`Loaded ${tablesData.length} tables`)
       } catch (err) {

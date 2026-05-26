@@ -191,11 +191,67 @@ export default function TableDataView({ table, onBack }) {
   const [showHotLeads, setShowHotLeads] = useState(false)
   const [showStaleLeads, setShowStaleLeads] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
-  const [showInsights, setShowInsights] = useState(true)
   const [selectedRows, setSelectedRows] = useState(new Set())
   const [lastUpdated, setLastUpdated] = useState(new Date())
   const [stages, setStages] = useState([])
 
+  // Export Modal State
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [exportFilters, setExportFilters] = useState([])
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExportDownload = async () => {
+    try {
+      setIsExporting(true)
+      const formattedFilters = {}
+      exportFilters.forEach(f => {
+        if (f.columnId) {
+          if (f.op === 'date_between') {
+            if (Array.isArray(f.value) && f.value[0] && f.value[1]) {
+              const val1 = new Date(f.value[0]).toISOString()
+              const val2 = new Date(f.value[1]).toISOString()
+              formattedFilters[f.columnId] = {
+                op: f.op,
+                value: [val1, val2]
+              }
+            }
+          } else if (f.value) {
+            formattedFilters[f.columnId] = {
+              op: f.op,
+              value: f.value
+            }
+          }
+        }
+      })
+      
+      const payload = { filters: formattedFilters }
+      
+      const response = await recordsApi.download(table.table_id, payload)
+      
+      let blob;
+      if (response.data instanceof Blob) {
+        blob = response.data;
+      } else {
+        blob = new Blob([response.data]);
+      }
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `${table?.table_name || 'export'}.csv`) 
+      document.body.appendChild(link)
+      link.click()
+      link.parentNode.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      toast.success("Export successful!")
+      setIsExportDialogOpen(false)
+    } catch (error) {
+      console.error("Export failed", error)
+      toast.error("Failed to export records")
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const { table_id: tableId } = table
 
@@ -374,7 +430,7 @@ export default function TableDataView({ table, onBack }) {
       const gIds = authUtils.getGIds()
       const pId = authUtils.getPIds()
 
-      // Find the existing record to include current field_values
+      // Find the existing record
       const record = records.find(r => r.record_id === recordId)
       if (!record) return
 
@@ -382,8 +438,7 @@ export default function TableDataView({ table, onBack }) {
         g_id: gId,
         g_ids: gIds,
         p_id: pId,
-        lead_stage: newStage,
-        field_values: record.field_values || {}
+        lead_stage: newStage
       }
 
       // Optimistic update
@@ -2533,263 +2588,6 @@ export default function TableDataView({ table, onBack }) {
         </Alert>
       )}
 
-      {/* ── 5 STAT CARDS ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5 mt-2">
-        {/* Total Leads */}
-        <Card className="border shadow-sm bg-blue-50/40">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Total Leads</p>
-              <Users className="h-3.5 w-3.5 text-blue-500" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-xl font-extrabold tracking-tight">{totalLeads}</p>}
-              <p className="text-[10px] text-green-600 flex items-center">
-                <TrendingUp className="h-3 w-3 mr-0.5" /> +{recentLeadsCount} this wk
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Hot Leads */}
-        <Card className="border shadow-sm bg-orange-50/40">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Hot Leads</p>
-              <Flame className="h-3.5 w-3.5 text-orange-500" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-xl font-extrabold tracking-tight">{hotLeads}</p>}
-              <p className="text-[10px] text-muted-foreground flex items-center">
-                Score ≥ 70
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Avg Lead Score */}
-        <Card className="border shadow-sm bg-purple-50/40">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Avg Score</p>
-              <BarChart2 className="h-3.5 w-3.5 text-purple-500" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-xl font-extrabold tracking-tight">{avgScore}</p>}
-              <p className={`text-[10px] flex items-center ${avgScoreTrend >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                <TrendingUp className={`h-3 w-3 mr-0.5 ${avgScoreTrend < 0 ? 'rotate-180' : ''}`} />
-                {avgScoreTrend > 0 ? '+' : ''}{avgScoreTrend} vs prev
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pipeline Value */}
-        <Card className="border shadow-sm bg-green-50/40">
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pipeline Val</p>
-              <DollarSign className="h-3.5 w-3.5 text-green-500" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              {loading ? <Skeleton className="h-6 w-12" /> : (
-                <p className="text-xl font-extrabold tracking-tight">
-                  {pipelineValue > 0 ? `$${pipelineValue >= 1000 ? Math.round(pipelineValue / 1000) + 'K' : pipelineValue}` : '$0'}
-                </p>
-              )}
-              {recentPipelineValue > 0 && (
-                <p className="text-[10px] text-green-600 flex items-center">
-                  <TrendingUp className="h-3 w-3 mr-0.5" /> +${recentPipelineValue >= 1000 ? Math.round(recentPipelineValue / 1000) + 'K' : recentPipelineValue}
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Stale Leads */}
-        <Card className="border shadow-sm relative overflow-hidden bg-red-50/40">
-          <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Stale Leads</p>
-              <Clock className="h-3.5 w-3.5 text-red-500" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-xl font-extrabold tracking-tight text-red-600">{staleLeads}</p>}
-              <p className="text-[10px] text-red-500 flex items-center">
-                <TriangleAlert className="h-3 w-3 mr-0.5" /> &gt; 1 week
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── LEAD INSIGHTS SECTION ── */}
-      <Card className="border shadow-sm mb-5">
-        <div
-          className="flex items-center justify-between px-5 py-0 cursor-pointer select-none"
-          onClick={() => setShowInsights(!showInsights)}
-        >
-          <div className="flex items-center gap-2">
-            <BarChart2 className="h-4 w-4 text-primary" />
-            <span className="font-bold text-sm">Lead Insights</span>
-            <span className="text-muted-foreground text-sm">— Stage distribution, score buckets, avg score trend</span>
-          </div>
-          <ChevronUp className={`h-4 w-4 text-muted-foreground transition-transform ${showInsights ? '' : 'rotate-180'}`} />
-        </div>
-
-        {showInsights && (
-          <div className="border-t bg-muted/5">
-            <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x border-b lg:border-none">
-
-              {/* Stage Distribution Bar Chart */}
-              <div className="p-6 h-full flex flex-col bg-blue-50/20">
-                <h4 className="text-[13px] font-semibold text-foreground mb-auto">Stage Distribution</h4>
-                <div className="relative h-40 w-full mt-6 shrink-0">
-                  <ChartContainer
-                    config={{
-                      count: {
-                        label: "Leads",
-                        theme: {
-                          light: "hsl(var(--primary))",
-                          dark: "hsl(var(--primary))",
-                        },
-                      },
-                    }}
-                    className="h-full w-full"
-                  >
-                    <RechartsBarChart
-                      data={stageDistribution}
-                      margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
-                    >
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="stage"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        fontSize={10}
-                        fontWeight={500}
-                        tickFormatter={(value) => value.length > 8 ? `${value.slice(0, 8)}...` : value}
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        fontSize={10}
-                        allowDecimals={false}
-                      />
-                      <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent hideLabel />}
-                      />
-                      <Bar
-                        dataKey="count"
-                        radius={[4, 4, 0, 0]}
-                        barSize={32}
-                      >
-                        {stageDistribution.map((entry, index) => {
-                          const sc = stageColorConfig[entry.stage.toLowerCase()] || stageColorConfig.new
-                          const stageObj = sortedStages.find(s => (s.stage_name || s.name || s.label)?.toLowerCase() === entry.stage?.toLowerCase())
-                          const barColour = stageObj?.colour || sc.chart || 'hsl(var(--primary))'
-                          return <Cell key={`cell-${index}`} fill={barColour} fillOpacity={0.9} />
-                        })}
-                      </Bar>
-                    </RechartsBarChart>
-                  </ChartContainer>
-                </div>
-              </div>
-
-              {/* Score Distribution */}
-              <div className="p-6 h-full flex flex-col bg-indigo-50/20">
-                <h4 className="text-[13px] font-semibold text-foreground mb-auto">Score Distribution</h4>
-                <div className="space-y-3 mt-6 shrink-0">
-                  {scoreBuckets.map(({ label, color, customColour, count, name }) => (
-                    <div key={label} className="flex items-center gap-3 p-1 -m-1 rounded hover:bg-muted/40 transition-colors group cursor-pointer" title={`${name}: ${count} leads in score range ${label}`}>
-                      <span className="text-[10px] text-muted-foreground w-10 shrink-0 tabular-nums">{label}</span>
-                      <div className="flex-1 h-3.5 bg-muted/50 rounded-full overflow-hidden flex">
-                        <div
-                          className={`h-full rounded-full transition-all group-hover:brightness-110 ${customColour ? '' : (color || 'bg-gray-400')}`}
-                          style={customColour ? { backgroundColor: customColour, width: maxBucketCount > 0 ? `${(count / maxBucketCount) * 100}%` : '0%' } : { width: maxBucketCount > 0 ? `${(count / maxBucketCount) * 100}%` : '0%' }}
-                        />
-                      </div>
-                      <div className="w-[72px] shrink-0 flex items-center gap-1.5">
-                        {customColour
-                          ? <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: customColour }} />
-                          : <span className={`h-2 w-2 rounded-full ${color || 'bg-gray-400'}`} />}
-                        <span className="text-xs font-bold tabular-nums text-foreground">{count}</span>
-                        <span className="text-[10px] font-medium text-muted-foreground truncate capitalize">{name}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Avg Score Trend */}
-              <div className="p-6 h-full flex flex-col relative bg-violet-50/20">
-                <h4 className="text-[13px] font-semibold text-foreground mb-auto">
-                  Avg Score Trend <span className="font-normal text-muted-foreground ml-1">({new Date().toLocaleString('default', { month: 'short', year: 'numeric' })})</span>
-                </h4>
-                <div className="relative h-40 w-full mt-6 shrink-0">
-                  <ChartContainer
-                    config={{
-                      score: {
-                        label: "Avg Score",
-                        theme: {
-                          light: "oklch(0.58 0.09 200)",
-                          dark: "oklch(0.58 0.09 200)",
-                        },
-                      },
-                    }}
-                    className="h-full w-full"
-                  >
-                    <RechartsAreaChart
-                      data={avgScoreTrendData}
-                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                    >
-                      <defs>
-                        <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="var(--color-score)" stopOpacity={0.15} />
-                          <stop offset="95%" stopColor="var(--color-score)" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="date"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        fontSize={10}
-                        fontWeight={500}
-                        tickFormatter={(value) => `${currentMonthName} ${value}`}
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        fontSize={10}
-                        domain={[0, 100]}
-                      />
-                      <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent hideLabel />}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="score"
-                        stroke="var(--color-score)"
-                        fill="url(#colorScore)"
-                        strokeWidth={2.5}
-                      />
-                    </RechartsAreaChart>
-                  </ChartContainer>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        )}
-      </Card>
 
       {/* ── SEARCH + QUICK FILTERS BAR ── */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -2805,20 +2603,20 @@ export default function TableDataView({ table, onBack }) {
             <X className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer" onClick={() => setSearchTerm("")} />
           )}
         </div>
-        <Button
+        {/* <Button
           variant={showHotLeads ? "default" : "outline"} size="sm"
           className={`h-10 gap-1.5 ${showHotLeads ? "bg-orange-500 hover:bg-orange-600 border-orange-500 text-white" : "text-orange-600 border-orange-200 hover:bg-orange-50"}`}
           onClick={() => { setShowHotLeads(v => !v); setShowStaleLeads(false) }}
         >
           <Flame className="h-3.5 w-3.5" /> Hot Leads
-        </Button>
-        <Button
+        </Button> */}
+        {/* <Button
           variant={showStaleLeads ? "default" : "outline"} size="sm"
           className={`h-10 gap-1.5 ${showStaleLeads ? "bg-red-500 hover:bg-red-600 border-red-500 text-white" : "text-red-500 border-red-200 hover:bg-red-50"}`}
           onClick={() => { setShowStaleLeads(v => !v); setShowHotLeads(false) }}
         >
           <Clock className="h-3.5 w-3.5" /> Stale
-        </Button>
+        </Button> */}
         <Button
           variant={showFilters ? "default" : "outline"} size="sm"
           className="h-10 gap-1.5"
@@ -2951,13 +2749,7 @@ export default function TableDataView({ table, onBack }) {
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="outline" size="sm" className="h-9 gap-1.5 border-muted-foreground/20"
-              onClick={() => {
-                const rows = [['ID', ...columns.map(c => c.column_name), 'Score', 'Stage', 'Source', 'Owner', 'Created At'],
-                ...sortedRecords.map(r => [r.record_id, ...columns.map(c => { const v = getFieldValue(r, c.column_id, c); return v != null ? String(v) : '' }), r.lead_score ?? '', r.lead_stage ?? '', r.lead_source ?? r.source ?? '', r.assigned_to ?? '', r.created_at ?? ''])]
-                const csv = rows.map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-                const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-                const a = document.createElement('a'); a.href = url; a.download = `${table?.table_name || 'leads'}.csv`; a.click(); URL.revokeObjectURL(url)
-              }}
+              onClick={() => setIsExportDialogOpen(true)}
             >
               <Download className="h-4 w-4" /> Export
             </Button>
@@ -3723,6 +3515,154 @@ export default function TableDataView({ table, onBack }) {
         </DialogContent>
       </Dialog>
 
+
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent className="sm:max-w-[850px]">
+          <DialogHeader>
+            <DialogTitle>Export Leads</DialogTitle>
+            <DialogDescription>
+              Add filters to refine your export, or leave empty to export all.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Filters</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setExportFilters([...exportFilters, { id: Date.now(), columnId: '', op: 'eq', value: '' }])}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Add Filter
+              </Button>
+            </div>
+            
+            {exportFilters.length > 0 ? (
+              <div className="space-y-3">
+                {exportFilters.map((filter, index) => (
+                  <div key={filter.id} className="flex items-center gap-2">
+                    <Select 
+                      value={filter.columnId} 
+                      onValueChange={(val) => {
+                        const newFilters = [...exportFilters]
+                        newFilters[index].columnId = val
+                        if (val === 'created_at') {
+                           newFilters[index].op = 'date_between'
+                           newFilters[index].value = ['', '']
+                        } else if (newFilters[index].op === 'date_between') {
+                           newFilters[index].op = 'eq'
+                           newFilters[index].value = ''
+                        }
+                        setExportFilters(newFilters)
+                      }}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select Column" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Static Columns</div>
+                        <SelectItem value="lead_stage">Lead Stage</SelectItem>
+                        <SelectItem value="lead_source">Lead Source</SelectItem>
+                        <SelectItem value="assigned_to">Assigned To</SelectItem>
+                        <SelectItem value="created_at">Created At</SelectItem>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mt-2 border-t">Dynamic Columns</div>
+                        {columns.map(c => (
+                          <SelectItem key={c.column_id} value={c.column_id}>{c.column_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <Select 
+                      value={filter.op} 
+                      onValueChange={(val) => {
+                        const newFilters = [...exportFilters]
+                        newFilters[index].op = val
+                        if (val === 'date_between') {
+                           newFilters[index].value = ['', '']
+                        } else if (Array.isArray(newFilters[index].value)) {
+                           newFilters[index].value = ''
+                        }
+                        setExportFilters(newFilters)
+                      }}
+                    >
+                      <SelectTrigger className="w-[130px]">
+                        <SelectValue placeholder="Operator" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="eq">Equals (=)</SelectItem>
+                        <SelectItem value="contains">Contains</SelectItem>
+                        <SelectItem value="gt">Greater (&gt;)</SelectItem>
+                        <SelectItem value="lt">Less (&lt;)</SelectItem>
+                        {filter.columnId === 'created_at' && (
+                          <SelectItem value="date_between">Date Between</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+
+                    {filter.op === 'date_between' ? (
+                      <div className="flex-1 flex gap-2">
+                        <Input 
+                          type="datetime-local" 
+                          className="flex-1"
+                          value={Array.isArray(filter.value) ? filter.value[0] : ''}
+                          max={Array.isArray(filter.value) && filter.value[1] ? filter.value[1] : undefined}
+                          onChange={(e) => {
+                            const newFilters = [...exportFilters]
+                            const currentVal = Array.isArray(newFilters[index].value) ? newFilters[index].value : ['', '']
+                            newFilters[index].value = [e.target.value, currentVal[1]]
+                            setExportFilters(newFilters)
+                          }}
+                        />
+                        <Input 
+                          type="datetime-local" 
+                          className="flex-1"
+                          value={Array.isArray(filter.value) ? filter.value[1] : ''}
+                          min={Array.isArray(filter.value) && filter.value[0] ? filter.value[0] : undefined}
+                          onChange={(e) => {
+                            const newFilters = [...exportFilters]
+                            const currentVal = Array.isArray(newFilters[index].value) ? newFilters[index].value : ['', '']
+                            newFilters[index].value = [currentVal[0], e.target.value]
+                            setExportFilters(newFilters)
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <Input 
+                        placeholder="Value" 
+                        className="flex-1"
+                        value={filter.value}
+                        onChange={(e) => {
+                          const newFilters = [...exportFilters]
+                          newFilters[index].value = e.target.value
+                          setExportFilters(newFilters)
+                        }}
+                      />
+                    )}
+
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => setExportFilters(exportFilters.filter((_, i) => i !== index))}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-sm text-muted-foreground border border-dashed rounded-md bg-muted/10">
+                No filters applied. All records will be exported.
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleExportDownload} disabled={isExporting}>
+              {isExporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+              Export
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <RecordModal
         open={isEditRecordDialogOpen}
